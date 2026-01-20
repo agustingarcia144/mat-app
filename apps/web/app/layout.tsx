@@ -1,5 +1,5 @@
 import '../styles/global.css'
-import { ConvexClientProvider } from '@/components/convex-provider'
+import Providers from '@/components/providers/providers'
 
 export default function RootLayout({
   children,
@@ -7,10 +7,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body>
-        <ConvexClientProvider>{children}</ConvexClientProvider>
-      </body>
-    </html>
+      <html lang="en" suppressHydrationWarning>
+        <body>
+          <Providers>{children}</Providers>
+        </body>
+      </html>
   )
 }
