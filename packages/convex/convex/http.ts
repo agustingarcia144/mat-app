@@ -1,27 +1,13 @@
 import { httpRouter } from "convex/server";
-import { clerkUsersWebhook } from "./webhooks";
-import { clerkOrganizationsWebhook } from "./webhooks";
-import { clerkOrganizationMembershipsWebhook } from "./webhooks";
+import { clerkWebhook } from "./webhooks";
 
 const http = httpRouter();
 
-// Clerk webhook endpoints
+// Unified Clerk webhook endpoint
 http.route({
-  path: "/clerk-users-webhook",
+  path: "/clerk-webhook",
   method: "POST",
-  handler: clerkUsersWebhook,
-});
-
-http.route({
-  path: "/clerk-organizations-webhook",
-  method: "POST",
-  handler: clerkOrganizationsWebhook,
-});
-
-http.route({
-  path: "/clerk-organization-memberships-webhook",
-  method: "POST",
-  handler: clerkOrganizationMembershipsWebhook,
+  handler: clerkWebhook,
 });
 
 export default http;

@@ -103,17 +103,18 @@ There isn’t a step‑by‑step “organizations with Clerk + Convex” guide i
 
    The docs only show user webhooks, but you can apply the same idea to organizations:
 
-   - In Clerk, configure additional webhook(s) for **organization events** (e.g. `organization.created`, `organization.updated`, `organization.deleted`, `organizationMembership.created`, etc.).
-   - Point them at Convex HTTP routes like:
-     - `https://<deployment>.convex.site/clerk-orgs-webhook`
-     - `https://<deployment>.convex.site/clerk-org-memberships-webhook`
-   - In Convex, add `http.route` handlers similar to the user example, but switching on org‑related event types and calling internal mutations to upsert/delete orgs and memberships.
+   - In Clerk, configure a single webhook endpoint for **all events** (users, organizations, and memberships):
+     - `user.created`, `user.updated`, `user.deleted`
+     - `organization.created`, `organization.updated`, `organization.deleted`
+     - `organizationMembership.created`, `organizationMembership.updated`, `organizationMembership.deleted`
+   - Point it at a single Convex HTTP route: `https://<deployment>.convex.site/clerk-webhook`
+   - In Convex, add a unified `http.route` handler that switches on all event types and calls the appropriate internal mutations.
 
-   The user example looks like:
+   The unified webhook handler looks like:
 
    ```ts
    http.route({
-     path: "/clerk-users-webhook",
+     path: "/clerk-webhook",
      method: "POST",
      handler: httpAction(async (ctx, request) => {
        const event = await validateRequest(request);
@@ -132,6 +133,32 @@ There isn’t a step‑by‑step “organizations with Clerk + Convex” guide i
            await ctx.runMutation(internal.users.deleteFromClerk, { clerkUserId });
            break;
          }
+         case "organization.created":
+         case "organization.updated":
+           await ctx.runMutation(internal.organizations.upsertFromClerk, {
+             data: event.data,
+           });
+           break;
+         case "organization.deleted": {
+           const clerkOrgId = event.data.id!;
+           await ctx.runMutation(internal.organizations.deleteFromClerk, { clerkOrgId });
+           break;
+         }
+         case "organizationMembership.created":
+         case "organizationMembership.updated":
+           await ctx.runMutation(internal.organizationMemberships.upsertFromClerk, {
+             data: event.data,
+           });
+           break;
+         case "organizationMembership.deleted": {
+           const clerkOrgId = event.data.organization_id;
+           const clerkUserId = event.data.public_user_data?.user_id || event.data.user_id;
+           await ctx.runMutation(internal.organizationMemberships.deleteFromClerk, {
+             clerkOrgId,
+             clerkUserId,
+           });
+           break;
+         }
          default:
            console.log("Ignored Clerk webhook event", event.type);
        }
@@ -141,7 +168,7 @@ There isn’t a step‑by‑step “organizations with Clerk + Convex” guide i
    ```
    [[Webhook impl](https://docs.convex.dev/auth/database-auth#webhook-endpoint-implementation)]
 
-   For organizations you’d define analogous `internal.orgs.*` and `internal.orgMemberships.*` mutations and call them from your org webhooks.
+   This unified approach uses a single endpoint and signing secret, making setup simpler than managing multiple webhook endpoints.
 
 3. **Design Convex tables for orgs and memberships**
 

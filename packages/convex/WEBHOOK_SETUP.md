@@ -43,43 +43,29 @@ Alternatively, you can set it via CLI:
 npx convex env set CLERK_WEBHOOK_SIGNING_SECRET "your-secret-here"
 ```
 
-### 3. Set Up Webhooks in Clerk Dashboard
+### 3. Set Up Webhook in Clerk Dashboard
 
 1. Go to your [Clerk Dashboard](https://dashboard.clerk.com)
 2. Navigate to **Webhooks** in the sidebar
 3. Click **Add Endpoint**
 
-#### For Users Webhook:
+#### Configure the Webhook:
 
-- **Endpoint URL**: `https://<your-deployment>.convex.site/clerk-users-webhook`
+- **Endpoint URL**: `https://<your-deployment>.convex.site/clerk-webhook`
   - Replace `<your-deployment>` with your actual Convex deployment name
-  - Example: `https://happy-animal-123.convex.site/clerk-users-webhook`
+  - Example: `https://happy-animal-123.convex.site/clerk-webhook`
 - **Subscribe to events**:
   - ✅ `user.created`
   - ✅ `user.updated`
   - ✅ `user.deleted`
-- Click **Create**
-- Copy the **Signing Secret** and add it to Convex environment variables (step 2)
-
-#### For Organizations Webhook:
-
-- **Endpoint URL**: `https://<your-deployment>.convex.site/clerk-organizations-webhook`
-- **Subscribe to events**:
   - ✅ `organization.created`
   - ✅ `organization.updated`
   - ✅ `organization.deleted`
-- Click **Create**
-- Use the same **Signing Secret** as the users webhook (or create separate endpoints if you prefer)
-
-#### For Organization Memberships Webhook:
-
-- **Endpoint URL**: `https://<your-deployment>.convex.site/clerk-organization-memberships-webhook`
-- **Subscribe to events**:
   - ✅ `organizationMembership.created`
   - ✅ `organizationMembership.updated`
   - ✅ `organizationMembership.deleted`
 - Click **Create**
-- Use the same **Signing Secret** as the users webhook
+- Copy the **Signing Secret** and add it to Convex environment variables (step 2)
 
 ### 4. Deploy Convex Functions
 
@@ -101,13 +87,11 @@ pnpm convex:deploy  # For production
 5. Check the **Message Attempts** section to verify the webhook was successful
 6. Verify in Convex Dashboard that the data was created/updated
 
-## Webhook Endpoints
+## Webhook Endpoint
 
-The following endpoints are available:
+A single unified endpoint handles all Clerk events:
 
-- `POST /clerk-users-webhook` - Handles user events
-- `POST /clerk-organizations-webhook` - Handles organization events
-- `POST /clerk-organization-memberships-webhook` - Handles membership events
+- `POST /clerk-webhook` - Handles all user, organization, and membership events
 
 ## Data Mapping
 
