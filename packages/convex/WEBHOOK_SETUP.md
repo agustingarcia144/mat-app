@@ -54,6 +54,7 @@ npx convex env set CLERK_WEBHOOK_SIGNING_SECRET "your-secret-here"
 - **Endpoint URL**: `https://<your-deployment>.convex.site/clerk-webhook`
   - Replace `<your-deployment>` with your actual Convex deployment name
   - Example: `https://happy-animal-123.convex.site/clerk-webhook`
+  - REMEMBER TO CHANGE .cloud to .site
 - **Subscribe to events**:
   - ✅ `user.created`
   - ✅ `user.updated`

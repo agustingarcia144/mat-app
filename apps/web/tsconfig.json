@@ -6,7 +6,8 @@
     "moduleResolution": "bundler",
     "paths": {
       "@/*": ["./*"],
-      "@/convex/*": ["../../packages/convex/*"]
+      "@/convex/*": ["../../packages/convex/convex/*"],
+      "@/repo/core/*": ["../../packages/core/*"]
     },
     "skipLibCheck": true,
     "types": []
