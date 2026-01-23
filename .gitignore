@@ -7,5 +7,6 @@ packages/convex/_generated/
 .env.local
 .env*.local
 
-
+# Build and cache
+.turbo/
 node_modules
