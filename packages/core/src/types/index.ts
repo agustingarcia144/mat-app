@@ -7,7 +7,12 @@
 export type Member = {
   id: string
   name: string
-  email: string
+  firstName?: string
+  lastName?: string
+  fullName?: string
+  email?: string
+  imageUrl?: string
+  username?: string
   role: string
   status: string
   createdAt: string

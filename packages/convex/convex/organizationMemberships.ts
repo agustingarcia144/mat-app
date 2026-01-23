@@ -53,14 +53,14 @@ export const upsertFromClerk = internalMutation({
     // Map Clerk role to our role system
     // Clerk roles: "org:admin", "org:member", or custom roles
     // We map: "org:admin" -> "owner", custom roles -> check, default -> "member"
-    let role: 'owner' | 'trainer' | 'member' = 'member'
+    let role: 'admin' | 'trainer' | 'member' = 'member'
     const clerkRole = clerkMembership.role || ''
 
     if (
       clerkRole === 'org:admin' ||
       clerkRole.toLowerCase().includes('admin')
     ) {
-      role = 'owner'
+      role = 'admin'
     } else if (
       clerkRole.toLowerCase().includes('trainer') ||
       clerkRole.toLowerCase().includes('instructor') ||
@@ -78,7 +78,6 @@ export const upsertFromClerk = internalMutation({
       .withIndex('by_organization_user', (q) =>
         q.eq('organizationId', organization._id).eq('userId', clerkUserId)
       )
-      .filter((q) => q.eq(q.field('role'), role))
       .first()
 
     const now = Date.now()
@@ -91,7 +90,7 @@ export const upsertFromClerk = internalMutation({
 
     // Determine status - Clerk doesn't have explicit status, so we'll use active by default
     // You can customize this based on your needs
-    const status: 'active' | 'inactive' | 'suspended' = 'active'
+    const status: 'active' | 'inactive' = 'active'
 
     const membershipData = {
       organizationId: organization._id,
@@ -186,13 +185,34 @@ export const getOrganizationMemberships = query({
       )
       .collect()
 
-    // Return structured data with userId, role, status, and timestamps
-    return allMemberships.map((membership) => ({
-      userId: membership.userId,
-      role: membership.role,
-      status: membership.status,
-      createdAt: membership.createdAt,
-      joinedAt: membership.joinedAt,
-    }))
+    // Fetch user data for each membership
+    const membershipsWithUsers = await Promise.all(
+      allMemberships.map(async (membership) => {
+        // Find the user by Clerk ID (externalId)
+        const user = await ctx.db
+          .query('users')
+          .withIndex('by_externalId', (q) =>
+            q.eq('externalId', membership.userId)
+          )
+          .first()
+
+        return {
+          userId: membership.userId,
+          role: membership.role,
+          status: membership.status,
+          createdAt: membership.createdAt,
+          joinedAt: membership.joinedAt,
+          // Include user fields if user exists
+          firstName: user?.firstName,
+          lastName: user?.lastName,
+          fullName: user?.fullName,
+          email: user?.email,
+          imageUrl: user?.imageUrl,
+          username: user?.username,
+        }
+      })
+    )
+
+    return membershipsWithUsers
   },
 })

@@ -12,6 +12,13 @@ export type MembershipData = {
   status: string
   createdAt: number
   joinedAt: number
+  // User fields from users table
+  firstName?: string
+  lastName?: string
+  fullName?: string
+  email?: string
+  imageUrl?: string
+  username?: string
 }
 
 /**
@@ -21,10 +28,21 @@ export type MembershipData = {
  * @returns Member object formatted for the data table
  */
 export function mapMembershipToMember(membership: MembershipData): Member {
+  // Use fullName if available, otherwise construct from firstName/lastName, or fallback to userId
+  const name = membership.fullName || 
+    (membership.firstName && membership.lastName 
+      ? `${membership.firstName} ${membership.lastName}`.trim()
+      : membership.firstName || membership.lastName || membership.userId)
+
   return {
     id: membership.userId,
-    name: membership.userId, // TODO: Fetch user name from Clerk API or users table
-    email: '', // TODO: Fetch user email from Clerk API or users table
+    name,
+    firstName: membership.firstName,
+    lastName: membership.lastName,
+    fullName: membership.fullName,
+    email: membership.email,
+    imageUrl: membership.imageUrl,
+    username: membership.username,
     role: membership.role,
     status: membership.status,
     createdAt: new Date(membership.createdAt).toLocaleDateString(),

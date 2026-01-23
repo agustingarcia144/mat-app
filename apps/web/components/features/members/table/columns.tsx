@@ -1,27 +1,55 @@
-"use client"
+'use client'
 
-import { ColumnDef } from "@tanstack/react-table"
-import type { Member } from "@repo/core/types"
+import { ColumnDef } from '@tanstack/react-table'
+import type { Member } from '@repo/core/types'
+import RoleBadge from '../badges/role-badge'
+import StatusBadge from '../badges/status-badge'
+import AvatarColumn from './avatar-column'
+import { formatDate } from 'date-fns'
 
 export const columns: ColumnDef<Member>[] = [
   {
-    accessorKey: "name",
-    header: "Nombre",
+    accessorKey: 'imageUrl',
+    header: '',
+    cell: ({ row }) => {
+      const member = row.original
+      return <AvatarColumn member={member} />
+    },
   },
   {
-    accessorKey: "email",
-    header: "Email",
+    accessorKey: 'name',
+    header: 'Nombre',
   },
   {
-    accessorKey: "role",
-    header: "Rol",
+    accessorKey: 'email',
+    header: 'Email',
   },
   {
-    accessorKey: "status",
-    header: "Estado",
+    accessorKey: 'role',
+    header: 'Rol',
+    cell: ({ row }) => {
+      const member = row.original
+      return <RoleBadge role={member.role} />
+    },
   },
   {
-    accessorKey: "createdAt",
-    header: "Creado el",
+    accessorKey: 'status',
+    header: 'Estado',
+    cell: ({ row }) => {
+      const member = row.original
+      return <StatusBadge status={member.status} />
+    },
+  },
+  {
+    accessorKey: 'createdAt',
+    header: 'Creado el',
+    cell: ({ row }) => {
+      const member = row.original
+      return (
+        <span className="text-sm text-muted-foreground">
+          {formatDate(member.createdAt, 'dd/MM/yyyy')}
+        </span>
+      )
+    },
   },
 ]

@@ -1,6 +1,15 @@
 module.exports = {
   reactStrictMode: true,
   images: {
-    domains: ['img.clerk.com', 'html.tailus.io'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'img.clerk.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'html.tailus.io',
+      },
+    ],
   },
 }
