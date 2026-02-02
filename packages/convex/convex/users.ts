@@ -1,4 +1,4 @@
-import { internalMutation } from './_generated/server'
+import { internalMutation, mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 
 /**
@@ -93,5 +93,113 @@ export const deleteFromClerk = internalMutation({
     if (existing) {
       await ctx.db.delete(existing._id)
     }
+  },
+})
+
+/**
+ * Get or create current user on first sign in/sign up
+ */
+export const getOrCreateCurrentUser = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+
+    if (!identity) {
+      throw new Error('Not authenticated')
+    }
+
+    const clerkUserId = identity.subject
+
+    // Check if user already exists
+    const existing = await ctx.db
+      .query('users')
+      .withIndex('by_externalId', (q) => q.eq('externalId', clerkUserId))
+      .first()
+
+    if (existing) {
+      return existing
+    }
+
+    // Create new user from Clerk identity
+    const now = Date.now()
+    const email = identity.email ?? undefined
+    const firstName = identity.givenName || undefined
+    const lastName = identity.familyName || undefined
+    const fullName =
+      identity.name ||
+      (firstName && lastName ? `${firstName} ${lastName}`.trim() : undefined)
+
+    const userId = await ctx.db.insert('users', {
+      externalId: clerkUserId,
+      firstName,
+      lastName,
+      fullName,
+      email,
+      imageUrl: identity.pictureUrl || undefined,
+      username: identity.nickname || undefined,
+      onboardingCompleted: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    return await ctx.db.get(userId)
+  },
+})
+
+/**
+ * Get current user
+ */
+export const getCurrentUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+
+    if (!identity) {
+      return null
+    }
+
+    const clerkUserId = identity.subject
+
+    return await ctx.db
+      .query('users')
+      .withIndex('by_externalId', (q) => q.eq('externalId', clerkUserId))
+      .first()
+  },
+})
+
+/**
+ * Complete user onboarding with additional information
+ */
+export const completeOnboarding = mutation({
+  args: {
+    birthday: v.optional(v.string()),
+    phone: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+
+    if (!identity) {
+      throw new Error('Not authenticated')
+    }
+
+    const clerkUserId = identity.subject
+
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_externalId', (q) => q.eq('externalId', clerkUserId))
+      .first()
+
+    if (!user) {
+      throw new Error('User not found')
+    }
+
+    await ctx.db.patch(user._id, {
+      birthday: args.birthday,
+      phone: args.phone,
+      onboardingCompleted: true,
+      updatedAt: Date.now(),
+    })
+
+    return await ctx.db.get(user._id)
   },
 })

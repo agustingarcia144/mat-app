@@ -16,6 +16,9 @@ export default defineSchema({
     username: v.optional(v.string()),
     // App-specific fields not stored in Clerk
     birthday: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    // Onboarding tracking
+    onboardingCompleted: v.optional(v.boolean()),
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),

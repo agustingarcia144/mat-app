@@ -1,31 +1,52 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-import { ConvexProvider, ConvexReactClient } from 'convex/react';
+import { Stack, useRouter, useSegments } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
+import 'react-native-reanimated'
+import { useEffect } from 'react'
+import { useConvexAuth } from 'convex/react'
+import Providers from '@/components/providers/providers'
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+function RootLayoutNav() {
+  const { isAuthenticated, isLoading } = useConvexAuth()
+  const segments = useSegments()
+  const router = useRouter()
 
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
-  unsavedChangesWarning: false,
-});
+  useEffect(() => {
+    if (isLoading) return
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+    const inAuthGroup = segments[0] === '(tabs)'
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+    if (isAuthenticated && !inAuthGroup) {
+      // Redirect to tabs if authenticated
+      router.replace('/(tabs)')
+    } else if (!isAuthenticated && inAuthGroup) {
+      // Redirect to landing if not authenticated
+      router.replace('/')
+    }
+  }, [isAuthenticated, isLoading, segments, router])
 
   return (
-    <ConvexProvider client={convex}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
-    </ConvexProvider>
-  );
+    <>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="sign-in" />
+        <Stack.Screen name="sign-up" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="select-organization" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="modal"
+          options={{ presentation: 'modal', title: 'Modal', headerShown: true }}
+        />
+      </Stack>
+      <StatusBar style="auto" />
+    </>
+  )
+}
+
+export default function RootLayout() {
+  return (
+    <Providers>
+      <RootLayoutNav />
+    </Providers>
+  )
 }
