@@ -8,11 +8,19 @@
  * @module
  */
 
+import type * as dayExercises from "../dayExercises.js";
+import type * as exercises from "../exercises.js";
+import type * as folders from "../folders.js";
 import type * as http from "../http.js";
 import type * as organizationMemberships from "../organizationMemberships.js";
 import type * as organizations from "../organizations.js";
+import type * as permissions from "../permissions.js";
+import type * as planificationAssignments from "../planificationAssignments.js";
+import type * as planifications from "../planifications.js";
+import type * as seedExercises from "../seedExercises.js";
 import type * as users from "../users.js";
 import type * as webhooks from "../webhooks.js";
+import type * as workoutDays from "../workoutDays.js";
 
 import type {
   ApiFromModules,
@@ -21,11 +29,19 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  dayExercises: typeof dayExercises;
+  exercises: typeof exercises;
+  folders: typeof folders;
   http: typeof http;
   organizationMemberships: typeof organizationMemberships;
   organizations: typeof organizations;
+  permissions: typeof permissions;
+  planificationAssignments: typeof planificationAssignments;
+  planifications: typeof planifications;
+  seedExercises: typeof seedExercises;
   users: typeof users;
   webhooks: typeof webhooks;
+  workoutDays: typeof workoutDays;
 }>;
 
 /**

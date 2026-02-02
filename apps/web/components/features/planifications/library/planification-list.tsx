@@ -1,0 +1,156 @@
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { FileText, Calendar, User, MoreVertical } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { formatDate } from 'date-fns'
+
+interface PlanificationData {
+  _id: string
+  name: string
+  description?: string
+  isTemplate: boolean
+  createdBy: string
+  createdAt: number
+  updatedAt: number
+}
+
+interface PlanificationListProps {
+  planifications: PlanificationData[]
+  isLoading: boolean
+}
+
+function PlanificationCard({
+  planification,
+}: {
+  planification: PlanificationData
+}) {
+  const router = useRouter()
+
+  return (
+    <div
+      className="group border rounded-lg p-4 hover:border-primary cursor-pointer transition-colors"
+      onClick={() =>
+        router.push(`/dashboard/planifications/${planification._id}`)
+      }
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <h3 className="font-semibold truncate">{planification.name}</h3>
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 opacity-0 group-hover:opacity-100"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+                router.push(
+                  `/dashboard/planifications/${planification._id}/edit`
+                )
+              }}
+            >
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+              Duplicar
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => e.stopPropagation()}
+              className="text-destructive"
+            >
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {planification.description && (
+        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+          {planification.description}
+        </p>
+      )}
+
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <Calendar className="h-3 w-3" />
+          {formatDate(planification.createdAt, 'dd/MM/yyyy')}
+        </div>
+        {planification.isTemplate && (
+          <Badge variant="secondary" className="text-xs">
+            Plantilla
+          </Badge>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PlanificationSkeleton() {
+  return (
+    <div className="border rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Skeleton className="h-5 w-5" />
+        <Skeleton className="h-5 w-40" />
+      </div>
+      <Skeleton className="h-4 w-full mb-2" />
+      <Skeleton className="h-4 w-3/4 mb-3" />
+      <Skeleton className="h-3 w-24" />
+    </div>
+  )
+}
+
+export default function PlanificationList({
+  planifications,
+  isLoading,
+}: PlanificationListProps) {
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <PlanificationSkeleton key={i} />
+        ))}
+      </div>
+    )
+  }
+
+  if (planifications.length === 0) {
+    return (
+      <div className="text-center py-12 border rounded-lg border-dashed">
+        <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+        <h3 className="font-medium mb-1">No hay planificaciones</h3>
+        <p className="text-sm text-muted-foreground">
+          Crea tu primera planificación para comenzar
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {planifications.map((planification) => (
+        <PlanificationCard
+          key={planification._id}
+          planification={planification}
+        />
+      ))}
+    </div>
+  )
+}
