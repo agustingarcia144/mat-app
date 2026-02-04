@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
+import type { Doc } from '@/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -25,6 +26,7 @@ import {
 interface CreateExerciseDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  exercise?: Doc<'exercises'> | null
 }
 
 const CATEGORIES = [
@@ -64,8 +66,10 @@ const MUSCLE_GROUPS = [
 export default function CreateExerciseDialog({
   open,
   onOpenChange,
+  exercise,
 }: CreateExerciseDialogProps) {
   const createExercise = useMutation(api.exercises.create)
+  const updateExercise = useMutation(api.exercises.update)
 
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState('')
@@ -73,6 +77,29 @@ export default function CreateExerciseDialog({
   const [category, setCategory] = useState<string>('')
   const [equipment, setEquipment] = useState<string>('')
   const [selectedMuscles, setSelectedMuscles] = useState<string[]>([])
+  const [videoUrl, setVideoUrl] = useState('')
+
+  const isEditing = !!exercise
+
+  useEffect(() => {
+    if (open) {
+      if (exercise) {
+        setName(exercise.name)
+        setDescription(exercise.description ?? '')
+        setCategory(exercise.category)
+        setEquipment(exercise.equipment ?? '')
+        setSelectedMuscles(exercise.muscleGroups ?? [])
+        setVideoUrl(exercise.videoUrl ?? '')
+      } else {
+        setName('')
+        setDescription('')
+        setCategory('')
+        setEquipment('')
+        setSelectedMuscles([])
+        setVideoUrl('')
+      }
+    }
+  }, [open, exercise])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,14 +107,26 @@ export default function CreateExerciseDialog({
 
     setLoading(true)
     try {
-      await createExercise({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        category,
-        muscleGroups: selectedMuscles,
-        equipment: equipment || undefined,
-        videoUrl: undefined,
-      })
+      if (isEditing) {
+        await updateExercise({
+          id: exercise._id,
+          name: name.trim(),
+          description: description.trim() || undefined,
+          category,
+          muscleGroups: selectedMuscles,
+          equipment: equipment || undefined,
+          videoUrl: videoUrl.trim() || undefined,
+        })
+      } else {
+        await createExercise({
+          name: name.trim(),
+          description: description.trim() || undefined,
+          category,
+          muscleGroups: selectedMuscles,
+          equipment: equipment || undefined,
+          videoUrl: videoUrl.trim() || undefined,
+        })
+      }
 
       // Reset form
       setName('')
@@ -95,10 +134,18 @@ export default function CreateExerciseDialog({
       setCategory('')
       setEquipment('')
       setSelectedMuscles([])
+      setVideoUrl('')
       onOpenChange(false)
     } catch (error) {
-      console.error('Failed to create exercise:', error)
-      alert('Error al crear el ejercicio')
+      console.error(
+        isEditing ? 'Failed to update exercise:' : 'Failed to create exercise:',
+        error
+      )
+      alert(
+        isEditing
+          ? 'Error al actualizar el ejercicio'
+          : 'Error al crear el ejercicio'
+      )
     } finally {
       setLoading(false)
     }
@@ -116,9 +163,13 @@ export default function CreateExerciseDialog({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Nuevo ejercicio</SheetTitle>
+          <SheetTitle>
+            {isEditing ? 'Editar ejercicio' : 'Nuevo ejercicio'}
+          </SheetTitle>
           <SheetDescription>
-            Agrega un nuevo ejercicio a la biblioteca
+            {isEditing
+              ? 'Modifica los datos del ejercicio'
+              : 'Agrega un nuevo ejercicio a la biblioteca'}
           </SheetDescription>
         </SheetHeader>
 
@@ -187,6 +238,18 @@ export default function CreateExerciseDialog({
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="videoUrl">URL del video</Label>
+            <Input
+              id="videoUrl"
+              type="url"
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              placeholder="Ej: https://www.youtube.com/watch?v=..."
+              disabled={loading}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label>Grupos musculares</Label>
             <div className="flex flex-wrap gap-2">
               {MUSCLE_GROUPS.map((muscle) => (
@@ -212,7 +275,13 @@ export default function CreateExerciseDialog({
               type="submit"
               disabled={loading || !name.trim() || !category}
             >
-              {loading ? 'Creando...' : 'Crear ejercicio'}
+              {loading
+                ? isEditing
+                  ? 'Guardando...'
+                  : 'Creando...'
+                : isEditing
+                  ? 'Guardar cambios'
+                  : 'Crear ejercicio'}
             </Button>
             <Button
               type="button"

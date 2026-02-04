@@ -1,10 +1,14 @@
+'use client'
+
 import React from 'react'
 import { ModeToggle } from '@/components/shared/theme/theme-toggle'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbPage } from '@/components/ui/breadcrumb'
+import { useCurrentPageTitle } from '@/hooks/use-current-page-title'
 
-function HeaderSection({ title }: { title: string }) {
+function HeaderSection() {
+  const title = useCurrentPageTitle()
   return (
     <header className="flex items-center justify-between p-4 border-b">
       <div className="flex items-center gap-2">

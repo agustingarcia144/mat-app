@@ -1,22 +1,23 @@
 'use client'
 
+import { use } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import PlanificationEditForm from '@/components/features/planifications/form/planification-edit-form'
+import Link from 'next/link'
 
 export default function EditPlanificationPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const router = useRouter()
+  const { id } = use(params)
 
   const planification = useQuery(api.planifications.getById, {
-    id: params.id as any,
+    id: id as any,
   })
 
   if (planification === undefined) {
@@ -40,24 +41,18 @@ export default function EditPlanificationPage({
   return (
     <div className="container mx-auto py-6 max-w-5xl">
       <div className="mb-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/dashboard/planifications/${params.id}`)}
-          className="mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Volver
+        <Button variant="ghost" size="sm" className="mb-4" asChild>
+          <Link href={`/dashboard/planifications/${id}`}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Volver
+          </Link>
         </Button>
 
         <h1 className="text-3xl font-bold">Editar planificación</h1>
         <p className="text-muted-foreground mt-1">{planification.name}</p>
       </div>
 
-      <PlanificationEditForm
-        planificationId={params.id}
-        initialData={planification}
-      />
+      <PlanificationEditForm planificationId={id} initialData={planification} />
     </div>
   )
 }

@@ -1,26 +1,27 @@
 'use client'
 
+import { use } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Edit, Users, Copy } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from 'date-fns'
+import Link from 'next/link'
 
 export default function PlanificationViewPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const router = useRouter()
+  const { id } = use(params)
 
   const planification = useQuery(api.planifications.getById, {
-    id: params.id as any,
+    id: id as any,
   })
   const workoutDays = useQuery(api.workoutDays.getByPlanification, {
-    planificationId: params.id as any,
+    planificationId: id as any,
   })
 
   if (planification === undefined || workoutDays === undefined) {
@@ -45,14 +46,11 @@ export default function PlanificationViewPage({
   return (
     <div className="container mx-auto py-6 max-w-5xl">
       <div className="mb-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push('/dashboard/planifications')}
-          className="mb-4"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Volver a planificaciones
+        <Button variant="ghost" size="sm" className="mb-4" asChild>
+          <Link href="/dashboard/planifications">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Volver a planificaciones
+          </Link>
         </Button>
 
         <div className="flex items-start justify-between">
@@ -74,15 +72,11 @@ export default function PlanificationViewPage({
           </div>
 
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                router.push(`/dashboard/planifications/${params.id}/edit`)
-              }
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Editar
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/dashboard/planifications/${id}/edit`}>
+                <Edit className="h-4 w-4 mr-2" />
+                Editar
+              </Link>
             </Button>
             <Button variant="outline" size="sm">
               <Copy className="h-4 w-4 mr-2" />

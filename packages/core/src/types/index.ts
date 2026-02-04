@@ -17,3 +17,21 @@ export type Member = {
   status: string
   createdAt: string
 }
+
+/**
+ * Type for membership data returned from Convex query
+ */
+export type MembershipData = {
+  userId: string
+  role: string
+  status: string
+  createdAt: number
+  joinedAt: number
+  // User fields from users table
+  firstName?: string
+  lastName?: string
+  fullName?: string
+  email?: string
+  imageUrl?: string
+  username?: string
+}

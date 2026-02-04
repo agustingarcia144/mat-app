@@ -4,14 +4,14 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar'
-import { HomeIcon, UsersIcon, Dumbbell } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
+import { DASHBOARD_NAV_ITEMS } from '@/lib/dashboard-nav'
 
 export default function ContentNavItems() {
   const pathname = usePathname()
   const router = useRouter()
   const [optimisticPath, setOptimisticPath] = useOptimistic(pathname)
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
 
   const handleNavigation = (url: string) => {
     const dashboardUrl = `/dashboard${url}`
@@ -21,27 +21,9 @@ export default function ContentNavItems() {
     })
   }
 
-  const navItems = [
-    {
-      label: 'Inicio',
-      icon: HomeIcon,
-      url: '/',
-    },
-    {
-      label: 'Miembros',
-      icon: UsersIcon,
-      url: '/members',
-    },
-    {
-      label: 'Planificaciones',
-      icon: Dumbbell,
-      url: '/planifications',
-    },
-  ]
-
   return (
     <SidebarMenu>
-      {navItems.map((item) => {
+      {DASHBOARD_NAV_ITEMS.map((item) => {
         const isActive =
           optimisticPath === item.url ||
           optimisticPath === `/dashboard${item.url}`
@@ -52,7 +34,7 @@ export default function ContentNavItems() {
               onClick={() => handleNavigation(item.url)}
             >
               <item.icon className="size-4" />
-              <span className="truncate font-semibold">{item.label}</span>
+              <span className="truncate">{item.label}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         )

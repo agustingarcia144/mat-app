@@ -6,6 +6,8 @@ import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Search } from 'lucide-react'
+import Image from 'next/image'
+import { getVideoThumbnailUrl } from '@repo/core/utils'
 import {
   Sheet,
   SheetContent,
@@ -80,34 +82,54 @@ export default function ExerciseSelector({ onSelect }: ExerciseSelectorProps) {
                 </p>
               </div>
             ) : (
-              exercises.map((exercise) => (
-                <div
-                  key={exercise._id}
-                  className="p-3 border rounded-lg hover:border-primary cursor-pointer transition-colors"
-                  onClick={() => handleSelect(exercise)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium truncate">{exercise.name}</h4>
-                      {exercise.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
-                          {exercise.description}
-                        </p>
-                      )}
+              exercises.map((exercise) => {
+                const thumbnailUrl = exercise.videoUrl
+                  ? getVideoThumbnailUrl(exercise.videoUrl)
+                  : null
+                return (
+                  <div
+                    key={exercise._id}
+                    className="border rounded-lg overflow-hidden hover:border-primary cursor-pointer transition-colors"
+                    onClick={() => handleSelect(exercise)}
+                  >
+                    {thumbnailUrl && (
+                      <div className="aspect-video w-full bg-muted relative">
+                        <Image
+                          src={thumbnailUrl}
+                          alt={`Miniatura de ${exercise.name}`}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 512px) 100vw, 512px"
+                        />
+                      </div>
+                    )}
+                    <div className="p-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium truncate">
+                            {exercise.name}
+                          </h4>
+                          {exercise.description && (
+                            <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
+                              {exercise.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Badge variant="secondary" className="text-xs">
+                          {exercise.category}
+                        </Badge>
+                        {exercise.equipment && (
+                          <span className="text-xs text-muted-foreground">
+                            {exercise.equipment}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="secondary" className="text-xs">
-                      {exercise.category}
-                    </Badge>
-                    {exercise.equipment && (
-                      <span className="text-xs text-muted-foreground">
-                        {exercise.equipment}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>

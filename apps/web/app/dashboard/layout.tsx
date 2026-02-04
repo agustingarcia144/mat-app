@@ -8,7 +8,7 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     <DashboardProviders>
       <AppSidebar />
       <SidebarInset>
-        <HeaderSection title="Inicio" />
+        <HeaderSection />
         <main className="flex flex-1 flex-col gap-4 p-4 pt-0">
           {children}
         </main>

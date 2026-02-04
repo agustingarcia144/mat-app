@@ -236,7 +236,8 @@ export const getByOrganization = query({
 })
 
 /**
- * Get planifications by folder for the current user's organization
+ * Get planifications by folder for the current user's organization.
+ * When folderId is undefined (root "Todas" selected), returns all planifications.
  */
 export const getByFolder = query({
   args: {
@@ -254,12 +255,22 @@ export const getByFolder = query({
 
     if (!membership) return []
 
+    // Root level (Todas): return all planifications for the organization
+    if (args.folderId === undefined) {
+      return await ctx.db
+        .query('planifications')
+        .withIndex('by_organization', (q) =>
+          q.eq('organizationId', membership.organizationId)
+        )
+        .collect()
+    }
+
     return await ctx.db
       .query('planifications')
       .withIndex('by_organization_folder', (q) =>
         q
           .eq('organizationId', membership.organizationId)
-          .eq('folderId', args.folderId ?? null)
+          .eq('folderId', args.folderId)
       )
       .collect()
   },
