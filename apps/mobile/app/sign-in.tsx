@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View,
   Text,
@@ -11,11 +11,60 @@ import {
 } from 'react-native'
 import { useSignIn, useSSO } from '@clerk/clerk-expo'
 import { useRouter } from 'expo-router'
-import { useMutation } from 'convex/react'
+import {
+  useMutation,
+  Authenticated,
+  Unauthenticated,
+  AuthLoading,
+} from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 
-export default function SignInScreen() {
+function LoadingScreen() {
+  const colorScheme = useColorScheme()
+  const isDark = colorScheme === 'dark'
+
+  return (
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: isDark ? '#000' : '#fff',
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+      ]}
+    >
+      <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
+    </View>
+  )
+}
+
+function AuthenticatedRedirect() {
+  const router = useRouter()
+  const getOrCreateUser = useMutation(api.users.getOrCreateCurrentUser)
+
+  useEffect(() => {
+    const handleRedirect = async () => {
+      try {
+        const user = await getOrCreateUser()
+        if (user && !user.onboardingCompleted) {
+          router.replace('/onboarding')
+        } else {
+          router.replace('/(tabs)')
+        }
+      } catch (err) {
+        console.error('Failed to get/create user:', err)
+        router.replace('/(tabs)')
+      }
+    }
+    handleRedirect()
+  }, [router, getOrCreateUser])
+
+  return <LoadingScreen />
+}
+
+function SignInForm() {
   const { signIn, setActive, isLoaded } = useSignIn()
   const { startSSOFlow } = useSSO()
   const router = useRouter()
@@ -217,6 +266,24 @@ export default function SignInScreen() {
         </View>
       </View>
     </KeyboardAvoidingView>
+  )
+}
+
+export default function SignInScreen() {
+  return (
+    <>
+      <AuthLoading>
+        <LoadingScreen />
+      </AuthLoading>
+
+      <Unauthenticated>
+        <SignInForm />
+      </Unauthenticated>
+
+      <Authenticated>
+        <AuthenticatedRedirect />
+      </Authenticated>
+    </>
   )
 }
 
