@@ -59,7 +59,7 @@ function AuthenticatedRedirect() {
       }
     }
     handleRedirect()
-  }, [router, getOrCreateUser])
+  }, [router])
 
   return <LoadingScreen />
 }

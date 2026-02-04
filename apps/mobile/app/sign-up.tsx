@@ -56,11 +56,11 @@ function AuthenticatedRedirect() {
         }
       } catch (err) {
         console.error('Failed to get/create user:', err)
-        router.replace('/(tabs)')
+        router.replace('/onboarding')
       }
     }
     handleRedirect()
-  }, [router, getOrCreateUser])
+  }, [router])
 
   return <LoadingScreen />
 }
