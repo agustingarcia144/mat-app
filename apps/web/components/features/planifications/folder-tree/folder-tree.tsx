@@ -26,10 +26,18 @@ interface FolderData {
   order: number
 }
 
+interface FolderTreeSidebarProps {
+  folders: FolderData[]
+  selectedId: string | null
+  onSelect: (id: string | null) => void
+}
+
 interface FolderTreeProps {
   folders: FolderData[]
   selectedId: string | null
   onSelect: (id: string | null) => void
+  showCreateDialog: boolean
+  setShowCreateDialog: (show: boolean) => void
 }
 
 interface FolderItemProps {
@@ -165,12 +173,13 @@ function FolderTreeItem({
   )
 }
 
-export default function FolderTree({
+function FolderTree({
   folders,
   selectedId,
   onSelect,
+  showCreateDialog,
+  setShowCreateDialog,
 }: FolderTreeProps) {
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
   const rootFolders = folders.filter((f) => !f.parentId)
 
   return (
@@ -199,21 +208,40 @@ export default function FolderTree({
         />
       ))}
 
-      {/* Create root folder button */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-full justify-start mt-2"
-        onClick={() => setShowCreateDialog(true)}
-      >
-        <Plus className="h-4 w-4 mr-2" />
-        Nueva carpeta
-      </Button>
-
       <CreateFolderDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         parentId={undefined}
+      />
+    </div>
+  )
+}
+
+export default function FolderTreeSidebar({
+  folders,
+  selectedId,
+  onSelect,
+}: FolderTreeSidebarProps) {
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-lg font-bold">Carpetas</h1>
+        {/* Create root folder button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowCreateDialog(true)}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+      <FolderTree
+        folders={folders}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        showCreateDialog={showCreateDialog}
+        setShowCreateDialog={setShowCreateDialog}
       />
     </div>
   )

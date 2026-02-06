@@ -1,7 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileText, Calendar, User, MoreVertical } from 'lucide-react'
+import { FileText, Calendar, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -12,8 +13,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from 'date-fns'
+import DuplicatePlanificationDialog from '../dialogs/duplicate-planification-dialog'
+import DeletePlanificationDialog from '../dialogs/delete-planification-dialog'
 
-interface PlanificationData {
+export interface PlanificationData {
   _id: string
   name: string
   description?: string
@@ -34,72 +37,98 @@ function PlanificationCard({
   planification: PlanificationData
 }) {
   const router = useRouter()
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   return (
-    <div
-      className="group border rounded-lg p-4 hover:border-primary cursor-pointer transition-colors"
-      onClick={() =>
-        router.push(`/dashboard/planifications/${planification._id}`)
-      }
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <h3 className="font-semibold truncate">{planification.name}</h3>
+    <>
+      <div
+        className="group border rounded-lg p-4 hover:border-primary cursor-pointer transition-colors"
+        onClick={() =>
+          router.push(`/dashboard/planifications/${planification._id}`)
+        }
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <h3 className="font-semibold truncate">{planification.name}</h3>
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 opacity-0 group-hover:opacity-100"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation()
+                  router.push(
+                    `/dashboard/planifications/${planification._id}/edit`
+                  )
+                }}
+              >
+                Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDuplicateDialogOpen(true)
+                }}
+              >
+                Duplicar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDeleteDialogOpen(true)
+                }}
+                className="text-destructive"
+              >
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 opacity-0 group-hover:opacity-100"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation()
-                router.push(
-                  `/dashboard/planifications/${planification._id}/edit`
-                )
-              }}
-            >
-              Editar
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
-              Duplicar
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => e.stopPropagation()}
-              className="text-destructive"
-            >
-              Eliminar
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      {planification.description && (
-        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-          {planification.description}
-        </p>
-      )}
-
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <Calendar className="h-3 w-3" />
-          {formatDate(planification.createdAt, 'dd/MM/yyyy')}
-        </div>
-        {planification.isTemplate && (
-          <Badge variant="secondary" className="text-xs">
-            Plantilla
-          </Badge>
+        {planification.description && (
+          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+            {planification.description}
+          </p>
         )}
+
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            {formatDate(planification.createdAt, 'dd/MM/yyyy')}
+          </div>
+          {planification.isTemplate && (
+            <Badge variant="secondary" className="text-xs">
+              Plantilla
+            </Badge>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Duplicate confirmation dialog */}
+      <DuplicatePlanificationDialog
+        open={duplicateDialogOpen}
+        onOpenChange={setDuplicateDialogOpen}
+        planification={planification}
+      />
+
+      {/* Delete confirmation dialog */}
+      <DeletePlanificationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        planification={planification}
+      />
+    </>
   )
 }
 

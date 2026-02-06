@@ -1,14 +1,31 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Edit, Users, Copy } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  ArrowLeft,
+  Edit,
+  Users,
+  Copy,
+  Trash2,
+  MoreVertical,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate } from 'date-fns'
 import Link from 'next/link'
+import DuplicatePlanificationDialog from '@/components/features/planifications/dialogs/duplicate-planification-dialog'
+import DeletePlanificationDialog from '@/components/features/planifications/dialogs/delete-planification-dialog'
+import AssignDialog from '@/components/features/planifications/assignments/assign-dialog'
 
 export default function PlanificationViewPage({
   params,
@@ -16,6 +33,10 @@ export default function PlanificationViewPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = use(params)
+  const router = useRouter()
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
 
   const planification = useQuery(api.planifications.getById, {
     id: id as any,
@@ -71,24 +92,55 @@ export default function PlanificationViewPage({
             </p>
           </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href={`/dashboard/planifications/${id}/edit`}>
-                <Edit className="h-4 w-4 mr-2" />
-                Editar
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm">
-              <Copy className="h-4 w-4 mr-2" />
-              Duplicar
-            </Button>
-            <Button variant="outline" size="sm">
-              <Users className="h-4 w-4 mr-2" />
-              Asignar
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/dashboard/planifications/${id}/edit`}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Editar
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setDuplicateDialogOpen(true)}>
+                <Copy className="h-4 w-4 mr-2" />
+                Duplicar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAssignDialogOpen(true)}>
+                <Users className="h-4 w-4 mr-2" />
+                Asignar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setDeleteDialogOpen(true)}
+                className="text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Eliminar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+
+      <DuplicatePlanificationDialog
+        open={duplicateDialogOpen}
+        onOpenChange={setDuplicateDialogOpen}
+        planification={planification}
+      />
+      <DeletePlanificationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        planification={planification}
+        onSuccess={() => router.push('/dashboard/planifications')}
+      />
+      <AssignDialog
+        open={assignDialogOpen}
+        onOpenChange={setAssignDialogOpen}
+        planificationId={id}
+      />
 
       <div className="space-y-6">
         {workoutDays.length === 0 ? (

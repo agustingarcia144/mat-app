@@ -4,13 +4,17 @@ import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import FolderTree from '@/components/features/planifications/folder-tree/folder-tree'
-import PlanificationList from '@/components/features/planifications/library/planification-list'
 import { useState } from 'react'
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@/components/ui/resizable'
+import Link from 'next/link'
+import PlanificationList from '@/components/features/planifications/library/planification-list'
+import FolderTreeSidebar from '@/components/features/planifications/folder-tree/folder-tree'
 
 export default function PlanificationsPage() {
-  const router = useRouter()
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
 
   const folders = useQuery(api.folders.getTree)
@@ -27,33 +31,37 @@ export default function PlanificationsPage() {
             Gestiona programas de entrenamiento
           </p>
         </div>
-        <Button onClick={() => router.push('/dashboard/planifications/new')}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nueva planificación
+        <Button asChild>
+          <Link href="/dashboard/planifications/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva planificación
+          </Link>
         </Button>
       </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* Folder tree sidebar */}
-        <div className="col-span-3">
-          <div className="rounded-lg border bg-card p-4">
-            <h2 className="font-semibold mb-4">Carpetas</h2>
-            <FolderTree
-              folders={folders || []}
-              selectedId={selectedFolderId}
-              onSelect={setSelectedFolderId}
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="rounded-lg border"
+      >
+        <ResizablePanel defaultSize={25} className="p-4 bg-card">
+          {/* Folder tree sidebar */}
+          <FolderTreeSidebar
+            folders={folders || []}
+            selectedId={selectedFolderId}
+            onSelect={setSelectedFolderId}
+          />
+        </ResizablePanel>
+        <ResizableHandle />
+        <ResizablePanel defaultSize={75} className="p-4">
+          {/* Planifications list */}
+          <div>
+            <PlanificationList
+              planifications={planifications || []}
+              isLoading={planifications === undefined}
             />
           </div>
-        </div>
-
-        {/* Planifications list */}
-        <div className="col-span-9">
-          <PlanificationList
-            planifications={planifications || []}
-            isLoading={planifications === undefined}
-          />
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   )
 }

@@ -1,0 +1,76 @@
+import React, { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { api } from '@/convex/_generated/api'
+import { useMutation } from 'convex/react'
+import { PlanificationData } from '../library/planification-list'
+
+function DeletePlanificationDialog({
+  open,
+  onOpenChange,
+  planification,
+  onSuccess,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  planification: PlanificationData
+  onSuccess?: () => void
+}) {
+  const [isDeleting, setIsDeleting] = useState(false)
+  const removePlanification = useMutation(api.planifications.remove)
+
+  const handleDeleteConfirm = async () => {
+    setIsDeleting(true)
+    try {
+      await removePlanification({
+        id: planification._id as any,
+      })
+      onOpenChange(false)
+      onSuccess?.()
+    } catch (error) {
+      console.error('Failed to delete planification:', error)
+      alert('Error al eliminar la planificación')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Eliminar planificación</DialogTitle>
+          <DialogDescription>
+            ¿Eliminar &quot;{planification.name}&quot;? Esta acción no se puede
+            deshacer y se eliminarán todos los datos asociados.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isDeleting}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleDeleteConfirm}
+            disabled={isDeleting}
+          >
+            {isDeleting ? 'Eliminando...' : 'Eliminar'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export default DeletePlanificationDialog
