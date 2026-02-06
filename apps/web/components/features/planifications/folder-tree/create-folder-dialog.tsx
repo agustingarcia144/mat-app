@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import {
+  Field,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+} from '@/components/ui/field'
+import { folderSchema, Folder } from '@repo/core/schemas'
 
 interface CreateFolderDialogProps {
   open: boolean
@@ -24,26 +32,25 @@ export default function CreateFolderDialog({
   onOpenChange,
   parentId,
 }: CreateFolderDialogProps) {
-  const [name, setName] = useState('')
-  const [loading, setLoading] = useState(false)
   const createFolder = useMutation(api.folders.create)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim()) return
+  const form = useForm<Folder>({
+    resolver: zodResolver(folderSchema),
+    defaultValues: {
+      name: '',
+    },
+  })
 
-    setLoading(true)
+  const onSubmit = async (data: Folder) => {
     try {
       await createFolder({
-        name: name.trim(),
+        name: data.name,
         parentId: parentId as any,
       })
-      setName('')
+      form.reset()
       onOpenChange(false)
     } catch (error) {
       console.error('Failed to create folder:', error)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -57,28 +64,41 @@ export default function CreateFolderDialog({
           </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div>
-            <label className="text-sm font-medium mb-2 block">
-              Nombre de la carpeta
-            </label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: Principiantes, Avanzados..."
-              disabled={loading}
-            />
-          </div>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-4">
+          <Controller
+            name="name"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Nombre de la carpeta</FieldLabel>
+                <Input
+                  {...field}
+                  id={field.name}
+                  aria-invalid={fieldState.invalid}
+                  placeholder="Ej: Principiantes, Avanzados..."
+                  disabled={form.formState.isSubmitting}
+                  autoComplete="off"
+                />
+                <FieldDescription>
+                  Elige un nombre para organizar tus planificaciones.
+                </FieldDescription>
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
 
           <div className="flex gap-2">
-            <Button type="submit" disabled={loading || !name.trim()}>
-              {loading ? 'Creando...' : 'Crear carpeta'}
+            <Button
+              type="submit"
+              disabled={form.formState.isSubmitting || !form.formState.isValid}
+            >
+              {form.formState.isSubmitting ? 'Creando...' : 'Crear carpeta'}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={loading}
+              disabled={form.formState.isSubmitting}
             >
               Cancelar
             </Button>

@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useMutation, useQuery } from 'convex/react'
+import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import BasicInfoSection from './basic-info-section'
-import WorkoutDaysSection from './workout-days-section'
+import { planificationBasicInfoSchema, PlanificationBasicInfo } from '@repo/core/schemas'
 
 interface PlanificationEditFormProps {
   planificationId: string
@@ -19,52 +21,46 @@ export default function PlanificationEditForm({
 }: PlanificationEditFormProps) {
   const router = useRouter()
   const updatePlanification = useMutation(api.planifications.update)
-  const workoutDaysData = useQuery(api.workoutDays.getByPlanification, {
-    planificationId: planificationId as any,
+
+  const form = useForm<PlanificationBasicInfo>({
+    resolver: zodResolver(planificationBasicInfoSchema),
+    defaultValues: {
+      name: initialData.name,
+      description: initialData.description || '',
+      folderId: initialData.folderId,
+      isTemplate: initialData.isTemplate,
+    },
   })
 
-  const [loading, setLoading] = useState(false)
-  const [name, setName] = useState(initialData.name)
-  const [description, setDescription] = useState(initialData.description || '')
-  const [folderId, setFolderId] = useState<string | undefined>(
-    initialData.folderId
-  )
-  const [isTemplate, setIsTemplate] = useState(initialData.isTemplate)
+  useEffect(() => {
+    form.reset({
+      name: initialData.name,
+      description: initialData.description || '',
+      folderId: initialData.folderId,
+      isTemplate: initialData.isTemplate,
+    })
+  }, [initialData, form])
 
-  const handleSubmit = async () => {
-    if (!name.trim()) return
-
-    setLoading(true)
+  const onSubmit = async (data: PlanificationBasicInfo) => {
     try {
       await updatePlanification({
         id: planificationId as any,
-        name: name.trim(),
-        description: description.trim() || undefined,
-        folderId: folderId as any,
-        isTemplate,
+        name: data.name,
+        description: data.description || undefined,
+        folderId: data.folderId as any,
+        isTemplate: data.isTemplate,
       })
 
       router.push(`/dashboard/planifications/${planificationId}`)
     } catch (error) {
       console.error('Failed to update planification:', error)
       alert('Error al actualizar la planificación')
-    } finally {
-      setLoading(false)
     }
   }
 
   return (
-    <div className="space-y-6">
-      <BasicInfoSection
-        name={name}
-        setName={setName}
-        description={description}
-        setDescription={setDescription}
-        folderId={folderId}
-        setFolderId={setFolderId}
-        isTemplate={isTemplate}
-        setIsTemplate={setIsTemplate}
-      />
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <BasicInfoSection form={form} />
 
       <div className="rounded-lg border p-6">
         <p className="text-sm text-muted-foreground">
@@ -74,17 +70,21 @@ export default function PlanificationEditForm({
       </div>
 
       <div className="flex gap-3 pt-6 border-t">
-        <Button onClick={handleSubmit} disabled={loading || !name.trim()}>
-          {loading ? 'Guardando...' : 'Guardar cambios'}
+        <Button
+          type="submit"
+          disabled={form.formState.isSubmitting || !form.formState.isValid}
+        >
+          {form.formState.isSubmitting ? 'Guardando...' : 'Guardar cambios'}
         </Button>
         <Button
+          type="button"
           variant="outline"
           onClick={() => router.back()}
-          disabled={loading}
+          disabled={form.formState.isSubmitting}
         >
           Cancelar
         </Button>
       </div>
-    </div>
+    </form>
   )
 }

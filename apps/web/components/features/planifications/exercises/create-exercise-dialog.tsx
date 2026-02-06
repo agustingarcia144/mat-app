@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Doc } from '@/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
 import {
   Sheet,
   SheetContent,
@@ -22,6 +23,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Field,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+} from '@/components/ui/field'
+import { exerciseSchema, Exercise } from '@repo/core/schemas'
 
 interface CreateExerciseDialogProps {
   open: boolean
@@ -71,70 +79,68 @@ export default function CreateExerciseDialog({
   const createExercise = useMutation(api.exercises.create)
   const updateExercise = useMutation(api.exercises.update)
 
-  const [loading, setLoading] = useState(false)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [category, setCategory] = useState<string>('')
-  const [equipment, setEquipment] = useState<string>('')
-  const [selectedMuscles, setSelectedMuscles] = useState<string[]>([])
-  const [videoUrl, setVideoUrl] = useState('')
-
   const isEditing = !!exercise
+
+  const form = useForm<Exercise>({
+    resolver: zodResolver(exerciseSchema),
+    defaultValues: {
+      name: '',
+      description: '',
+      category: '',
+      equipment: '',
+      videoUrl: '',
+      muscleGroups: [],
+    },
+  })
 
   useEffect(() => {
     if (open) {
       if (exercise) {
-        setName(exercise.name)
-        setDescription(exercise.description ?? '')
-        setCategory(exercise.category)
-        setEquipment(exercise.equipment ?? '')
-        setSelectedMuscles(exercise.muscleGroups ?? [])
-        setVideoUrl(exercise.videoUrl ?? '')
+        form.reset({
+          name: exercise.name,
+          description: exercise.description ?? '',
+          category: exercise.category,
+          equipment: exercise.equipment ?? '',
+          videoUrl: exercise.videoUrl ?? '',
+          muscleGroups: exercise.muscleGroups ?? [],
+        })
       } else {
-        setName('')
-        setDescription('')
-        setCategory('')
-        setEquipment('')
-        setSelectedMuscles([])
-        setVideoUrl('')
+        form.reset({
+          name: '',
+          description: '',
+          category: '',
+          equipment: '',
+          videoUrl: '',
+          muscleGroups: [],
+        })
       }
     }
-  }, [open, exercise])
+  }, [open, exercise, form])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim() || !category) return
-
-    setLoading(true)
+  const onSubmit = async (data: Exercise) => {
     try {
       if (isEditing) {
         await updateExercise({
           id: exercise._id,
-          name: name.trim(),
-          description: description.trim() || undefined,
-          category,
-          muscleGroups: selectedMuscles,
-          equipment: equipment || undefined,
-          videoUrl: videoUrl.trim() || undefined,
+          name: data.name,
+          description: data.description || undefined,
+          category: data.category,
+          muscleGroups: data.muscleGroups,
+          equipment: data.equipment || undefined,
+          videoUrl: data.videoUrl || undefined,
         })
       } else {
         await createExercise({
-          name: name.trim(),
-          description: description.trim() || undefined,
-          category,
-          muscleGroups: selectedMuscles,
-          equipment: equipment || undefined,
-          videoUrl: videoUrl.trim() || undefined,
+          name: data.name,
+          description: data.description || undefined,
+          category: data.category,
+          muscleGroups: data.muscleGroups,
+          equipment: data.equipment || undefined,
+          videoUrl: data.videoUrl || undefined,
         })
       }
 
-      // Reset form
-      setName('')
-      setDescription('')
-      setCategory('')
-      setEquipment('')
-      setSelectedMuscles([])
-      setVideoUrl('')
+      form.reset()
       onOpenChange(false)
     } catch (error) {
       console.error(
@@ -146,16 +152,16 @@ export default function CreateExerciseDialog({
           ? 'Error al actualizar el ejercicio'
           : 'Error al crear el ejercicio'
       )
-    } finally {
-      setLoading(false)
     }
   }
 
   const toggleMuscle = (muscle: string) => {
-    setSelectedMuscles((prev) =>
-      prev.includes(muscle)
-        ? prev.filter((m) => m !== muscle)
-        : [...prev, muscle]
+    const current = form.getValues('muscleGroups')
+    form.setValue(
+      'muscleGroups',
+      current.includes(muscle)
+        ? current.filter((m) => m !== muscle)
+        : [...current, muscle]
     )
   }
 
@@ -173,95 +179,141 @@ export default function CreateExerciseDialog({
           </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nombre *</Label>
-            <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: Press de banca"
-              disabled={loading}
-            />
-          </div>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-4">
+          <Controller
+            name="name"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Nombre *</FieldLabel>
+                <Input
+                  {...field}
+                  id={field.name}
+                  aria-invalid={fieldState.invalid}
+                  placeholder="Ej: Press de banca"
+                  disabled={form.formState.isSubmitting}
+                  autoComplete="off"
+                />
+                <FieldDescription>
+                  Nombre del ejercicio para identificarlo fácilmente.
+                </FieldDescription>
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+
+          <Controller
+            name="description"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Descripción</FieldLabel>
+                <Textarea
+                  {...field}
+                  id={field.name}
+                  aria-invalid={fieldState.invalid}
+                  placeholder="Instrucciones y técnica..."
+                  rows={3}
+                  disabled={form.formState.isSubmitting}
+                  autoComplete="off"
+                />
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+
+          <Controller
+            name="category"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Categoría *</FieldLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={form.formState.isSubmitting}
+                >
+                  <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
+                    <SelectValue placeholder="Seleccionar categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  Categoría del ejercicio según el tipo de entrenamiento.
+                </FieldDescription>
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+
+          <Controller
+            name="equipment"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Equipo</FieldLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={form.formState.isSubmitting}
+                >
+                  <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
+                    <SelectValue placeholder="Seleccionar equipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EQUIPMENT_OPTIONS.map((eq) => (
+                      <SelectItem key={eq} value={eq}>
+                        {eq}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+
+          <Controller
+            name="videoUrl"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>URL del video</FieldLabel>
+                <Input
+                  {...field}
+                  id={field.name}
+                  type="url"
+                  aria-invalid={fieldState.invalid}
+                  placeholder="Ej: https://www.youtube.com/watch?v=..."
+                  disabled={form.formState.isSubmitting}
+                  autoComplete="off"
+                />
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
 
           <div className="space-y-2">
-            <Label htmlFor="description">Descripción</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Instrucciones y técnica..."
-              rows={3}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="category">Categoría *</Label>
-            <Select
-              value={category}
-              onValueChange={setCategory}
-              disabled={loading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar categoría" />
-              </SelectTrigger>
-              <SelectContent>
-                {CATEGORIES.map((cat) => (
-                  <SelectItem key={cat} value={cat}>
-                    {cat}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="equipment">Equipo</Label>
-            <Select
-              value={equipment}
-              onValueChange={setEquipment}
-              disabled={loading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar equipo" />
-              </SelectTrigger>
-              <SelectContent>
-                {EQUIPMENT_OPTIONS.map((eq) => (
-                  <SelectItem key={eq} value={eq}>
-                    {eq}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="videoUrl">URL del video</Label>
-            <Input
-              id="videoUrl"
-              type="url"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="Ej: https://www.youtube.com/watch?v=..."
-              disabled={loading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Grupos musculares</Label>
+            <FieldLabel>Grupos musculares</FieldLabel>
             <div className="flex flex-wrap gap-2">
               {MUSCLE_GROUPS.map((muscle) => (
                 <Button
                   key={muscle}
                   type="button"
                   variant={
-                    selectedMuscles.includes(muscle) ? 'default' : 'outline'
+                    form.watch('muscleGroups').includes(muscle)
+                      ? 'default'
+                      : 'outline'
                   }
                   size="sm"
                   onClick={() => toggleMuscle(muscle)}
-                  disabled={loading}
+                  disabled={form.formState.isSubmitting}
                   className="capitalize"
                 >
                   {muscle}
@@ -273,9 +325,9 @@ export default function CreateExerciseDialog({
           <div className="flex gap-2 pt-4">
             <Button
               type="submit"
-              disabled={loading || !name.trim() || !category}
+              disabled={form.formState.isSubmitting || !form.formState.isValid}
             >
-              {loading
+              {form.formState.isSubmitting
                 ? isEditing
                   ? 'Guardando...'
                   : 'Creando...'
@@ -287,7 +339,7 @@ export default function CreateExerciseDialog({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={loading}
+              disabled={form.formState.isSubmitting}
             >
               Cancelar
             </Button>

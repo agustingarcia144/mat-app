@@ -1,28 +1,17 @@
 'use client'
 
-import { useState } from 'react'
-import { useMutation, useQuery } from 'convex/react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import BasicInfoSection from '@/components/features/planifications/form/basic-info-section'
 import WorkoutDaysSection from '@/components/features/planifications/form/workout-days-section'
-
-interface WorkoutDay {
-  id: string
-  name: string
-  exercises: DayExercise[]
-}
-
-interface DayExercise {
-  id: string
-  exerciseId: string
-  exerciseName: string
-  sets: number
-  reps: string
-  weight?: string
-  notes?: string
-}
+import {
+  planificationFormSchema,
+  PlanificationForm as PlanificationFormType,
+} from '@repo/core/schemas'
 
 export default function PlanificationForm() {
   const router = useRouter()
@@ -30,29 +19,30 @@ export default function PlanificationForm() {
   const createWorkoutDay = useMutation(api.workoutDays.create)
   const createDayExercise = useMutation(api.dayExercises.create)
 
-  const [loading, setLoading] = useState(false)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [folderId, setFolderId] = useState<string | undefined>()
-  const [isTemplate, setIsTemplate] = useState(false)
-  const [workoutDays, setWorkoutDays] = useState<WorkoutDay[]>([])
+  const form = useForm<PlanificationFormType>({
+    resolver: zodResolver(planificationFormSchema),
+    defaultValues: {
+      name: '',
+      description: '',
+      folderId: undefined,
+      isTemplate: false,
+      workoutDays: [],
+    },
+  })
 
-  const handleSubmit = async () => {
-    if (!name.trim()) return
-
-    setLoading(true)
+  const onSubmit = async (data: PlanificationFormType) => {
     try {
       // Create planification
       const planificationId = await createPlanification({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        folderId: folderId as any,
-        isTemplate,
+        name: data.name,
+        description: data.description || undefined,
+        folderId: data.folderId as any,
+        isTemplate: data.isTemplate,
       })
 
       // Create workout days and exercises
-      for (let i = 0; i < workoutDays.length; i++) {
-        const day = workoutDays[i]
+      for (let i = 0; i < data.workoutDays.length; i++) {
+        const day = data.workoutDays[i]
         const dayId = await createWorkoutDay({
           planificationId,
           name: day.name,
@@ -79,41 +69,31 @@ export default function PlanificationForm() {
     } catch (error) {
       console.error('Failed to create planification:', error)
       alert('Error al crear la planificación')
-    } finally {
-      setLoading(false)
     }
   }
 
   return (
-    <div className="space-y-6">
-      <BasicInfoSection
-        name={name}
-        setName={setName}
-        description={description}
-        setDescription={setDescription}
-        folderId={folderId}
-        setFolderId={setFolderId}
-        isTemplate={isTemplate}
-        setIsTemplate={setIsTemplate}
-      />
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <BasicInfoSection form={form} />
 
-      <WorkoutDaysSection
-        workoutDays={workoutDays}
-        setWorkoutDays={setWorkoutDays}
-      />
+      <WorkoutDaysSection form={form} />
 
       <div className="flex gap-3 pt-6 border-t">
-        <Button onClick={handleSubmit} disabled={loading || !name.trim()}>
-          {loading ? 'Creando...' : 'Crear planificación'}
+        <Button
+          type="submit"
+          disabled={form.formState.isSubmitting || !form.formState.isValid}
+        >
+          {form.formState.isSubmitting ? 'Creando...' : 'Crear planificación'}
         </Button>
         <Button
+          type="button"
           variant="outline"
           onClick={() => router.back()}
-          disabled={loading}
+          disabled={form.formState.isSubmitting}
         >
           Cancelar
         </Button>
       </div>
-    </div>
+    </form>
   )
 }

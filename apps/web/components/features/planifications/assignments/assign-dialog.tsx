@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import {
   Sheet,
   SheetContent,
@@ -21,6 +21,13 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
+import {
+  Field,
+  FieldLabel,
+  FieldDescription,
+  FieldError,
+} from '@/components/ui/field'
+import { assignmentSchema, Assignment } from '@repo/core/schemas'
 
 interface AssignDialogProps {
   open: boolean
@@ -38,37 +45,31 @@ export default function AssignDialog({
     api.organizationMemberships.getOrganizationMemberships
   )
 
-  const [loading, setLoading] = useState(false)
-  const [selectedUserId, setSelectedUserId] = useState<string>('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [notes, setNotes] = useState('')
+  const form = useForm<Assignment>({
+    resolver: zodResolver(assignmentSchema),
+    defaultValues: {
+      userId: '',
+      startDate: '',
+      endDate: '',
+      notes: '',
+    },
+  })
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedUserId) return
-
-    setLoading(true)
+  const onSubmit = async (data: Assignment) => {
     try {
       await assign({
         planificationId: planificationId as any,
-        userId: selectedUserId,
-        startDate: startDate ? new Date(startDate).getTime() : undefined,
-        endDate: endDate ? new Date(endDate).getTime() : undefined,
-        notes: notes.trim() || undefined,
+        userId: data.userId,
+        startDate: data.startDate ? new Date(data.startDate).getTime() : undefined,
+        endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
+        notes: data.notes?.trim() || undefined,
       })
 
-      // Reset form
-      setSelectedUserId('')
-      setStartDate('')
-      setEndDate('')
-      setNotes('')
+      form.reset()
       onOpenChange(false)
     } catch (error: any) {
       console.error('Failed to assign:', error)
       alert(error.message || 'Error al asignar planificación')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -84,74 +85,107 @@ export default function AssignDialog({
           </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="member">Miembro *</Label>
-            <Select
-              value={selectedUserId}
-              onValueChange={setSelectedUserId}
-              disabled={loading}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar miembro" />
-              </SelectTrigger>
-              <SelectContent>
-                {members.map((membership) => (
-                  <SelectItem key={membership.userId} value={membership.userId}>
-                    <div className="flex items-center gap-2">
-                      {membership.fullName || membership.email || 'Usuario'}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-4">
+          <Controller
+            name="userId"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Miembro *</FieldLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={form.formState.isSubmitting}
+                >
+                  <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
+                    <SelectValue placeholder="Seleccionar miembro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {members.map((membership) => (
+                      <SelectItem key={membership.userId} value={membership.userId}>
+                        {membership.fullName || membership.email || 'Usuario'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  Selecciona el miembro al que asignar la planificación.
+                </FieldDescription>
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="startDate">Fecha inicio</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                disabled={loading}
-              />
-            </div>
+            <Controller
+              name="startDate"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Fecha inicio</FieldLabel>
+                  <Input
+                    {...field}
+                    id={field.name}
+                    type="date"
+                    aria-invalid={fieldState.invalid}
+                    disabled={form.formState.isSubmitting}
+                  />
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
+            />
 
-            <div className="space-y-2">
-              <Label htmlFor="endDate">Fecha fin</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notas</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Notas o instrucciones especiales..."
-              rows={3}
-              disabled={loading}
+            <Controller
+              name="endDate"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel htmlFor={field.name}>Fecha fin</FieldLabel>
+                  <Input
+                    {...field}
+                    id={field.name}
+                    type="date"
+                    aria-invalid={fieldState.invalid}
+                    disabled={form.formState.isSubmitting}
+                  />
+                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                </Field>
+              )}
             />
           </div>
 
+          <Controller
+            name="notes"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Notas</FieldLabel>
+                <Textarea
+                  {...field}
+                  id={field.name}
+                  aria-invalid={fieldState.invalid}
+                  placeholder="Notas o instrucciones especiales..."
+                  rows={3}
+                  disabled={form.formState.isSubmitting}
+                  autoComplete="off"
+                />
+                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+              </Field>
+            )}
+          />
+
           <div className="flex gap-2 pt-4">
-            <Button type="submit" disabled={loading || !selectedUserId}>
-              {loading ? 'Asignando...' : 'Asignar'}
+            <Button
+              type="submit"
+              disabled={form.formState.isSubmitting || !form.formState.isValid}
+            >
+              {form.formState.isSubmitting ? 'Asignando...' : 'Asignar'}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={loading}
+              disabled={form.formState.isSubmitting}
             >
               Cancelar
             </Button>

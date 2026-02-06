@@ -55,7 +55,7 @@ function FolderItem({
   selectedId,
   onSelect,
 }: FolderItemProps) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const isSelected = selectedId === folder._id
   const hasChildren = child && child.length > 0
