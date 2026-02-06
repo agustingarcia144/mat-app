@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, Controller, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -155,6 +155,12 @@ export default function CreateExerciseDialog({
     }
   }
 
+  const selectedMuscles = useWatch({
+    control: form.control,
+    name: 'muscleGroups',
+    defaultValue: [],
+  })
+
   const toggleMuscle = (muscle: string) => {
     const current = form.getValues('muscleGroups')
     form.setValue(
@@ -307,7 +313,7 @@ export default function CreateExerciseDialog({
                   key={muscle}
                   type="button"
                   variant={
-                    form.watch('muscleGroups').includes(muscle)
+                    selectedMuscles.includes(muscle)
                       ? 'default'
                       : 'outline'
                   }
