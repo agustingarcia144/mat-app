@@ -24,12 +24,18 @@ export const workoutDaySchema = z.object({
   exercises: z.array(dayExerciseSchema),
 })
 
+export const workoutWeekSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1, 'El nombre de la semana es requerido').trim(),
+  workoutDays: z.array(workoutDaySchema),
+})
+
 export const planificationFormSchema = z.object({
   name: z.string().min(1, 'El nombre es requerido').trim(),
   description: z.string().optional(),
   folderId: z.string().optional(),
   isTemplate: z.boolean(),
-  workoutDays: z.array(workoutDaySchema),
+  workoutWeeks: z.array(workoutWeekSchema).min(1, 'Debe tener al menos una semana'),
 })
 
 // Exercise library schemas
@@ -58,6 +64,7 @@ export const assignmentSchema = z.object({
 // Type exports
 export type PlanificationBasicInfo = z.infer<typeof planificationBasicInfoSchema>
 export type PlanificationForm = z.infer<typeof planificationFormSchema>
+export type WorkoutWeek = z.infer<typeof workoutWeekSchema>
 export type WorkoutDay = z.infer<typeof workoutDaySchema>
 export type DayExercise = z.infer<typeof dayExerciseSchema>
 export type Exercise = z.infer<typeof exerciseSchema>

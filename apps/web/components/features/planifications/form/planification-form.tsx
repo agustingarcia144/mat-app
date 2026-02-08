@@ -7,7 +7,7 @@ import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import BasicInfoSection from '@/components/features/planifications/form/basic-info-section'
-import WorkoutDaysSection from '@/components/features/planifications/form/workout-days-section'
+import WorkoutWeeksSection from '@/components/features/planifications/form/workout-weeks-section'
 import {
   planificationFormSchema,
   PlanificationForm as PlanificationFormType,
@@ -16,6 +16,7 @@ import {
 export default function PlanificationForm() {
   const router = useRouter()
   const createPlanification = useMutation(api.planifications.create)
+  const createWorkoutWeek = useMutation(api.workoutWeeks.create)
   const createWorkoutDay = useMutation(api.workoutDays.create)
   const createDayExercise = useMutation(api.dayExercises.create)
 
@@ -26,7 +27,13 @@ export default function PlanificationForm() {
       description: '',
       folderId: undefined,
       isTemplate: false,
-      workoutDays: [],
+      workoutWeeks: [
+        {
+          id: 'temp-week-1',
+          name: 'Semana 1',
+          workoutDays: [],
+        },
+      ],
     },
   })
 
@@ -40,28 +47,40 @@ export default function PlanificationForm() {
         isTemplate: data.isTemplate,
       })
 
-      // Create workout days and exercises
-      for (let i = 0; i < data.workoutDays.length; i++) {
-        const day = data.workoutDays[i]
-        const dayId = await createWorkoutDay({
+      // Create workout weeks, days, and exercises
+      for (let i = 0; i < data.workoutWeeks.length; i++) {
+        const week = data.workoutWeeks[i]
+        const weekId = await createWorkoutWeek({
           planificationId,
-          name: day.name,
+          name: week.name,
           order: i,
           notes: undefined,
         })
 
-        // Create exercises for this day
-        for (let j = 0; j < day.exercises.length; j++) {
-          const exercise = day.exercises[j]
-          await createDayExercise({
-            workoutDayId: dayId,
-            exerciseId: exercise.exerciseId as any,
+        // Create workout days for this week
+        for (let j = 0; j < week.workoutDays.length; j++) {
+          const day = week.workoutDays[j]
+          const dayId = await createWorkoutDay({
+            weekId,
+            planificationId,
+            name: day.name,
             order: j,
-            sets: exercise.sets,
-            reps: exercise.reps,
-            weight: exercise.weight,
-            notes: exercise.notes,
+            notes: undefined,
           })
+
+          // Create exercises for this day
+          for (let k = 0; k < day.exercises.length; k++) {
+            const exercise = day.exercises[k]
+            await createDayExercise({
+              workoutDayId: dayId,
+              exerciseId: exercise.exerciseId as any,
+              order: k,
+              sets: exercise.sets,
+              reps: exercise.reps,
+              weight: exercise.weight,
+              notes: exercise.notes,
+            })
+          }
         }
       }
 
@@ -76,7 +95,7 @@ export default function PlanificationForm() {
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
       <BasicInfoSection form={form} />
 
-      <WorkoutDaysSection form={form} />
+      <WorkoutWeeksSection form={form} />
 
       <div className="flex gap-3 pt-6 border-t">
         <Button

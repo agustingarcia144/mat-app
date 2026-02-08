@@ -1,6 +1,6 @@
 'use client'
 
-import { use } from 'react'
+import { use, useMemo } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
@@ -20,7 +20,70 @@ export default function EditPlanificationPage({
     id: id as any,
   })
 
-  if (planification === undefined) {
+  const workoutWeeks = useQuery(api.workoutWeeks.getByPlanification, {
+    planificationId: id as any,
+  })
+
+  const workoutDays = useQuery(api.workoutDays.getByPlanification, {
+    planificationId: id as any,
+  })
+
+  const allExercises = useQuery(api.dayExercises.getByPlanification, {
+    planificationId: id as any,
+  })
+
+  // Build the complete data structure
+  const fullWeeksData = useMemo(() => {
+    if (!workoutWeeks || !workoutDays || !allExercises) return null
+
+    // Group exercises by day
+    const exercisesByDay: Record<string, any[]> = {}
+    allExercises.forEach((ex) => {
+      const dayId = ex.workoutDayId
+      if (!exercisesByDay[dayId]) {
+        exercisesByDay[dayId] = []
+      }
+      exercisesByDay[dayId].push(ex)
+    })
+
+    // Build weeks with days and exercises
+    const weeks = workoutWeeks.map((week) => {
+      const daysForWeek = workoutDays.filter((day) => day.weekId === week._id)
+
+      const daysWithExercises = daysForWeek.map((day) => ({
+        id: day._id,
+        name: day.name,
+        order: day.order,
+        exercises: (exercisesByDay[day._id] || []).map((ex) => ({
+          id: ex._id,
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exercise?.name || 'Unknown',
+          sets: ex.sets,
+          reps: ex.reps,
+          weight: ex.weight || '',
+          notes: ex.notes || '',
+        })),
+      }))
+
+      return {
+        id: week._id,
+        name: week.name,
+        order: week.order,
+        workoutDays: daysWithExercises.sort((a, b) => a.order - b.order),
+      }
+    })
+
+    return weeks.sort((a, b) => a.order - b.order)
+  }, [workoutWeeks, workoutDays, allExercises])
+
+  const isLoading =
+    planification === undefined ||
+    workoutWeeks === undefined ||
+    workoutDays === undefined ||
+    allExercises === undefined ||
+    fullWeeksData === null
+
+  if (isLoading) {
     return (
       <div className="container mx-auto py-6 max-w-5xl">
         <Skeleton className="h-10 w-40 mb-6" />
@@ -52,7 +115,11 @@ export default function EditPlanificationPage({
         <p className="text-muted-foreground mt-1">{planification.name}</p>
       </div>
 
-      <PlanificationEditForm planificationId={id} initialData={planification} />
+      <PlanificationEditForm
+        planificationId={id}
+        initialData={planification}
+        fullWeeksData={fullWeeksData}
+      />
     </div>
   )
 }

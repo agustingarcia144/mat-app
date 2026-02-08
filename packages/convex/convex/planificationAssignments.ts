@@ -156,12 +156,29 @@ export const getByPlanification = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    return await ctx.db
+    const assignments = await ctx.db
       .query('planificationAssignments')
       .withIndex('by_planification', (q) =>
         q.eq('planificationId', args.planificationId)
       )
       .collect()
+
+    // Fetch user details for each assignment
+    const withUserDetails = await Promise.all(
+      assignments.map(async (assignment) => {
+        const user = await ctx.db
+          .query('users')
+          .withIndex('by_externalId', (q) => q.eq('externalId', assignment.userId))
+          .first()
+        
+        return {
+          ...assignment,
+          user,
+        }
+      })
+    )
+
+    return withUserDetails
   },
 })
 

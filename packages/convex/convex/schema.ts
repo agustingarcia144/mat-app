@@ -119,10 +119,10 @@ export default defineSchema({
     .index('by_created_by', ['createdBy'])
     .index('by_organization_folder', ['organizationId', 'folderId']),
 
-  // Workout Days - Days within a planification
-  workoutDays: defineTable({
+  // Workout Weeks - Weeks within a planification
+  workoutWeeks: defineTable({
     planificationId: v.id('planifications'),
-    name: v.string(), // Flexible: "Day 1", "Legs", "Upper Body", etc.
+    name: v.string(), // e.g., "Semana 1", "Semana 2"
     order: v.number(), // Display order
     notes: v.optional(v.string()),
     // Timestamps
@@ -130,6 +130,22 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_planification', ['planificationId'])
+    .index('by_planification_order', ['planificationId', 'order']),
+
+  // Workout Days - Days within a workout week
+  workoutDays: defineTable({
+    weekId: v.id('workoutWeeks'),
+    planificationId: v.id('planifications'), // Keep for easier queries
+    name: v.string(), // Flexible: "Day 1", "Legs", "Upper Body", etc.
+    order: v.number(), // Display order within the week
+    notes: v.optional(v.string()),
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_week', ['weekId'])
+    .index('by_planification', ['planificationId'])
+    .index('by_week_order', ['weekId', 'order'])
     .index('by_planification_order', ['planificationId', 'order']),
 
   // Day Exercises - Exercises in a workout day

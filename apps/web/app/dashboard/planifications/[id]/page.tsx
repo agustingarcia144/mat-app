@@ -21,11 +21,23 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+} from '@/components/ui/avatar'
 import { formatDate } from 'date-fns'
 import Link from 'next/link'
 import DuplicatePlanificationDialog from '@/components/features/planifications/dialogs/duplicate-planification-dialog'
 import DeletePlanificationDialog from '@/components/features/planifications/dialogs/delete-planification-dialog'
 import AssignDialog from '@/components/features/planifications/assignments/assign-dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 export default function PlanificationViewPage({
   params,
@@ -41,11 +53,21 @@ export default function PlanificationViewPage({
   const planification = useQuery(api.planifications.getById, {
     id: id as any,
   })
-  const workoutDays = useQuery(api.workoutDays.getByPlanification, {
+  const workoutWeeks = useQuery(api.workoutWeeks.getByPlanification, {
     planificationId: id as any,
   })
+  const assignments = useQuery(
+    api.planificationAssignments.getByPlanification,
+    {
+      planificationId: id as any,
+    }
+  )
 
-  if (planification === undefined || workoutDays === undefined) {
+  if (
+    planification === undefined ||
+    workoutWeeks === undefined ||
+    assignments === undefined
+  ) {
     return (
       <div className="container mx-auto py-6 max-w-5xl">
         <Skeleton className="h-10 w-40 mb-6" />
@@ -92,36 +114,84 @@ export default function PlanificationViewPage({
             </p>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href={`/dashboard/planifications/${id}/edit`}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Editar
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setDuplicateDialogOpen(true)}>
-                <Copy className="h-4 w-4 mr-2" />
-                Duplicar
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setAssignDialogOpen(true)}>
-                <Users className="h-4 w-4 mr-2" />
-                Asignar
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setDeleteDialogOpen(true)}
-                className="text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Eliminar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-3">
+            {assignments && assignments.length > 0 && (
+              <AvatarGroup>
+                {assignments.slice(0, 3).map((assignment) => {
+                  const user = assignment.user
+                  const initials = user?.fullName
+                    ? user.fullName
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .toUpperCase()
+                        .slice(0, 2)
+                    : user?.email
+                      ? user.email[0].toUpperCase()
+                      : '?'
+
+                  return (
+                    <Tooltip key={assignment._id}>
+                      <TooltipTrigger asChild>
+                        <Avatar key={assignment._id} className="h-8 w-8">
+                          {user?.imageUrl && (
+                            <AvatarImage
+                              src={user.imageUrl}
+                              alt={user.fullName || user.email || 'User'}
+                            />
+                          )}
+                          <AvatarFallback className="text-xs">
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {user?.fullName ||
+                          user?.email ||
+                          'Usuario no encontrado'}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })}
+                {assignments.length > 3 && (
+                  <AvatarGroupCount className="h-8 w-8 text-xs">
+                    +{assignments.length - 3}
+                  </AvatarGroupCount>
+                )}
+              </AvatarGroup>
+            )}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={`/dashboard/planifications/${id}/edit`}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Editar
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDuplicateDialogOpen(true)}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAssignDialogOpen(true)}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Asignar
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setDeleteDialogOpen(true)}
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Eliminar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
 
@@ -143,15 +213,15 @@ export default function PlanificationViewPage({
       />
 
       <div className="space-y-6">
-        {workoutDays.length === 0 ? (
+        {workoutWeeks.length === 0 ? (
           <div className="text-center py-12 border rounded-lg border-dashed">
             <p className="text-muted-foreground">
-              Esta planificación no tiene días de entrenamiento
+              Esta planificación no tiene semanas de entrenamiento
             </p>
           </div>
         ) : (
-          workoutDays.map((day, index) => (
-            <WorkoutDayCard key={day._id} day={day} index={index} />
+          workoutWeeks.map((week) => (
+            <WorkoutWeekCard key={week._id} week={week} />
           ))
         )}
       </div>
@@ -159,14 +229,44 @@ export default function PlanificationViewPage({
   )
 }
 
-function WorkoutDayCard({ day, index }: { day: any; index: number }) {
+function WorkoutWeekCard({ week }: { week: any }) {
+  const workoutDays = useQuery(api.workoutDays.getByWeek, {
+    weekId: week._id,
+  })
+
+  return (
+    <div className="border rounded-lg p-6 bg-muted/30">
+      <h2 className="text-2xl font-bold mb-6">{week.name}</h2>
+
+      {workoutDays === undefined ? (
+        <div className="space-y-4">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      ) : workoutDays.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No hay días de entrenamiento en esta semana
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {workoutDays.map((day) => (
+            <WorkoutDayCard key={day._id} day={day} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function WorkoutDayCard({ day }: { day: any }) {
   const dayExercises = useQuery(api.dayExercises.getByWorkoutDay, {
     workoutDayId: day._id,
   })
 
   return (
-    <div className="border rounded-lg p-6">
-      <h2 className="text-xl font-semibold mb-4">{day.name}</h2>
+    <div className="border rounded-lg p-5 bg-background">
+      <h3 className="text-lg font-semibold mb-3">{day.name}</h3>
 
       {dayExercises === undefined ? (
         <div className="space-y-2">

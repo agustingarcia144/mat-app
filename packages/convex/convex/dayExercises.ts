@@ -135,3 +135,45 @@ export const getByWorkoutDay = query({
     return exercisesWithDetails
   },
 })
+
+/**
+ * Get all exercises for a planification (grouped by day)
+ */
+export const getByPlanification = query({
+  args: {
+    planificationId: v.id('planifications'),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    // Get all days for this planification
+    const workoutDays = await ctx.db
+      .query('workoutDays')
+      .withIndex('by_planification', (q) =>
+        q.eq('planificationId', args.planificationId)
+      )
+      .collect()
+
+    const dayIds = workoutDays.map((d) => d._id)
+
+    // Get all exercises for all days
+    const allExercises = await ctx.db.query('dayExercises').collect()
+    const relevantExercises = allExercises.filter((ex) =>
+      dayIds.includes(ex.workoutDayId)
+    )
+
+    // Fetch exercise details
+    const exercisesWithDetails = await Promise.all(
+      relevantExercises.map(async (dayEx) => {
+        const exercise = await ctx.db.get(dayEx.exerciseId)
+        return {
+          ...dayEx,
+          exercise,
+        }
+      })
+    )
+
+    return exercisesWithDetails
+  },
+})

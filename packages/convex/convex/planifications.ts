@@ -89,24 +89,34 @@ export const remove = mutation({
 
     await requireAdminOrTrainer(ctx, planification.organizationId)
 
-    // Delete all workout days and their exercises
-    const workoutDays = await ctx.db
-      .query('workoutDays')
+    // Delete all workout weeks
+    const workoutWeeks = await ctx.db
+      .query('workoutWeeks')
       .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
       .collect()
 
-    for (const day of workoutDays) {
-      // Delete day exercises
-      const dayExercises = await ctx.db
-        .query('dayExercises')
-        .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
+    for (const week of workoutWeeks) {
+      // Delete all workout days in this week
+      const workoutDays = await ctx.db
+        .query('workoutDays')
+        .withIndex('by_week', (q) => q.eq('weekId', week._id))
         .collect()
 
-      for (const exercise of dayExercises) {
-        await ctx.db.delete(exercise._id)
+      for (const day of workoutDays) {
+        // Delete day exercises
+        const dayExercises = await ctx.db
+          .query('dayExercises')
+          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
+          .collect()
+
+        for (const exercise of dayExercises) {
+          await ctx.db.delete(exercise._id)
+        }
+
+        await ctx.db.delete(day._id)
       }
 
-      await ctx.db.delete(day._id)
+      await ctx.db.delete(week._id)
     }
 
     // Delete assignments
@@ -156,40 +166,58 @@ export const duplicate = mutation({
       updatedAt: now,
     })
 
-    // Duplicate workout days
-    const workoutDays = await ctx.db
-      .query('workoutDays')
+    // Duplicate workout weeks
+    const workoutWeeks = await ctx.db
+      .query('workoutWeeks')
       .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
       .collect()
 
-    for (const day of workoutDays) {
-      const newDayId = await ctx.db.insert('workoutDays', {
+    for (const week of workoutWeeks) {
+      const newWeekId = await ctx.db.insert('workoutWeeks', {
         planificationId: newPlanificationId,
-        name: day.name,
-        order: day.order,
-        notes: day.notes,
+        name: week.name,
+        order: week.order,
+        notes: week.notes,
         createdAt: now,
         updatedAt: now,
       })
 
-      // Duplicate day exercises
-      const dayExercises = await ctx.db
-        .query('dayExercises')
-        .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
+      // Duplicate workout days
+      const workoutDays = await ctx.db
+        .query('workoutDays')
+        .withIndex('by_week', (q) => q.eq('weekId', week._id))
         .collect()
 
-      for (const exercise of dayExercises) {
-        await ctx.db.insert('dayExercises', {
-          workoutDayId: newDayId,
-          exerciseId: exercise.exerciseId,
-          order: exercise.order,
-          sets: exercise.sets,
-          reps: exercise.reps,
-          weight: exercise.weight,
-          notes: exercise.notes,
+      for (const day of workoutDays) {
+        const newDayId = await ctx.db.insert('workoutDays', {
+          weekId: newWeekId,
+          planificationId: newPlanificationId,
+          name: day.name,
+          order: day.order,
+          notes: day.notes,
           createdAt: now,
           updatedAt: now,
         })
+
+        // Duplicate day exercises
+        const dayExercises = await ctx.db
+          .query('dayExercises')
+          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
+          .collect()
+
+        for (const exercise of dayExercises) {
+          await ctx.db.insert('dayExercises', {
+            workoutDayId: newDayId,
+            exerciseId: exercise.exerciseId,
+            order: exercise.order,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            weight: exercise.weight,
+            notes: exercise.notes,
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
       }
     }
 

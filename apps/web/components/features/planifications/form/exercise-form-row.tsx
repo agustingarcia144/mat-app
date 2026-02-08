@@ -11,6 +11,7 @@ import {
 import { PlanificationForm } from '@repo/core/schemas'
 
 interface ExerciseFormRowProps {
+  weekIndex: number
   dayIndex: number
   exerciseIndex: number
   form: UseFormReturn<PlanificationForm>
@@ -18,13 +19,14 @@ interface ExerciseFormRowProps {
 }
 
 export default function ExerciseFormRow({
+  weekIndex,
   dayIndex,
   exerciseIndex,
   form,
   onRemove,
 }: ExerciseFormRowProps) {
   const exercise = form.watch(
-    `workoutDays.${dayIndex}.exercises.${exerciseIndex}`
+    `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises.${exerciseIndex}`
   )
 
   return (
@@ -35,7 +37,7 @@ export default function ExerciseFormRow({
 
       <div className="flex items-center gap-2">
         <Controller
-          name={`workoutDays.${dayIndex}.exercises.${exerciseIndex}.sets`}
+          name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises.${exerciseIndex}.sets`}
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid} className="w-16">
@@ -61,7 +63,7 @@ export default function ExerciseFormRow({
         <span className="text-muted-foreground">×</span>
 
         <Controller
-          name={`workoutDays.${dayIndex}.exercises.${exerciseIndex}.reps`}
+          name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises.${exerciseIndex}.reps`}
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid} className="w-20">
@@ -82,7 +84,7 @@ export default function ExerciseFormRow({
         />
 
         <Controller
-          name={`workoutDays.${dayIndex}.exercises.${exerciseIndex}.weight`}
+          name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises.${exerciseIndex}.weight`}
           control={form.control}
           render={({ field, fieldState }) => (
             <Field data-invalid={fieldState.invalid} className="w-24">
