@@ -35,3 +35,58 @@ export type MembershipData = {
   imageUrl?: string
   username?: string
 }
+
+/**
+ * Class types for class reservation system
+ */
+export type RecurrencePattern = {
+  frequency: 'hourly' | 'daily' | 'weekly' | 'monthly'
+  interval: number
+  daysOfWeek?: number[] // 0-6
+  endDate?: number
+}
+
+export type Class = {
+  _id: string
+  organizationId: string
+  name: string
+  description?: string
+  capacity: number
+  trainerId?: string
+  isRecurring: boolean
+  recurrencePattern?: RecurrencePattern
+  bookingWindowDays: number
+  cancellationWindowHours: number
+  isActive: boolean
+  createdBy: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type ClassSchedule = {
+  _id: string
+  classId: string
+  organizationId: string
+  startTime: number
+  endTime: number
+  capacity: number
+  currentReservations: number
+  status: 'scheduled' | 'cancelled' | 'completed'
+  notes?: string
+  createdAt: number
+  updatedAt: number
+}
+
+export type ClassReservation = {
+  _id: string
+  scheduleId: string
+  classId: string
+  organizationId: string
+  userId: string
+  status: 'confirmed' | 'cancelled' | 'attended' | 'no_show'
+  cancelledAt?: number
+  checkedInAt?: number
+  notes?: string
+  createdAt: number
+  updatedAt: number
+}

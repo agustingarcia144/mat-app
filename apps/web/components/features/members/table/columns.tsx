@@ -2,8 +2,8 @@
 
 import { ColumnDef } from '@tanstack/react-table'
 import type { Member } from '@repo/core/types'
-import RoleBadge from '../badges/role-badge'
-import StatusBadge from '../badges/status-badge'
+import RoleBadge from '../../../shared/badges/role-badge'
+import StatusBadge from '../../../shared/badges/status-badge'
 import AvatarColumn from './avatar-column'
 import { formatDate } from 'date-fns'
 

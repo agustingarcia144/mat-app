@@ -35,7 +35,9 @@ export const planificationFormSchema = z.object({
   description: z.string().optional(),
   folderId: z.string().optional(),
   isTemplate: z.boolean(),
-  workoutWeeks: z.array(workoutWeekSchema).min(1, 'Debe tener al menos una semana'),
+  workoutWeeks: z
+    .array(workoutWeekSchema)
+    .min(1, 'Debe tener al menos una semana'),
 })
 
 // Exercise library schemas
@@ -44,7 +46,7 @@ export const exerciseSchema = z.object({
   description: z.string().optional(),
   category: z.string().min(1, 'La categoría es requerida'),
   equipment: z.string().optional(),
-  videoUrl: z.string().url('URL inválida').optional().or(z.literal('')),
+  videoUrl: z.url('URL inválida').optional().or(z.literal('')),
   muscleGroups: z.array(z.string()),
 })
 
@@ -61,8 +63,56 @@ export const assignmentSchema = z.object({
   notes: z.string().optional(),
 })
 
+// Class reservation schemas
+export const recurrencePatternSchema = z.object({
+  frequency: z.enum(['hourly', 'daily', 'weekly', 'monthly'], {
+    message: 'Selecciona una frecuencia válida',
+  }),
+  interval: z.coerce.number().min(1, 'El intervalo debe ser al menos 1'),
+  daysOfWeek: z.array(z.number().min(0).max(6)).optional(),
+  endDate: z.number().optional(),
+})
+
+export const classSchema = z.object({
+  name: z.string().min(1, 'El nombre es requerido').trim(),
+  description: z.string().optional(),
+  capacity: z
+    .number()
+    .min(1, 'La capacidad debe ser al menos 1')
+    .max(1000, 'La capacidad máxima es 1000'),
+  trainerId: z.string().optional(),
+  bookingWindowDays: z
+    .number()
+    .min(0, 'La ventana de reserva debe ser al menos 0')
+    .max(365, 'La ventana máxima es 365 días')
+    .default(7),
+  cancellationWindowHours: z
+    .number()
+    .min(0, 'La ventana de cancelación debe ser al menos 0')
+    .max(168, 'La ventana máxima es 168 horas')
+    .default(2),
+  isRecurring: z.boolean().default(false),
+  recurrencePattern: recurrencePatternSchema.optional(),
+  isActive: z.boolean().default(true),
+})
+
+export const scheduleSchema = z.object({
+  classId: z.string(),
+  startTime: z.number(),
+  endTime: z.number(),
+  capacity: z.number().optional(), // Override class capacity
+  notes: z.string().optional(),
+})
+
+export const reservationSchema = z.object({
+  scheduleId: z.string(),
+  notes: z.string().optional(),
+})
+
 // Type exports
-export type PlanificationBasicInfo = z.infer<typeof planificationBasicInfoSchema>
+export type PlanificationBasicInfo = z.infer<
+  typeof planificationBasicInfoSchema
+>
 export type PlanificationForm = z.infer<typeof planificationFormSchema>
 export type WorkoutWeek = z.infer<typeof workoutWeekSchema>
 export type WorkoutDay = z.infer<typeof workoutDaySchema>
@@ -70,6 +120,9 @@ export type DayExercise = z.infer<typeof dayExerciseSchema>
 export type Exercise = z.infer<typeof exerciseSchema>
 export type Folder = z.infer<typeof folderSchema>
 export type Assignment = z.infer<typeof assignmentSchema>
+export type ClassForm = z.infer<typeof classSchema>
+// RecurrencePattern type is exported from @repo/core/types to avoid duplication
+export type ScheduleForm = z.infer<typeof scheduleSchema>
+export type ReservationForm = z.infer<typeof reservationSchema>
 
 export { z }
-

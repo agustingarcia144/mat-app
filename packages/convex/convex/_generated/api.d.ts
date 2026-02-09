@@ -8,6 +8,9 @@
  * @module
  */
 
+import type * as classReservations from "../classReservations.js";
+import type * as classSchedules from "../classSchedules.js";
+import type * as classes from "../classes.js";
 import type * as dayExercises from "../dayExercises.js";
 import type * as exercises from "../exercises.js";
 import type * as folders from "../folders.js";
@@ -31,6 +34,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  classReservations: typeof classReservations;
+  classSchedules: typeof classSchedules;
+  classes: typeof classes;
   dayExercises: typeof dayExercises;
   exercises: typeof exercises;
   folders: typeof folders;

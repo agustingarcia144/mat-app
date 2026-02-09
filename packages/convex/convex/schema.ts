@@ -187,4 +187,88 @@ export default defineSchema({
     .index('by_user', ['userId'])
     .index('by_organization', ['organizationId'])
     .index('by_user_status', ['userId', 'status']),
+
+  // Classes - Class templates and configurations
+  classes: defineTable({
+    organizationId: v.id('organizations'),
+    name: v.string(), // "Yoga Avanzado", "Acceso Gimnasio", etc.
+    description: v.optional(v.string()),
+    capacity: v.number(), // Max attendees
+    trainerId: v.optional(v.string()), // Clerk user ID (optional)
+    // Recurring configuration
+    isRecurring: v.boolean(),
+    recurrencePattern: v.optional(
+      v.object({
+        frequency: v.union(
+          v.literal('hourly'),
+          v.literal('daily'),
+          v.literal('weekly'),
+          v.literal('monthly')
+        ),
+        interval: v.number(), // Every X hours/days/weeks
+        daysOfWeek: v.optional(v.array(v.number())), // 0-6 for weekly
+        endDate: v.optional(v.number()), // Timestamp
+      })
+    ),
+    // Booking settings
+    bookingWindowDays: v.number(), // Default: 7
+    cancellationWindowHours: v.number(), // Default: 2
+    // Status
+    isActive: v.boolean(),
+    createdBy: v.string(), // Clerk user ID
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_active', ['organizationId', 'isActive'])
+    .index('by_trainer', ['trainerId']),
+
+  // Class Schedules - Individual class occurrences
+  classSchedules: defineTable({
+    classId: v.id('classes'),
+    organizationId: v.id('organizations'), // Denormalized for queries
+    startTime: v.number(), // Timestamp
+    endTime: v.number(), // Timestamp
+    capacity: v.number(), // Can override class capacity
+    currentReservations: v.number(), // Count for quick checks
+    status: v.union(
+      v.literal('scheduled'),
+      v.literal('cancelled'),
+      v.literal('completed')
+    ),
+    notes: v.optional(v.string()),
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_class', ['classId'])
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_time', ['organizationId', 'startTime'])
+    .index('by_start_time', ['startTime']),
+
+  // Class Reservations - Member bookings
+  classReservations: defineTable({
+    scheduleId: v.id('classSchedules'),
+    classId: v.id('classes'), // Denormalized
+    organizationId: v.id('organizations'), // Denormalized
+    userId: v.string(), // Clerk user ID
+    status: v.union(
+      v.literal('confirmed'),
+      v.literal('cancelled'),
+      v.literal('attended'),
+      v.literal('no_show')
+    ),
+    cancelledAt: v.optional(v.number()),
+    checkedInAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_schedule', ['scheduleId'])
+    .index('by_user', ['userId'])
+    .index('by_organization', ['organizationId'])
+    .index('by_user_status', ['userId', 'status'])
+    .index('by_schedule_status', ['scheduleId', 'status']),
 })
