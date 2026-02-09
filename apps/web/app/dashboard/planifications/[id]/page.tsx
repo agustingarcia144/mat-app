@@ -28,16 +28,18 @@ import {
   AvatarGroupCount,
   AvatarImage,
 } from '@/components/ui/avatar'
-import { formatDate } from 'date-fns'
-import Link from 'next/link'
-import DuplicatePlanificationDialog from '@/components/features/planifications/dialogs/duplicate-planification-dialog'
-import DeletePlanificationDialog from '@/components/features/planifications/dialogs/delete-planification-dialog'
-import AssignDialog from '@/components/features/planifications/assignments/assign-dialog'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { formatDate } from 'date-fns'
+import Link from 'next/link'
+import DuplicatePlanificationDialog from '@/components/features/planifications/dialogs/duplicate-planification-dialog'
+import DeletePlanificationDialog from '@/components/features/planifications/dialogs/delete-planification-dialog'
+import AssignDialog from '@/components/features/planifications/assignments/assign-dialog'
+import AssignedMembersDialog from '@/components/features/planifications/assignments/assigned-members-dialog'
+import WorkoutWeekCard from '@/components/features/planifications/cards/workout-week-card'
 
 export default function PlanificationViewPage({
   params,
@@ -49,6 +51,8 @@ export default function PlanificationViewPage({
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
+    useState(false)
 
   const planification = useQuery(api.planifications.getById, {
     id: id as any,
@@ -154,9 +158,17 @@ export default function PlanificationViewPage({
                   )
                 })}
                 {assignments.length > 3 && (
-                  <AvatarGroupCount className="h-8 w-8 text-xs">
-                    +{assignments.length - 3}
-                  </AvatarGroupCount>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <AvatarGroupCount
+                        className="h-8 w-8 text-xs cursor-pointer hover:bg-muted/80 transition-colors"
+                        onClick={() => setAssignedMembersDialogOpen(true)}
+                      >
+                        +{assignments.length - 3}
+                      </AvatarGroupCount>
+                    </TooltipTrigger>
+                    <TooltipContent>Ver Asignados</TooltipContent>
+                  </Tooltip>
                 )}
               </AvatarGroup>
             )}
@@ -168,6 +180,16 @@ export default function PlanificationViewPage({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => setAssignedMembersDialogOpen(true)}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  Ver Asignados
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAssignDialogOpen(true)}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Asignar
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href={`/dashboard/planifications/${id}/edit`}>
                     <Edit className="h-4 w-4 mr-2" />
@@ -177,10 +199,6 @@ export default function PlanificationViewPage({
                 <DropdownMenuItem onClick={() => setDuplicateDialogOpen(true)}>
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicar
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setAssignDialogOpen(true)}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Asignar
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setDeleteDialogOpen(true)}
@@ -211,6 +229,12 @@ export default function PlanificationViewPage({
         onOpenChange={setAssignDialogOpen}
         planificationId={id}
       />
+      <AssignedMembersDialog
+        open={assignedMembersDialogOpen}
+        onOpenChange={setAssignedMembersDialogOpen}
+        assignments={assignments || []}
+        planificationName={planification.name}
+      />
 
       <div className="space-y-6">
         {workoutWeeks.length === 0 ? (
@@ -225,94 +249,6 @@ export default function PlanificationViewPage({
           ))
         )}
       </div>
-    </div>
-  )
-}
-
-function WorkoutWeekCard({ week }: { week: any }) {
-  const workoutDays = useQuery(api.workoutDays.getByWeek, {
-    weekId: week._id,
-  })
-
-  return (
-    <div className="border rounded-lg p-6 bg-muted/30">
-      <h2 className="text-2xl font-bold mb-6">{week.name}</h2>
-
-      {workoutDays === undefined ? (
-        <div className="space-y-4">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
-        </div>
-      ) : workoutDays.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No hay días de entrenamiento en esta semana
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {workoutDays.map((day) => (
-            <WorkoutDayCard key={day._id} day={day} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function WorkoutDayCard({ day }: { day: any }) {
-  const dayExercises = useQuery(api.dayExercises.getByWorkoutDay, {
-    workoutDayId: day._id,
-  })
-
-  return (
-    <div className="border rounded-lg p-5 bg-background">
-      <h3 className="text-lg font-semibold mb-3">{day.name}</h3>
-
-      {dayExercises === undefined ? (
-        <div className="space-y-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-16" />
-          ))}
-        </div>
-      ) : dayExercises.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No hay ejercicios en este día
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {dayExercises.map((ex, i) => (
-            <div
-              key={ex._id}
-              className="flex items-center gap-4 p-3 bg-muted/50 rounded-md"
-            >
-              <span className="text-sm font-medium text-muted-foreground w-6">
-                {i + 1}.
-              </span>
-              <div className="flex-1">
-                <p className="font-medium">
-                  {ex.exercise?.name || 'Ejercicio eliminado'}
-                </p>
-                {ex.exercise?.category && (
-                  <p className="text-xs text-muted-foreground">
-                    {ex.exercise.category}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium">{ex.sets}</span>
-                <span className="text-muted-foreground">×</span>
-                <span className="font-medium">{ex.reps}</span>
-                {ex.weight && (
-                  <>
-                    <span className="text-muted-foreground">@</span>
-                    <span className="font-medium">{ex.weight}</span>
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useMutation } from 'convex/react'
@@ -14,12 +14,18 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import {
@@ -31,7 +37,9 @@ import {
 import { assignmentSchema, Assignment } from '@repo/core/schemas'
 import { format, addDays } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { Check, ChevronsUpDown } from 'lucide-react'
 import { type DateRange } from 'react-day-picker'
+import { cn } from '@/lib/utils'
 
 interface AssignDialogProps {
   open: boolean
@@ -48,11 +56,18 @@ export default function AssignDialog({
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships
   )
+  const assignments = useQuery(
+    api.planificationAssignments.getByPlanification,
+    {
+      planificationId: planificationId as any,
+    }
+  )
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
     to: addDays(new Date(), 30),
   })
+  const [memberSearchOpen, setMemberSearchOpen] = useState(false)
 
   const form = useForm<Assignment>({
     resolver: zodResolver(assignmentSchema),
@@ -99,7 +114,20 @@ export default function AssignDialog({
     }
   }
 
-  const members = memberships?.filter((m) => m.role === 'member') || []
+  // Filter out members who are already assigned
+  const assignedUserIds = useMemo(() => {
+    if (!assignments) return new Set<string>()
+    return new Set(
+      assignments.filter((a) => a.status === 'active').map((a) => a.userId)
+    )
+  }, [assignments])
+
+  const availableMembers = useMemo(() => {
+    if (!memberships) return []
+    return memberships.filter(
+      (m) => m.role === 'member' && !assignedUserIds.has(m.userId)
+    )
+  }, [memberships, assignedUserIds])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -115,39 +143,92 @@ export default function AssignDialog({
           <Controller
             name="userId"
             control={form.control}
-            render={({ field, fieldState }) => (
-              <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor={field.name}>Miembro *</FieldLabel>
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={form.formState.isSubmitting}
-                >
-                  <SelectTrigger
-                    id={field.name}
-                    aria-invalid={fieldState.invalid}
+            render={({ field, fieldState }) => {
+              const selectedMember = availableMembers.find(
+                (m) => m.userId === field.value
+              )
+
+              return (
+                <Field data-invalid={fieldState.invalid}>
+                  <FieldLabel>Miembro *</FieldLabel>
+                  <Popover
+                    open={memberSearchOpen}
+                    onOpenChange={setMemberSearchOpen}
                   >
-                    <SelectValue placeholder="Seleccionar miembro" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {members.map((membership) => (
-                      <SelectItem
-                        key={membership.userId}
-                        value={membership.userId}
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={memberSearchOpen}
+                        className={cn(
+                          'w-full justify-between',
+                          !field.value && 'text-muted-foreground'
+                        )}
+                        disabled={form.formState.isSubmitting}
                       >
-                        {membership.fullName || membership.email || 'Usuario'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  Selecciona el miembro al que asignar la planificación.
-                </FieldDescription>
-                {fieldState.invalid && (
-                  <FieldError errors={[fieldState.error]} />
-                )}
-              </Field>
-            )}
+                        {selectedMember
+                          ? selectedMember.fullName ||
+                            selectedMember.email ||
+                            'Usuario'
+                          : 'Buscar miembro...'}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-full min-w-[460px] p-0"
+                      align="start"
+                    >
+                      <Command>
+                        <CommandInput placeholder="Buscar miembro..." />
+                        <CommandList>
+                          <CommandEmpty>
+                            No se encontraron miembros disponibles.
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {availableMembers.map((member) => (
+                              <CommandItem
+                                key={member.userId}
+                                value={`${member.fullName} ${member.email}`}
+                                onSelect={() => {
+                                  field.onChange(member.userId)
+                                  setMemberSearchOpen(false)
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    'mr-2 h-4 w-4',
+                                    field.value === member.userId
+                                      ? 'opacity-100'
+                                      : 'opacity-0'
+                                  )}
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-medium">
+                                    {member.fullName || 'Sin nombre'}
+                                  </span>
+                                  {member.email && (
+                                    <span className="text-xs text-muted-foreground">
+                                      {member.email}
+                                    </span>
+                                  )}
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FieldDescription>
+                    Busca y selecciona un miembro disponible para asignar la
+                    planificación.
+                  </FieldDescription>
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                </Field>
+              )
+            }}
           />
 
           <Field>
