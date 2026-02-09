@@ -37,15 +37,20 @@ interface GenerateSchedulesDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   classId: Id<'classes'>
-  className: string
+  classTitle: string
   isRecurring: boolean
   onSuccess?: () => void
 }
 
 const scheduleFormSchema = z.object({
   startDate: z.date(),
-  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato inválido (HH:mm)'),
-  duration: z.coerce.number().min(15, 'Mínimo 15 minutos').max(480, 'Máximo 8 horas'),
+  startTime: z
+    .string()
+    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato inválido (HH:mm)'),
+  duration: z.coerce
+    .number()
+    .min(15, 'Mínimo 15 minutos')
+    .max(480, 'Máximo 8 horas'),
 })
 
 type ScheduleFormValues = z.infer<typeof scheduleFormSchema>
@@ -54,7 +59,7 @@ export default function GenerateSchedulesDialog({
   open,
   onOpenChange,
   classId,
-  className,
+  classTitle,
   isRecurring,
   onSuccess,
 }: GenerateSchedulesDialogProps) {
@@ -85,9 +90,9 @@ export default function GenerateSchedulesDialog({
       const [hours, minutes] = data.startTime.split(':').map(Number)
       const startDateTime = new Date(data.startDate)
       startDateTime.setHours(hours, minutes, 0, 0)
-      
+
       const startTime = startDateTime.getTime()
-      const endTime = startTime + (data.duration * 60 * 1000)
+      const endTime = startTime + data.duration * 60 * 1000
 
       const result = await generateSchedules({
         classId,
@@ -116,7 +121,7 @@ export default function GenerateSchedulesDialog({
         <DialogHeader>
           <DialogTitle>Generar Horarios</DialogTitle>
           <DialogDescription>
-            Crear horarios para la clase "{className}"
+            Crear horarios para la clase &quot;{classTitle}&quot;
             {isRecurring && ' (se generarán los próximos 90 días)'}
           </DialogDescription>
         </DialogHeader>
@@ -168,11 +173,7 @@ export default function GenerateSchedulesDialog({
           {/* Start Time */}
           <Field>
             <FieldLabel>Hora de inicio</FieldLabel>
-            <Input
-              type="time"
-              {...register('startTime')}
-              placeholder="09:00"
-            />
+            <Input type="time" {...register('startTime')} placeholder="09:00" />
             <FieldDescription>Formato 24 horas (ej: 14:30)</FieldDescription>
             {errors.startTime && (
               <FieldError>{errors.startTime.message}</FieldError>

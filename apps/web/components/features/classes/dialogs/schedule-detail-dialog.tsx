@@ -49,23 +49,22 @@ export default function ScheduleDetailDialog({
 
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [isCancelling, setIsCancelling] = useState(false)
 
-  if (!schedule || !reservations) {
-    return null
-  }
-
-  const filteredReservations =
+  const filteredReservations = !schedule || !reservations ? [] :
     statusFilter === 'all'
       ? reservations
       : reservations.filter((r) => r.status === statusFilter)
 
-  const confirmedCount = reservations.filter(
-    (r) => r.status === 'confirmed'
-  ).length
-  const attendedCount = reservations.filter(
-    (r) => r.status === 'attended'
-  ).length
-  const noShowCount = reservations.filter((r) => r.status === 'no_show').length
+  const confirmedCount = reservations
+    ? reservations.filter((r) => r.status === 'confirmed').length
+    : 0
+  const attendedCount = reservations
+    ? reservations.filter((r) => r.status === 'attended').length
+    : 0
+  const noShowCount = reservations
+    ? reservations.filter((r) => r.status === 'no_show').length
+    : 0
 
   const handleCheckIn = async (reservationId: Id<'classReservations'>) => {
     setActionLoading(reservationId)
@@ -101,6 +100,7 @@ export default function ScheduleDetailDialog({
     ) {
       return
     }
+    setIsCancelling(true)
     try {
       await cancelSchedule({ id: scheduleId })
       onOpenChange(false)
@@ -109,6 +109,8 @@ export default function ScheduleDetailDialog({
       alert(
         error instanceof Error ? error.message : 'Error al cancelar la clase'
       )
+    } finally {
+      setIsCancelling(false)
     }
   }
 
@@ -147,26 +149,34 @@ export default function ScheduleDetailDialog({
     }
   }
 
-  const isPastClass = schedule.startTime < Date.now()
-  const isCancelled = schedule.status === 'cancelled'
+  const isPastClass = schedule ? schedule.startTime < Date.now() : false
+  const isCancelled = schedule?.status === 'cancelled'
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{schedule.class?.name}</DialogTitle>
-          <DialogDescription>
-            {format(
-              new Date(schedule.startTime),
-              "EEEE d 'de' MMMM 'a las' HH:mm",
-              {
-                locale: es,
-              }
-            )}
-          </DialogDescription>
-        </DialogHeader>
+        {!schedule || !reservations ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <p className="text-muted-foreground">Cargando detalles...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>{schedule.class?.name}</DialogTitle>
+              <DialogDescription>
+                {format(
+                  new Date(schedule.startTime),
+                  "EEEE d 'de' MMMM 'a las' HH:mm",
+                  {
+                    locale: es,
+                  }
+                )}
+              </DialogDescription>
+            </DialogHeader>
 
-        <div className="space-y-6">
+            <div className="space-y-6">
           {/* Schedule Info */}
           <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
             <div>
@@ -177,9 +187,7 @@ export default function ScheduleDetailDialog({
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Estado</p>
-              <p className="text-lg font-semibold capitalize">
-                <ClassStatusBadge status={schedule.status} />
-              </p>
+              <ClassStatusBadge status={schedule.status} />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Confirmadas</p>
@@ -219,8 +227,9 @@ export default function ScheduleDetailDialog({
                   variant="destructive"
                   size="sm"
                   onClick={handleCancelSchedule}
+                  disabled={isCancelling}
                 >
-                  Cancelar Clase
+                  {isCancelling ? 'Cancelando...' : 'Cancelar Clase'}
                 </Button>
               )}
             </div>
@@ -306,6 +315,8 @@ export default function ScheduleDetailDialog({
             )}
           </div>
         </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   )

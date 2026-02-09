@@ -166,7 +166,31 @@ export const getById = query({
     id: v.id('classes'),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id)
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new Error('Not authenticated')
+    }
+
+    const classTemplate = await ctx.db.get(args.id)
+    if (!classTemplate) {
+      return null
+    }
+
+    // Check if user is a member of the class's organization
+    const membership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', classTemplate.organizationId)
+          .eq('userId', identity.subject)
+      )
+      .first()
+
+    if (!membership) {
+      throw new Error('Access denied')
+    }
+
+    return classTemplate
   },
 })
 
@@ -256,56 +280,108 @@ export const generateSchedules = mutation({
     let currentDate = new Date(args.startDate)
     const now = Date.now()
 
-    while (currentDate.getTime() <= endDate) {
-      let shouldInclude = false
-
-      // Check if this date matches the recurrence pattern
-      if (pattern.frequency === 'daily') {
-        shouldInclude = true
-      } else if (pattern.frequency === 'weekly') {
-        const dayOfWeek = currentDate.getDay()
-        shouldInclude =
-          pattern.daysOfWeek?.includes(dayOfWeek) ?? false
-      } else if (pattern.frequency === 'monthly') {
-        // For monthly, use the same day of month as start date
-        const startDay = new Date(args.startDate).getDate()
-        shouldInclude = currentDate.getDate() === startDay
-      } else if (pattern.frequency === 'hourly') {
-        shouldInclude = true
+    if (pattern.frequency === 'weekly' && pattern.daysOfWeek && pattern.daysOfWeek.length > 0) {
+      // Special handling for weekly with multiple days of week
+      let weekIndex = 0
+      const maxWeeks = Math.ceil((endDate - args.startDate) / (7 * 24 * 60 * 60 * 1000)) + 1
+      
+      while (weekIndex < maxWeeks) {
+        // For each week, check all daysOfWeek
+        for (const dayOfWeek of pattern.daysOfWeek) {
+          // Calculate the date for this day in the current week
+          const weekStartTime = args.startDate + (weekIndex * pattern.interval * 7 * 24 * 60 * 60 * 1000)
+          const weekStartDate = new Date(weekStartTime)
+          const weekStartDay = weekStartDate.getDay()
+          
+          // Calculate days to add to reach the target day of week
+          let daysToAdd = dayOfWeek - weekStartDay
+          if (daysToAdd < 0) daysToAdd += 7
+          
+          const targetDate = new Date(weekStartTime + (daysToAdd * 24 * 60 * 60 * 1000))
+          targetDate.setHours(weekStartDate.getHours(), weekStartDate.getMinutes(), weekStartDate.getSeconds(), weekStartDate.getMilliseconds())
+          
+          if (targetDate.getTime() >= args.startDate && targetDate.getTime() <= endDate) {
+            const startTime = targetDate.getTime()
+            schedules.push({
+              classId: args.classId,
+              organizationId: classTemplate.organizationId,
+              startTime,
+              endTime: startTime + duration,
+              capacity: classTemplate.capacity,
+              currentReservations: 0,
+              status: 'scheduled',
+              createdAt: now,
+              updatedAt: now,
+            })
+          }
+        }
+        weekIndex++
       }
+    } else {
+      // Handle other frequencies (hourly, daily, monthly)
+      while (currentDate.getTime() <= endDate) {
+        let shouldInclude = false
 
-      if (shouldInclude) {
-        const startTime = currentDate.getTime()
-        schedules.push({
-          classId: args.classId,
-          organizationId: classTemplate.organizationId,
-          startTime,
-          endTime: startTime + duration,
-          capacity: classTemplate.capacity,
-          currentReservations: 0,
-          status: 'scheduled',
-          createdAt: now,
-          updatedAt: now,
-        })
-      }
+        // Check if this date matches the recurrence pattern
+        if (pattern.frequency === 'daily') {
+          shouldInclude = true
+        } else if (pattern.frequency === 'monthly') {
+          // For monthly, use the same day of month as start date
+          const startDay = new Date(args.startDate).getDate()
+          shouldInclude = currentDate.getDate() === startDay
+        } else if (pattern.frequency === 'hourly') {
+          shouldInclude = true
+        }
 
-      // Increment date based on frequency
-      if (pattern.frequency === 'hourly') {
-        currentDate = new Date(
-          currentDate.getTime() + pattern.interval * 60 * 60 * 1000
-        )
-      } else if (pattern.frequency === 'daily') {
-        currentDate = new Date(
-          currentDate.getTime() + pattern.interval * 24 * 60 * 60 * 1000
-        )
-      } else if (pattern.frequency === 'weekly') {
-        currentDate = new Date(
-          currentDate.getTime() + pattern.interval * 7 * 24 * 60 * 60 * 1000
-        )
-      } else if (pattern.frequency === 'monthly') {
-        currentDate = new Date(
-          currentDate.setMonth(currentDate.getMonth() + pattern.interval)
-        )
+        if (shouldInclude) {
+          const startTime = currentDate.getTime()
+          schedules.push({
+            classId: args.classId,
+            organizationId: classTemplate.organizationId,
+            startTime,
+            endTime: startTime + duration,
+            capacity: classTemplate.capacity,
+            currentReservations: 0,
+            status: 'scheduled',
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
+
+        // Increment date based on frequency
+        if (pattern.frequency === 'hourly') {
+          currentDate = new Date(
+            currentDate.getTime() + pattern.interval * 60 * 60 * 1000
+          )
+        } else if (pattern.frequency === 'daily') {
+          currentDate = new Date(
+            currentDate.getTime() + pattern.interval * 24 * 60 * 60 * 1000
+          )
+        } else if (pattern.frequency === 'monthly') {
+          // Handle month overflow correctly
+          const targetYear = currentDate.getFullYear()
+          const targetMonth = currentDate.getMonth() + pattern.interval
+          const originalDay = new Date(args.startDate).getDate()
+          
+          // Create a new date for the target month
+          const newDate = new Date(targetYear, targetMonth, 1)
+          // Get the last day of the target month
+          const lastDayOfMonth = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()
+          // Use the smaller of original day and last day of month
+          const actualDay = Math.min(originalDay, lastDayOfMonth)
+          
+          currentDate = new Date(
+            newDate.getFullYear(),
+            newDate.getMonth(),
+            actualDay,
+            currentDate.getHours(),
+            currentDate.getMinutes(),
+            currentDate.getSeconds(),
+            currentDate.getMilliseconds()
+          )
+        } else {
+          break // Unknown frequency
+        }
       }
     }
 

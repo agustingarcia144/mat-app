@@ -50,11 +50,6 @@ export const reserve = mutation({
       throw new Error('Cannot book a class that has already started')
     }
 
-    // Check capacity
-    if (schedule.currentReservations >= schedule.capacity) {
-      throw new Error('This class is full')
-    }
-
     // Check for duplicate reservation
     const existing = await ctx.db
       .query('classReservations')
@@ -71,11 +66,22 @@ export const reserve = mutation({
       throw new Error('You have already reserved this class')
     }
 
+    // Re-fetch schedule to avoid TOCTOU race condition
+    const currentSchedule = await ctx.db.get(args.scheduleId)
+    if (!currentSchedule) {
+      throw new Error('Schedule not found')
+    }
+
+    // Check capacity again with latest data
+    if (currentSchedule.currentReservations >= currentSchedule.capacity) {
+      throw new Error('This class is full')
+    }
+
     // Create reservation
     const reservationId = await ctx.db.insert('classReservations', {
       scheduleId: args.scheduleId,
-      classId: schedule.classId,
-      organizationId: schedule.organizationId,
+      classId: currentSchedule.classId,
+      organizationId: currentSchedule.organizationId,
       userId: identity.subject,
       status: 'confirmed',
       notes: args.notes,
@@ -83,9 +89,9 @@ export const reserve = mutation({
       updatedAt: now,
     })
 
-    // Increment reservation count
+    // Increment reservation count atomically
     await ctx.db.patch(args.scheduleId, {
-      currentReservations: schedule.currentReservations + 1,
+      currentReservations: currentSchedule.currentReservations + 1,
       updatedAt: now,
     })
 
@@ -234,6 +240,36 @@ export const getBySchedule = query({
     scheduleId: v.id('classSchedules'),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new Error('Not authenticated')
+    }
+
+    // Get the schedule to check organization
+    const schedule = await ctx.db.get(args.scheduleId)
+    if (!schedule) {
+      throw new Error('Schedule not found')
+    }
+
+    // Check if user is authorized (admin/trainer or member of org)
+    await requireAdminOrTrainer(ctx, schedule.organizationId).catch(
+      async () => {
+        // If not admin/trainer, verify user is a member of the organization
+        const membership = await ctx.db
+          .query('organizationMemberships')
+          .withIndex('by_organization_user', (q) =>
+            q
+              .eq('organizationId', schedule.organizationId)
+              .eq('userId', identity.subject)
+          )
+          .first()
+
+        if (!membership) {
+          throw new Error('Access denied')
+        }
+      }
+    )
+
     return await ctx.db
       .query('classReservations')
       .withIndex('by_schedule', (q) => q.eq('scheduleId', args.scheduleId))
@@ -242,7 +278,7 @@ export const getBySchedule = query({
 })
 
 /**
- * Get reservations for a schedule with user details
+ * Get reservations for a schedule with user details (admin/trainer only)
  */
 export const getByScheduleWithUsers = query({
   args: {
@@ -257,6 +293,20 @@ export const getByScheduleWithUsers = query({
     ),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new Error('Not authenticated')
+    }
+
+    // Get the schedule to check organization
+    const schedule = await ctx.db.get(args.scheduleId)
+    if (!schedule) {
+      throw new Error('Schedule not found')
+    }
+
+    // Only admin/trainer can access user details
+    await requireAdminOrTrainer(ctx, schedule.organizationId)
+
     let reservations = await ctx.db
       .query('classReservations')
       .withIndex('by_schedule', (q) => q.eq('scheduleId', args.scheduleId))
@@ -267,7 +317,7 @@ export const getByScheduleWithUsers = query({
       reservations = reservations.filter((r) => r.status === args.statusFilter)
     }
 
-    // Enrich with user data
+    // Enrich with minimal user data (not full PII)
     const enrichedReservations = await Promise.all(
       reservations.map(async (reservation) => {
         const user = await ctx.db
@@ -279,7 +329,15 @@ export const getByScheduleWithUsers = query({
 
         return {
           ...reservation,
-          user,
+          user: user
+            ? {
+                firstName: user.firstName,
+                lastName: user.lastName,
+                fullName: user.fullName,
+                email: user.email,
+                imageUrl: user.imageUrl,
+              }
+            : null,
         }
       })
     )
@@ -292,14 +350,13 @@ export const getByScheduleWithUsers = query({
  * Get all reservations for a user
  */
 export const getByUser = query({
-  args: {
-    userId: v.optional(v.string()), // If not provided, use current user
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    const userId = args.userId ?? identity.subject
+    // Always use the authenticated user's ID
+    const userId = identity.subject
 
     return await ctx.db
       .query('classReservations')
@@ -312,14 +369,13 @@ export const getByUser = query({
  * Get upcoming reservations for a user
  */
 export const getUpcomingByUser = query({
-  args: {
-    userId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    const userId = args.userId ?? identity.subject
+    // Always use the authenticated user's ID
+    const userId = identity.subject
     const now = Date.now()
 
     // Get user's confirmed reservations

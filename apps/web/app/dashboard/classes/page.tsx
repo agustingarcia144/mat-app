@@ -44,19 +44,6 @@ export default function ClassesPage() {
     }
   )
 
-  // Debug: Get all schedules
-  const allSchedules = useQuery(api.classSchedules.getAllByOrganization, {})
-  
-  // Log for debugging
-  if (allSchedules) {
-    console.log('Total schedules in DB:', allSchedules.length)
-    console.log('Schedules for current week:', schedules?.length || 0)
-    console.log('Week range:', new Date(weekStart), 'to', new Date(weekEnd))
-    if (allSchedules.length > 0) {
-      console.log('First schedule date:', new Date(allSchedules[0].startTime))
-    }
-  }
-
   // Enrich schedules with class data
   const enrichedSchedules = useMemo(() => {
     if (!schedules || !classes) return []

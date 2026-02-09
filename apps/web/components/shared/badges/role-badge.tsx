@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge'
 import { UserRound } from 'lucide-react'
 
 function RoleBadge({ role }: { role: string }) {
-  const getRoleText = (role: string) => {
+  const getRoleText = (role: string): string => {
     switch (role) {
       case 'admin':
         return 'Administrador'
@@ -10,6 +10,8 @@ function RoleBadge({ role }: { role: string }) {
         return 'Entrenador'
       case 'member':
         return 'Miembro'
+      default:
+        return role.charAt(0).toUpperCase() + role.slice(1)
     }
   }
 
@@ -21,6 +23,8 @@ function RoleBadge({ role }: { role: string }) {
         return <UserRound className="w-4 h-4 text-blue-500" />
       case 'member':
         return <UserRound className="w-4 h-4 text-gray-500" />
+      default:
+        return <UserRound className="w-4 h-4 text-gray-400" />
     }
   }
   return (

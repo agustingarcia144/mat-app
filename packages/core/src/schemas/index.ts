@@ -68,41 +68,70 @@ export const recurrencePatternSchema = z.object({
   frequency: z.enum(['hourly', 'daily', 'weekly', 'monthly'], {
     message: 'Selecciona una frecuencia válida',
   }),
-  interval: z.coerce.number().min(1, 'El intervalo debe ser al menos 1'),
-  daysOfWeek: z.array(z.number().min(0).max(6)).optional(),
+  interval: z.coerce
+    .number()
+    .int('El intervalo debe ser un número entero')
+    .min(1, 'El intervalo debe ser al menos 1'),
+  daysOfWeek: z
+    .array(z.number().int().min(0).max(6, 'Los días deben estar entre 0 y 6'))
+    .optional(),
   endDate: z.number().optional(),
 })
 
-export const classSchema = z.object({
-  name: z.string().min(1, 'El nombre es requerido').trim(),
-  description: z.string().optional(),
-  capacity: z
-    .number()
-    .min(1, 'La capacidad debe ser al menos 1')
-    .max(1000, 'La capacidad máxima es 1000'),
-  trainerId: z.string().optional(),
-  bookingWindowDays: z
-    .number()
-    .min(0, 'La ventana de reserva debe ser al menos 0')
-    .max(365, 'La ventana máxima es 365 días')
-    .default(7),
-  cancellationWindowHours: z
-    .number()
-    .min(0, 'La ventana de cancelación debe ser al menos 0')
-    .max(168, 'La ventana máxima es 168 horas')
-    .default(2),
-  isRecurring: z.boolean().default(false),
-  recurrencePattern: recurrencePatternSchema.optional(),
-  isActive: z.boolean().default(true),
-})
+export const classSchema = z
+  .object({
+    name: z.string().min(1, 'El nombre es requerido').trim(),
+    description: z.string().optional(),
+    capacity: z
+      .number()
+      .int('La capacidad debe ser un número entero')
+      .min(1, 'La capacidad debe ser al menos 1')
+      .max(1000, 'La capacidad máxima es 1000'),
+    trainerId: z.string().optional(),
+    bookingWindowDays: z
+      .number()
+      .int('Los días deben ser un número entero')
+      .min(0, 'La ventana de reserva debe ser al menos 0')
+      .max(365, 'La ventana máxima es 365 días')
+      .default(7),
+    cancellationWindowHours: z
+      .number()
+      .min(0, 'La ventana de cancelación debe ser al menos 0')
+      .max(168, 'La ventana máxima es 168 horas')
+      .default(2),
+    isRecurring: z.boolean().default(false),
+    recurrencePattern: recurrencePatternSchema.optional(),
+    isActive: z.boolean().default(true),
+  })
+  .refine(
+    (data) => {
+      // If isRecurring is true, recurrencePattern must be present
+      if (data.isRecurring && !data.recurrencePattern) {
+        return false
+      }
+      return true
+    },
+    {
+      message: 'El patrón de recurrencia es requerido cuando la clase es recurrente',
+      path: ['recurrencePattern'],
+    }
+  )
 
-export const scheduleSchema = z.object({
-  classId: z.string(),
-  startTime: z.number(),
-  endTime: z.number(),
-  capacity: z.number().optional(), // Override class capacity
-  notes: z.string().optional(),
-})
+export const scheduleSchema = z
+  .object({
+    classId: z.string().min(1, 'El ID de clase es requerido'),
+    startTime: z.number(),
+    endTime: z.number(),
+    capacity: z.number().optional(), // Override class capacity
+    notes: z.string().optional(),
+  })
+  .refine(
+    (data) => data.endTime > data.startTime,
+    {
+      message: 'La hora de fin debe ser posterior a la hora de inicio',
+      path: ['endTime'],
+    }
+  )
 
 export const reservationSchema = z.object({
   scheduleId: z.string(),

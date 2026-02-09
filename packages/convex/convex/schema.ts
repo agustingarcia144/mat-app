@@ -231,6 +231,10 @@ export default defineSchema({
     startTime: v.number(), // Timestamp
     endTime: v.number(), // Timestamp
     capacity: v.number(), // Can override class capacity
+    // currentReservations is a denormalized counter that must be updated atomically
+    // with classReservations changes. The reserve/cancel mutations re-fetch the schedule
+    // immediately before updating to minimize TOCTOU races. A periodic reconciliation
+    // job should be added to correct any drift.
     currentReservations: v.number(), // Count for quick checks
     status: v.union(
       v.literal('scheduled'),

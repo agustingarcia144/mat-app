@@ -21,6 +21,11 @@ export const create = mutation({
       throw new Error('Class not found')
     }
 
+    // Validate startTime < endTime
+    if (args.startTime >= args.endTime) {
+      throw new Error('startTime must be before endTime')
+    }
+
     await requireAdminOrTrainer(ctx, classTemplate.organizationId)
 
     const now = Date.now()
@@ -126,7 +131,31 @@ export const getById = query({
     id: v.id('classSchedules'),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id)
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new Error('Not authenticated')
+    }
+
+    const schedule = await ctx.db.get(args.id)
+    if (!schedule) {
+      return null
+    }
+
+    // Check if user is a member of the schedule's organization
+    const membership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', schedule.organizationId)
+          .eq('userId', identity.subject)
+      )
+      .first()
+
+    if (!membership) {
+      throw new Error('Access denied')
+    }
+
+    return schedule
   },
 })
 
@@ -138,6 +167,31 @@ export const getByClass = query({
     classId: v.id('classes'),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new Error('Not authenticated')
+    }
+
+    // Get the class to check organization
+    const classTemplate = await ctx.db.get(args.classId)
+    if (!classTemplate) {
+      throw new Error('Class not found')
+    }
+
+    // Check if user is a member of the class's organization
+    const membership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', classTemplate.organizationId)
+          .eq('userId', identity.subject)
+      )
+      .first()
+
+    if (!membership) {
+      throw new Error('Access denied')
+    }
+
     return await ctx.db
       .query('classSchedules')
       .withIndex('by_class', (q) => q.eq('classId', args.classId))
@@ -232,8 +286,27 @@ export const getScheduleWithDetails = query({
     id: v.id('classSchedules'),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      throw new Error('Not authenticated')
+    }
+
     const schedule = await ctx.db.get(args.id)
     if (!schedule) return null
+
+    // Check if user is a member of the schedule's organization
+    const membership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', schedule.organizationId)
+          .eq('userId', identity.subject)
+      )
+      .first()
+
+    if (!membership) {
+      throw new Error('Access denied')
+    }
 
     const classTemplate = await ctx.db.get(schedule.classId)
     

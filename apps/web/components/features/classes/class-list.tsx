@@ -231,7 +231,7 @@ export default function ClassList({ onEditClass }: ClassListProps) {
           open={generateDialogOpen}
           onOpenChange={setGenerateDialogOpen}
           classId={selectedClassForGenerate.id}
-          className={selectedClassForGenerate.name}
+          classTitle={selectedClassForGenerate.name}
           isRecurring={selectedClassForGenerate.isRecurring}
           onSuccess={() => {
             setSelectedClassForGenerate(null)

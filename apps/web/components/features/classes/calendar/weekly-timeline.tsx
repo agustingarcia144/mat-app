@@ -25,7 +25,10 @@ export default function WeeklyTimeline({
   onDateChange,
   onScheduleClick,
 }: WeeklyTimelineProps) {
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 }) // Monday
+  const weekStart = useMemo(
+    () => startOfWeek(currentDate, { weekStartsOn: 1 }),
+    [currentDate]
+  )
 
   const weekDays = useMemo(() => {
     return Array.from({ length: DAYS_IN_WEEK }, (_, i) => addDays(weekStart, i))
@@ -66,6 +69,11 @@ export default function WeeklyTimeline({
     if (schedule.status === 'cancelled') return 'bg-gray-400'
     if (schedule.status === 'completed') return 'bg-gray-300'
     
+    // Guard against division by zero
+    if (schedule.capacity === 0) {
+      return schedule.currentReservations > 0 ? 'bg-red-500' : 'bg-gray-500'
+    }
+    
     const percentFull = (schedule.currentReservations / schedule.capacity) * 100
     if (percentFull >= 100) return 'bg-red-500'
     if (percentFull >= 80) return 'bg-orange-500'
@@ -78,14 +86,24 @@ export default function WeeklyTimeline({
       {/* Header with navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={goToPreviousWeek}>
-            <ChevronLeft className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={goToPreviousWeek}
+            aria-label="Previous week"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           </Button>
           <Button variant="outline" onClick={goToToday}>
             Hoy
           </Button>
-          <Button variant="outline" size="icon" onClick={goToNextWeek}>
-            <ChevronRight className="h-4 w-4" />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={goToNextWeek}
+            aria-label="Next week"
+          >
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
         <h2 className="text-lg font-semibold">
