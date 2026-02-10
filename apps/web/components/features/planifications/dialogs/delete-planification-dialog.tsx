@@ -11,6 +11,7 @@ import {
 import { api } from '@/convex/_generated/api'
 import { useMutation } from 'convex/react'
 import { PlanificationData } from '../library/planification-list'
+import { toast } from 'sonner'
 
 function DeletePlanificationDialog({
   open,
@@ -36,7 +37,7 @@ function DeletePlanificationDialog({
       onSuccess?.()
     } catch (error) {
       console.error('Failed to delete planification:', error)
-      alert('Error al eliminar la planificación')
+      toast.error('Error al eliminar la planificación')
     } finally {
       setIsDeleting(false)
     }

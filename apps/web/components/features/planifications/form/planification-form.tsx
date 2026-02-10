@@ -12,6 +12,7 @@ import {
   planificationFormSchema,
   PlanificationForm as PlanificationFormType,
 } from '@repo/core/schemas'
+import { toast } from 'sonner'
 
 export default function PlanificationForm() {
   const router = useRouter()
@@ -87,7 +88,7 @@ export default function PlanificationForm() {
       router.push('/dashboard/planifications')
     } catch (error) {
       console.error('Failed to create planification:', error)
-      alert('Error al crear la planificación')
+      toast.error('Error al crear la planificación')
     }
   }
 

@@ -32,6 +32,7 @@ import { Calendar as CalendarIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type Id } from '@/convex/_generated/dataModel'
 import { z } from 'zod'
+import { toast } from 'sonner'
 
 interface GenerateSchedulesDialogProps {
   open: boolean
@@ -102,12 +103,12 @@ export default function GenerateSchedulesDialog({
       })
 
       console.log('Schedules generated:', result)
-      alert(`Se generaron ${result.count} horario(s) exitosamente`)
+      toast.success(`Se generaron ${result.count} horario(s) exitosamente`)
       onOpenChange(false)
       onSuccess?.()
     } catch (error) {
       console.error('Error generating schedules:', error)
-      alert(
+      toast.error(
         error instanceof Error ? error.message : 'Error al generar horarios'
       )
     } finally {

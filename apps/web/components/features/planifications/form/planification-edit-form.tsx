@@ -13,6 +13,7 @@ import {
   planificationFormSchema,
   PlanificationForm as PlanificationFormType,
 } from '@repo/core/schemas'
+import { toast } from 'sonner'
 
 interface PlanificationEditFormProps {
   planificationId: string
@@ -84,7 +85,7 @@ export default function PlanificationEditForm({
 
   const onSubmit = async (data: PlanificationFormType) => {
     setIsSaving(true)
-    
+
     try {
       // Update basic info
       await updatePlanification({
@@ -140,7 +141,7 @@ export default function PlanificationEditForm({
     } catch (error) {
       console.error('Failed to update planification:', error)
       setIsSaving(false)
-      alert('Error al actualizar la planificación')
+      toast.error('Error al actualizar la planificación')
     }
   }
 
@@ -153,7 +154,9 @@ export default function PlanificationEditForm({
       <div className="flex gap-3 pt-6 border-t">
         <Button
           type="submit"
-          disabled={isSaving || form.formState.isSubmitting || !form.formState.isValid}
+          disabled={
+            isSaving || form.formState.isSubmitting || !form.formState.isValid
+          }
         >
           {isSaving ? 'Guardando...' : 'Guardar cambios'}
         </Button>

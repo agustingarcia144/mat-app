@@ -30,6 +30,7 @@ import {
   FieldError,
 } from '@/components/ui/field'
 import { exerciseSchema, Exercise } from '@repo/core/schemas'
+import { toast } from 'sonner'
 
 interface CreateExerciseDialogProps {
   open: boolean
@@ -147,7 +148,7 @@ export default function CreateExerciseDialog({
         isEditing ? 'Failed to update exercise:' : 'Failed to create exercise:',
         error
       )
-      alert(
+      toast.error(
         isEditing
           ? 'Error al actualizar el ejercicio'
           : 'Error al crear el ejercicio'
@@ -203,7 +204,9 @@ export default function CreateExerciseDialog({
                 <FieldDescription>
                   Nombre del ejercicio para identificarlo fácilmente.
                 </FieldDescription>
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
               </Field>
             )}
           />
@@ -223,7 +226,9 @@ export default function CreateExerciseDialog({
                   disabled={form.formState.isSubmitting}
                   autoComplete="off"
                 />
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
               </Field>
             )}
           />
@@ -239,7 +244,10 @@ export default function CreateExerciseDialog({
                   onValueChange={field.onChange}
                   disabled={form.formState.isSubmitting}
                 >
-                  <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
+                  <SelectTrigger
+                    id={field.name}
+                    aria-invalid={fieldState.invalid}
+                  >
                     <SelectValue placeholder="Seleccionar categoría" />
                   </SelectTrigger>
                   <SelectContent>
@@ -253,7 +261,9 @@ export default function CreateExerciseDialog({
                 <FieldDescription>
                   Categoría del ejercicio según el tipo de entrenamiento.
                 </FieldDescription>
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
               </Field>
             )}
           />
@@ -269,7 +279,10 @@ export default function CreateExerciseDialog({
                   onValueChange={field.onChange}
                   disabled={form.formState.isSubmitting}
                 >
-                  <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
+                  <SelectTrigger
+                    id={field.name}
+                    aria-invalid={fieldState.invalid}
+                  >
                     <SelectValue placeholder="Seleccionar equipo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -280,7 +293,9 @@ export default function CreateExerciseDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
               </Field>
             )}
           />
@@ -300,7 +315,9 @@ export default function CreateExerciseDialog({
                   disabled={form.formState.isSubmitting}
                   autoComplete="off"
                 />
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
               </Field>
             )}
           />
@@ -313,9 +330,7 @@ export default function CreateExerciseDialog({
                   key={muscle}
                   type="button"
                   variant={
-                    selectedMuscles.includes(muscle)
-                      ? 'default'
-                      : 'outline'
+                    selectedMuscles.includes(muscle) ? 'default' : 'outline'
                   }
                   size="sm"
                   onClick={() => toggleMuscle(muscle)}

@@ -12,10 +12,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, Pencil, Trash2, CheckCircle2, XCircle, CalendarPlus } from 'lucide-react'
+import {
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  CheckCircle2,
+  XCircle,
+  CalendarPlus,
+} from 'lucide-react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { type Id } from '@/convex/_generated/dataModel'
 import GenerateSchedulesDialog from './dialogs/generate-schedules-dialog'
+import { toast } from 'sonner'
 
 interface ClassListProps {
   onEditClass: (classId: Id<'classes'>) => void
@@ -59,7 +67,11 @@ export default function ClassList({ onEditClass }: ClassListProps) {
   }, [memberships])
 
   const handleDelete = async (id: Id<'classes'>) => {
-    if (!confirm('¿Estás seguro de eliminar esta clase? Se eliminarán todas las clases futuras programadas.')) {
+    if (
+      !confirm(
+        '¿Estás seguro de eliminar esta clase? Se eliminarán todas las clases futuras programadas.'
+      )
+    ) {
       return
     }
     setDeletingId(id)
@@ -67,13 +79,18 @@ export default function ClassList({ onEditClass }: ClassListProps) {
       await removeClass({ id })
     } catch (error) {
       console.error('Error deleting class:', error)
-      alert(error instanceof Error ? error.message : 'Error al eliminar la clase')
+      toast.error(
+        error instanceof Error ? error.message : 'Error al eliminar la clase'
+      )
     } finally {
       setDeletingId(null)
     }
   }
 
-  const handleToggleActive = async (id: Id<'classes'>, currentActive: boolean) => {
+  const handleToggleActive = async (
+    id: Id<'classes'>,
+    currentActive: boolean
+  ) => {
     try {
       await updateClass({
         id,
@@ -81,7 +98,9 @@ export default function ClassList({ onEditClass }: ClassListProps) {
       })
     } catch (error) {
       console.error('Error toggling active:', error)
-      alert(error instanceof Error ? error.message : 'Error al actualizar la clase')
+      toast.error(
+        error instanceof Error ? error.message : 'Error al actualizar la clase'
+      )
     }
   }
 
@@ -131,7 +150,8 @@ export default function ClassList({ onEditClass }: ClassListProps) {
       header: 'Ventana reserva',
       cell: ({ row }) => (
         <span className="text-sm">
-          {row.original.bookingWindowDays} {row.original.bookingWindowDays === 1 ? 'día' : 'días'}
+          {row.original.bookingWindowDays}{' '}
+          {row.original.bookingWindowDays === 1 ? 'día' : 'días'}
         </span>
       ),
     },
@@ -140,7 +160,8 @@ export default function ClassList({ onEditClass }: ClassListProps) {
       header: 'Ventana cancelación',
       cell: ({ row }) => (
         <span className="text-sm">
-          {row.original.cancellationWindowHours} {row.original.cancellationWindowHours === 1 ? 'hora' : 'horas'}
+          {row.original.cancellationWindowHours}{' '}
+          {row.original.cancellationWindowHours === 1 ? 'hora' : 'horas'}
         </span>
       ),
     },
@@ -179,7 +200,9 @@ export default function ClassList({ onEditClass }: ClassListProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleGenerateSchedules(classItem)}>
+              <DropdownMenuItem
+                onClick={() => handleGenerateSchedules(classItem)}
+              >
                 <CalendarPlus className="mr-2 h-4 w-4" />
                 Generar Horarios
               </DropdownMenuItem>
@@ -225,7 +248,7 @@ export default function ClassList({ onEditClass }: ClassListProps) {
   return (
     <div>
       <DataTable columns={columns} data={classes} />
-      
+
       {selectedClassForGenerate && (
         <GenerateSchedulesDialog
           open={generateDialogOpen}

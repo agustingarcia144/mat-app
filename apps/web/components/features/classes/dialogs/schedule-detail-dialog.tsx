@@ -25,6 +25,7 @@ import { es } from 'date-fns/locale'
 import { CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react'
 import { type Id } from '@/convex/_generated/dataModel'
 import ClassStatusBadge from '@/components/shared/badges/class-status-badge'
+import { toast } from 'sonner'
 
 interface ScheduleDetailDialogProps {
   open: boolean
@@ -51,10 +52,12 @@ export default function ScheduleDetailDialog({
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [isCancelling, setIsCancelling] = useState(false)
 
-  const filteredReservations = !schedule || !reservations ? [] :
-    statusFilter === 'all'
-      ? reservations
-      : reservations.filter((r) => r.status === statusFilter)
+  const filteredReservations =
+    !schedule || !reservations
+      ? []
+      : statusFilter === 'all'
+        ? reservations
+        : reservations.filter((r) => r.status === statusFilter)
 
   const confirmedCount = reservations
     ? reservations.filter((r) => r.status === 'confirmed').length
@@ -72,7 +75,7 @@ export default function ScheduleDetailDialog({
       await checkIn({ id: reservationId })
     } catch (error) {
       console.error('Error checking in:', error)
-      alert(
+      toast.error(
         error instanceof Error ? error.message : 'Error al registrar asistencia'
       )
     } finally {
@@ -86,7 +89,9 @@ export default function ScheduleDetailDialog({
       await markNoShow({ id: reservationId })
     } catch (error) {
       console.error('Error marking no-show:', error)
-      alert(error instanceof Error ? error.message : 'Error al marcar ausencia')
+      toast.error(
+        error instanceof Error ? error.message : 'Error al marcar ausencia'
+      )
     } finally {
       setActionLoading(null)
     }
@@ -106,7 +111,7 @@ export default function ScheduleDetailDialog({
       onOpenChange(false)
     } catch (error) {
       console.error('Error cancelling schedule:', error)
-      alert(
+      toast.error(
         error instanceof Error ? error.message : 'Error al cancelar la clase'
       )
     } finally {
@@ -177,144 +182,151 @@ export default function ScheduleDetailDialog({
             </DialogHeader>
 
             <div className="space-y-6">
-          {/* Schedule Info */}
-          <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-            <div>
-              <p className="text-sm text-muted-foreground">Capacidad</p>
-              <p className="text-lg font-semibold">
-                {schedule.currentReservations} / {schedule.capacity}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Estado</p>
-              <ClassStatusBadge status={schedule.status} />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Confirmadas</p>
-              <p className="text-lg font-semibold">{confirmedCount}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Asistencias</p>
-              <p className="text-lg font-semibold">
-                {attendedCount}
-                {noShowCount > 0 && (
-                  <span className="text-sm text-muted-foreground ml-2">
-                    ({noShowCount} ausentes)
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Actions */}
-          {!isCancelled && (
-            <div className="flex justify-between items-center">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Filtrar por estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="confirmed">Confirmadas</SelectItem>
-                  <SelectItem value="attended">Asistieron</SelectItem>
-                  <SelectItem value="no_show">No asistieron</SelectItem>
-                  <SelectItem value="cancelled">Canceladas</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {!isPastClass && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleCancelSchedule}
-                  disabled={isCancelling}
-                >
-                  {isCancelling ? 'Cancelando...' : 'Cancelar Clase'}
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Reservations List */}
-          <div className="space-y-2">
-            <h3 className="font-semibold">
-              Reservas ({filteredReservations.length})
-            </h3>
-
-            {filteredReservations.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                {statusFilter === 'all'
-                  ? 'No hay reservas para esta clase'
-                  : 'No hay reservas con este estado'}
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {filteredReservations.map((reservation) => (
-                  <div
-                    key={reservation._id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={reservation.user?.imageUrl} />
-                        <AvatarFallback>
-                          {reservation.user?.firstName?.[0]}
-                          {reservation.user?.lastName?.[0]}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">
-                          {reservation.user?.fullName || 'Usuario'}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {reservation.user?.email}
-                        </p>
-                        {reservation.notes && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {reservation.notes}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {getStatusBadge(reservation.status)}
-
-                      {reservation.status === 'confirmed' && isPastClass && (
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCheckIn(reservation._id)}
-                            disabled={actionLoading === reservation._id}
-                          >
-                            Registrar asistencia
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleMarkNoShow(reservation._id)}
-                            disabled={actionLoading === reservation._id}
-                          >
-                            Marcar ausente
-                          </Button>
-                        </div>
-                      )}
-
-                      {reservation.checkedInAt && (
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(reservation.checkedInAt), 'HH:mm', {
-                            locale: es,
-                          })}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              {/* Schedule Info */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                <div>
+                  <p className="text-sm text-muted-foreground">Capacidad</p>
+                  <p className="text-lg font-semibold">
+                    {schedule.currentReservations} / {schedule.capacity}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Estado</p>
+                  <ClassStatusBadge status={schedule.status} />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Confirmadas</p>
+                  <p className="text-lg font-semibold">{confirmedCount}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Asistencias</p>
+                  <p className="text-lg font-semibold">
+                    {attendedCount}
+                    {noShowCount > 0 && (
+                      <span className="text-sm text-muted-foreground ml-2">
+                        ({noShowCount} ausentes)
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
-            )}
-          </div>
-        </div>
+
+              {/* Actions */}
+              {!isCancelled && (
+                <div className="flex justify-between items-center">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Filtrar por estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="confirmed">Confirmadas</SelectItem>
+                      <SelectItem value="attended">Asistieron</SelectItem>
+                      <SelectItem value="no_show">No asistieron</SelectItem>
+                      <SelectItem value="cancelled">Canceladas</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {!isPastClass && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleCancelSchedule}
+                      disabled={isCancelling}
+                    >
+                      {isCancelling ? 'Cancelando...' : 'Cancelar Clase'}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {/* Reservations List */}
+              <div className="space-y-2">
+                <h3 className="font-semibold">
+                  Reservas ({filteredReservations.length})
+                </h3>
+
+                {filteredReservations.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    {statusFilter === 'all'
+                      ? 'No hay reservas para esta clase'
+                      : 'No hay reservas con este estado'}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredReservations.map((reservation) => (
+                      <div
+                        key={reservation._id}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarImage src={reservation.user?.imageUrl} />
+                            <AvatarFallback>
+                              {reservation.user?.firstName?.[0]}
+                              {reservation.user?.lastName?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">
+                              {reservation.user?.fullName || 'Usuario'}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {reservation.user?.email}
+                            </p>
+                            {reservation.notes && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {reservation.notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(reservation.status)}
+
+                          {reservation.status === 'confirmed' &&
+                            isPastClass && (
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleCheckIn(reservation._id)}
+                                  disabled={actionLoading === reservation._id}
+                                >
+                                  Registrar asistencia
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleMarkNoShow(reservation._id)
+                                  }
+                                  disabled={actionLoading === reservation._id}
+                                >
+                                  Marcar ausente
+                                </Button>
+                              </div>
+                            )}
+
+                          {reservation.checkedInAt && (
+                            <p className="text-xs text-muted-foreground">
+                              {format(
+                                new Date(reservation.checkedInAt),
+                                'HH:mm',
+                                {
+                                  locale: es,
+                                }
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </>
         )}
       </DialogContent>

@@ -52,6 +52,7 @@ import { es } from 'date-fns/locale'
 import { Check, ChevronsUpDown, Calendar as CalendarIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type Id } from '@/convex/_generated/dataModel'
+import { toast } from 'sonner'
 
 interface ClassFormDialogProps {
   open: boolean
@@ -170,7 +171,7 @@ export default function ClassFormDialog({
       onSuccess?.()
     } catch (error) {
       console.error('Error saving class:', error)
-      alert(
+      toast.error(
         error instanceof Error ? error.message : 'Error al guardar la clase'
       )
     } finally {
@@ -198,7 +199,10 @@ export default function ClassFormDialog({
           </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-6 mt-6">
+        <form
+          onSubmit={handleSubmit(onSubmit as any)}
+          className="space-y-6 mt-6"
+        >
           {/* Name */}
           <Field>
             <FieldLabel>Nombre</FieldLabel>

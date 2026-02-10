@@ -12,6 +12,7 @@ import { useMutation } from 'convex/react'
 import React, { useState } from 'react'
 import { PlanificationData } from '../library/planification-list'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 function DuplicatePlanificationDialog({
   open,
@@ -36,7 +37,7 @@ function DuplicatePlanificationDialog({
       router.push(`/dashboard/planifications/${newId}`)
     } catch (error) {
       console.error('Failed to duplicate planification:', error)
-      alert('Error al duplicar la planificación')
+      toast.error('Error al duplicar la planificación')
     } finally {
       setIsDuplicating(false)
     }

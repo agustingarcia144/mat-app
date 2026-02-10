@@ -26,6 +26,7 @@ import {
 import Image from 'next/image'
 import { getVideoThumbnailUrl } from '@repo/core/utils'
 import CreateExerciseDialog from '@/components/features/planifications/exercises/create-exercise-dialog'
+import { toast } from 'sonner'
 
 interface ExerciseLibraryProps {
   /** When true, shows edit and delete actions on each exercise card */
@@ -214,7 +215,7 @@ export default function ExerciseLibrary({
                   setExerciseToDelete(null)
                 } catch (error) {
                   console.error('Failed to delete exercise:', error)
-                  alert(
+                  toast.error(
                     error instanceof Error
                       ? error.message
                       : 'Error al eliminar el ejercicio'

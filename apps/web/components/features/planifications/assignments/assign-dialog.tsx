@@ -40,6 +40,7 @@ import { es } from 'date-fns/locale'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { type DateRange } from 'react-day-picker'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface AssignDialogProps {
   open: boolean
@@ -110,7 +111,7 @@ export default function AssignDialog({
       onOpenChange(false)
     } catch (error: any) {
       console.error('Failed to assign:', error)
-      alert(error.message || 'Error al asignar planificación')
+      toast.error(error.message || 'Error al asignar planificación')
     }
   }
 
