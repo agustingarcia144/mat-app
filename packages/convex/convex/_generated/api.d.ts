@@ -24,6 +24,7 @@ import type * as planifications from "../planifications.js";
 import type * as seedExercises from "../seedExercises.js";
 import type * as users from "../users.js";
 import type * as webhooks from "../webhooks.js";
+import type * as workoutDaySessions from "../workoutDaySessions.js";
 import type * as workoutDays from "../workoutDays.js";
 import type * as workoutWeeks from "../workoutWeeks.js";
 
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   seedExercises: typeof seedExercises;
   users: typeof users;
   webhooks: typeof webhooks;
+  workoutDaySessions: typeof workoutDaySessions;
   workoutDays: typeof workoutDays;
   workoutWeeks: typeof workoutWeeks;
 }>;

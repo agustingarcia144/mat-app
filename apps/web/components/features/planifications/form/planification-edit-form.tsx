@@ -118,6 +118,7 @@ export default function PlanificationEditForm({
             planificationId: planificationId as any,
             name: day.name,
             order: j,
+            dayOfWeek: day.dayOfWeek,
             notes: undefined,
           })
 

@@ -138,6 +138,8 @@ export default defineSchema({
     planificationId: v.id('planifications'), // Keep for easier queries
     name: v.string(), // Flexible: "Day 1", "Legs", "Upper Body", etc.
     order: v.number(), // Display order within the week
+    // ISO weekday: 1 = Monday (Lunes) … 7 = Sunday (Domingo). Omit = not scheduled to a specific day.
+    dayOfWeek: v.optional(v.number()),
     notes: v.optional(v.string()),
     // Timestamps
     createdAt: v.number(),
@@ -187,6 +189,31 @@ export default defineSchema({
     .index('by_user', ['userId'])
     .index('by_organization', ['organizationId'])
     .index('by_user_status', ['userId', 'status']),
+
+  // Workout Day Sessions - Member completion per workout day per date
+  workoutDaySessions: defineTable({
+    assignmentId: v.id('planificationAssignments'),
+    planificationId: v.id('planifications'),
+    workoutDayId: v.id('workoutDays'),
+    userId: v.string(), // Clerk user ID
+    organizationId: v.id('organizations'),
+    performedOn: v.string(), // Local date YYYY-MM-DD
+    status: v.union(
+      v.literal('started'),
+      v.literal('completed'),
+      v.literal('skipped')
+    ),
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_user_performedOn', ['userId', 'performedOn'])
+    .index('by_assignment', ['assignmentId'])
+    .index('by_assignment_workoutDay_performedOn', [
+      'assignmentId',
+      'workoutDayId',
+      'performedOn',
+    ]),
 
   // Classes - Class templates and configurations
   classes: defineTable({

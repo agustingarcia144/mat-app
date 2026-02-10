@@ -203,13 +203,13 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   errorContainer: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: '#262626',
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
   errorText: {
-    color: '#dc2626',
+    color: '#fafafa',
     fontSize: 14,
   },
   form: {

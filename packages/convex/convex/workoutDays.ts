@@ -11,6 +11,7 @@ export const create = mutation({
     planificationId: v.id('planifications'),
     name: v.string(),
     order: v.number(),
+    dayOfWeek: v.optional(v.number()), // 1 = Monday … 7 = Sunday (ISO)
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -23,6 +24,7 @@ export const create = mutation({
       planificationId: args.planificationId,
       name: args.name,
       order: args.order,
+      dayOfWeek: args.dayOfWeek,
       notes: args.notes,
       createdAt: now,
       updatedAt: now,
@@ -37,6 +39,7 @@ export const update = mutation({
   args: {
     id: v.id('workoutDays'),
     name: v.optional(v.string()),
+    dayOfWeek: v.optional(v.number()), // 1 = Monday … 7 = Sunday (ISO)
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

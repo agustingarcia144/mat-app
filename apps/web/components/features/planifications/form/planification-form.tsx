@@ -66,6 +66,7 @@ export default function PlanificationForm() {
             planificationId,
             name: day.name,
             order: j,
+            dayOfWeek: day.dayOfWeek,
             notes: undefined,
           })
 

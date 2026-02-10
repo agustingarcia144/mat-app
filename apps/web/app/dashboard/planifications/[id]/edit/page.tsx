@@ -54,6 +54,7 @@ export default function EditPlanificationPage({
         id: day._id,
         name: day.name,
         order: day.order,
+        dayOfWeek: day.dayOfWeek,
         exercises: (exercisesByDay[day._id] || []).map((ex) => ({
           id: ex._id,
           exerciseId: ex.exerciseId,

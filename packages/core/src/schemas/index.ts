@@ -21,6 +21,8 @@ export const dayExerciseSchema = z.object({
 export const workoutDaySchema = z.object({
   id: z.string(),
   name: z.string().min(1, 'El nombre del día es requerido').trim(),
+  // ISO weekday: 1 = Lunes … 7 = Domingo. Omit = Sin asignar
+  dayOfWeek: z.number().int().min(1).max(7).optional(),
   exercises: z.array(dayExerciseSchema),
 })
 

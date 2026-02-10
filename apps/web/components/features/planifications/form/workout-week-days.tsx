@@ -5,6 +5,13 @@ import { UseFormReturn, useFieldArray, Controller } from 'react-hook-form'
 import { Plus, ChevronDown, ChevronUp, Trash2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import ExerciseSelector from '@/components/features/planifications/exercises/exercise-selector'
 import ExerciseFormRow from '@/components/features/planifications/form/exercise-form-row'
 import { Field, FieldLabel, FieldError } from '@/components/ui/field'
@@ -31,11 +38,23 @@ export default function WorkoutWeekDays({
 
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set())
 
+  const DAY_OF_WEEK_OPTIONS = [
+    { value: '__none__', label: 'Sin asignar' },
+    { value: '1', label: 'Lunes' },
+    { value: '2', label: 'Martes' },
+    { value: '3', label: 'Miércoles' },
+    { value: '4', label: 'Jueves' },
+    { value: '5', label: 'Viernes' },
+    { value: '6', label: 'Sábado' },
+    { value: '7', label: 'Domingo' },
+  ] as const
+
   const addDay = () => {
     const newIndex = fields.length
     append({
       id: `temp-${Date.now()}`,
       name: `Día ${fields.length + 1}`,
+      dayOfWeek: undefined,
       exercises: [],
     })
     setExpandedDays(new Set([...Array.from(expandedDays), newIndex]))
@@ -92,6 +111,7 @@ export default function WorkoutWeekDays({
     append({
       id: `temp-${Date.now()}`,
       name: `Día ${fields.length + 1}`,
+      dayOfWeek: currentDay.dayOfWeek,
       exercises: currentDay.exercises,
     })
   }
@@ -161,6 +181,35 @@ export default function WorkoutWeekDays({
                           <FieldError errors={[fieldState.error]} />
                         )}
                       </Field>
+                    )}
+                  />
+                  <Controller
+                    name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.dayOfWeek`}
+                    control={form.control}
+                    render={({ field }) => (
+                      <Select
+                        value={
+                          field.value != null
+                            ? String(field.value)
+                            : '__none__'
+                        }
+                        onValueChange={(v) =>
+                          field.onChange(
+                            v === '__none__' ? undefined : Number(v)
+                          )
+                        }
+                      >
+                        <SelectTrigger className="w-[140px] h-9">
+                          <SelectValue placeholder="Día semana" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DAY_OF_WEEK_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     )}
                   />
                   <Tooltip>
