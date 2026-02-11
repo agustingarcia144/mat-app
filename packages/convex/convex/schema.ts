@@ -150,11 +150,25 @@ export default defineSchema({
     .index('by_week_order', ['weekId', 'order'])
     .index('by_planification_order', ['planificationId', 'order']),
 
+  // Exercise Blocks - Groups of exercises within a workout day
+  exerciseBlocks: defineTable({
+    workoutDayId: v.id('workoutDays'),
+    name: v.string(), // e.g., "Warm-up", "Main", "Cool-down"
+    order: v.number(), // Display order within the day
+    notes: v.optional(v.string()),
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_workout_day', ['workoutDayId'])
+    .index('by_workout_day_order', ['workoutDayId', 'order']),
+
   // Day Exercises - Exercises in a workout day
   dayExercises: defineTable({
     workoutDayId: v.id('workoutDays'),
     exerciseId: v.id('exercises'),
-    order: v.number(), // Display order in the day
+    blockId: v.optional(v.id('exerciseBlocks')), // Optional: exercise can belong to a block
+    order: v.number(), // Display order within the block (or day if no block)
     sets: v.number(),
     reps: v.string(), // Can be "10", "10-12", "AMRAP", etc.
     weight: v.optional(v.string()), // e.g., "50kg", "BW", "25lb"
@@ -165,7 +179,9 @@ export default defineSchema({
   })
     .index('by_workout_day', ['workoutDayId'])
     .index('by_exercise', ['exerciseId'])
-    .index('by_workout_day_order', ['workoutDayId', 'order']),
+    .index('by_workout_day_order', ['workoutDayId', 'order'])
+    .index('by_block', ['blockId'])
+    .index('by_block_order', ['blockId', 'order']),
 
   // Planification Assignments - Assign planifications to members
   planificationAssignments: defineTable({

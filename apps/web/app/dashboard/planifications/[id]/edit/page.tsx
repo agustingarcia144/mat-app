@@ -32,6 +32,8 @@ export default function EditPlanificationPage({
     planificationId: id as any,
   })
 
+  // Load blocks for each day - we'll create a component that handles this
+  // For now, we'll structure the data and blocks will be loaded in the form component
   // Build the complete data structure
   const fullWeeksData = useMemo(() => {
     if (!workoutWeeks || !workoutDays || !allExercises) return null
@@ -47,24 +49,31 @@ export default function EditPlanificationPage({
     })
 
     // Build weeks with days and exercises
+    // Blocks will be loaded separately in the form component
     const weeks = workoutWeeks.map((week) => {
       const daysForWeek = workoutDays.filter((day) => day.weekId === week._id)
 
-      const daysWithExercises = daysForWeek.map((day) => ({
-        id: day._id,
-        name: day.name,
-        order: day.order,
-        dayOfWeek: day.dayOfWeek,
-        exercises: (exercisesByDay[day._id] || []).map((ex) => ({
-          id: ex._id,
-          exerciseId: ex.exerciseId,
-          exerciseName: ex.exercise?.name || 'Unknown',
-          sets: ex.sets,
-          reps: ex.reps,
-          weight: ex.weight || '',
-          notes: ex.notes || '',
-        })),
-      }))
+      const daysWithExercises = daysForWeek.map((day) => {
+        const dayExercises = exercisesByDay[day._id] || []
+        
+        return {
+          id: day._id,
+          name: day.name,
+          order: day.order,
+          dayOfWeek: day.dayOfWeek,
+          blocks: [], // Will be loaded in form component
+          exercises: dayExercises.map((ex) => ({
+            id: ex._id,
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exercise?.name || 'Unknown',
+            blockId: ex.blockId,
+            sets: ex.sets,
+            reps: ex.reps,
+            weight: ex.weight || '',
+            notes: ex.notes || '',
+          })),
+        }
+      })
 
       return {
         id: week._id,

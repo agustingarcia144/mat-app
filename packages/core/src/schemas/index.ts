@@ -8,10 +8,19 @@ export const planificationBasicInfoSchema = z.object({
   isTemplate: z.boolean(),
 })
 
+export const exerciseBlockSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1, 'El nombre del bloque es requerido').trim(),
+  order: z.number(),
+  notes: z.string().optional(),
+})
+
 export const dayExerciseSchema = z.object({
   id: z.string(),
   exerciseId: z.string(),
   exerciseName: z.string(),
+  blockId: z.string().optional(),
+  blockName: z.string().optional(), // For form convenience
   sets: z.number().min(1, 'Debe tener al menos 1 serie').int(),
   reps: z.string().min(1, 'Las repeticiones son requeridas'),
   weight: z.string().optional(),
@@ -23,6 +32,7 @@ export const workoutDaySchema = z.object({
   name: z.string().min(1, 'El nombre del día es requerido').trim(),
   // ISO weekday: 1 = Lunes … 7 = Domingo. Omit = Sin asignar
   dayOfWeek: z.number().int().min(1).max(7).optional(),
+  blocks: z.array(exerciseBlockSchema).optional(),
   exercises: z.array(dayExerciseSchema),
 })
 

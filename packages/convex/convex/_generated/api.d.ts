@@ -12,6 +12,7 @@ import type * as classReservations from "../classReservations.js";
 import type * as classSchedules from "../classSchedules.js";
 import type * as classes from "../classes.js";
 import type * as dayExercises from "../dayExercises.js";
+import type * as exerciseBlocks from "../exerciseBlocks.js";
 import type * as exercises from "../exercises.js";
 import type * as folders from "../folders.js";
 import type * as http from "../http.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   classSchedules: typeof classSchedules;
   classes: typeof classes;
   dayExercises: typeof dayExercises;
+  exerciseBlocks: typeof exerciseBlocks;
   exercises: typeof exercises;
   folders: typeof folders;
   http: typeof http;

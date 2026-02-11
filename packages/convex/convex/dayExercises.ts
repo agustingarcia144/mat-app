@@ -9,6 +9,7 @@ export const create = mutation({
   args: {
     workoutDayId: v.id('workoutDays'),
     exerciseId: v.id('exercises'),
+    blockId: v.optional(v.id('exerciseBlocks')),
     order: v.number(),
     sets: v.number(),
     reps: v.string(),
@@ -18,11 +19,20 @@ export const create = mutation({
   handler: async (ctx, args) => {
     await requireAuth(ctx)
 
+    // If blockId is provided, verify it belongs to the workout day
+    if (args.blockId) {
+      const block = await ctx.db.get(args.blockId)
+      if (!block || block.workoutDayId !== args.workoutDayId) {
+        throw new Error('Invalid block ID or block does not belong to workout day')
+      }
+    }
+
     const now = Date.now()
 
     return await ctx.db.insert('dayExercises', {
       workoutDayId: args.workoutDayId,
       exerciseId: args.exerciseId,
+      blockId: args.blockId,
       order: args.order,
       sets: args.sets,
       reps: args.reps,
@@ -40,6 +50,7 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.id('dayExercises'),
+    blockId: v.optional(v.union(v.id('exerciseBlocks'), v.null())),
     sets: v.optional(v.number()),
     reps: v.optional(v.string()),
     weight: v.optional(v.string()),
@@ -53,12 +64,26 @@ export const update = mutation({
       throw new Error('Day exercise not found')
     }
 
-    const { id, ...updates } = args
+    // If blockId is being updated, verify it belongs to the workout day
+    if (args.blockId !== undefined && args.blockId !== null) {
+      const block = await ctx.db.get(args.blockId)
+      if (!block || block.workoutDayId !== dayExercise.workoutDayId) {
+        throw new Error('Invalid block ID or block does not belong to workout day')
+      }
+    }
 
-    await ctx.db.patch(id, {
+    const { id, blockId, ...updates } = args
+
+    const patchData: any = {
       ...updates,
       updatedAt: Date.now(),
-    })
+    }
+
+    if (blockId !== undefined) {
+      patchData.blockId = blockId === null ? undefined : blockId
+    }
+
+    await ctx.db.patch(id, patchData)
   },
 })
 
@@ -118,6 +143,38 @@ export const getByWorkoutDay = query({
       .withIndex('by_workout_day', (q) =>
         q.eq('workoutDayId', args.workoutDayId)
       )
+      .order('asc')
+      .collect()
+
+    // Fetch exercise details for each
+    const exercisesWithDetails = await Promise.all(
+      dayExercises.map(async (dayEx) => {
+        const exercise = await ctx.db.get(dayEx.exerciseId)
+        return {
+          ...dayEx,
+          exercise,
+        }
+      })
+    )
+
+    return exercisesWithDetails
+  },
+})
+
+/**
+ * Get exercises for a specific block
+ */
+export const getByBlock = query({
+  args: {
+    blockId: v.id('exerciseBlocks'),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const dayExercises = await ctx.db
+      .query('dayExercises')
+      .withIndex('by_block', (q) => q.eq('blockId', args.blockId))
       .order('asc')
       .collect()
 

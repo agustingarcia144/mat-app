@@ -19,6 +19,7 @@ export default function PlanificationForm() {
   const createPlanification = useMutation(api.planifications.create)
   const createWorkoutWeek = useMutation(api.workoutWeeks.create)
   const createWorkoutDay = useMutation(api.workoutDays.create)
+  const createExerciseBlock = useMutation(api.exerciseBlocks.create)
   const createDayExercise = useMutation(api.dayExercises.create)
 
   const form = useForm<PlanificationFormType>({
@@ -60,7 +61,7 @@ export default function PlanificationForm() {
 
         // Create workout days for this week
         for (let j = 0; j < week.workoutDays.length; j++) {
-          const day = week.workoutDays[j]
+          const day = week.workoutDays[j] as any
           const dayId = await createWorkoutDay({
             weekId,
             planificationId,
@@ -70,13 +71,63 @@ export default function PlanificationForm() {
             notes: undefined,
           })
 
+          // Create blocks for this day
+          const blockIdMap = new Map<string, string>() // temp block id -> real block id
+          if (day.blocks && day.blocks.length > 0) {
+            for (let b = 0; b < day.blocks.length; b++) {
+              const block = day.blocks[b]
+              const realBlockId = await createExerciseBlock({
+                workoutDayId: dayId,
+                name: block.name,
+                order: b,
+                notes: block.notes,
+              })
+              blockIdMap.set(block.id, realBlockId)
+            }
+          }
+
           // Create exercises for this day
-          for (let k = 0; k < day.exercises.length; k++) {
-            const exercise = day.exercises[k]
+          // Group exercises by block to maintain order within blocks
+          const exercisesByBlock = new Map<string | null, any[]>()
+          const unblockedExercises: any[] = []
+
+          ;(day.exercises || []).forEach((ex: any) => {
+            if (ex.blockId && blockIdMap.has(ex.blockId)) {
+              const blockExercises = exercisesByBlock.get(ex.blockId) || []
+              blockExercises.push(ex)
+              exercisesByBlock.set(ex.blockId, blockExercises)
+            } else {
+              unblockedExercises.push(ex)
+            }
+          })
+
+          let globalOrder = 0
+
+          // Create exercises in blocks first (in block order)
+          if (day.blocks) {
+            for (const block of day.blocks) {
+              const blockExercises = exercisesByBlock.get(block.id) || []
+              for (const exercise of blockExercises) {
+                await createDayExercise({
+                  workoutDayId: dayId,
+                  exerciseId: exercise.exerciseId as any,
+                  blockId: blockIdMap.get(block.id) as any,
+                  order: globalOrder++,
+                  sets: exercise.sets,
+                  reps: exercise.reps,
+                  weight: exercise.weight,
+                  notes: exercise.notes,
+                })
+              }
+            }
+          }
+
+          // Then create unblocked exercises
+          for (const exercise of unblockedExercises) {
             await createDayExercise({
               workoutDayId: dayId,
               exerciseId: exercise.exerciseId as any,
-              order: k,
+              order: globalOrder++,
               sets: exercise.sets,
               reps: exercise.reps,
               weight: exercise.weight,

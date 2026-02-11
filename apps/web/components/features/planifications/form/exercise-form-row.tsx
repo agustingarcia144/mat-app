@@ -5,6 +5,13 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Field,
   FieldError,
 } from '@/components/ui/field'
@@ -28,11 +35,46 @@ export default function ExerciseFormRow({
   const exercise = form.watch(
     `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises.${exerciseIndex}`
   )
+  const day = form.watch(
+    `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`
+  )
+  const blocks = ((day as any)?.blocks || []) as Array<{ id: string; name: string }>
 
   return (
     <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-md">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{exercise?.exerciseName}</p>
+        {blocks.length > 0 && (
+          <Controller
+            name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises.${exerciseIndex}.blockId`}
+            control={form.control}
+            render={({ field }) => (
+              <Select
+                value={field.value || '__none__'}
+                onValueChange={(v) => {
+                  const selectedBlock = blocks.find((b: { id: string; name: string }) => b.id === v)
+                  field.onChange(v === '__none__' ? undefined : v)
+                  form.setValue(
+                    `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises.${exerciseIndex}.blockName`,
+                    selectedBlock?.name
+                  )
+                }}
+              >
+                <SelectTrigger className="h-7 w-[140px] mt-1 text-xs">
+                  <SelectValue placeholder="Sin bloque" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin bloque</SelectItem>
+                  {blocks.map((block: { id: string; name: string }) => (
+                    <SelectItem key={block.id} value={block.id}>
+                      {block.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        )}
       </div>
 
       <div className="flex items-center gap-2">
