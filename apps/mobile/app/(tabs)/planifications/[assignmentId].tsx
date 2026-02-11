@@ -5,12 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useUser } from '@clerk/clerk-expo'
 import { useLocalSearchParams } from 'expo-router'
 import { useQuery, Authenticated, AuthLoading } from 'convex/react'
 import { api } from '@repo/convex'
+import { getVideoThumbnailUrl } from '@repo/core/utils'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { Colors } from '@/constants/theme'
 import { ThemedView } from '@/components/themed-view'
@@ -222,27 +224,51 @@ function AssignmentDetailContent() {
                           </ThemedText>
                         ) : (
                           <View style={styles.exerciseList}>
-                            {exercises.map((ex) => (
-                              <View
-                                key={ex._id}
-                                style={[
-                                  styles.exerciseRow,
-                                  {
-                                    borderLeftColor: isDark
-                                      ? '#52525b'
-                                      : 'rgba(0,0,0,0.2)',
-                                  },
-                                ]}
-                              >
-                                <ThemedText style={styles.exerciseName}>
-                                  {ex.exercise?.name ?? 'Ejercicio'}
-                                </ThemedText>
-                                <ThemedText style={styles.exerciseMeta}>
-                                  {ex.sets} × {ex.reps}
-                                  {ex.weight ? ` · ${ex.weight}` : ''}
-                                </ThemedText>
-                              </View>
-                            ))}
+                            {exercises.map((ex) => {
+                              const thumbnailUrl = ex.exercise?.videoUrl
+                                ? getVideoThumbnailUrl(ex.exercise.videoUrl)
+                                : null
+                              return (
+                                <View
+                                  key={ex._id}
+                                  style={[
+                                    styles.exerciseRow,
+                                    {
+                                      borderLeftColor: isDark
+                                        ? '#52525b'
+                                        : 'rgba(0,0,0,0.2)',
+                                    },
+                                  ]}
+                                >
+                                  {thumbnailUrl ? (
+                                    <Image
+                                      source={{ uri: thumbnailUrl }}
+                                      style={[
+                                        styles.exerciseThumbnail,
+                                        {
+                                          backgroundColor: isDark
+                                            ? '#3f3f46'
+                                            : '#e4e4e7',
+                                        },
+                                      ]}
+                                      resizeMode="cover"
+                                      accessibilityLabel={
+                                        ex.exercise?.name ?? 'Ejercicio'
+                                      }
+                                    />
+                                  ) : null}
+                                  <View style={styles.exerciseContent}>
+                                    <ThemedText style={styles.exerciseName}>
+                                      {ex.exercise?.name ?? 'Ejercicio'}
+                                    </ThemedText>
+                                    <ThemedText style={styles.exerciseMeta}>
+                                      {ex.sets} × {ex.reps}
+                                      {ex.weight ? ` · ${ex.weight}` : ''}
+                                    </ThemedText>
+                                  </View>
+                                </View>
+                              )
+                            })}
                           </View>
                         )}
                       </View>
@@ -339,8 +365,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   exerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingLeft: 12,
     borderLeftWidth: 2,
+    gap: 12,
+  },
+  exerciseThumbnail: {
+    width: 56,
+    height: 42,
+    borderRadius: 6,
+  },
+  exerciseContent: {
+    flex: 1,
   },
   exerciseName: {
     fontSize: 15,

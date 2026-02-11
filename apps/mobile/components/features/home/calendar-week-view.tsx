@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { IconSymbol } from './ui/icon-symbol'
+import { IconSymbol } from '../../ui/icon-symbol'
 
 /** ISO weekday: 1 = Monday, 7 = Sunday */
 function getISOWeekday(d: Date): number {
@@ -109,6 +109,7 @@ export function CalendarWeekView({
       <View style={styles.weekStrip}>
         {weekDays.map(({ date, label, ymd }) => {
           const isSelected = selectedYmd === ymd
+          const isToday = ymd === formatYYYYMMDD(new Date())
           const hasCompleted = completedForDay(ymd)
           const isoWeekday = getISOWeekday(date)
           const hasScheduled = hasScheduledWorkout(isoWeekday)
@@ -121,13 +122,24 @@ export function CalendarWeekView({
             circleColor = '#f97316' // orange
           }
 
-          // Background: white for dark mode selected, black for light mode selected, transparent otherwise
+          // Background: white for dark mode selected, black for light mode selected, light gray for today, transparent otherwise
           let backgroundColor = 'transparent'
           if (isSelected) {
             backgroundColor = isDark ? '#fff' : '#000'
+          } else if (isToday) {
+            backgroundColor = isDark
+              ? 'rgba(255, 255, 255, 0.1)'
+              : 'rgba(0, 0, 0, 0.05)'
           }
 
-          const textColor = isSelected ? (isDark ? '#000' : '#fff') : undefined
+          // Text color: black for selected in dark mode, white for selected in light mode, white for unselected in dark mode, black for unselected in light mode
+          const textColor = isSelected
+            ? isDark
+              ? '#000'
+              : '#fff'
+            : isDark
+              ? '#fff'
+              : '#000'
 
           return (
             <TouchableOpacity

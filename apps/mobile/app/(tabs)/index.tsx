@@ -18,7 +18,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { Colors } from '@/constants/theme'
 import { ThemedView } from '@/components/themed-view'
 import { ThemedText } from '@/components/themed-text'
-import { CalendarWeekView } from '@/components/calendar-week-view'
+import { CalendarWeekView } from '@/components/features/home/calendar-week-view'
+import { RestDayPlaceholder } from '@/components/features/home/rest-day-placeholder'
 
 /** ISO weekday: 1 = Monday, 7 = Sunday */
 function getISOWeekday(d: Date): number {
@@ -244,11 +245,6 @@ function DashboardContent() {
             <View style={styles.todaySection}>
               {scheduledWorkoutDay ? (
                 <>
-                  <ThemedText style={styles.todayTitle}>
-                    {selectedYmd === formatYYYYMMDD(new Date())
-                      ? 'Hoy'
-                      : 'Día seleccionado'}
-                  </ThemedText>
                   <ThemedText style={styles.sessionName}>
                     {scheduledWorkoutDay.name}
                   </ThemedText>
@@ -297,14 +293,7 @@ function DashboardContent() {
                   </TouchableOpacity>
                 </>
               ) : (
-                <View style={[styles.placeholder, styles.centered]}>
-                  <ThemedText style={styles.emptyText}>
-                    Día de descanso
-                  </ThemedText>
-                  <ThemedText style={styles.emptySubtext}>
-                    No hay rutina programada para este día
-                  </ThemedText>
-                </View>
+                <RestDayPlaceholder />
               )}
             </View>
           </>

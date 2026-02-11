@@ -1,5 +1,5 @@
 /**
- * Get embed URL from video URL (YouTube, YouTube Shorts, Vimeo)
+ * Get embed URL from video URL (YouTube, YouTube Shorts)
  */
 export function getVideoEmbedUrl(url: string): string | null {
   if (!url?.trim()) return null
@@ -12,11 +12,6 @@ export function getVideoEmbedUrl(url: string): string | null {
     if (ytMatch) {
       return `https://www.youtube.com/embed/${ytMatch[1]}`
     }
-    // Vimeo: vimeo.com/123456789
-    const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)
-    if (vimeoMatch) {
-      return `https://player.vimeo.com/video/${vimeoMatch[1]}`
-    }
     return null
   } catch {
     return null
@@ -24,7 +19,7 @@ export function getVideoEmbedUrl(url: string): string | null {
 }
 
 /**
- * Get thumbnail URL from video URL (YouTube, YouTube Shorts, Vimeo)
+ * Get thumbnail URL from video URL (YouTube, YouTube Shorts)
  */
 export function getVideoThumbnailUrl(url: string): string | null {
   if (!url?.trim()) return null
@@ -36,11 +31,6 @@ export function getVideoThumbnailUrl(url: string): string | null {
       ) ?? null
     if (ytMatch) {
       return `https://img.youtube.com/vi/${ytMatch[1]}/hqdefault.jpg`
-    }
-    // Vimeo: vimeo.com/123456789
-    const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)
-    if (vimeoMatch) {
-      return `https://vumbnail.com/${vimeoMatch[1]}.jpg`
     }
     return null
   } catch {
