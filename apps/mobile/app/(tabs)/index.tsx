@@ -18,6 +18,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { Colors } from '@/constants/theme'
 import { ThemedView } from '@/components/themed-view'
 import { ThemedText } from '@/components/themed-text'
+import { CalendarWeekView } from '@/components/calendar-week-view'
 
 /** ISO weekday: 1 = Monday, 7 = Sunday */
 function getISOWeekday(d: Date): number {
@@ -42,8 +43,6 @@ function getWeekRange(date: Date): { monday: Date; sunday: Date } {
   sunday.setDate(monday.getDate() + 6)
   return { monday, sunday }
 }
-
-const SHORT_DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -90,6 +89,10 @@ function DashboardContent() {
       : 'skip'
   )
 
+  const handleWeekChange = (newDate: Date) => {
+    setSelectedDate(newDate)
+  }
+
   const workoutDays = useQuery(
     api.workoutDays.getByPlanification,
     activeAssignment?.planificationId
@@ -117,20 +120,6 @@ function DashboardContent() {
     })
     return map
   }, [allExercises])
-
-  const weekDays = useMemo(() => {
-    const days: { date: Date; label: string; ymd: string }[] = []
-    const curr = new Date(monday)
-    for (let i = 0; i < 7; i++) {
-      days.push({
-        date: new Date(curr),
-        label: SHORT_DAY_NAMES[i],
-        ymd: formatYYYYMMDD(curr),
-      })
-      curr.setDate(curr.getDate() + 1)
-    }
-    return days
-  }, [monday])
 
   const selectedYmd = formatYYYYMMDD(selectedDate)
   const selectedISOWeekday = getISOWeekday(selectedDate)
@@ -178,11 +167,6 @@ function DashboardContent() {
     }
   }
 
-  const completedForDay = (ymd: string) =>
-    weekSessions?.some(
-      (s) => s.performedOn === ymd && s.status === 'completed'
-    ) ?? false
-
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.content, { paddingTop: insets.top + 24 }]}>
@@ -204,8 +188,17 @@ function DashboardContent() {
                 style={styles.avatarImage}
               />
             ) : (
-              <Text style={[styles.avatarPlaceholder, { color: isDark ? '#a1a1aa' : '#52525b' }]}>
-                {(user?.firstName?.[0] || user?.emailAddresses?.[0]?.emailAddress?.[0] || '?').toUpperCase()}
+              <Text
+                style={[
+                  styles.avatarPlaceholder,
+                  { color: isDark ? '#a1a1aa' : '#52525b' },
+                ]}
+              >
+                {(
+                  user?.firstName?.[0] ||
+                  user?.emailAddresses?.[0]?.emailAddress?.[0] ||
+                  '?'
+                ).toUpperCase()}
               </Text>
             )}
           </TouchableOpacity>
@@ -238,43 +231,15 @@ function DashboardContent() {
           </View>
         ) : (
           <>
-            <View style={styles.weekStrip}>
-              {weekDays.map(({ date, label, ymd }) => {
-                const isSelected = selectedYmd === ymd
-                const hasCompleted = completedForDay(ymd)
-                return (
-                  <TouchableOpacity
-                    key={ymd}
-                    style={[
-                      styles.dayCell,
-                      {
-                        backgroundColor: isDark ? '#27272a' : '#f4f4f5',
-                        borderColor: isDark ? '#3f3f46' : '#e4e4e7',
-                        borderWidth: isSelected ? 2 : 1,
-                      },
-                    ]}
-                    onPress={() => setSelectedDate(date)}
-                    activeOpacity={0.7}
-                  >
-                    <ThemedText style={styles.dayCellLabel}>{label}</ThemedText>
-                    <ThemedText style={styles.dayCellNum}>
-                      {date.getDate()}
-                    </ThemedText>
-                    {hasCompleted && (
-                      <View
-                        style={[
-                          styles.dot,
-                          {
-                            backgroundColor:
-                              Colors[colorScheme ?? 'light'].tint,
-                          },
-                        ]}
-                      />
-                    )}
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
+            <CalendarWeekView
+              selectedDate={selectedDate}
+              onDateSelect={setSelectedDate}
+              onWeekChange={handleWeekChange}
+              weekSessions={weekSessions}
+              workoutDays={
+                workoutDays as { dayOfWeek?: number; [key: string]: unknown }[]
+              }
+            />
 
             <View style={styles.todaySection}>
               {scheduledWorkoutDay ? (
@@ -418,32 +383,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     opacity: 0.8,
     textAlign: 'center',
-  },
-  weekStrip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  dayCell: {
-    width: 40,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  dayCellLabel: {
-    fontSize: 11,
-    opacity: 0.9,
-  },
-  dayCellNum: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginTop: 4,
   },
   todaySection: {
     flex: 1,

@@ -13,14 +13,22 @@ import { useUser, useClerk } from '@clerk/clerk-expo'
 import { Authenticated, AuthLoading } from 'convex/react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedText } from '@/components/themed-text'
+import { Colors } from '@/constants/theme'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
+  const backgroundColor = Colors[colorScheme ?? 'light'].background
+  const tintColor = Colors[colorScheme ?? 'light'].tint
 
   return (
-    <View style={[styles.container, styles.centered]}>
-      <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
+    <View
+      style={[
+        styles.container,
+        styles.centered,
+        { backgroundColor },
+      ]}
+    >
+      <ActivityIndicator size="large" color={tintColor} />
     </View>
   )
 }
@@ -41,10 +49,11 @@ function ProfileContent() {
     'Usuario'
   const imageUrl = user?.imageUrl
 
-  const buttonBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.6)'
+  const buttonBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'
+  const backgroundColor = Colors[colorScheme ?? 'light'].background
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor }]}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -64,7 +73,11 @@ function ProfileContent() {
             <View
               style={[
                 styles.avatarPlaceholder,
-                { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' },
+                {
+                  backgroundColor: isDark
+                    ? 'rgba(255,255,255,0.12)'
+                    : 'rgba(0,0,0,0.08)',
+                },
               ]}
             >
               <Text
@@ -73,7 +86,11 @@ function ProfileContent() {
                   { color: isDark ? '#fff' : '#000' },
                 ]}
               >
-                {(user?.firstName?.[0] || primaryEmail?.[0] || '?').toUpperCase()}
+                {(
+                  user?.firstName?.[0] ||
+                  primaryEmail?.[0] ||
+                  '?'
+                ).toUpperCase()}
               </Text>
             </View>
           )}

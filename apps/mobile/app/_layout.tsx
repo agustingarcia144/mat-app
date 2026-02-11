@@ -6,6 +6,7 @@ import { Pressable, useColorScheme } from 'react-native'
 import { useConvexAuth } from 'convex/react'
 import { IconSymbol } from '@/components/ui/icon-symbol'
 import Providers from '@/components/providers/providers'
+import { Colors } from '@/constants/theme'
 
 function ProfileModalCloseButton() {
   const router = useRouter()
@@ -26,6 +27,7 @@ function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useConvexAuth()
   const segments = useSegments()
   const router = useRouter()
+  const colorScheme = useColorScheme()
 
   useEffect(() => {
     if (isLoading) return
@@ -41,6 +43,9 @@ function RootLayoutNav() {
       router.replace('/')
     }
   }, [isAuthenticated, isLoading, segments, router])
+
+  const backgroundColor = Colors[colorScheme ?? 'light'].background
+  const headerTintColor = Colors[colorScheme ?? 'light'].text
 
   return (
     <>
@@ -63,7 +68,8 @@ function RootLayoutNav() {
             headerTransparent: true,
             headerTitle: 'Configuración',
             headerShadowVisible: false,
-            headerStyle: { backgroundColor: 'transparent' },
+            headerStyle: { backgroundColor },
+            headerTintColor,
             headerRight: () => <ProfileModalCloseButton />,
             headerLeft: () => null,
             gestureEnabled: true,
