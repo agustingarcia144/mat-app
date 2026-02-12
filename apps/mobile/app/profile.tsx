@@ -8,6 +8,7 @@ import {
   Image,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { useUser, useClerk } from '@clerk/clerk-expo'
 import { Authenticated, AuthLoading } from 'convex/react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
@@ -21,19 +22,14 @@ function LoadingScreen() {
   const tintColor = Colors[colorScheme ?? 'light'].tint
 
   return (
-    <View
-      style={[
-        styles.container,
-        styles.centered,
-        { backgroundColor },
-      ]}
-    >
+    <View style={[styles.container, styles.centered, { backgroundColor }]}>
       <ActivityIndicator size="large" color={tintColor} />
     </View>
   )
 }
 
 function ProfileContent() {
+  const router = useRouter()
   const { user } = useUser()
   const { signOut } = useClerk()
   const insets = useSafeAreaInsets()
@@ -108,7 +104,10 @@ function ProfileContent() {
           lightColor={buttonBg}
           darkColor={buttonBg}
           style={[styles.button, { marginTop: 32 }]}
-          onPress={() => signOut()}
+          onPress={async () => {
+            router.back()
+            await signOut()
+          }}
         >
           <Text
             style={[styles.buttonText, { color: isDark ? '#fff' : '#000' }]}

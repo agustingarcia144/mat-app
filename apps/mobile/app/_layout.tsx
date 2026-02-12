@@ -3,7 +3,8 @@ import { StatusBar } from 'expo-status-bar'
 import 'react-native-reanimated'
 import { useEffect } from 'react'
 import { Pressable, useColorScheme } from 'react-native'
-import { useConvexAuth } from 'convex/react'
+import { useConvexAuth, useQuery } from 'convex/react'
+import { api } from '@repo/convex'
 import { IconSymbol } from '@/components/ui/icon-symbol'
 import Providers from '@/components/providers/providers'
 import { Colors } from '@/constants/theme'
@@ -25,6 +26,10 @@ function ProfileModalCloseButton() {
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useConvexAuth()
+  const convexUser = useQuery(
+    api.users.getCurrentUser,
+    isAuthenticated ? {} : 'skip'
+  )
   const segments = useSegments()
   const router = useRouter()
   const colorScheme = useColorScheme()
@@ -33,16 +38,31 @@ function RootLayoutNav() {
     if (isLoading) return
 
     const inAuthGroup = segments[0] === '(tabs)'
-    const inModal = segments[0] === 'profile' || segments[0] === 'modal'
+    const inModal = segments[0] === 'profile'
+    const inOnboarding = segments[0] === 'onboarding'
 
-    if (isAuthenticated && !inAuthGroup && !inModal) {
-      // Redirect to tabs if authenticated (unless on a modal)
-      router.replace('/(tabs)/home')
-    } else if (!isAuthenticated && inAuthGroup) {
-      // Redirect to landing if not authenticated
-      router.replace('/')
+    if (!isAuthenticated) {
+      if (inAuthGroup) {
+        router.replace('/')
+      }
+      return
     }
-  }, [isAuthenticated, isLoading, segments, router])
+
+    // Authenticated: wait for Convex user to decide where to send
+    if (convexUser === undefined) return
+
+    if (inOnboarding) return
+
+    if (!inAuthGroup && !inModal) {
+      const needsOnboarding =
+        convexUser == null || !convexUser.onboardingCompleted
+      if (needsOnboarding) {
+        router.replace('/onboarding')
+      } else {
+        router.replace('/(tabs)/home')
+      }
+    }
+  }, [isAuthenticated, isLoading, convexUser, segments, router])
 
   const backgroundColor = Colors[colorScheme ?? 'light'].background
   const headerTintColor = Colors[colorScheme ?? 'light'].text
@@ -56,10 +76,6 @@ function RootLayoutNav() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="select-organization" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: 'modal', title: 'Modal', headerShown: true }}
-        />
         <Stack.Screen
           name="profile"
           options={{

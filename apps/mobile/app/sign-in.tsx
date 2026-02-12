@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TextInput,
+  Image,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -19,6 +20,7 @@ import {
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedButton } from '@/components/themed-button'
+import AntDesign from '@expo/vector-icons/AntDesign'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -143,6 +145,12 @@ function SignInForm() {
       style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}
     >
       <View style={styles.content}>
+        <Image
+          source={require('@/assets/images/mat-wolf.png')}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="Mat wolf mascot"
+        />
         <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
           Bienvenido de nuevo
         </Text>
@@ -247,6 +255,11 @@ function SignInForm() {
             onPress={onGoogleSignIn}
             disabled={loading}
           >
+            <AntDesign
+              name="google"
+              size={22}
+              color={isDark ? '#fff' : '#000'}
+            />
             <Text
               style={[
                 styles.oauthButtonText,
@@ -294,6 +307,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
+  },
+  logo: {
+    width: 220,
+    height: 220,
+    alignSelf: 'center',
+    marginBottom: 24,
   },
   title: {
     fontSize: 32,
@@ -356,6 +375,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
   },
   oauthButtonText: {
     fontSize: 16,

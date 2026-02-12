@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Authenticated, Unauthenticated, AuthLoading } from 'convex/react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
@@ -32,6 +32,12 @@ function LandingContent() {
       style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}
     >
       <View style={styles.content}>
+        <Image
+          source={require('@/assets/images/mat-wolf.png')}
+          style={styles.logo}
+          resizeMode="contain"
+          accessibilityLabel="Mat wolf mascot"
+        />
         <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
           Bienvenido a Mat App
         </Text>
@@ -63,7 +69,10 @@ function LandingContent() {
             type="secondary"
             lightColor="#f4f4f5"
             darkColor="#18181b"
-            style={[styles.secondaryButton, { borderColor: isDark ? '#27272a' : '#e4e4e7' }]}
+            style={[
+              styles.secondaryButton,
+              { borderColor: isDark ? '#27272a' : '#e4e4e7' },
+            ]}
             onPress={() => router.push('/sign-up')}
           >
             <Text
@@ -116,6 +125,12 @@ const styles = StyleSheet.create({
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  logo: {
+    width: 220,
+    height: 220,
+    alignSelf: 'center',
+    marginBottom: 24,
   },
   content: {
     flex: 1,

@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TextInput,
+  Image,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -171,6 +172,12 @@ function SignUpForm() {
         ]}
       >
         <View style={styles.content}>
+          <Image
+            source={require('@/assets/images/mat-wolf.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="Mat wolf mascot"
+          />
           <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
             Verifica tu correo
           </Text>
@@ -247,6 +254,12 @@ function SignUpForm() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.content}>
+          <Image
+            source={require('@/assets/images/mat-wolf.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="Mat wolf mascot"
+          />
           <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
             Crear una cuenta
           </Text>
@@ -442,6 +455,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 48,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    alignSelf: 'center',
+    marginBottom: 24,
   },
   title: {
     fontSize: 32,
