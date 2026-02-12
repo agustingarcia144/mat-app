@@ -96,18 +96,33 @@ export function CalendarWeekView({
 
   const arrowColor = isDark ? '#fff' : '#000'
 
-  return (
-    <View style={styles.container}>
-      <ThemedButton
-        onPress={handlePreviousWeek}
-        style={styles.navButton}
-        hitSlop={12}
-        accessibilityLabel="Semana anterior"
-      >
-        <IconSymbol name="chevron.left" size={20} color={arrowColor} />
-      </ThemedButton>
+  const monthYearLabel = useMemo(() => {
+    const str = selectedDate.toLocaleDateString('es', {
+      month: 'long',
+      year: 'numeric',
+    })
+    return str.charAt(0).toUpperCase() + str.slice(1)
+  }, [selectedDate])
 
-      <View style={styles.weekStrip}>
+  return (
+    <View style={styles.wrapper}>
+      <Text
+        style={[styles.monthYear, { color: isDark ? '#fff' : '#000' }]}
+        numberOfLines={1}
+      >
+        {monthYearLabel}
+      </Text>
+      <View style={styles.container}>
+        <ThemedButton
+          onPress={handlePreviousWeek}
+          style={styles.navButton}
+          hitSlop={12}
+          accessibilityLabel="Semana anterior"
+        >
+          <IconSymbol name="chevron.left" size={20} color={arrowColor} />
+        </ThemedButton>
+
+        <View style={styles.weekStrip}>
         {weekDays.map(({ date, label, ymd }) => {
           const isSelected = selectedYmd === ymd
           const isToday = ymd === formatYYYYMMDD(new Date())
@@ -185,26 +200,36 @@ export function CalendarWeekView({
             </ThemedButton>
           )
         })}
-      </View>
+        </View>
 
-      <ThemedButton
-        onPress={handleNextWeek}
-        style={styles.navButton}
-        hitSlop={12}
-        accessibilityLabel="Semana siguiente"
-      >
-        <IconSymbol name="chevron.right" size={20} color={arrowColor} />
-      </ThemedButton>
+        <ThemedButton
+          onPress={handleNextWeek}
+          style={styles.navButton}
+          hitSlop={12}
+          accessibilityLabel="Semana siguiente"
+        >
+          <IconSymbol name="chevron.right" size={20} color={arrowColor} />
+        </ThemedButton>
+      </View>
     </View>
   )
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    alignItems: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  monthYear: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
     paddingHorizontal: 4,
     width: '100%',
   },

@@ -26,27 +26,47 @@ import { ThemedText } from '@/components/themed-text'
 import { ThemedButton } from '@/components/themed-button'
 
 function WorkoutContent() {
-  const { sessionId } = useLocalSearchParams<{ sessionId: string }>()
+  const {
+    sessionId,
+    workoutDayId: paramWorkoutDayId,
+    performedOn: paramPerformedOn,
+    assignmentId: paramAssignmentId,
+  } = useLocalSearchParams<{
+    sessionId: string
+    workoutDayId?: string
+    performedOn?: string
+    assignmentId?: string
+  }>()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
 
+  const isNewSession = sessionId === 'new'
+
   const session = useQuery(
     api.workoutDaySessions.getById,
-    sessionId ? { id: sessionId as any } : 'skip'
+    !isNewSession && sessionId ? { id: sessionId as any } : 'skip'
   )
+  const resolvedWorkoutDayId = isNewSession
+    ? (paramWorkoutDayId as any)
+    : session?.workoutDayId
   const dayExercises = useQuery(
     api.dayExercises.getByWorkoutDay,
-    session?.workoutDayId ? { workoutDayId: session.workoutDayId } : 'skip'
+    resolvedWorkoutDayId ? { workoutDayId: resolvedWorkoutDayId } : 'skip'
+  )
+  const blocks = useQuery(
+    api.exerciseBlocks.getByWorkoutDay,
+    resolvedWorkoutDayId ? { workoutDayId: resolvedWorkoutDayId } : 'skip'
   )
   const logs = useQuery(
     api.sessionExerciseLogs.getBySession,
-    sessionId ? { sessionId: sessionId as any } : 'skip'
+    !isNewSession && sessionId ? { sessionId: sessionId as any } : 'skip'
   )
 
   const setLog = useMutation(api.sessionExerciseLogs.setLog)
   const setSessionStatus = useMutation(api.workoutDaySessions.setStatus)
+  const startSession = useMutation(api.workoutDaySessions.startSession)
 
   const logsByDayExercise = useMemo(() => {
     const map: Record<string, NonNullable<typeof logs>[number]> = {}
@@ -56,11 +76,58 @@ function WorkoutContent() {
     return map
   }, [logs])
 
+  type DayExercise = NonNullable<typeof dayExercises>[number]
+  const { exercisesByBlock, unblockedExercises } = useMemo(() => {
+    if (!dayExercises || !blocks) {
+      return {
+        exercisesByBlock: new Map<string, DayExercise[]>(),
+        unblockedExercises: [] as DayExercise[],
+      }
+    }
+    const byBlock = new Map<string, DayExercise[]>()
+    const unblocked: DayExercise[] = []
+    dayExercises.forEach((ex) => {
+      if (ex.blockId) {
+        const list = byBlock.get(ex.blockId) ?? []
+        list.push(ex)
+        byBlock.set(ex.blockId, list)
+      } else {
+        unblocked.push(ex)
+      }
+    })
+    byBlock.forEach((list) => list.sort((a, b) => a.order - b.order))
+    unblocked.sort((a, b) => a.order - b.order)
+    return { exercisesByBlock: byBlock, unblockedExercises: unblocked }
+  }, [dayExercises, blocks])
+
   const [localValues, setLocalValues] = useState<
     Record<string, { reps: string; weight: string }[]>
   >({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [completing, setCompleting] = useState(false)
+  const [starting, setStarting] = useState(false)
+
+  const handleStartWorkout = async () => {
+    if (
+      !paramAssignmentId ||
+      !paramWorkoutDayId ||
+      !paramPerformedOn
+    )
+      return
+    setStarting(true)
+    try {
+      const newSessionId = await startSession({
+        assignmentId: paramAssignmentId as any,
+        workoutDayId: paramWorkoutDayId as any,
+        performedOn: paramPerformedOn,
+      })
+      router.replace(`/home/workout/${newSessionId}` as Href)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setStarting(false)
+    }
+  }
 
   const getValuesFor = useCallback(
     (dayEx: NonNullable<typeof dayExercises>[number]) => {
@@ -180,7 +247,7 @@ function WorkoutContent() {
 
   const saveLog = useCallback(
     async (dayEx: NonNullable<typeof dayExercises>[number]) => {
-      if (!sessionId) return
+      if (isNewSession || !sessionId) return
       const values = getValuesFor(dayEx)
       const numSets = dayEx.sets
 
@@ -211,7 +278,7 @@ function WorkoutContent() {
         setSavingId(null)
       }
     },
-    [sessionId, getValuesFor, setLog]
+    [isNewSession, sessionId, getValuesFor, setLog]
   )
 
   const allExercisesFilled = useMemo(() => {
@@ -235,7 +302,7 @@ function WorkoutContent() {
   }, [dayExercises, getValuesFor, localValues, logsByDayExercise])
 
   const handleComplete = async () => {
-    if (!sessionId || session?.status === 'completed') return
+    if (isNewSession || !sessionId || session?.status === 'completed') return
 
     // Show warning if exercises aren't all filled
     if (!allExercisesFilled) {
@@ -262,7 +329,7 @@ function WorkoutContent() {
   }
 
   const completeWorkout = async () => {
-    if (!sessionId) return
+    if (isNewSession || !sessionId) return
     setCompleting(true)
     try {
       for (const dayEx of dayExercises ?? []) {
@@ -294,11 +361,14 @@ function WorkoutContent() {
   const inputColor = isDark ? '#fafafa' : '#18181b'
   const borderColor = isDark ? '#3f3f46' : '#d4d4d8'
 
-  if (
-    session === undefined ||
-    dayExercises === undefined ||
-    logs === undefined
-  ) {
+  const loading = isNewSession
+    ? dayExercises === undefined || blocks === undefined
+    : session === undefined ||
+        dayExercises === undefined ||
+        blocks === undefined ||
+        logs === undefined
+
+  if (loading) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
@@ -306,7 +376,18 @@ function WorkoutContent() {
     )
   }
 
-  if (!session) {
+  if (isNewSession) {
+    if (!paramWorkoutDayId || !paramPerformedOn || !paramAssignmentId) {
+      return (
+        <ThemedView style={[styles.container, styles.centered]}>
+          <ThemedText>Faltan datos para cargar el entrenamiento</ThemedText>
+          <Pressable onPress={() => router.back()} style={{ marginTop: 12 }}>
+            <ThemedText style={{ opacity: 0.8 }}>Volver</ThemedText>
+          </Pressable>
+        </ThemedView>
+      )
+    }
+  } else if (!session) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ThemedText>Sesión no encontrada</ThemedText>
@@ -314,7 +395,7 @@ function WorkoutContent() {
     )
   }
 
-  const isCompleted = session.status === 'completed'
+  const isCompleted = !isNewSession && session?.status === 'completed'
 
   return (
     <ThemedView style={styles.container}>
@@ -334,159 +415,222 @@ function WorkoutContent() {
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          {(dayExercises ?? []).map((dayEx) => {
-            const values = getValuesFor(dayEx)
-            const hasLog = !!logsByDayExercise[dayEx._id]
-            const saving = savingId === dayEx._id
-            return (
-              <View
-                key={dayEx._id}
-                style={[styles.exerciseCard, { borderColor }]}
-              >
-                <Pressable
-                  style={styles.exerciseHeader}
-                  onPress={() =>
-                    router.push(
-                      `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
-                    )
-                  }
+          {(() => {
+            const renderExerciseCard = (dayEx: DayExercise) => {
+              const values = getValuesFor(dayEx)
+              const hasLog = !!logsByDayExercise[dayEx._id]
+              const saving = savingId === dayEx._id
+              return (
+                <View
+                  key={dayEx._id}
+                  style={[styles.exerciseCard, { borderColor }]}
                 >
-                  <ThemedText style={styles.exerciseName}>
-                    {dayEx.exercise?.name ?? 'Ejercicio'}
+                  <Pressable
+                    style={styles.exerciseHeader}
+                    onPress={() =>
+                      router.push(
+                        `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
+                      )
+                    }
+                  >
+                    <ThemedText style={styles.exerciseName}>
+                      {dayEx.exercise?.name ?? 'Ejercicio'}
+                    </ThemedText>
+                    {dayEx.exercise?.videoUrl && (
+                      <Image
+                        source={{
+                          uri:
+                            getVideoThumbnailUrl(dayEx.exercise.videoUrl) ??
+                            undefined,
+                        }}
+                        style={styles.exerciseThumbnail}
+                        resizeMode="cover"
+                      />
+                    )}
+                  </Pressable>
+                  <ThemedText style={styles.planned}>
+                    Plan: {dayEx.sets} × {dayEx.reps}
+                    {dayEx.weight ? ` · ${dayEx.weight}` : ''}
                   </ThemedText>
-                  {dayEx.exercise?.videoUrl && (
-                    <Image
-                      source={{
-                        uri:
-                          getVideoThumbnailUrl(dayEx.exercise.videoUrl) ??
-                          undefined,
-                      }}
-                      style={styles.exerciseThumbnail}
-                      resizeMode="cover"
-                    />
-                  )}
-                </Pressable>
-                <ThemedText style={styles.planned}>
-                  Plan: {dayEx.sets} × {dayEx.reps}
-                  {dayEx.weight ? ` · ${dayEx.weight}` : ''}
-                </ThemedText>
-                <View style={styles.setsGrid}>
-                  <View style={styles.setsColumn}>
-                    {Array.from({ length: dayEx.sets }).map((_, setIndex) => {
-                      const setValues = values[setIndex] ?? {
-                        reps: '',
-                        weight: '',
-                      }
-                      const isSetCompleted =
-                        setValues.reps?.trim().length > 0 &&
-                        setValues.weight?.trim().length > 0
-                      return (
-                        <View key={`set-${setIndex}`} style={styles.setRow}>
-                          <View style={styles.setInputs}>
-                            <View style={styles.setInputGroup}>
-                              <ThemedText style={styles.inputLabel}>
-                                Reps
-                              </ThemedText>
-                              <TextInput
-                                style={[
-                                  styles.input,
-                                  {
-                                    backgroundColor: inputBg,
-                                    color: inputColor,
-                                  },
-                                ]}
-                                value={setValues.reps}
-                                onChangeText={(t) =>
-                                  updateLocal(
-                                    dayEx,
-                                    setIndex,
-                                    'reps',
-                                    t,
-                                    values
-                                  )
-                                }
-                                onBlur={() => saveLog(dayEx)}
-                                placeholder="0"
-                                placeholderTextColor={
-                                  isDark ? '#71717a' : '#a1a1aa'
-                                }
-                                keyboardType="default"
-                                editable={!isCompleted}
-                              />
-                            </View>
-                            <View style={styles.setInputGroup}>
-                              <ThemedText style={styles.inputLabel}>
-                                Peso
-                              </ThemedText>
-                              <TextInput
-                                style={[
-                                  styles.input,
-                                  {
-                                    backgroundColor: inputBg,
-                                    color: inputColor,
-                                  },
-                                ]}
-                                value={setValues.weight}
-                                onChangeText={(t) =>
-                                  updateLocal(
-                                    dayEx,
-                                    setIndex,
-                                    'weight',
-                                    t,
-                                    values
-                                  )
-                                }
-                                onBlur={() => saveLog(dayEx)}
-                                placeholder="kg"
-                                placeholderTextColor={
-                                  isDark ? '#71717a' : '#a1a1aa'
-                                }
-                                keyboardType="decimal-pad"
-                                editable={!isCompleted}
-                              />
-                            </View>
-                            <View style={styles.statusColumn}>
-                              <View style={styles.statusSpacer} />
-                              <View style={styles.statusIconContainer}>
-                                <MaterialIcons
-                                  name={
-                                    isSetCompleted
-                                      ? 'check-circle'
-                                      : 'radio-button-unchecked'
+                  <View style={styles.setsGrid}>
+                    <View style={styles.setsColumn}>
+                      {Array.from({ length: dayEx.sets }).map((_, setIndex) => {
+                        const setValues = values[setIndex] ?? {
+                          reps: '',
+                          weight: '',
+                        }
+                        const isSetCompleted =
+                          setValues.reps?.trim().length > 0 &&
+                          setValues.weight?.trim().length > 0
+                        return (
+                          <View key={`set-${setIndex}`} style={styles.setRow}>
+                            <View style={styles.setInputs}>
+                              <View style={styles.setInputGroup}>
+                                <ThemedText style={styles.inputLabel}>
+                                  Reps
+                                </ThemedText>
+                                <TextInput
+                                  style={[
+                                    styles.input,
+                                    {
+                                      backgroundColor: inputBg,
+                                      color: inputColor,
+                                    },
+                                  ]}
+                                  value={setValues.reps}
+                                  onChangeText={(t) =>
+                                    updateLocal(
+                                      dayEx,
+                                      setIndex,
+                                      'reps',
+                                      t,
+                                      values
+                                    )
                                   }
-                                  size={24}
-                                  color={
-                                    isSetCompleted
-                                      ? '#22c55e'
-                                      : isDark
-                                        ? '#71717a'
-                                        : '#a1a1aa'
+                                  onBlur={() => saveLog(dayEx)}
+                                  placeholder="0"
+                                  placeholderTextColor={
+                                    isDark ? '#71717a' : '#a1a1aa'
                                   }
+                                  keyboardType="default"
+                                  editable={!isNewSession && !isCompleted}
                                 />
+                              </View>
+                              <View style={styles.setInputGroup}>
+                                <ThemedText style={styles.inputLabel}>
+                                  Peso
+                                </ThemedText>
+                                <TextInput
+                                  style={[
+                                    styles.input,
+                                    {
+                                      backgroundColor: inputBg,
+                                      color: inputColor,
+                                    },
+                                  ]}
+                                  value={setValues.weight}
+                                  onChangeText={(t) =>
+                                    updateLocal(
+                                      dayEx,
+                                      setIndex,
+                                      'weight',
+                                      t,
+                                      values
+                                    )
+                                  }
+                                  onBlur={() => saveLog(dayEx)}
+                                  placeholder="kg"
+                                  placeholderTextColor={
+                                    isDark ? '#71717a' : '#a1a1aa'
+                                  }
+                                  keyboardType="decimal-pad"
+                                  editable={!isNewSession && !isCompleted}
+                                />
+                              </View>
+                              <View style={styles.statusColumn}>
+                                <View style={styles.statusSpacer} />
+                                <View style={styles.statusIconContainer}>
+                                  <MaterialIcons
+                                    name={
+                                      isSetCompleted
+                                        ? 'check-circle'
+                                        : 'radio-button-unchecked'
+                                    }
+                                    size={24}
+                                    color={
+                                      isSetCompleted
+                                        ? '#22c55e'
+                                        : isDark
+                                          ? '#71717a'
+                                          : '#a1a1aa'
+                                    }
+                                  />
+                                </View>
                               </View>
                             </View>
                           </View>
-                        </View>
-                      )
-                    })}
+                        )
+                      })}
+                    </View>
                   </View>
+                  {saving && (
+                    <ActivityIndicator
+                      size="small"
+                      color={Colors[colorScheme ?? 'light'].tint}
+                      style={styles.savingIndicator}
+                    />
+                  )}
+                  {hasLog && !saving && !isCompleted && (
+                    <ThemedText style={styles.savedLabel}>Guardado</ThemedText>
+                  )}
                 </View>
-                {saving && (
-                  <ActivityIndicator
-                    size="small"
-                    color={Colors[colorScheme ?? 'light'].tint}
-                    style={styles.savingIndicator}
-                  />
-                )}
-                {hasLog && !saving && !isCompleted && (
-                  <ThemedText style={styles.savedLabel}>Guardado</ThemedText>
-                )}
-              </View>
+              )
+            }
+
+            const sortedBlocks = [...(blocks ?? [])].sort(
+              (a, b) => a.order - b.order
             )
-          })}
+
+            return (
+              <>
+                {unblockedExercises.map((dayEx) =>
+                  renderExerciseCard(dayEx)
+                )}
+                {sortedBlocks.map((block) => {
+                  const blockExercises =
+                    exercisesByBlock.get(block._id) ?? []
+                  if (blockExercises.length === 0) return null
+                  return (
+                    <View key={block._id} style={styles.blockSection}>
+                      <ThemedText style={styles.blockTitle}>
+                        {block.name}
+                      </ThemedText>
+                      {blockExercises.map((dayEx) =>
+                        renderExerciseCard(dayEx)
+                      )}
+                    </View>
+                  )
+                })}
+              </>
+            )
+          })()}
         </ScrollView>
 
-        {!isCompleted && (
+        {isNewSession && (
+          <View
+            style={[
+              styles.footer,
+              {
+                paddingBottom: insets.bottom + 60,
+                backgroundColor: isDark ? '#0a0a0a' : '#fff',
+              },
+            ]}
+          >
+            <ThemedButton
+              type="primary"
+              onPress={handleStartWorkout}
+              disabled={starting}
+            >
+              {starting ? (
+                <ActivityIndicator
+                  size="small"
+                  color={colorScheme === 'dark' ? '#000' : '#fff'}
+                />
+              ) : (
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    { color: colorScheme === 'dark' ? '#000' : '#fff' },
+                  ]}
+                >
+                  Empezar entrenamiento
+                </Text>
+              )}
+            </ThemedButton>
+          </View>
+        )}
+
+        {!isNewSession && !isCompleted && (
           <View
             style={[
               styles.footer,
@@ -560,6 +704,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
+  },
+  blockSection: {
+    marginTop: 20,
+    marginBottom: 4,
+  },
+  blockTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    opacity: 0.9,
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   hint: {
     fontSize: 14,

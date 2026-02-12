@@ -4,20 +4,21 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
   Image,
+  Pressable,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useUser } from '@clerk/clerk-expo'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
-import { useQuery, useMutation, Authenticated, AuthLoading } from 'convex/react'
+import { useQuery, Authenticated, AuthLoading } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedView } from '@/components/themed-view'
 import { ThemedText } from '@/components/themed-text'
 import { ThemedButton } from '@/components/themed-button'
 import { format, getISODay, startOfWeek, endOfWeek } from 'date-fns'
+import { IconSymbol } from '@/components/ui/icon-symbol'
 import { CalendarWeekView } from '@/components/features/home/calendar-week-view'
 import { RestDayPlaceholder } from '@/components/features/home/rest-day-placeholder'
 
@@ -121,25 +122,46 @@ function DashboardContent() {
     [weekSessions, selectedYmd, scheduledWorkoutDay?._id]
   )
 
-  const startSession = useMutation(api.workoutDaySessions.startSession)
-  const [busy, setBusy] = useState(false)
+  const blocksForSelectedDay = useQuery(
+    api.exerciseBlocks.getByWorkoutDay,
+    scheduledWorkoutDay?._id
+      ? { workoutDayId: scheduledWorkoutDay._id }
+      : 'skip'
+  )
 
-  const handleOpenWorkout = async () => {
+  const { statusBadgeLabel, statusBadgeVariant } = useMemo(() => {
+    if (!sessionForSelected) {
+      return {
+        statusBadgeLabel: 'No Iniciado',
+        statusBadgeVariant: 'notStarted' as const,
+      }
+    }
+    if (sessionForSelected.status === 'completed') {
+      return {
+        statusBadgeLabel: 'Completado',
+        statusBadgeVariant: 'completed' as const,
+      }
+    }
+    if (sessionForSelected.status === 'skipped') {
+      return {
+        statusBadgeLabel: 'Omitido',
+        statusBadgeVariant: 'skipped' as const,
+      }
+    }
+    return {
+      statusBadgeLabel: 'En curso',
+      statusBadgeVariant: 'inProgress' as const,
+    }
+  }, [sessionForSelected])
+
+  const handleOpenWorkout = () => {
     if (!activeAssignment || !scheduledWorkoutDay) return
-    setBusy(true)
-    try {
-      const sessionId = sessionForSelected
-        ? sessionForSelected._id
-        : await startSession({
-            assignmentId: activeAssignment._id,
-            workoutDayId: scheduledWorkoutDay._id,
-            performedOn: selectedYmd,
-          })
-      router.push(`/home/workout/${sessionId}` as Href)
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setBusy(false)
+    if (sessionForSelected) {
+      router.push(`/home/workout/${sessionForSelected._id}` as Href)
+    } else {
+      router.push(
+        `/home/workout/new?workoutDayId=${scheduledWorkoutDay._id}&performedOn=${selectedYmd}&assignmentId=${activeAssignment._id}` as Href
+      )
     }
   }
 
@@ -189,6 +211,7 @@ function DashboardContent() {
             <ThemedButton
               type="primary"
               onPress={() => router.push('/planifications' as Href)}
+              style={{ paddingHorizontal: 12 }}
             >
               <Text
                 style={[
@@ -215,49 +238,84 @@ function DashboardContent() {
             <View style={styles.todaySection}>
               {scheduledWorkoutDay ? (
                 <>
-                  <ThemedText style={styles.sessionName}>
-                    {scheduledWorkoutDay.name}
-                  </ThemedText>
-                  <ScrollView style={styles.exerciseList} nestedScrollEnabled>
-                    {(exercisesByDay[scheduledWorkoutDay._id] ?? []).map(
-                      (ex) => (
-                        <View key={ex._id} style={styles.exerciseRow}>
-                          <ThemedText style={styles.exerciseName}>
-                            {ex.exercise?.name ?? 'Ejercicio'}
-                          </ThemedText>
-                          <ThemedText style={styles.exerciseMeta}>
-                            {ex.sets} × {ex.reps}
-                            {ex.weight ? ` · ${ex.weight}` : ''}
-                          </ThemedText>
-                        </View>
-                      )
-                    )}
-                  </ScrollView>
-                  <ThemedButton
-                    type="primary"
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.workoutCard,
+                      isDark && styles.workoutCardDark,
+                      pressed && styles.workoutCardPressed,
+                    ]}
                     onPress={handleOpenWorkout}
-                    disabled={busy}
                   >
-                    {busy ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={colorScheme === 'dark' ? '#000' : '#fff'}
-                      />
-                    ) : (
-                      <Text
+                    <View style={styles.workoutCardContent}>
+                      <ThemedText style={styles.workoutCardTitle}>
+                        {scheduledWorkoutDay.name}
+                      </ThemedText>
+                      <View style={styles.workoutCardStatusRow}>
+                      <View
                         style={[
-                          styles.primaryButtonText,
-                          { color: colorScheme === 'dark' ? '#000' : '#fff' },
+                          styles.statusBadge,
+                          {
+                            backgroundColor:
+                              statusBadgeVariant === 'completed'
+                                ? isDark
+                                  ? '#16a34a'
+                                  : '#22c55e'
+                                : statusBadgeVariant === 'inProgress'
+                                  ? isDark
+                                    ? '#2563eb'
+                                    : '#3b82f6'
+                                  : statusBadgeVariant === 'notStarted'
+                                    ? isDark
+                                      ? '#ea580c'
+                                      : '#f97316'
+                                    : isDark
+                                      ? 'rgba(255,255,255,0.12)'
+                                      : 'rgba(0,0,0,0.08)',
+                          },
                         ]}
                       >
-                        {sessionForSelected?.status === 'completed'
-                          ? 'Ver sesión completada'
-                          : sessionForSelected
-                            ? 'Continuar sesión'
-                            : 'Comenzar sesión'}
-                      </Text>
-                    )}
-                  </ThemedButton>
+                        <Text
+                          style={[
+                            styles.statusBadgeText,
+                            (statusBadgeVariant === 'completed' ||
+                              statusBadgeVariant === 'inProgress' ||
+                              statusBadgeVariant === 'notStarted') && {
+                              color: '#fff',
+                            },
+                            statusBadgeVariant === 'skipped' && {
+                              color: isDark ? '#a1a1aa' : '#52525b',
+                            },
+                          ]}
+                        >
+                          {statusBadgeLabel}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.workoutCardMeta}>
+                      <ThemedText style={styles.workoutCardMetaText}>
+                        {blocksForSelectedDay?.length ?? 0}{' '}
+                        {(blocksForSelectedDay?.length ?? 0) === 1
+                          ? 'bloque'
+                          : 'bloques'}
+                      </ThemedText>
+                      <ThemedText style={styles.workoutCardMetaDot}>
+                        ·
+                      </ThemedText>
+                      <ThemedText style={styles.workoutCardMetaText}>
+                        {exercisesByDay[scheduledWorkoutDay._id]?.length ?? 0}{' '}
+                        {(exercisesByDay[scheduledWorkoutDay._id]?.length ??
+                          0) === 1
+                          ? 'ejercicio'
+                          : 'ejercicios'}
+                      </ThemedText>
+                    </View>
+                    </View>
+                    <IconSymbol
+                      name="chevron.right"
+                      size={20}
+                      color={isDark ? '#a1a1aa' : '#71717a'}
+                    />
+                  </Pressable>
                 </>
               ) : (
                 <RestDayPlaceholder />
@@ -348,6 +406,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
+  },
+  workoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  workoutCardContent: {
+    flex: 1,
+  },
+  workoutCardDark: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  workoutCardPressed: {
+    opacity: 0.9,
+  },
+  workoutCardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  workoutCardStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  statusBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  workoutCardMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  workoutCardMetaText: {
+    fontSize: 13,
+    opacity: 0.75,
+  },
+  workoutCardMetaDot: {
+    fontSize: 13,
+    opacity: 0.5,
+  },
+  workoutCardButton: {
+    marginTop: 0,
   },
   sessionName: {
     fontSize: 18,
