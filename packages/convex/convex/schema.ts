@@ -231,6 +231,21 @@ export default defineSchema({
       'performedOn',
     ]),
 
+  // Session Exercise Logs - What the user actually did per exercise per session
+  sessionExerciseLogs: defineTable({
+    sessionId: v.id('workoutDaySessions'),
+    dayExerciseId: v.id('dayExercises'),
+    sets: v.number(),
+    reps: v.string(),
+    weight: v.optional(v.string()),
+    order: v.number(),
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_session', ['sessionId'])
+    .index('by_session_dayExercise', ['sessionId', 'dayExerciseId']),
+
   // Classes - Class templates and configurations
   classes: defineTable({
     organizationId: v.id('organizations'),

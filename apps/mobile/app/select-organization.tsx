@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react'
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   FlatList,
@@ -10,6 +9,7 @@ import {
 import { useOrganizationList } from '@clerk/clerk-expo'
 import { useRouter } from 'expo-router'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { ThemedButton } from '@/components/themed-button'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -32,7 +32,7 @@ export default function SelectOrganizationScreen() {
       setLoading(true)
       try {
         await setActive?.({ organization: orgId } as any)
-        router.replace('/(tabs)')
+        router.replace('/(tabs)/home')
       } catch (err) {
         console.error('Error setting active organization:', err)
         setLoading(false)
@@ -104,13 +104,13 @@ export default function SelectOrganizationScreen() {
           keyExtractor={(item) => item.organization?.id ?? ''}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <TouchableOpacity
+            <ThemedButton
+              type="secondary"
+              lightColor="#f4f4f5"
+              darkColor="#18181b"
               style={[
                 styles.orgCard,
-                {
-                  backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                  borderColor: isDark ? '#27272a' : '#e4e4e7',
-                },
+                { borderColor: isDark ? '#27272a' : '#e4e4e7' },
               ]}
               onPress={() => handleSelectOrg(item.organization?.id ?? '')}
             >
@@ -139,7 +139,7 @@ export default function SelectOrganizationScreen() {
               >
                 {ROLE_LABELS[item.role ?? ''] ?? item.role ?? ''}
               </Text>
-            </TouchableOpacity>
+            </ThemedButton>
           )}
         />
       </View>

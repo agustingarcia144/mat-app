@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   ScrollView,
 } from 'react-native'
@@ -17,6 +16,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { Colors } from '@/constants/theme'
 import { ThemedView } from '@/components/themed-view'
 import { ThemedText } from '@/components/themed-text'
+import { ThemedButton } from '@/components/themed-button'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -61,13 +61,13 @@ function PlanificationsContent() {
     const isActive = item.status === 'active'
 
     return (
-      <TouchableOpacity
+      <ThemedButton
+        type="secondary"
+        lightColor="#f4f4f5"
+        darkColor="#27272a"
         style={[
           styles.card,
-          {
-            backgroundColor: isDark ? '#27272a' : '#f4f4f5',
-            borderColor: isDark ? '#3f3f46' : '#e4e4e7',
-          },
+          { borderColor: isDark ? '#3f3f46' : '#e4e4e7' },
         ]}
         onPress={() =>
           router.push(`/planifications/${item._id}` as Href)
@@ -110,7 +110,7 @@ function PlanificationsContent() {
             </Text>
           </View>
         </View>
-      </TouchableOpacity>
+      </ThemedButton>
     )
   }
 

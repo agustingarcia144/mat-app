@@ -1,14 +1,9 @@
 import React from 'react'
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-} from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Authenticated, Unauthenticated, AuthLoading } from 'convex/react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { ThemedButton } from '@/components/themed-button'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -47,11 +42,11 @@ function LandingContent() {
         </Text>
 
         <View style={styles.buttons}>
-          <TouchableOpacity
-            style={[
-              styles.primaryButton,
-              { backgroundColor: isDark ? '#fff' : '#000' },
-            ]}
+          <ThemedButton
+            type="primary"
+            lightColor="#000"
+            darkColor="#fff"
+            style={styles.primaryButton}
             onPress={() => router.push('/sign-in')}
           >
             <Text
@@ -62,16 +57,13 @@ function LandingContent() {
             >
               Iniciar sesión
             </Text>
-          </TouchableOpacity>
+          </ThemedButton>
 
-          <TouchableOpacity
-            style={[
-              styles.secondaryButton,
-              {
-                backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                borderColor: isDark ? '#27272a' : '#e4e4e7',
-              },
-            ]}
+          <ThemedButton
+            type="secondary"
+            lightColor="#f4f4f5"
+            darkColor="#18181b"
+            style={[styles.secondaryButton, { borderColor: isDark ? '#27272a' : '#e4e4e7' }]}
             onPress={() => router.push('/sign-up')}
           >
             <Text
@@ -82,7 +74,7 @@ function LandingContent() {
             >
               Registrarse
             </Text>
-          </TouchableOpacity>
+          </ThemedButton>
         </View>
       </View>
     </View>
@@ -93,7 +85,7 @@ function AuthenticatedRedirect() {
   const router = useRouter()
 
   React.useEffect(() => {
-    router.replace('/(tabs)')
+    router.replace('/(tabs)/home')
   }, [router])
 
   return null

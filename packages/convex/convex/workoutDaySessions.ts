@@ -113,6 +113,22 @@ export const getMyWeekSessions = query({
 })
 
 /**
+ * Get a single session by id (member only; own session).
+ */
+export const getById = query({
+  args: { id: v.id('workoutDaySessions') },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const session = await ctx.db.get(args.id)
+    if (!session) return null
+    if (session.userId !== identity.subject) return null
+    return session
+  },
+})
+
+/**
  * Get sessions for an assignment (member can only call for their own assignment).
  */
 export const getByAssignment = query({

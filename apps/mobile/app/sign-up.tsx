@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +19,7 @@ import {
 } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { ThemedButton } from '@/components/themed-button'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -52,7 +52,7 @@ function AuthenticatedRedirect() {
         if (user && !user.onboardingCompleted) {
           router.replace('/onboarding')
         } else {
-          router.replace('/(tabs)')
+          router.replace('/(tabs)/home')
         }
       } catch (err) {
         console.error('Failed to get/create user:', err)
@@ -204,12 +204,11 @@ function SignUpForm() {
               editable={!loading}
             />
 
-            <TouchableOpacity
-              style={[
-                styles.button,
-                { backgroundColor: isDark ? '#fff' : '#000' },
-                loading && styles.buttonDisabled,
-              ]}
+            <ThemedButton
+              type="primary"
+              lightColor="#000"
+              darkColor="#fff"
+              style={[styles.button, loading && styles.buttonDisabled]}
               onPress={onVerify}
               disabled={loading}
             >
@@ -225,13 +224,13 @@ function SignUpForm() {
                   Verificar correo
                 </Text>
               )}
-            </TouchableOpacity>
+            </ThemedButton>
 
-            <TouchableOpacity onPress={() => setVerifying(false)}>
+            <ThemedButton onPress={() => setVerifying(false)}>
               <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
                 Volver al registro
               </Text>
-            </TouchableOpacity>
+            </ThemedButton>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -334,12 +333,11 @@ function SignUpForm() {
               editable={!loading}
             />
 
-            <TouchableOpacity
-              style={[
-                styles.button,
-                { backgroundColor: isDark ? '#fff' : '#000' },
-                loading && styles.buttonDisabled,
-              ]}
+            <ThemedButton
+              type="primary"
+              lightColor="#000"
+              darkColor="#fff"
+              style={[styles.button, loading && styles.buttonDisabled]}
               onPress={onSignUp}
               disabled={loading}
             >
@@ -355,7 +353,7 @@ function SignUpForm() {
                   Registrarse
                 </Text>
               )}
-            </TouchableOpacity>
+            </ThemedButton>
 
             <View style={styles.divider}>
               <View
@@ -380,13 +378,13 @@ function SignUpForm() {
               />
             </View>
 
-            <TouchableOpacity
+            <ThemedButton
+              type="secondary"
+              lightColor="#f4f4f5"
+              darkColor="#18181b"
               style={[
                 styles.oauthButton,
-                {
-                  backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                  borderColor: isDark ? '#27272a' : '#e4e4e7',
-                },
+                { borderColor: isDark ? '#27272a' : '#e4e4e7' },
               ]}
               onPress={onGoogleSignUp}
               disabled={loading}
@@ -399,14 +397,14 @@ function SignUpForm() {
               >
                 Continuar con Google
               </Text>
-            </TouchableOpacity>
+            </ThemedButton>
 
-            <TouchableOpacity onPress={() => router.push('/sign-in')}>
+            <ThemedButton onPress={() => router.push('/sign-in')}>
               <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
                 ¿Ya tienes cuenta?{' '}
                 <Text style={styles.linkBold}>Iniciar sesión</Text>
               </Text>
-            </TouchableOpacity>
+            </ThemedButton>
           </View>
         </View>
       </ScrollView>

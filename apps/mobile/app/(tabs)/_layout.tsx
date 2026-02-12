@@ -21,7 +21,7 @@ export default function TabLayout() {
         tintColor={tintColor}
         labelStyle={{ color: theme.colors.text }}
       >
-        <NativeTabs.Trigger name="index">
+        <NativeTabs.Trigger name="home">
           <Label>Inicio</Label>
           <Icon sf="house.fill" />
         </NativeTabs.Trigger>

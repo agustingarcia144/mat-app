@@ -1,6 +1,9 @@
 {
   "expo": {
     "name": "mat-app",
-    "slug": "mat-app"
+    "slug": "mat-app",
+    "ios": {
+      "bundleIdentifier": "com.agusstingarcia144.mat-app"
+    }
   }
 }

@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { ThemedButton } from '@/components/themed-button'
 import { IconSymbol } from '../../ui/icon-symbol'
 
 /** ISO weekday: 1 = Monday, 7 = Sunday */
@@ -97,14 +98,14 @@ export function CalendarWeekView({
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
+      <ThemedButton
         onPress={handlePreviousWeek}
-        style={[styles.navButton]}
+        style={styles.navButton}
         hitSlop={12}
         accessibilityLabel="Semana anterior"
       >
         <IconSymbol name="chevron.left" size={20} color={arrowColor} />
-      </TouchableOpacity>
+      </ThemedButton>
 
       <View style={styles.weekStrip}>
         {weekDays.map(({ date, label, ymd }) => {
@@ -142,7 +143,7 @@ export function CalendarWeekView({
               : '#000'
 
           return (
-            <TouchableOpacity
+            <ThemedButton
               key={ymd}
               style={[
                 styles.dayCell,
@@ -181,19 +182,19 @@ export function CalendarWeekView({
                   />
                 )}
               </View>
-            </TouchableOpacity>
+            </ThemedButton>
           )
         })}
       </View>
 
-      <TouchableOpacity
+      <ThemedButton
         onPress={handleNextWeek}
-        style={[styles.navButton]}
+        style={styles.navButton}
         hitSlop={12}
         accessibilityLabel="Semana siguiente"
       >
         <IconSymbol name="chevron.right" size={20} color={arrowColor} />
-      </TouchableOpacity>
+      </ThemedButton>
     </View>
   )
 }

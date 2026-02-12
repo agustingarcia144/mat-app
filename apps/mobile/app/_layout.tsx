@@ -37,7 +37,7 @@ function RootLayoutNav() {
 
     if (isAuthenticated && !inAuthGroup && !inModal) {
       // Redirect to tabs if authenticated (unless on a modal)
-      router.replace('/(tabs)')
+      router.replace('/(tabs)/home')
     } else if (!isAuthenticated && inAuthGroup) {
       // Redirect to landing if not authenticated
       router.replace('/')

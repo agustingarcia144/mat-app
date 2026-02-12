@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -19,6 +18,7 @@ import {
 } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { ThemedButton } from '@/components/themed-button'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -51,11 +51,11 @@ function AuthenticatedRedirect() {
         if (user && !user.onboardingCompleted) {
           router.replace('/onboarding')
         } else {
-          router.replace('/(tabs)')
+          router.replace('/(tabs)/home')
         }
       } catch (err) {
         console.error('Failed to get/create user:', err)
-        router.replace('/(tabs)')
+        router.replace('/(tabs)/home')
       }
     }
     handleRedirect()
@@ -86,12 +86,12 @@ function SignInForm() {
       if (user && !user.onboardingCompleted) {
         router.replace('/onboarding')
       } else {
-        router.replace('/(tabs)')
+        router.replace('/(tabs)/home')
       }
     } catch (err) {
       console.error('Failed to get/create user:', err)
       // Fallback to tabs if there's an error
-      router.replace('/(tabs)')
+      router.replace('/(tabs)/home')
     }
   }
 
@@ -194,12 +194,11 @@ function SignInForm() {
             editable={!loading}
           />
 
-          <TouchableOpacity
-            style={[
-              styles.button,
-              { backgroundColor: isDark ? '#fff' : '#000' },
-              loading && styles.buttonDisabled,
-            ]}
+          <ThemedButton
+            type="primary"
+            lightColor="#000"
+            darkColor="#fff"
+            style={[styles.button, loading && styles.buttonDisabled]}
             onPress={onSignIn}
             disabled={loading}
           >
@@ -212,7 +211,7 @@ function SignInForm() {
                 Iniciar sesión
               </Text>
             )}
-          </TouchableOpacity>
+          </ThemedButton>
 
           <View style={styles.divider}>
             <View
@@ -237,13 +236,13 @@ function SignInForm() {
             />
           </View>
 
-          <TouchableOpacity
+          <ThemedButton
+            type="secondary"
+            lightColor="#f4f4f5"
+            darkColor="#18181b"
             style={[
               styles.oauthButton,
-              {
-                backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                borderColor: isDark ? '#27272a' : '#e4e4e7',
-              },
+              { borderColor: isDark ? '#27272a' : '#e4e4e7' },
             ]}
             onPress={onGoogleSignIn}
             disabled={loading}
@@ -256,13 +255,13 @@ function SignInForm() {
             >
               Continuar con Google
             </Text>
-          </TouchableOpacity>
+          </ThemedButton>
 
-          <TouchableOpacity onPress={() => router.push('/sign-up')}>
+          <ThemedButton onPress={() => router.push('/sign-up')}>
             <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
               ¿No tienes cuenta? <Text style={styles.linkBold}>Regístrate</Text>
             </Text>
-          </TouchableOpacity>
+          </ThemedButton>
         </View>
       </View>
     </KeyboardAvoidingView>

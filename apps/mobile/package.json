@@ -19,6 +19,8 @@
     "@react-navigation/native": "^7.1.8",
     "@repo/convex": "workspace:*",
     "@repo/core": "workspace:*",
+    "convex": "^1.31.7",
+    "date-fns": "^4.1.0",
     "expo": "~54.0.33",
     "expo-auth-session": "~7.0.10",
     "expo-constants": "~18.0.13",

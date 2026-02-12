@@ -8,9 +8,6 @@ const config = getDefaultConfig(__dirname)
 const projectRoot = __dirname
 const monorepoRoot = path.resolve(projectRoot, '../..')
 
-// Watch all files in the monorepo
-config.watchFolders = [monorepoRoot]
-
 // Exclude packages/*/node_modules to fix TreeFS "already exists in file map" conflict
 config.resolver.blockList = [
   /packages[\\/][^\\/]+[\\/]node_modules[/\\]/,
@@ -33,15 +30,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     }
   }
 
-  // Force React packages to resolve from mobile app's node_modules only
-  if (
-    moduleName === 'react' ||
-    moduleName === 'react-native' ||
-    moduleName.startsWith('react/')
-  ) {
-    return context.resolveRequest(context, moduleName, platform)
-  }
-
+  // Use default resolution for everything else
   return context.resolveRequest(context, moduleName, platform)
 }
 

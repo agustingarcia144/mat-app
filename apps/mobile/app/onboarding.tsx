@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -14,6 +13,7 @@ import { useRouter } from 'expo-router'
 import { useMutation, Authenticated } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { ThemedButton } from '@/components/themed-button'
 
 function OnboardingContent() {
   const router = useRouter()
@@ -38,7 +38,7 @@ function OnboardingContent() {
       })
 
       // Navigate to tabs after completing onboarding
-      router.replace('/(tabs)')
+      router.replace('/(tabs)/home')
     } catch (err: any) {
       setError(err.message || 'Error al guardar la información')
     } finally {
@@ -51,7 +51,7 @@ function OnboardingContent() {
     try {
       // Mark onboarding as completed even if skipped
       await completeOnboarding({})
-      router.replace('/(tabs)')
+      router.replace('/(tabs)/home')
     } catch (err: any) {
       setError(err.message || 'Error al omitir')
     } finally {
@@ -128,12 +128,11 @@ function OnboardingContent() {
               />
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.button,
-                { backgroundColor: isDark ? '#fff' : '#000' },
-                loading && styles.buttonDisabled,
-              ]}
+            <ThemedButton
+              type="primary"
+              lightColor="#000"
+              darkColor="#fff"
+              style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSubmit}
               disabled={loading}
             >
@@ -149,9 +148,9 @@ function OnboardingContent() {
                   Continuar
                 </Text>
               )}
-            </TouchableOpacity>
+            </ThemedButton>
 
-            <TouchableOpacity
+            <ThemedButton
               onPress={handleSkip}
               disabled={loading}
               style={styles.skipButton}
@@ -164,7 +163,7 @@ function OnboardingContent() {
               >
                 Omitir por ahora
               </Text>
-            </TouchableOpacity>
+            </ThemedButton>
           </View>
         </View>
       </ScrollView>

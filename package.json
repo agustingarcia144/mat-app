@@ -7,7 +7,9 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
     "convex:dev": "pnpm --filter convex dev",
     "convex:deploy": "pnpm --filter convex deploy",
-    "convex:codegen": "pnpm --filter convex codegen"
+    "convex:codegen": "pnpm --filter convex codegen",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
     "prettier": "^3.1.1",
@@ -17,10 +19,8 @@
   },
   "pnpm": {
     "overrides": {
-      "@types/react": "19.2.6",
-      "@types/react-dom": "19.2.3",
-      "react": "19.2.0",
-      "react-dom": "19.2.0"
+      "@types/react": "19.1.17",
+      "@types/react-dom": "19.1.0"
     },
     "ignoredBuiltDependencies": [
       "@clerk/shared",

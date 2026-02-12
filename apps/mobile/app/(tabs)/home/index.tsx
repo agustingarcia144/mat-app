@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   ScrollView,
   Image,
@@ -15,35 +14,14 @@ import { useRouter } from 'expo-router'
 import { useQuery, useMutation, Authenticated, AuthLoading } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { Colors } from '@/constants/theme'
 import { ThemedView } from '@/components/themed-view'
 import { ThemedText } from '@/components/themed-text'
+import { ThemedButton } from '@/components/themed-button'
+import { format, getISODay, startOfWeek, endOfWeek } from 'date-fns'
 import { CalendarWeekView } from '@/components/features/home/calendar-week-view'
 import { RestDayPlaceholder } from '@/components/features/home/rest-day-placeholder'
 
-/** ISO weekday: 1 = Monday, 7 = Sunday */
-function getISOWeekday(d: Date): number {
-  const day = d.getDay()
-  return day === 0 ? 7 : day
-}
-
-function formatYYYYMMDD(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-/** Get Monday and Sunday of the week containing `date` */
-function getWeekRange(date: Date): { monday: Date; sunday: Date } {
-  const d = new Date(date)
-  const iso = getISOWeekday(d)
-  const monday = new Date(d)
-  monday.setDate(d.getDate() - (iso - 1))
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
-  return { monday, sunday }
-}
+const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const }
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -76,7 +54,10 @@ function DashboardContent() {
   )
 
   const { monday, sunday } = useMemo(
-    () => getWeekRange(selectedDate),
+    () => ({
+      monday: startOfWeek(selectedDate, WEEK_STARTS_MONDAY),
+      sunday: endOfWeek(selectedDate, WEEK_STARTS_MONDAY),
+    }),
     [selectedDate]
   )
 
@@ -84,8 +65,8 @@ function DashboardContent() {
     api.workoutDaySessions.getMyWeekSessions,
     user?.id
       ? {
-          startOn: formatYYYYMMDD(monday),
-          endOn: formatYYYYMMDD(sunday),
+          startOn: format(monday, 'yyyy-MM-dd'),
+          endOn: format(sunday, 'yyyy-MM-dd'),
         }
       : 'skip'
   )
@@ -122,8 +103,8 @@ function DashboardContent() {
     return map
   }, [allExercises])
 
-  const selectedYmd = formatYYYYMMDD(selectedDate)
-  const selectedISOWeekday = getISOWeekday(selectedDate)
+  const selectedYmd = format(selectedDate, 'yyyy-MM-dd')
+  const selectedISOWeekday = getISODay(selectedDate)
   const scheduledWorkoutDay = useMemo(
     () => workoutDays?.find((d) => d.dayOfWeek === selectedISOWeekday) ?? null,
     [workoutDays, selectedISOWeekday]
@@ -141,26 +122,20 @@ function DashboardContent() {
   )
 
   const startSession = useMutation(api.workoutDaySessions.startSession)
-  const setSessionStatus = useMutation(api.workoutDaySessions.setStatus)
   const [busy, setBusy] = useState(false)
 
-  const handleStartOrComplete = async () => {
+  const handleOpenWorkout = async () => {
     if (!activeAssignment || !scheduledWorkoutDay) return
     setBusy(true)
     try {
-      if (sessionForSelected) {
-        await setSessionStatus({
-          id: sessionForSelected._id,
-          status:
-            sessionForSelected.status === 'completed' ? 'started' : 'completed',
-        })
-      } else {
-        await startSession({
-          assignmentId: activeAssignment._id,
-          workoutDayId: scheduledWorkoutDay._id,
-          performedOn: selectedYmd,
-        })
-      }
+      const sessionId = sessionForSelected
+        ? sessionForSelected._id
+        : await startSession({
+            assignmentId: activeAssignment._id,
+            workoutDayId: scheduledWorkoutDay._id,
+            performedOn: selectedYmd,
+          })
+      router.push(`/home/workout/${sessionId}` as Href)
     } catch (e) {
       console.error(e)
     } finally {
@@ -175,12 +150,10 @@ function DashboardContent() {
           <ThemedText type="title" style={styles.welcome}>
             ¡Hola, {user?.firstName || user?.emailAddresses[0]?.emailAddress}!
           </ThemedText>
-          <TouchableOpacity
+          <ThemedButton
+            type="secondary"
             onPress={() => router.push('/profile' as Href)}
-            style={[
-              styles.avatarButton,
-              { backgroundColor: isDark ? '#27272a' : '#e4e4e7' },
-            ]}
+            style={styles.avatarButton}
             accessibilityLabel="Abrir perfil"
           >
             {user?.imageUrl ? (
@@ -202,7 +175,7 @@ function DashboardContent() {
                 ).toUpperCase()}
               </Text>
             )}
-          </TouchableOpacity>
+          </ThemedButton>
         </View>
 
         {!activeAssignment ? (
@@ -213,11 +186,8 @@ function DashboardContent() {
             <ThemedText style={styles.emptySubtext}>
               Ve a Planificaciones para ver tus rutinas
             </ThemedText>
-            <TouchableOpacity
-              style={[
-                styles.primaryButton,
-                { backgroundColor: Colors[colorScheme ?? 'light'].tint },
-              ]}
+            <ThemedButton
+              type="primary"
               onPress={() => router.push('/planifications' as Href)}
             >
               <Text
@@ -228,7 +198,7 @@ function DashboardContent() {
               >
                 Ver planificaciones
               </Text>
-            </TouchableOpacity>
+            </ThemedButton>
           </View>
         ) : (
           <>
@@ -263,12 +233,9 @@ function DashboardContent() {
                       )
                     )}
                   </ScrollView>
-                  <TouchableOpacity
-                    style={[
-                      styles.primaryButton,
-                      { backgroundColor: Colors[colorScheme ?? 'light'].tint },
-                    ]}
-                    onPress={handleStartOrComplete}
+                  <ThemedButton
+                    type="primary"
+                    onPress={handleOpenWorkout}
                     disabled={busy}
                   >
                     {busy ? (
@@ -284,13 +251,13 @@ function DashboardContent() {
                         ]}
                       >
                         {sessionForSelected?.status === 'completed'
-                          ? 'Marcar como no completado'
+                          ? 'Ver sesión completada'
                           : sessionForSelected
-                            ? 'Marcar como completado'
+                            ? 'Continuar sesión'
                             : 'Comenzar sesión'}
                       </Text>
                     )}
-                  </TouchableOpacity>
+                  </ThemedButton>
                 </>
               ) : (
                 <RestDayPlaceholder />

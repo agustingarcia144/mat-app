@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ActivityIndicator,
   ScrollView,
   Image,
@@ -13,6 +12,7 @@ import { useUser, useClerk } from '@clerk/clerk-expo'
 import { Authenticated, AuthLoading } from 'convex/react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedText } from '@/components/themed-text'
+import { ThemedButton } from '@/components/themed-button'
 import { Colors } from '@/constants/theme'
 
 function LoadingScreen() {
@@ -103,8 +103,11 @@ function ProfileContent() {
           <ThemedText style={styles.subtitle}>{primaryEmail}</ThemedText>
         ) : null}
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: buttonBg, marginTop: 32 }]}
+        <ThemedButton
+          type="secondary"
+          lightColor={buttonBg}
+          darkColor={buttonBg}
+          style={[styles.button, { marginTop: 32 }]}
           onPress={() => signOut()}
         >
           <Text
@@ -112,7 +115,7 @@ function ProfileContent() {
           >
             Cerrar sesión
           </Text>
-        </TouchableOpacity>
+        </ThemedButton>
       </ScrollView>
     </View>
   )
