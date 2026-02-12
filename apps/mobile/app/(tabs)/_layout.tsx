@@ -25,6 +25,10 @@ export default function TabLayout() {
           <Label>Inicio</Label>
           <Icon sf="house.fill" />
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="classes">
+          <Label>Clases</Label>
+          <Icon sf="calendar" />
+        </NativeTabs.Trigger>
         <NativeTabs.Trigger name="planifications">
           <Label>Planificaciones</Label>
           <Icon sf="list.bullet" />
