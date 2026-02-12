@@ -19,7 +19,10 @@ export function ThemedButton({
   type = 'default',
   ...rest
 }: ThemedButtonProps) {
-  const tintColor = useThemeColor({ light: lightColor, dark: darkColor }, 'tint')
+  const tintColor = useThemeColor(
+    { light: lightColor, dark: darkColor },
+    'tint'
+  )
   const secondaryBg = useThemeColor(
     { light: lightColor ?? '#e4e4e7', dark: darkColor ?? '#27272a' },
     'background'
@@ -53,7 +56,7 @@ export function ThemedButton({
 const styles = StyleSheet.create({
   primary: {
     minHeight: 48,
-    borderRadius: 12,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },

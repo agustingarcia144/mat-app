@@ -128,6 +128,20 @@ export const remove = mutation({
 })
 
 /**
+ * Get a single day exercise by ID (e.g. for notes on exercise detail screen)
+ */
+export const getById = query({
+  args: {
+    id: v.id('dayExercises'),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+    return await ctx.db.get(args.id)
+  },
+})
+
+/**
  * Get exercises for a workout day
  */
 export const getByWorkoutDay = query({

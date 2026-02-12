@@ -8,11 +8,17 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Alert,
+  Pressable,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import type { Href } from 'expo-router'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@repo/convex'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { getVideoThumbnailUrl } from '@repo/core/utils'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { Colors } from '@/constants/theme'
 import { ThemedView } from '@/components/themed-view'
@@ -51,7 +57,7 @@ function WorkoutContent() {
   }, [logs])
 
   const [localValues, setLocalValues] = useState<
-    Record<string, { sets: string; reps: string; weight: string }>
+    Record<string, { reps: string; weight: string }[]>
   >({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [completing, setCompleting] = useState(false)
@@ -60,40 +66,114 @@ function WorkoutContent() {
     (dayEx: NonNullable<typeof dayExercises>[number]) => {
       const log = logsByDayExercise[dayEx._id]
       const local = localValues[dayEx._id]
-      if (local)
-        return {
-          sets: local.sets,
-          reps: local.reps,
-          weight: local.weight,
-        }
-      if (log)
-        return {
-          sets: String(log.sets),
-          reps: log.reps,
-          weight: log.weight ?? '',
-        }
-      return {
-        sets: String(dayEx.sets),
-        reps: dayEx.reps,
-        weight: dayEx.weight ?? '',
+      const numSets = dayEx.sets
+      const defaultReps = dayEx.reps
+      const defaultWeight = dayEx.weight ?? ''
+
+      // If we have local values with correct length, use them (they take priority)
+      if (local && local.length === numSets) {
+        return local.map((set) => ({
+          reps: set.reps ?? defaultReps,
+          weight: set.weight ?? defaultWeight,
+        }))
       }
+
+      // Build base values from log or defaults
+      let baseValues: { reps: string; weight: string }[] = []
+
+      // Parse comma-separated values from log if they exist
+      if (log?.reps && log.reps.includes(',')) {
+        const repsArray = log.reps
+          .split(',')
+          .map((r) => r.trim())
+          .filter((r) => r.length > 0)
+        const weightArray = log.weight
+          ? log.weight.split(',').map((w) => {
+              const trimmed = w.trim()
+              return trimmed === '-' || trimmed === '' ? '' : trimmed
+            })
+          : []
+
+        // If we have parsed values matching the number of sets, use them
+        if (repsArray.length === numSets) {
+          baseValues = Array.from({ length: numSets }, (_, index) => ({
+            reps: repsArray[index] || defaultReps,
+            weight: (weightArray[index] || defaultWeight) ?? '',
+          }))
+        }
+      } else if (log?.reps && !log.reps.includes(',')) {
+        // If log exists but doesn't have comma-separated values, use the single value for all sets
+        const logWeight = log.weight && log.weight !== '-' ? log.weight : ''
+        baseValues = Array.from({ length: numSets }, () => ({
+          reps: log.reps,
+          weight: (logWeight || defaultWeight) ?? '',
+        }))
+      } else {
+        // Initialize from default values
+        baseValues = Array.from({ length: numSets }, () => ({
+          reps: defaultReps,
+          weight: defaultWeight,
+        }))
+      }
+
+      // Merge with local values if they exist (preserve any partial local edits)
+      if (local && local.length > 0) {
+        return baseValues.map((base, index) => {
+          const localSet = local[index]
+          if (localSet) {
+            return {
+              reps: localSet.reps ?? base.reps,
+              weight: localSet.weight ?? base.weight,
+            }
+          }
+          return base
+        })
+      }
+
+      return baseValues
     },
     [logsByDayExercise, localValues]
   )
 
   const updateLocal = useCallback(
-    (dayExerciseId: string, field: 'sets' | 'reps' | 'weight', value: string) => {
-      setLocalValues((prev) => ({
-        ...prev,
-        [dayExerciseId]: {
-          ...(prev[dayExerciseId] ?? {
-            sets: '',
-            reps: '',
-            weight: '',
-          }),
-          [field]: value,
-        },
-      }))
+    (
+      dayEx: NonNullable<typeof dayExercises>[number],
+      setIndex: number,
+      field: 'reps' | 'weight',
+      value: string,
+      currentDisplayedValues: { reps: string; weight: string }[]
+    ) => {
+      setLocalValues((prev) => {
+        const current = prev[dayEx._id]
+        const numSets = dayEx.sets
+
+        // If we already have local values with correct length, update just the one field
+        if (current && current.length === numSets) {
+          const updated = current.map((set, idx) => {
+            if (idx === setIndex) {
+              return { ...set, [field]: value }
+            }
+            return { ...set }
+          })
+          return {
+            ...prev,
+            [dayEx._id]: updated,
+          }
+        }
+
+        // Otherwise, initialize from current displayed values and update the one field
+        const updated = currentDisplayedValues.map((set, idx) => {
+          if (idx === setIndex) {
+            return { ...set, [field]: value }
+          }
+          return { ...set }
+        })
+
+        return {
+          ...prev,
+          [dayEx._id]: updated,
+        }
+      })
     },
     []
   )
@@ -102,17 +182,22 @@ function WorkoutContent() {
     async (dayEx: NonNullable<typeof dayExercises>[number]) => {
       if (!sessionId) return
       const values = getValuesFor(dayEx)
-      const sets = parseInt(values.sets, 10)
-      if (Number.isNaN(sets) || sets < 0) return
-      if (!values.reps.trim()) return
+      const numSets = dayEx.sets
+
+      // Check if all sets have reps filled
+      const allSetsFilled = values.every((set) => set.reps.trim().length > 0)
+      if (!allSetsFilled) return
+
       setSavingId(dayEx._id)
       try {
+        // For now, save the first set's values (backend doesn't support per-set tracking yet)
+        // TODO: Update backend to support per-set reps/weight
         await setLog({
           sessionId: sessionId as any,
           dayExerciseId: dayEx._id,
-          sets,
-          reps: values.reps.trim(),
-          weight: values.weight.trim() || undefined,
+          sets: numSets,
+          reps: values.map((s) => s.reps.trim()).join(', '),
+          weight: values.map((s) => s.weight.trim() || '-').join(', '),
           order: dayEx.order,
         })
         setLocalValues((prev) => {
@@ -132,31 +217,64 @@ function WorkoutContent() {
   const allExercisesFilled = useMemo(() => {
     if (!dayExercises?.length) return false
     return dayExercises.every((dayEx) => {
+      // Check if user has entered values (local state or saved logs)
+      const hasLocalValues =
+        localValues[dayEx._id] && localValues[dayEx._id].length === dayEx.sets
+      const hasLog = !!logsByDayExercise[dayEx._id]
+
+      // If no user input exists, exercise is not filled
+      if (!hasLocalValues && !hasLog) return false
+
+      // If user has entered values, check all sets have reps AND weight filled
+      // (matching the completion icon logic)
       const values = getValuesFor(dayEx)
-      const sets = parseInt(values.sets, 10)
-      return (
-        !Number.isNaN(sets) &&
-        sets > 0 &&
-        values.reps.trim().length > 0
+      return values.every(
+        (set) => set.reps.trim().length > 0 && set.weight.trim().length > 0
       )
     })
-  }, [dayExercises, getValuesFor])
+  }, [dayExercises, getValuesFor, localValues, logsByDayExercise])
 
   const handleComplete = async () => {
-    if (!sessionId || !allExercisesFilled || session?.status === 'completed')
+    if (!sessionId || session?.status === 'completed') return
+
+    // Show warning if exercises aren't all filled
+    if (!allExercisesFilled) {
+      Alert.alert(
+        'Ejercicios incompletos',
+        'Aún quedan ejercicios por completar, ¿estás seguro que quieres guardar?',
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+          {
+            text: 'Guardar',
+            onPress: async () => {
+              await completeWorkout()
+            },
+          },
+        ]
+      )
       return
+    }
+
+    await completeWorkout()
+  }
+
+  const completeWorkout = async () => {
+    if (!sessionId) return
     setCompleting(true)
     try {
       for (const dayEx of dayExercises ?? []) {
         const values = getValuesFor(dayEx)
-        const sets = parseInt(values.sets, 10)
-        if (Number.isNaN(sets) || sets < 0 || !values.reps.trim()) continue
+        const allSetsFilled = values.every((set) => set.reps.trim().length > 0)
+        if (!allSetsFilled) continue
         await setLog({
           sessionId: sessionId as any,
           dayExerciseId: dayEx._id,
-          sets,
-          reps: values.reps.trim(),
-          weight: values.weight.trim() || undefined,
+          sets: dayEx.sets,
+          reps: values.map((s) => s.reps.trim()).join(', '),
+          weight: values.map((s) => s.weight.trim() || '-').join(', '),
           order: dayEx.order,
         })
       }
@@ -176,7 +294,11 @@ function WorkoutContent() {
   const inputColor = isDark ? '#fafafa' : '#18181b'
   const borderColor = isDark ? '#3f3f46' : '#d4d4d8'
 
-  if (session === undefined || dayExercises === undefined || logs === undefined) {
+  if (
+    session === undefined ||
+    dayExercises === undefined ||
+    logs === undefined
+  ) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
@@ -205,15 +327,13 @@ function WorkoutContent() {
           style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: insets.bottom + 100 },
+            {
+              paddingTop: insets.top + 60,
+              paddingBottom: insets.bottom,
+            },
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          <ThemedText style={styles.hint}>
-            Completa series, repeticiones y peso para cada ejercicio. Luego
-            pulsa &quot;Completar entrenamiento&quot;.
-          </ThemedText>
-
           {(dayExercises ?? []).map((dayEx) => {
             const values = getValuesFor(dayEx)
             const hasLog = !!logsByDayExercise[dayEx._id]
@@ -223,67 +343,132 @@ function WorkoutContent() {
                 key={dayEx._id}
                 style={[styles.exerciseCard, { borderColor }]}
               >
-                <ThemedText style={styles.exerciseName}>
-                  {dayEx.exercise?.name ?? 'Ejercicio'}
-                </ThemedText>
+                <Pressable
+                  style={styles.exerciseHeader}
+                  onPress={() =>
+                    router.push(
+                      `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
+                    )
+                  }
+                >
+                  <ThemedText style={styles.exerciseName}>
+                    {dayEx.exercise?.name ?? 'Ejercicio'}
+                  </ThemedText>
+                  {dayEx.exercise?.videoUrl && (
+                    <Image
+                      source={{
+                        uri:
+                          getVideoThumbnailUrl(dayEx.exercise.videoUrl) ??
+                          undefined,
+                      }}
+                      style={styles.exerciseThumbnail}
+                      resizeMode="cover"
+                    />
+                  )}
+                </Pressable>
                 <ThemedText style={styles.planned}>
                   Plan: {dayEx.sets} × {dayEx.reps}
                   {dayEx.weight ? ` · ${dayEx.weight}` : ''}
                 </ThemedText>
-                <View style={styles.inputRow}>
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={styles.inputLabel}>Series</ThemedText>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        { backgroundColor: inputBg, color: inputColor },
-                      ]}
-                      value={values.sets}
-                      onChangeText={(t) =>
-                        updateLocal(dayEx._id, 'sets', t.replace(/\D/g, ''))
+                <View style={styles.setsGrid}>
+                  <View style={styles.setsColumn}>
+                    {Array.from({ length: dayEx.sets }).map((_, setIndex) => {
+                      const setValues = values[setIndex] ?? {
+                        reps: '',
+                        weight: '',
                       }
-                      onBlur={() => saveLog(dayEx)}
-                      placeholder="0"
-                      placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
-                      keyboardType="number-pad"
-                      editable={!isCompleted}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={styles.inputLabel}>Reps</ThemedText>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        { backgroundColor: inputBg, color: inputColor },
-                      ]}
-                      value={values.reps}
-                      onChangeText={(t) =>
-                        updateLocal(dayEx._id, 'reps', t)
-                      }
-                      onBlur={() => saveLog(dayEx)}
-                      placeholder="0"
-                      placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
-                      keyboardType="default"
-                      editable={!isCompleted}
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <ThemedText style={styles.inputLabel}>Peso</ThemedText>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        { backgroundColor: inputBg, color: inputColor },
-                      ]}
-                      value={values.weight}
-                      onChangeText={(t) =>
-                        updateLocal(dayEx._id, 'weight', t)
-                      }
-                      onBlur={() => saveLog(dayEx)}
-                      placeholder="kg"
-                      placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
-                      keyboardType="decimal-pad"
-                      editable={!isCompleted}
-                    />
+                      const isSetCompleted =
+                        setValues.reps?.trim().length > 0 &&
+                        setValues.weight?.trim().length > 0
+                      return (
+                        <View key={`set-${setIndex}`} style={styles.setRow}>
+                          <View style={styles.setInputs}>
+                            <View style={styles.setInputGroup}>
+                              <ThemedText style={styles.inputLabel}>
+                                Reps
+                              </ThemedText>
+                              <TextInput
+                                style={[
+                                  styles.input,
+                                  {
+                                    backgroundColor: inputBg,
+                                    color: inputColor,
+                                  },
+                                ]}
+                                value={setValues.reps}
+                                onChangeText={(t) =>
+                                  updateLocal(
+                                    dayEx,
+                                    setIndex,
+                                    'reps',
+                                    t,
+                                    values
+                                  )
+                                }
+                                onBlur={() => saveLog(dayEx)}
+                                placeholder="0"
+                                placeholderTextColor={
+                                  isDark ? '#71717a' : '#a1a1aa'
+                                }
+                                keyboardType="default"
+                                editable={!isCompleted}
+                              />
+                            </View>
+                            <View style={styles.setInputGroup}>
+                              <ThemedText style={styles.inputLabel}>
+                                Peso
+                              </ThemedText>
+                              <TextInput
+                                style={[
+                                  styles.input,
+                                  {
+                                    backgroundColor: inputBg,
+                                    color: inputColor,
+                                  },
+                                ]}
+                                value={setValues.weight}
+                                onChangeText={(t) =>
+                                  updateLocal(
+                                    dayEx,
+                                    setIndex,
+                                    'weight',
+                                    t,
+                                    values
+                                  )
+                                }
+                                onBlur={() => saveLog(dayEx)}
+                                placeholder="kg"
+                                placeholderTextColor={
+                                  isDark ? '#71717a' : '#a1a1aa'
+                                }
+                                keyboardType="decimal-pad"
+                                editable={!isCompleted}
+                              />
+                            </View>
+                            <View style={styles.statusColumn}>
+                              <View style={styles.statusSpacer} />
+                              <View style={styles.statusIconContainer}>
+                                <MaterialIcons
+                                  name={
+                                    isSetCompleted
+                                      ? 'check-circle'
+                                      : 'radio-button-unchecked'
+                                  }
+                                  size={24}
+                                  color={
+                                    isSetCompleted
+                                      ? '#22c55e'
+                                      : isDark
+                                        ? '#71717a'
+                                        : '#a1a1aa'
+                                  }
+                                />
+                              </View>
+                            </View>
+                          </View>
+                        </View>
+                      )
+                    })}
                   </View>
                 </View>
                 {saving && (
@@ -306,16 +491,15 @@ function WorkoutContent() {
             style={[
               styles.footer,
               {
-                paddingBottom: insets.bottom + 16,
+                paddingBottom: insets.bottom + 60,
                 backgroundColor: isDark ? '#0a0a0a' : '#fff',
               },
             ]}
           >
             <ThemedButton
               type="primary"
-              style={{ opacity: allExercisesFilled ? 1 : 0.6 }}
               onPress={handleComplete}
-              disabled={!allExercisesFilled || completing}
+              disabled={completing}
             >
               {completing ? (
                 <ActivityIndicator
@@ -333,11 +517,6 @@ function WorkoutContent() {
                 </Text>
               )}
             </ThemedButton>
-            {!allExercisesFilled && (
-              <ThemedText style={styles.footerHint}>
-                Completa todos los ejercicios para poder finalizar
-              </ThemedText>
-            )}
           </View>
         )}
 
@@ -346,7 +525,7 @@ function WorkoutContent() {
             style={[
               styles.footer,
               {
-                paddingBottom: insets.bottom + 16,
+                paddingBottom: insets.bottom + 60,
                 backgroundColor: isDark ? '#0a0a0a' : '#fff',
               },
             ]}
@@ -381,7 +560,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 16,
   },
   hint: {
     fontSize: 14,
@@ -394,10 +572,22 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
   },
+  exerciseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
   exerciseName: {
     fontSize: 17,
     fontWeight: '600',
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 12,
+  },
+  exerciseThumbnail: {
+    width: 60,
+    height: 40,
+    borderRadius: 6,
   },
   planned: {
     fontSize: 13,
@@ -411,6 +601,46 @@ const styles = StyleSheet.create({
   inputGroup: {
     flex: 1,
   },
+  setsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  setsColumn: {
+    flex: 1,
+    gap: 12,
+  },
+  setRow: {
+    gap: 8,
+  },
+  setLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.9,
+    marginBottom: 4,
+  },
+  setInputs: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  setInputGroup: {
+    flex: 1,
+    minWidth: 0, // Ensures flex items can shrink below their content size
+  },
+  statusColumn: {
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    width: 40,
+    flexShrink: 0, // Don't shrink the status column
+  },
+  statusSpacer: {
+    height: 20, // Match inputLabel height + marginBottom (12px label + 4px margin + 4px for alignment)
+  },
+  statusIconContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 40, // Match input field height (paddingVertical: 10 * 2 + line height ~20),
+    marginTop: 8,
+  },
   inputLabel: {
     fontSize: 12,
     fontWeight: '500',
@@ -422,6 +652,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
+    width: '100%', // Ensure inputs take full width of their container
   },
   savingIndicator: {
     marginTop: 8,
