@@ -1,34 +1,28 @@
 import React, { useMemo } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import { addDays, endOfWeek, format, getISODay, startOfWeek } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/themed-pressable'
 import { IconSymbol } from '../../ui/icon-symbol'
 
-/** ISO weekday: 1 = Monday, 7 = Sunday */
-function getISOWeekday(d: Date): number {
-  const day = d.getDay()
-  return day === 0 ? 7 : day
-}
-
-function formatYYYYMMDD(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
+const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const }
 
 /** Get Monday and Sunday of the week containing `date` */
 function getWeekRange(date: Date): { monday: Date; sunday: Date } {
-  const d = new Date(date)
-  const iso = getISOWeekday(d)
-  const monday = new Date(d)
-  monday.setDate(d.getDate() - (iso - 1))
-  const sunday = new Date(monday)
-  sunday.setDate(monday.getDate() + 6)
-  return { monday, sunday }
+  return {
+    monday: startOfWeek(date, WEEK_STARTS_MONDAY),
+    sunday: endOfWeek(date, WEEK_STARTS_MONDAY),
+  }
 }
 
-const SHORT_DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+/** Short day names (Mon–Sun) in Spanish, for use as column labels */
+const SHORT_DAY_NAMES = (() => {
+  const monday = new Date(2024, 0, 1) // 2024-01-01 is Monday
+  return [0, 1, 2, 3, 4, 5, 6].map((i) =>
+    format(addDays(monday, i), 'EEE', { locale: es })
+  )
+})()
 
 type CalendarWeekViewProps = {
   selectedDate: Date
@@ -63,18 +57,23 @@ export function CalendarWeekView({
       days.push({
         date: new Date(curr),
         label: SHORT_DAY_NAMES[i],
-        ymd: formatYYYYMMDD(curr),
+        ymd: format(curr, 'yyyy-MM-dd'),
       })
       curr.setDate(curr.getDate() + 1)
     }
     return days
   }, [monday])
 
-  const selectedYmd = formatYYYYMMDD(selectedDate)
+  const selectedYmd = format(selectedDate, 'yyyy-MM-dd')
 
   const completedForDay = (ymd: string) =>
     weekSessions?.some(
       (s) => s.performedOn === ymd && s.status === 'completed'
+    ) ?? false
+
+  const inProgressForDay = (ymd: string) =>
+    weekSessions?.some(
+      (s) => s.performedOn === ymd && s.status === 'started'
     ) ?? false
 
   const hasScheduledWorkout = (isoWeekday: number) =>
@@ -125,15 +124,18 @@ export function CalendarWeekView({
         <View style={styles.weekStrip}>
           {weekDays.map(({ date, label, ymd }) => {
             const isSelected = selectedYmd === ymd
-            const isToday = ymd === formatYYYYMMDD(new Date())
+            const isToday = ymd === format(new Date(), 'yyyy-MM-dd')
             const hasCompleted = completedForDay(ymd)
-            const isoWeekday = getISOWeekday(date)
+            const hasInProgress = inProgressForDay(ymd)
+            const isoWeekday = getISODay(date)
             const hasScheduled = hasScheduledWorkout(isoWeekday)
 
             // Determine circle color: green if completed, orange if scheduled, null otherwise
             let circleColor: string | null = null
             if (hasCompleted) {
               circleColor = '#22c55e' // green
+            } else if (hasInProgress) {
+              circleColor = '#2563eb' // blue
             } else if (hasScheduled) {
               circleColor = '#f97316' // orange
             }
@@ -169,7 +171,6 @@ export function CalendarWeekView({
                   },
                 ]}
                 onPress={() => onDateSelect(date)}
-                activeOpacity={0.7}
               >
                 <View style={styles.dayCellContent}>
                   <Text

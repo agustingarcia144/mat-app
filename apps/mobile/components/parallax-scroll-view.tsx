@@ -1,25 +1,25 @@
-import type { PropsWithChildren, ReactElement } from 'react';
-import { StyleSheet, View } from 'react-native';
+import type { PropsWithChildren, ReactElement } from 'react'
+import { StyleSheet, View } from 'react-native'
 import Animated, {
   interpolate,
   useAnimatedRef,
   useAnimatedStyle,
   useScrollOffset,
-} from 'react-native-reanimated';
+} from 'react-native-reanimated'
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { useColorScheme } from '@/hooks/use-color-scheme'
+import { useThemeColor } from '@/hooks/use-theme-color'
 
-const HEADER_HEIGHT = 320;
-const CARD_OVERLAP = 24;
-const CARD_BORDER_RADIUS = 24;
+const HEADER_HEIGHT = 360
+const CARD_OVERLAP = 24
+const CARD_BORDER_RADIUS = 24
 
 type Props = PropsWithChildren<{
-  headerImage: ReactElement;
-  headerBackgroundColor: { dark: string; light: string };
+  headerImage: ReactElement
+  headerBackgroundColor: { dark: string; light: string }
   /** Extra padding at bottom of the card (e.g. for sticky footer). */
-  contentBottomPadding?: number;
-}>;
+  contentBottomPadding?: number
+}>
 
 export default function ParallaxScrollView({
   children,
@@ -27,10 +27,10 @@ export default function ParallaxScrollView({
   headerBackgroundColor,
   contentBottomPadding = 24,
 }: Props) {
-  const backgroundColor = useThemeColor({}, 'background');
-  const colorScheme = useColorScheme() ?? 'light';
-  const scrollRef = useAnimatedRef<Animated.ScrollView>();
-  const scrollOffset = useScrollOffset(scrollRef);
+  const backgroundColor = useThemeColor({}, 'background')
+  const colorScheme = useColorScheme() ?? 'light'
+  const scrollRef = useAnimatedRef<Animated.ScrollView>()
+  const scrollOffset = useScrollOffset(scrollRef)
   const headerAnimatedStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -49,21 +49,23 @@ export default function ParallaxScrollView({
           ),
         },
       ],
-    };
-  });
+    }
+  })
 
   return (
     <Animated.ScrollView
       ref={scrollRef}
       style={{ backgroundColor, flex: 1 }}
       contentContainerStyle={{ paddingBottom: contentBottomPadding }}
-      scrollEventThrottle={16}>
+      scrollEventThrottle={16}
+    >
       <Animated.View
         style={[
           styles.header,
           { backgroundColor: headerBackgroundColor[colorScheme] },
           headerAnimatedStyle,
-        ]}>
+        ]}
+      >
         {headerImage}
       </Animated.View>
       <View
@@ -76,11 +78,12 @@ export default function ParallaxScrollView({
             borderTopRightRadius: CARD_BORDER_RADIUS,
             paddingBottom: contentBottomPadding,
           },
-        ]}>
+        ]}
+      >
         {children}
       </View>
     </Animated.ScrollView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -94,4 +97,4 @@ const styles = StyleSheet.create({
     paddingTop: 28,
     minHeight: 400,
   },
-});
+})

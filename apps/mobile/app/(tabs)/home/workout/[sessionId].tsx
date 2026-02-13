@@ -1,29 +1,29 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import {
   View,
-  Text,
   StyleSheet,
   ActivityIndicator,
   ScrollView,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
-  Image,
   Alert,
 } from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
 import { PressableScale } from 'pressto'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Href } from 'expo-router'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@repo/convex'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { getVideoThumbnailUrl } from '@repo/core/utils'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { Colors } from '@/constants/theme'
 import { ThemedView } from '@/components/themed-view'
 import { ThemedText } from '@/components/themed-text'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { setLogSetSaveCallback } from '@/lib/log-set-bridge'
+import {
+  ExerciseCard,
+  WorkoutFooter,
+  type DayExerciseForCard,
+} from '@/components/features/workout'
 
 function WorkoutContent() {
   const {
@@ -106,6 +106,16 @@ function WorkoutContent() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [completing, setCompleting] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [expandedSetsByDayEx, setExpandedSetsByDayEx] = useState<
+    Record<string, boolean>
+  >({})
+
+  const toggleSetsExpanded = useCallback((dayExId: string) => {
+    setExpandedSetsByDayEx((prev) => ({
+      ...prev,
+      [dayExId]: !(prev[dayExId] ?? true),
+    }))
+  }, [])
 
   const handleStartWorkout = async () => {
     if (!paramAssignmentId || !paramWorkoutDayId || !paramPerformedOn) return
@@ -197,53 +207,13 @@ function WorkoutContent() {
     [logsByDayExercise, localValues]
   )
 
-  const updateLocal = useCallback(
-    (
-      dayEx: NonNullable<typeof dayExercises>[number],
-      setIndex: number,
-      field: 'reps' | 'weight',
-      value: string,
-      currentDisplayedValues: { reps: string; weight: string }[]
-    ) => {
-      setLocalValues((prev) => {
-        const current = prev[dayEx._id]
-        const numSets = dayEx.sets
-
-        // If we already have local values with correct length, update just the one field
-        if (current && current.length === numSets) {
-          const updated = current.map((set, idx) => {
-            if (idx === setIndex) {
-              return { ...set, [field]: value }
-            }
-            return { ...set }
-          })
-          return {
-            ...prev,
-            [dayEx._id]: updated,
-          }
-        }
-
-        // Otherwise, initialize from current displayed values and update the one field
-        const updated = currentDisplayedValues.map((set, idx) => {
-          if (idx === setIndex) {
-            return { ...set, [field]: value }
-          }
-          return { ...set }
-        })
-
-        return {
-          ...prev,
-          [dayEx._id]: updated,
-        }
-      })
-    },
-    []
-  )
-
   const saveLog = useCallback(
-    async (dayEx: NonNullable<typeof dayExercises>[number]) => {
+    async (
+      dayEx: NonNullable<typeof dayExercises>[number],
+      valuesOverride?: { reps: string; weight: string }[]
+    ) => {
       if (isNewSession || !sessionId) return
-      const values = getValuesFor(dayEx)
+      const values = valuesOverride ?? getValuesFor(dayEx)
       const numSets = dayEx.sets
 
       // Check if all sets have reps filled
@@ -262,11 +232,8 @@ function WorkoutContent() {
           weight: values.map((s) => s.weight.trim() || '-').join(', '),
           order: dayEx.order,
         })
-        setLocalValues((prev) => {
-          const next = { ...prev }
-          delete next[dayEx._id]
-          return next
-        })
+        // Don't clear local state here: the logs query may not have refetched yet,
+        // so the UI would briefly show stale data. Keep showing current local values.
       } catch (e) {
         console.error(e)
       } finally {
@@ -274,6 +241,52 @@ function WorkoutContent() {
       }
     },
     [isNewSession, sessionId, getValuesFor, setLog]
+  )
+
+  const applyLogSetResult = useCallback(
+    (result: {
+      dayExId: string
+      setIndex: number
+      reps: number
+      weight: number
+      applyToAllSets?: boolean
+    }) => {
+      if (!dayExercises?.length) return
+      const dayEx = dayExercises.find((d) => d._id === result.dayExId)
+      if (!dayEx || result.setIndex < 0 || result.setIndex >= dayEx.sets) return
+      const oneSet = {
+        reps: String(result.reps),
+        weight: String(result.weight),
+      }
+      // Build the full values array so we can persist immediately.
+      const currentValues = getValuesFor(dayEx)
+      const updatedValues = result.applyToAllSets
+        ? Array.from({ length: dayEx.sets }, () => oneSet)
+        : currentValues.map((set, idx) =>
+            idx === result.setIndex ? oneSet : set
+          )
+      setLocalValues((prev) => {
+        const next = result.applyToAllSets
+          ? Array.from({ length: dayEx.sets }, () => oneSet)
+          : (() => {
+              const current = prev[result.dayExId] ?? []
+              const arr = [...current]
+              while (arr.length <= result.setIndex)
+                arr.push({ reps: '', weight: '' })
+              arr[result.setIndex] = oneSet
+              return arr
+            })()
+        return { ...prev, [result.dayExId]: next }
+      })
+      saveLog(dayEx, updatedValues)
+    },
+    [dayExercises, getValuesFor, saveLog]
+  )
+
+  useFocusEffect(
+    useCallback(() => {
+      setLogSetSaveCallback(applyLogSetResult)
+    }, [applyLogSetResult])
   )
 
   const allExercisesFilled = useMemo(() => {
@@ -413,265 +426,92 @@ function WorkoutContent() {
           ]}
           keyboardShouldPersistTaps="handled"
         >
-          {(() => {
-            const renderExerciseCard = (dayEx: DayExercise) => {
-              const values = getValuesFor(dayEx)
-              const hasLog = !!logsByDayExercise[dayEx._id]
-              const saving = savingId === dayEx._id
+          {unblockedExercises.map((dayEx) => (
+            <ExerciseCard
+              key={dayEx._id}
+              dayEx={dayEx as DayExerciseForCard}
+              values={getValuesFor(dayEx)}
+              saving={savingId === dayEx._id}
+              isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
+              onToggleExpand={() => toggleSetsExpanded(dayEx._id)}
+              isNewSession={isNewSession}
+              isCompleted={isCompleted}
+              inputBg={inputBg}
+              inputColor={inputColor}
+              borderColor={borderColor}
+              isDark={isDark}
+              onPressExercise={() =>
+                router.push(
+                  `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
+                )
+              }
+              onPressSet={(setIndex) => {
+                if (isNewSession || isCompleted) return
+                const setValues = getValuesFor(dayEx)[setIndex] ?? {
+                  reps: '',
+                  weight: '',
+                }
+                router.push(
+                  `/home/workout/log-set?dayExId=${encodeURIComponent(dayEx._id)}&setIndex=${setIndex}&reps=${encodeURIComponent(setValues.reps || '')}&weight=${encodeURIComponent(setValues.weight || '')}` as Href
+                )
+              }}
+            />
+          ))}
+          {[...(blocks ?? [])]
+            .sort((a, b) => a.order - b.order)
+            .map((block) => {
+              const blockExercises = exercisesByBlock.get(block._id) ?? []
+              if (blockExercises.length === 0) return null
               return (
-                <View
-                  key={dayEx._id}
-                  style={[styles.exerciseCard, { borderColor }]}
-                >
-                  <PressableScale
-                    style={styles.exerciseHeader}
-                    onPress={() =>
-                      router.push(
-                        `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
-                      )
-                    }
-                  >
-                    <ThemedText style={styles.exerciseName}>
-                      {dayEx.exercise?.name ?? 'Ejercicio'}
-                    </ThemedText>
-                    {dayEx.exercise?.videoUrl && (
-                      <Image
-                        source={{
-                          uri:
-                            getVideoThumbnailUrl(dayEx.exercise.videoUrl) ??
-                            undefined,
-                        }}
-                        style={styles.exerciseThumbnail}
-                        resizeMode="cover"
-                      />
-                    )}
-                  </PressableScale>
-                  <ThemedText style={styles.planned}>
-                    Plan: {dayEx.sets} × {dayEx.reps}
-                    {dayEx.weight ? ` · ${dayEx.weight}` : ''}
-                  </ThemedText>
-                  <View style={styles.setsGrid}>
-                    <View style={styles.setsColumn}>
-                      {Array.from({ length: dayEx.sets }).map((_, setIndex) => {
-                        const setValues = values[setIndex] ?? {
+                <View key={block._id} style={styles.blockSection}>
+                  <ThemedText style={styles.blockTitle}>{block.name}</ThemedText>
+                  {blockExercises.map((dayEx) => (
+                    <ExerciseCard
+                      key={dayEx._id}
+                      dayEx={dayEx as DayExerciseForCard}
+                      values={getValuesFor(dayEx)}
+                      saving={savingId === dayEx._id}
+                      isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
+                      onToggleExpand={() => toggleSetsExpanded(dayEx._id)}
+                      isNewSession={isNewSession}
+                      isCompleted={isCompleted}
+                      inputBg={inputBg}
+                      inputColor={inputColor}
+                      borderColor={borderColor}
+                      isDark={isDark}
+                      onPressExercise={() =>
+                        router.push(
+                          `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
+                        )
+                      }
+                      onPressSet={(setIndex) => {
+                        if (isNewSession || isCompleted) return
+                        const setValues = getValuesFor(dayEx)[setIndex] ?? {
                           reps: '',
                           weight: '',
                         }
-                        const isSetCompleted =
-                          setValues.reps?.trim().length > 0 &&
-                          setValues.weight?.trim().length > 0
-                        return (
-                          <View key={`set-${setIndex}`} style={styles.setRow}>
-                            <View style={styles.setInputs}>
-                              <View style={styles.setInputGroup}>
-                                <ThemedText style={styles.inputLabel}>
-                                  Reps
-                                </ThemedText>
-                                <TextInput
-                                  style={[
-                                    styles.input,
-                                    {
-                                      backgroundColor: inputBg,
-                                      color: inputColor,
-                                    },
-                                  ]}
-                                  value={setValues.reps}
-                                  onChangeText={(t) =>
-                                    updateLocal(
-                                      dayEx,
-                                      setIndex,
-                                      'reps',
-                                      t,
-                                      values
-                                    )
-                                  }
-                                  onBlur={() => saveLog(dayEx)}
-                                  placeholder="0"
-                                  placeholderTextColor={
-                                    isDark ? '#71717a' : '#a1a1aa'
-                                  }
-                                  keyboardType="default"
-                                  editable={!isNewSession && !isCompleted}
-                                />
-                              </View>
-                              <View style={styles.setInputGroup}>
-                                <ThemedText style={styles.inputLabel}>
-                                  Peso
-                                </ThemedText>
-                                <TextInput
-                                  style={[
-                                    styles.input,
-                                    {
-                                      backgroundColor: inputBg,
-                                      color: inputColor,
-                                    },
-                                  ]}
-                                  value={setValues.weight}
-                                  onChangeText={(t) =>
-                                    updateLocal(
-                                      dayEx,
-                                      setIndex,
-                                      'weight',
-                                      t,
-                                      values
-                                    )
-                                  }
-                                  onBlur={() => saveLog(dayEx)}
-                                  placeholder="kg"
-                                  placeholderTextColor={
-                                    isDark ? '#71717a' : '#a1a1aa'
-                                  }
-                                  keyboardType="decimal-pad"
-                                  editable={!isNewSession && !isCompleted}
-                                />
-                              </View>
-                              <View style={styles.statusColumn}>
-                                <View style={styles.statusSpacer} />
-                                <View style={styles.statusIconContainer}>
-                                  <MaterialIcons
-                                    name={
-                                      isSetCompleted
-                                        ? 'check-circle'
-                                        : 'radio-button-unchecked'
-                                    }
-                                    size={24}
-                                    color={
-                                      isSetCompleted
-                                        ? '#22c55e'
-                                        : isDark
-                                          ? '#71717a'
-                                          : '#a1a1aa'
-                                    }
-                                  />
-                                </View>
-                              </View>
-                            </View>
-                          </View>
+                        router.push(
+                          `/home/workout/log-set?dayExId=${encodeURIComponent(dayEx._id)}&setIndex=${setIndex}&reps=${encodeURIComponent(setValues.reps || '')}&weight=${encodeURIComponent(setValues.weight || '')}` as Href
                         )
-                      })}
-                    </View>
-                  </View>
-                  {saving && (
-                    <ActivityIndicator
-                      size="small"
-                      color={Colors[colorScheme ?? 'light'].tint}
-                      style={styles.savingIndicator}
+                      }}
                     />
-                  )}
-                  {hasLog && !saving && !isCompleted && (
-                    <ThemedText style={styles.savedLabel}>Guardado</ThemedText>
-                  )}
+                  ))}
                 </View>
               )
-            }
-
-            const sortedBlocks = [...(blocks ?? [])].sort(
-              (a, b) => a.order - b.order
-            )
-
-            return (
-              <>
-                {unblockedExercises.map((dayEx) => renderExerciseCard(dayEx))}
-                {sortedBlocks.map((block) => {
-                  const blockExercises = exercisesByBlock.get(block._id) ?? []
-                  if (blockExercises.length === 0) return null
-                  return (
-                    <View key={block._id} style={styles.blockSection}>
-                      <ThemedText style={styles.blockTitle}>
-                        {block.name}
-                      </ThemedText>
-                      {blockExercises.map((dayEx) => renderExerciseCard(dayEx))}
-                    </View>
-                  )
-                })}
-              </>
-            )
-          })()}
+            })}
         </ScrollView>
 
-        {isNewSession && (
-          <View
-            style={[
-              styles.footer,
-              {
-                paddingBottom: insets.bottom + 60,
-                backgroundColor: isDark ? '#0a0a0a' : '#fff',
-              },
-            ]}
-          >
-            <ThemedPressable
-              type="primary"
-              onPress={handleStartWorkout}
-              disabled={starting}
-            >
-              {starting ? (
-                <ActivityIndicator
-                  size="small"
-                  color={colorScheme === 'dark' ? '#000' : '#fff'}
-                />
-              ) : (
-                <Text
-                  style={[
-                    styles.primaryButtonText,
-                    { color: colorScheme === 'dark' ? '#000' : '#fff' },
-                  ]}
-                >
-                  Empezar entrenamiento
-                </Text>
-              )}
-            </ThemedPressable>
-          </View>
-        )}
-
-        {!isNewSession && !isCompleted && (
-          <View
-            style={[
-              styles.footer,
-              {
-                paddingBottom: insets.bottom + 60,
-                backgroundColor: isDark ? '#0a0a0a' : '#fff',
-              },
-            ]}
-          >
-            <ThemedPressable
-              type="primary"
-              onPress={handleComplete}
-              disabled={completing}
-            >
-              {completing ? (
-                <ActivityIndicator
-                  size="small"
-                  color={colorScheme === 'dark' ? '#000' : '#fff'}
-                />
-              ) : (
-                <Text
-                  style={[
-                    styles.primaryButtonText,
-                    { color: colorScheme === 'dark' ? '#000' : '#fff' },
-                  ]}
-                >
-                  Completar entrenamiento
-                </Text>
-              )}
-            </ThemedPressable>
-          </View>
-        )}
-
-        {isCompleted && (
-          <View
-            style={[
-              styles.footer,
-              {
-                paddingBottom: insets.bottom + 60,
-                backgroundColor: isDark ? '#0a0a0a' : '#fff',
-              },
-            ]}
-          >
-            <ThemedText style={styles.completedLabel}>
-              Sesión completada
-            </ThemedText>
-          </View>
-        )}
+        <WorkoutFooter
+          isNewSession={isNewSession}
+          isCompleted={isCompleted}
+          starting={starting}
+          completing={completing}
+          onStartWorkout={handleStartWorkout}
+          onComplete={handleComplete}
+          paddingBottom={insets.bottom + 60}
+          isDark={isDark}
+          colorScheme={colorScheme ?? 'light'}
+        />
       </KeyboardAvoidingView>
     </ThemedView>
   )
@@ -713,127 +553,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.8,
     marginBottom: 20,
-  },
-  exerciseCard: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  exerciseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  exerciseName: {
-    fontSize: 17,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 12,
-  },
-  exerciseThumbnail: {
-    width: 60,
-    height: 40,
-    borderRadius: 6,
-  },
-  planned: {
-    fontSize: 13,
-    opacity: 0.7,
-    marginBottom: 12,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  inputGroup: {
-    flex: 1,
-  },
-  setsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  setsColumn: {
-    flex: 1,
-    gap: 12,
-  },
-  setRow: {
-    gap: 8,
-  },
-  setLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    opacity: 0.9,
-    marginBottom: 4,
-  },
-  setInputs: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  setInputGroup: {
-    flex: 1,
-    minWidth: 0, // Ensures flex items can shrink below their content size
-  },
-  statusColumn: {
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    width: 40,
-    flexShrink: 0, // Don't shrink the status column
-  },
-  statusSpacer: {
-    height: 20, // Match inputLabel height + marginBottom (12px label + 4px margin + 4px for alignment)
-  },
-  statusIconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    height: 40, // Match input field height (paddingVertical: 10 * 2 + line height ~20),
-    marginTop: 8,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginBottom: 4,
-    opacity: 0.8,
-  },
-  input: {
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    width: '100%', // Ensure inputs take full width of their container
-  },
-  savingIndicator: {
-    marginTop: 8,
-  },
-  savedLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-    marginTop: 4,
-  },
-  footer: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
-  primaryButton: {
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footerHint: {
-    fontSize: 12,
-    marginTop: 8,
-    opacity: 0.7,
-    textAlign: 'center',
-  },
-  completedLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    opacity: 0.8,
   },
 })

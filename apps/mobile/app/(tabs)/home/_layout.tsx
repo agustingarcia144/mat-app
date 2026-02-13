@@ -23,6 +23,23 @@ function HeaderBackButton() {
   )
 }
 
+function HeaderCloseButton() {
+  const router = useRouter()
+  const colorScheme = useColorScheme()
+  const isDark = colorScheme === 'dark'
+  const tint = isDark ? '#fff' : '#000'
+
+  return (
+    <PressableScale
+      onPress={() => router.back()}
+      style={styles.circle}
+      hitSlop={12}
+    >
+      <IconSymbol name="xmark" size={20} color={tint} />
+    </PressableScale>
+  )
+}
+
 export default function InicioLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -35,6 +52,19 @@ export default function InicioLayout() {
           title: 'Entrenamiento',
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="workout/log-set"
+        options={{
+          presentation: 'formSheet',
+          headerShown: true,
+          headerTransparent: true,
+          title: '',
+          headerRight: () => <HeaderCloseButton />,
+          headerShadowVisible: false,
+          gestureEnabled: true,
+          sheetAllowedDetents: [0.7],
         }}
       />
       <Stack.Screen
