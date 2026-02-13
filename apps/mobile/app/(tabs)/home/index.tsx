@@ -1,5 +1,12 @@
 import React, { useMemo, useState } from 'react'
-import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native'
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  Image,
+  useWindowDimensions,
+} from 'react-native'
 import { PressableScale } from 'pressto'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useUser } from '@clerk/clerk-expo'
@@ -33,6 +40,7 @@ function DashboardContent() {
   const { user } = useUser()
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { width: windowWidth } = useWindowDimensions()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
 
@@ -219,15 +227,17 @@ function DashboardContent() {
           </View>
         ) : (
           <>
-            <CalendarWeekView
-              selectedDate={selectedDate}
-              onDateSelect={setSelectedDate}
-              onWeekChange={handleWeekChange}
-              weekSessions={weekSessions}
-              workoutDays={
-                workoutDays as { dayOfWeek?: number; [key: string]: unknown }[]
-              }
-            />
+            <View style={[styles.calendarFullWidth, { width: windowWidth, marginLeft: -24 }]}>
+              <CalendarWeekView
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
+                onWeekChange={handleWeekChange}
+                weekSessions={weekSessions}
+                workoutDays={
+                  workoutDays as { dayOfWeek?: number; [key: string]: unknown }[]
+                }
+              />
+            </View>
 
             <View style={styles.todaySection}>
               {scheduledWorkoutDay ? (
@@ -347,6 +357,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingBottom: 24,
+  },
+  calendarFullWidth: {
+    marginLeft: -24,
   },
   headerRow: {
     flexDirection: 'row',

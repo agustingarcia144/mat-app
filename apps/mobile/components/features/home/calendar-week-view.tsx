@@ -1,10 +1,24 @@
-import React, { useMemo } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated'
 import { addDays, endOfWeek, format, getISODay, startOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/themed-pressable'
 import { IconSymbol } from '../../ui/icon-symbol'
+
+const SWIPE_THRESHOLD = 50
+const VELOCITY_THRESHOLD = 400
+const PAN_ACTIVE_OFFSET_X = 25
+const SLIDE_OUT_DISTANCE = 280
+const WHEEL_DURATION_MS = 220
 
 const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const }
 
@@ -81,17 +95,67 @@ export function CalendarWeekView({
       (d) => d.dayOfWeek !== undefined && d.dayOfWeek === isoWeekday
     ) ?? false
 
-  const handlePreviousWeek = () => {
+  const handlePreviousWeek = useCallback(() => {
     const newDate = new Date(selectedDate)
     newDate.setDate(newDate.getDate() - 7)
     onWeekChange(newDate)
-  }
+  }, [selectedDate, onWeekChange])
 
-  const handleNextWeek = () => {
+  const handleNextWeek = useCallback(() => {
     const newDate = new Date(selectedDate)
     newDate.setDate(newDate.getDate() + 7)
     onWeekChange(newDate)
-  }
+  }, [selectedDate, onWeekChange])
+
+  const dragX = useSharedValue(0)
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-PAN_ACTIVE_OFFSET_X, PAN_ACTIVE_OFFSET_X])
+        .onUpdate((e) => {
+          dragX.value = e.translationX
+        })
+        .onEnd((e) => {
+          const goPrev =
+            e.translationX > SWIPE_THRESHOLD || e.velocityX > VELOCITY_THRESHOLD
+          const goNext =
+            e.translationX < -SWIPE_THRESHOLD ||
+            e.velocityX < -VELOCITY_THRESHOLD
+          if (goPrev) {
+            dragX.value = withTiming(
+              SLIDE_OUT_DISTANCE,
+              { duration: WHEEL_DURATION_MS },
+              (finished) => {
+                if (finished) {
+                  runOnJS(handlePreviousWeek)()
+                  dragX.value = 0
+                }
+              }
+            )
+          } else if (goNext) {
+            dragX.value = withTiming(
+              -SLIDE_OUT_DISTANCE,
+              { duration: WHEEL_DURATION_MS },
+              (finished) => {
+                if (finished) {
+                  runOnJS(handleNextWeek)()
+                  dragX.value = 0
+                }
+              }
+            )
+          } else {
+            dragX.value = withTiming(0, { duration: 180 })
+          }
+        }),
+    [handlePreviousWeek, handleNextWeek, dragX]
+  )
+
+  const animatedStripStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: dragX.value }],
+  }))
+
+  const edgeFadeColor = isDark ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,1)'
 
   const arrowColor = isDark ? '#fff' : '#000'
 
@@ -118,89 +182,111 @@ export function CalendarWeekView({
           hitSlop={12}
           accessibilityLabel="Semana anterior"
         >
-          <IconSymbol name="chevron.left" size={20} color={arrowColor} />
+          <IconSymbol name="chevron.left" size={16} color={arrowColor} />
         </ThemedPressable>
 
-        <View style={styles.weekStrip}>
-          {weekDays.map(({ date, label, ymd }) => {
-            const isSelected = selectedYmd === ymd
-            const isToday = ymd === format(new Date(), 'yyyy-MM-dd')
-            const hasCompleted = completedForDay(ymd)
-            const hasInProgress = inProgressForDay(ymd)
-            const isoWeekday = getISODay(date)
-            const hasScheduled = hasScheduledWorkout(isoWeekday)
+        <View style={styles.stripChannel} pointerEvents="box-none">
+          <GestureDetector gesture={panGesture}>
+            <Animated.View style={[styles.weekStripWrap, animatedStripStyle]}>
+              <View style={styles.weekStrip}>
+                {weekDays.map(({ date, label, ymd }) => {
+                  const isSelected = selectedYmd === ymd
+                  const isToday = ymd === format(new Date(), 'yyyy-MM-dd')
+                  const hasCompleted = completedForDay(ymd)
+                  const hasInProgress = inProgressForDay(ymd)
+                  const isoWeekday = getISODay(date)
+                  const hasScheduled = hasScheduledWorkout(isoWeekday)
 
-            // Determine circle color: green if completed, orange if scheduled, null otherwise
-            let circleColor: string | null = null
-            if (hasCompleted) {
-              circleColor = '#22c55e' // green
-            } else if (hasInProgress) {
-              circleColor = '#2563eb' // blue
-            } else if (hasScheduled) {
-              circleColor = '#f97316' // orange
-            }
+                  // Determine circle color: green if completed, orange if scheduled, null otherwise
+                  let circleColor: string | null = null
+                  if (hasCompleted) {
+                    circleColor = '#22c55e' // green
+                  } else if (hasInProgress) {
+                    circleColor = '#2563eb' // blue
+                  } else if (hasScheduled) {
+                    circleColor = '#f97316' // orange
+                  }
 
-            // Background: white for dark mode selected, black for light mode selected, light gray for today, transparent otherwise
-            let backgroundColor = 'transparent'
-            if (isSelected) {
-              backgroundColor = isDark ? '#fff' : '#000'
-            } else if (isToday) {
-              backgroundColor = isDark
-                ? 'rgba(255, 255, 255, 0.1)'
-                : 'rgba(0, 0, 0, 0.05)'
-            }
+                  // Background: white for dark mode selected, black for light mode selected, light gray for today, transparent otherwise
+                  let backgroundColor = 'transparent'
+                  if (isSelected) {
+                    backgroundColor = isDark ? '#fff' : '#000'
+                  } else if (isToday) {
+                    backgroundColor = isDark
+                      ? 'rgba(255, 255, 255, 0.1)'
+                      : 'rgba(0, 0, 0, 0.05)'
+                  }
 
-            // Text color: black for selected in dark mode, white for selected in light mode, white for unselected in dark mode, black for unselected in light mode
-            const textColor = isSelected
-              ? isDark
-                ? '#000'
-                : '#fff'
-              : isDark
-                ? '#fff'
-                : '#000'
+                  // Text color: black for selected in dark mode, white for selected in light mode, white for unselected in dark mode, black for unselected in light mode
+                  const textColor = isSelected
+                    ? isDark
+                      ? '#000'
+                      : '#fff'
+                    : isDark
+                      ? '#fff'
+                      : '#000'
 
-            return (
-              <ThemedPressable
-                key={ymd}
-                style={[
-                  styles.dayCell,
-                  {
-                    backgroundColor,
-                    borderColor: 'transparent',
-                    borderWidth: 2, // Always 2px border for consistent sizing
-                  },
-                ]}
-                onPress={() => onDateSelect(date)}
-              >
-                <View style={styles.dayCellContent}>
-                  <Text
-                    style={[
-                      styles.dayCellLabel,
-                      textColor ? { color: textColor } : undefined,
-                    ]}
-                  >
-                    {label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.dayCellNum,
-                      textColor ? { color: textColor } : undefined,
-                    ]}
-                  >
-                    {date.getDate()}
-                  </Text>
-                  {circleColor && (
-                    <View
+                  return (
+                    <ThemedPressable
+                      key={ymd}
                       style={[
-                        styles.statusCircle,
-                        { backgroundColor: circleColor },
+                        styles.dayCell,
+                        {
+                          backgroundColor,
+                          borderColor: 'transparent',
+                          borderWidth: 2, // Always 2px border for consistent sizing
+                        },
                       ]}
-                    />
-                  )}
-                </View>
-              </ThemedPressable>
-            )
-          })}
+                      onPress={() => onDateSelect(date)}
+                    >
+                      <View style={styles.dayCellContent}>
+                        <Text
+                          style={[
+                            styles.dayCellLabel,
+                            textColor ? { color: textColor } : undefined,
+                          ]}
+                        >
+                          {label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.dayCellNum,
+                            textColor ? { color: textColor } : undefined,
+                          ]}
+                        >
+                          {date.getDate()}
+                        </Text>
+                        {circleColor && (
+                          <View
+                            style={[
+                              styles.statusCircle,
+                              { backgroundColor: circleColor },
+                            ]}
+                          />
+                        )}
+                      </View>
+                    </ThemedPressable>
+                  )
+                })}
+              </View>
+            </Animated.View>
+          </GestureDetector>
+          <LinearGradient
+            colors={[edgeFadeColor, 'transparent']}
+            locations={[0, 0.6]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.edgeFade, styles.edgeFadeLeft]}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={['transparent', edgeFadeColor]}
+            locations={[0.4, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[styles.edgeFade, styles.edgeFadeRight]}
+            pointerEvents="none"
+          />
         </View>
 
         <ThemedPressable
@@ -209,7 +295,7 @@ export function CalendarWeekView({
           hitSlop={12}
           accessibilityLabel="Semana siguiente"
         >
-          <IconSymbol name="chevron.right" size={20} color={arrowColor} />
+          <IconSymbol name="chevron.right" size={16} color={arrowColor} />
         </ThemedPressable>
       </View>
     </View>
@@ -231,7 +317,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
     width: '100%',
   },
   navButton: {
@@ -239,17 +324,38 @@ const styles = StyleSheet.create({
     height: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 8,
+    marginHorizontal: 4,
+  },
+  stripChannel: {
+    flex: 1,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    minHeight: 56,
+  },
+  weekStripWrap: {
+    alignSelf: 'center',
+    flexDirection: 'row',
   },
   weekStrip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flex: 0,
+  },
+  edgeFade: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 14,
+  },
+  edgeFadeLeft: {
+    left: 0,
+  },
+  edgeFadeRight: {
+    right: 0,
   },
   dayCell: {
-    width: 40,
-    height: 60,
+    width: 38,
+    height: 56,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
