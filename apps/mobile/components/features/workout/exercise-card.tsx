@@ -105,8 +105,16 @@ export function ExerciseCard({
         </View>
       </View>
       {/* 2. Expandable trigger (black bar) */}
-      <PressableScale onPress={onToggleExpand} style={styles.cardFooter}>
-        <Text style={styles.cardFooterLabel}>
+      <PressableScale
+        onPress={onToggleExpand}
+        style={[
+          styles.cardFooter,
+          { backgroundColor: isDark ? '#18181b' : '#f4f4f5' },
+        ]}
+      >
+        <Text
+          style={[styles.cardFooterLabel, { color: isDark ? '#fff' : '#000' }]}
+        >
           Series {dayEx.sets} × {dayEx.reps}
           {dayEx.weight ? ` · ${dayEx.weight}` : ''}
         </Text>
