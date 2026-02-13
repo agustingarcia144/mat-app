@@ -13,7 +13,7 @@ import { useUser, useClerk } from '@clerk/clerk-expo'
 import { Authenticated, AuthLoading } from 'convex/react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedText } from '@/components/themed-text'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 import { Colors } from '@/constants/theme'
 
 function LoadingScreen() {
@@ -99,7 +99,7 @@ function ProfileContent() {
           <ThemedText style={styles.subtitle}>{primaryEmail}</ThemedText>
         ) : null}
 
-        <ThemedButton
+        <ThemedPressable
           type="secondary"
           lightColor={buttonBg}
           darkColor={buttonBg}
@@ -114,7 +114,7 @@ function ProfileContent() {
           >
             Cerrar sesión
           </Text>
-        </ThemedButton>
+        </ThemedPressable>
       </ScrollView>
     </View>
   )

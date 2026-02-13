@@ -16,7 +16,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { Colors } from '@/constants/theme'
 import { ThemedView } from '@/components/themed-view'
 import { ThemedText } from '@/components/themed-text'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -52,26 +52,17 @@ function PlanificationsContent() {
   const activeAssignments = assignments.filter((a) => a.status === 'active')
   const otherAssignments = assignments.filter((a) => a.status !== 'active')
 
-  const renderItem = ({
-    item,
-  }: {
-    item: (typeof assignments)[number]
-  }) => {
+  const renderItem = ({ item }: { item: (typeof assignments)[number] }) => {
     const name = item.planification?.name ?? 'Planificación'
     const isActive = item.status === 'active'
 
     return (
-      <ThemedButton
+      <ThemedPressable
         type="secondary"
         lightColor="#f4f4f5"
         darkColor="#27272a"
-        style={[
-          styles.card,
-          { borderColor: isDark ? '#3f3f46' : '#e4e4e7' },
-        ]}
-        onPress={() =>
-          router.push(`/planifications/${item._id}` as Href)
-        }
+        style={[styles.card, { borderColor: isDark ? '#3f3f46' : '#e4e4e7' }]}
+        onPress={() => router.push(`/planifications/${item._id}` as Href)}
         activeOpacity={0.7}
       >
         <ThemedText style={styles.cardTitle}>{name}</ThemedText>
@@ -110,7 +101,7 @@ function PlanificationsContent() {
             </Text>
           </View>
         </View>
-      </ThemedButton>
+      </ThemedPressable>
     )
   }
 
@@ -127,9 +118,7 @@ function PlanificationsContent() {
         <ThemedText type="title" style={styles.title}>
           Planificaciones
         </ThemedText>
-        <ThemedText style={styles.subtitle}>
-          Tus rutinas asignadas
-        </ThemedText>
+        <ThemedText style={styles.subtitle}>Tus rutinas asignadas</ThemedText>
 
         {assignments.length === 0 ? (
           <View style={[styles.empty, styles.centered]}>

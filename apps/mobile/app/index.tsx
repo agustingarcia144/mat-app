@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Authenticated, Unauthenticated, AuthLoading } from 'convex/react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -48,7 +48,7 @@ function LandingContent() {
         </Text>
 
         <View style={styles.buttons}>
-          <ThemedButton
+          <ThemedPressable
             type="primary"
             lightColor="#000"
             darkColor="#fff"
@@ -63,9 +63,9 @@ function LandingContent() {
             >
               Iniciar sesión
             </Text>
-          </ThemedButton>
+          </ThemedPressable>
 
-          <ThemedButton
+          <ThemedPressable
             type="secondary"
             lightColor="#f4f4f5"
             darkColor="#18181b"
@@ -83,7 +83,7 @@ function LandingContent() {
             >
               Registrarse
             </Text>
-          </ThemedButton>
+          </ThemedPressable>
         </View>
       </View>
     </View>

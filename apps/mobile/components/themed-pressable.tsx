@@ -1,27 +1,32 @@
-import {
-  TouchableOpacity,
-  StyleSheet,
-  type TouchableOpacityProps,
-} from 'react-native'
+import type { ComponentProps } from 'react'
+import { StyleSheet } from 'react-native'
+import { PressableScale } from 'pressto'
 
 import { useThemeColor } from '@/hooks/use-theme-color'
 
-export type ThemedButtonProps = TouchableOpacityProps & {
+export type ThemedPressableProps = ComponentProps<typeof PressableScale> & {
   lightColor?: string
   darkColor?: string
-  type?: 'primary' | 'secondary' | 'default'
+  type?: 'primary' | 'secondary' | 'default' | 'destructive'
+  disabled?: boolean
 }
 
-export function ThemedButton({
+export function ThemedPressable({
   style,
   lightColor,
   darkColor,
   type = 'default',
+  disabled,
+  enabled: enabledProp,
   ...rest
-}: ThemedButtonProps) {
+}: ThemedPressableProps) {
   const tintColor = useThemeColor(
     { light: lightColor, dark: darkColor },
     'tint'
+  )
+  const destructiveBg = useThemeColor(
+    { light: lightColor ?? '#dc2626', dark: darkColor ?? '#ef4444' },
+    'background'
   )
   const secondaryBg = useThemeColor(
     { light: lightColor ?? '#e4e4e7', dark: darkColor ?? '#27272a' },
@@ -36,18 +41,20 @@ export function ThemedButton({
       ? tintColor
       : type === 'secondary'
         ? secondaryBg
-        : lightColor !== undefined || darkColor !== undefined
-          ? defaultOverrideBg
-          : undefined
+        : type === 'destructive'
+          ? destructiveBg
+          : lightColor !== undefined || darkColor !== undefined
+            ? defaultOverrideBg
+            : undefined
 
   return (
-    <TouchableOpacity
+    <PressableScale
+      enabled={enabledProp ?? !disabled}
       style={[
         type === 'primary' && styles.primary,
         backgroundColor !== undefined && { backgroundColor },
         style,
       ]}
-      activeOpacity={rest.activeOpacity ?? 0.7}
       {...rest}
     />
   )

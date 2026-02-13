@@ -1,12 +1,6 @@
 import React, { useMemo, useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Image,
-  Pressable,
-} from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native'
+import { PressableScale } from 'pressto'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useUser } from '@clerk/clerk-expo'
 import type { Href } from 'expo-router'
@@ -16,7 +10,7 @@ import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedView } from '@/components/themed-view'
 import { ThemedText } from '@/components/themed-text'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 import { format, getISODay, startOfWeek, endOfWeek } from 'date-fns'
 import { IconSymbol } from '@/components/ui/icon-symbol'
 import { CalendarWeekView } from '@/components/features/home/calendar-week-view'
@@ -172,7 +166,7 @@ function DashboardContent() {
           <ThemedText type="title" style={styles.welcome}>
             ¡Hola, {user?.firstName || user?.emailAddresses[0]?.emailAddress}!
           </ThemedText>
-          <ThemedButton
+          <ThemedPressable
             type="secondary"
             onPress={() => router.push('/profile' as Href)}
             style={styles.avatarButton}
@@ -197,7 +191,7 @@ function DashboardContent() {
                 ).toUpperCase()}
               </Text>
             )}
-          </ThemedButton>
+          </ThemedPressable>
         </View>
 
         {!activeAssignment ? (
@@ -208,7 +202,7 @@ function DashboardContent() {
             <ThemedText style={styles.emptySubtext}>
               Ve a Planificaciones para ver tus rutinas
             </ThemedText>
-            <ThemedButton
+            <ThemedPressable
               type="primary"
               onPress={() => router.push('/planifications' as Href)}
               style={{ paddingHorizontal: 12 }}
@@ -221,7 +215,7 @@ function DashboardContent() {
               >
                 Ver planificaciones
               </Text>
-            </ThemedButton>
+            </ThemedPressable>
           </View>
         ) : (
           <>
@@ -238,11 +232,10 @@ function DashboardContent() {
             <View style={styles.todaySection}>
               {scheduledWorkoutDay ? (
                 <>
-                  <Pressable
-                    style={({ pressed }) => [
+                  <PressableScale
+                    style={[
                       styles.workoutCard,
                       isDark && styles.workoutCardDark,
-                      pressed && styles.workoutCardPressed,
                     ]}
                     onPress={handleOpenWorkout}
                   >
@@ -251,71 +244,71 @@ function DashboardContent() {
                         {scheduledWorkoutDay.name}
                       </ThemedText>
                       <View style={styles.workoutCardStatusRow}>
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          {
-                            backgroundColor:
-                              statusBadgeVariant === 'completed'
-                                ? isDark
-                                  ? '#16a34a'
-                                  : '#22c55e'
-                                : statusBadgeVariant === 'inProgress'
-                                  ? isDark
-                                    ? '#2563eb'
-                                    : '#3b82f6'
-                                  : statusBadgeVariant === 'notStarted'
-                                    ? isDark
-                                      ? '#ea580c'
-                                      : '#f97316'
-                                    : isDark
-                                      ? 'rgba(255,255,255,0.12)'
-                                      : 'rgba(0,0,0,0.08)',
-                          },
-                        ]}
-                      >
-                        <Text
+                        <View
                           style={[
-                            styles.statusBadgeText,
-                            (statusBadgeVariant === 'completed' ||
-                              statusBadgeVariant === 'inProgress' ||
-                              statusBadgeVariant === 'notStarted') && {
-                              color: '#fff',
-                            },
-                            statusBadgeVariant === 'skipped' && {
-                              color: isDark ? '#a1a1aa' : '#52525b',
+                            styles.statusBadge,
+                            {
+                              backgroundColor:
+                                statusBadgeVariant === 'completed'
+                                  ? isDark
+                                    ? '#16a34a'
+                                    : '#22c55e'
+                                  : statusBadgeVariant === 'inProgress'
+                                    ? isDark
+                                      ? '#2563eb'
+                                      : '#3b82f6'
+                                    : statusBadgeVariant === 'notStarted'
+                                      ? isDark
+                                        ? '#ea580c'
+                                        : '#f97316'
+                                      : isDark
+                                        ? 'rgba(255,255,255,0.12)'
+                                        : 'rgba(0,0,0,0.08)',
                             },
                           ]}
                         >
-                          {statusBadgeLabel}
-                        </Text>
+                          <Text
+                            style={[
+                              styles.statusBadgeText,
+                              (statusBadgeVariant === 'completed' ||
+                                statusBadgeVariant === 'inProgress' ||
+                                statusBadgeVariant === 'notStarted') && {
+                                color: '#fff',
+                              },
+                              statusBadgeVariant === 'skipped' && {
+                                color: isDark ? '#a1a1aa' : '#52525b',
+                              },
+                            ]}
+                          >
+                            {statusBadgeLabel}
+                          </Text>
+                        </View>
                       </View>
-                    </View>
-                    <View style={styles.workoutCardMeta}>
-                      <ThemedText style={styles.workoutCardMetaText}>
-                        {blocksForSelectedDay?.length ?? 0}{' '}
-                        {(blocksForSelectedDay?.length ?? 0) === 1
-                          ? 'bloque'
-                          : 'bloques'}
-                      </ThemedText>
-                      <ThemedText style={styles.workoutCardMetaDot}>
-                        ·
-                      </ThemedText>
-                      <ThemedText style={styles.workoutCardMetaText}>
-                        {exercisesByDay[scheduledWorkoutDay._id]?.length ?? 0}{' '}
-                        {(exercisesByDay[scheduledWorkoutDay._id]?.length ??
-                          0) === 1
-                          ? 'ejercicio'
-                          : 'ejercicios'}
-                      </ThemedText>
-                    </View>
+                      <View style={styles.workoutCardMeta}>
+                        <ThemedText style={styles.workoutCardMetaText}>
+                          {blocksForSelectedDay?.length ?? 0}{' '}
+                          {(blocksForSelectedDay?.length ?? 0) === 1
+                            ? 'bloque'
+                            : 'bloques'}
+                        </ThemedText>
+                        <ThemedText style={styles.workoutCardMetaDot}>
+                          ·
+                        </ThemedText>
+                        <ThemedText style={styles.workoutCardMetaText}>
+                          {exercisesByDay[scheduledWorkoutDay._id]?.length ?? 0}{' '}
+                          {(exercisesByDay[scheduledWorkoutDay._id]?.length ??
+                            0) === 1
+                            ? 'ejercicio'
+                            : 'ejercicios'}
+                        </ThemedText>
+                      </View>
                     </View>
                     <IconSymbol
                       name="chevron.right"
                       size={20}
                       color={isDark ? '#a1a1aa' : '#71717a'}
                     />
-                  </Pressable>
+                  </PressableScale>
                 </>
               ) : (
                 <RestDayPlaceholder />
@@ -423,9 +416,6 @@ const styles = StyleSheet.create({
   workoutCardDark: {
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderColor: 'rgba(255,255,255,0.1)',
-  },
-  workoutCardPressed: {
-    opacity: 0.9,
   },
   workoutCardTitle: {
     fontSize: 18,

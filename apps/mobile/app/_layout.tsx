@@ -2,25 +2,27 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import 'react-native-reanimated'
 import { useEffect } from 'react'
-import { Pressable, useColorScheme } from 'react-native'
+import { useColorScheme } from 'react-native'
 import { useConvexAuth, useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import { IconSymbol } from '@/components/ui/icon-symbol'
 import Providers from '@/components/providers/providers'
 import { Colors } from '@/constants/theme'
+import { PressableScale } from 'pressto'
 
 function ProfileModalCloseButton() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const tint = colorScheme === 'dark' ? '#fff' : '#000'
   return (
-    <Pressable
+    <PressableScale
+      enabled={true}
       onPress={() => router.back()}
       hitSlop={12}
-      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 8 })}
+      style={{ padding: 8 }}
     >
       <IconSymbol name="xmark" size={22} color={tint} />
-    </Pressable>
+    </PressableScale>
   )
 }
 

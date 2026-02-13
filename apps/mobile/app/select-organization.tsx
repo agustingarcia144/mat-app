@@ -9,7 +9,7 @@ import {
 import { useOrganizationList } from '@clerk/clerk-expo'
 import { useRouter } from 'expo-router'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -104,7 +104,7 @@ export default function SelectOrganizationScreen() {
           keyExtractor={(item) => item.organization?.id ?? ''}
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
-            <ThemedButton
+            <ThemedPressable
               type="secondary"
               lightColor="#f4f4f5"
               darkColor="#18181b"
@@ -139,7 +139,7 @@ export default function SelectOrganizationScreen() {
               >
                 {ROLE_LABELS[item.role ?? ''] ?? item.role ?? ''}
               </Text>
-            </ThemedButton>
+            </ThemedPressable>
           )}
         />
       </View>

@@ -5,10 +5,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
-  Pressable,
   Linking,
   Platform,
 } from 'react-native'
+import { PressableScale } from 'pressto'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from 'convex/react'
@@ -20,7 +20,7 @@ import { ThemedText } from '@/components/themed-text'
 import ParallaxScrollView from '@/components/parallax-scroll-view'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Colors } from '@/constants/theme'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 
 const HEADER_BG = { light: '#e5e5e5', dark: '#262626' }
 
@@ -88,13 +88,13 @@ function ExerciseDetailContent() {
   const hasDayNotes = !!dayExerciseId && !!dayExercise?.notes?.trim()
 
   const headerImage = thumbnailUrl ? (
-    <Pressable style={styles.headerImageWrap} onPress={openVideo}>
+    <PressableScale style={styles.headerImageWrap} onPress={openVideo}>
       <Image
         source={{ uri: thumbnailUrl }}
         style={styles.headerImage}
         resizeMode="cover"
       />
-    </Pressable>
+    </PressableScale>
   ) : (
     <View
       style={[
@@ -168,7 +168,7 @@ function ExerciseDetailContent() {
             },
           ]}
         >
-          <ThemedButton type="primary" onPress={openVideo}>
+          <ThemedPressable type="primary" onPress={openVideo}>
             <View style={styles.footerButtonContent}>
               <MaterialIcons
                 name="play-arrow"
@@ -184,7 +184,7 @@ function ExerciseDetailContent() {
                 Ver video
               </Text>
             </View>
-          </ThemedButton>
+          </ThemedPressable>
         </View>
       )}
     </ThemedView>

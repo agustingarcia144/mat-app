@@ -10,8 +10,8 @@ import {
   Platform,
   Image,
   Alert,
-  Pressable,
 } from 'react-native'
+import { PressableScale } from 'pressto'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Href } from 'expo-router'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -23,7 +23,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { Colors } from '@/constants/theme'
 import { ThemedView } from '@/components/themed-view'
 import { ThemedText } from '@/components/themed-text'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 
 function WorkoutContent() {
   const {
@@ -108,12 +108,7 @@ function WorkoutContent() {
   const [starting, setStarting] = useState(false)
 
   const handleStartWorkout = async () => {
-    if (
-      !paramAssignmentId ||
-      !paramWorkoutDayId ||
-      !paramPerformedOn
-    )
-      return
+    if (!paramAssignmentId || !paramWorkoutDayId || !paramPerformedOn) return
     setStarting(true)
     try {
       const newSessionId = await startSession({
@@ -364,9 +359,9 @@ function WorkoutContent() {
   const loading = isNewSession
     ? dayExercises === undefined || blocks === undefined
     : session === undefined ||
-        dayExercises === undefined ||
-        blocks === undefined ||
-        logs === undefined
+      dayExercises === undefined ||
+      blocks === undefined ||
+      logs === undefined
 
   if (loading) {
     return (
@@ -381,9 +376,12 @@ function WorkoutContent() {
       return (
         <ThemedView style={[styles.container, styles.centered]}>
           <ThemedText>Faltan datos para cargar el entrenamiento</ThemedText>
-          <Pressable onPress={() => router.back()} style={{ marginTop: 12 }}>
+          <PressableScale
+            onPress={() => router.back()}
+            style={{ marginTop: 12 }}
+          >
             <ThemedText style={{ opacity: 0.8 }}>Volver</ThemedText>
-          </Pressable>
+          </PressableScale>
         </ThemedView>
       )
     }
@@ -425,7 +423,7 @@ function WorkoutContent() {
                   key={dayEx._id}
                   style={[styles.exerciseCard, { borderColor }]}
                 >
-                  <Pressable
+                  <PressableScale
                     style={styles.exerciseHeader}
                     onPress={() =>
                       router.push(
@@ -447,7 +445,7 @@ function WorkoutContent() {
                         resizeMode="cover"
                       />
                     )}
-                  </Pressable>
+                  </PressableScale>
                   <ThemedText style={styles.planned}>
                     Plan: {dayEx.sets} × {dayEx.reps}
                     {dayEx.weight ? ` · ${dayEx.weight}` : ''}
@@ -573,21 +571,16 @@ function WorkoutContent() {
 
             return (
               <>
-                {unblockedExercises.map((dayEx) =>
-                  renderExerciseCard(dayEx)
-                )}
+                {unblockedExercises.map((dayEx) => renderExerciseCard(dayEx))}
                 {sortedBlocks.map((block) => {
-                  const blockExercises =
-                    exercisesByBlock.get(block._id) ?? []
+                  const blockExercises = exercisesByBlock.get(block._id) ?? []
                   if (blockExercises.length === 0) return null
                   return (
                     <View key={block._id} style={styles.blockSection}>
                       <ThemedText style={styles.blockTitle}>
                         {block.name}
                       </ThemedText>
-                      {blockExercises.map((dayEx) =>
-                        renderExerciseCard(dayEx)
-                      )}
+                      {blockExercises.map((dayEx) => renderExerciseCard(dayEx))}
                     </View>
                   )
                 })}
@@ -606,7 +599,7 @@ function WorkoutContent() {
               },
             ]}
           >
-            <ThemedButton
+            <ThemedPressable
               type="primary"
               onPress={handleStartWorkout}
               disabled={starting}
@@ -626,7 +619,7 @@ function WorkoutContent() {
                   Empezar entrenamiento
                 </Text>
               )}
-            </ThemedButton>
+            </ThemedPressable>
           </View>
         )}
 
@@ -640,7 +633,7 @@ function WorkoutContent() {
               },
             ]}
           >
-            <ThemedButton
+            <ThemedPressable
               type="primary"
               onPress={handleComplete}
               disabled={completing}
@@ -660,7 +653,7 @@ function WorkoutContent() {
                   Completar entrenamiento
                 </Text>
               )}
-            </ThemedButton>
+            </ThemedPressable>
           </View>
         )}
 

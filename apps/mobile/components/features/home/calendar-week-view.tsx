@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 import { IconSymbol } from '../../ui/icon-symbol'
 
 /** ISO weekday: 1 = Monday, 7 = Sunday */
@@ -113,103 +113,103 @@ export function CalendarWeekView({
         {monthYearLabel}
       </Text>
       <View style={styles.container}>
-        <ThemedButton
+        <ThemedPressable
           onPress={handlePreviousWeek}
           style={styles.navButton}
           hitSlop={12}
           accessibilityLabel="Semana anterior"
         >
           <IconSymbol name="chevron.left" size={20} color={arrowColor} />
-        </ThemedButton>
+        </ThemedPressable>
 
         <View style={styles.weekStrip}>
-        {weekDays.map(({ date, label, ymd }) => {
-          const isSelected = selectedYmd === ymd
-          const isToday = ymd === formatYYYYMMDD(new Date())
-          const hasCompleted = completedForDay(ymd)
-          const isoWeekday = getISOWeekday(date)
-          const hasScheduled = hasScheduledWorkout(isoWeekday)
+          {weekDays.map(({ date, label, ymd }) => {
+            const isSelected = selectedYmd === ymd
+            const isToday = ymd === formatYYYYMMDD(new Date())
+            const hasCompleted = completedForDay(ymd)
+            const isoWeekday = getISOWeekday(date)
+            const hasScheduled = hasScheduledWorkout(isoWeekday)
 
-          // Determine circle color: green if completed, orange if scheduled, null otherwise
-          let circleColor: string | null = null
-          if (hasCompleted) {
-            circleColor = '#22c55e' // green
-          } else if (hasScheduled) {
-            circleColor = '#f97316' // orange
-          }
+            // Determine circle color: green if completed, orange if scheduled, null otherwise
+            let circleColor: string | null = null
+            if (hasCompleted) {
+              circleColor = '#22c55e' // green
+            } else if (hasScheduled) {
+              circleColor = '#f97316' // orange
+            }
 
-          // Background: white for dark mode selected, black for light mode selected, light gray for today, transparent otherwise
-          let backgroundColor = 'transparent'
-          if (isSelected) {
-            backgroundColor = isDark ? '#fff' : '#000'
-          } else if (isToday) {
-            backgroundColor = isDark
-              ? 'rgba(255, 255, 255, 0.1)'
-              : 'rgba(0, 0, 0, 0.05)'
-          }
+            // Background: white for dark mode selected, black for light mode selected, light gray for today, transparent otherwise
+            let backgroundColor = 'transparent'
+            if (isSelected) {
+              backgroundColor = isDark ? '#fff' : '#000'
+            } else if (isToday) {
+              backgroundColor = isDark
+                ? 'rgba(255, 255, 255, 0.1)'
+                : 'rgba(0, 0, 0, 0.05)'
+            }
 
-          // Text color: black for selected in dark mode, white for selected in light mode, white for unselected in dark mode, black for unselected in light mode
-          const textColor = isSelected
-            ? isDark
-              ? '#000'
-              : '#fff'
-            : isDark
-              ? '#fff'
-              : '#000'
+            // Text color: black for selected in dark mode, white for selected in light mode, white for unselected in dark mode, black for unselected in light mode
+            const textColor = isSelected
+              ? isDark
+                ? '#000'
+                : '#fff'
+              : isDark
+                ? '#fff'
+                : '#000'
 
-          return (
-            <ThemedButton
-              key={ymd}
-              style={[
-                styles.dayCell,
-                {
-                  backgroundColor,
-                  borderColor: 'transparent',
-                  borderWidth: 2, // Always 2px border for consistent sizing
-                },
-              ]}
-              onPress={() => onDateSelect(date)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.dayCellContent}>
-                <Text
-                  style={[
-                    styles.dayCellLabel,
-                    textColor ? { color: textColor } : undefined,
-                  ]}
-                >
-                  {label}
-                </Text>
-                <Text
-                  style={[
-                    styles.dayCellNum,
-                    textColor ? { color: textColor } : undefined,
-                  ]}
-                >
-                  {date.getDate()}
-                </Text>
-                {circleColor && (
-                  <View
+            return (
+              <ThemedPressable
+                key={ymd}
+                style={[
+                  styles.dayCell,
+                  {
+                    backgroundColor,
+                    borderColor: 'transparent',
+                    borderWidth: 2, // Always 2px border for consistent sizing
+                  },
+                ]}
+                onPress={() => onDateSelect(date)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.dayCellContent}>
+                  <Text
                     style={[
-                      styles.statusCircle,
-                      { backgroundColor: circleColor },
+                      styles.dayCellLabel,
+                      textColor ? { color: textColor } : undefined,
                     ]}
-                  />
-                )}
-              </View>
-            </ThemedButton>
-          )
-        })}
+                  >
+                    {label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.dayCellNum,
+                      textColor ? { color: textColor } : undefined,
+                    ]}
+                  >
+                    {date.getDate()}
+                  </Text>
+                  {circleColor && (
+                    <View
+                      style={[
+                        styles.statusCircle,
+                        { backgroundColor: circleColor },
+                      ]}
+                    />
+                  )}
+                </View>
+              </ThemedPressable>
+            )
+          })}
         </View>
 
-        <ThemedButton
+        <ThemedPressable
           onPress={handleNextWeek}
           style={styles.navButton}
           hitSlop={12}
           accessibilityLabel="Semana siguiente"
         >
           <IconSymbol name="chevron.right" size={20} color={arrowColor} />
-        </ThemedButton>
+        </ThemedPressable>
       </View>
     </View>
   )

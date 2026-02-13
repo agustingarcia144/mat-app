@@ -19,7 +19,7 @@ import {
 } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 import AntDesign from '@expo/vector-icons/AntDesign'
 
 function LoadingScreen() {
@@ -202,7 +202,7 @@ function SignInForm() {
             editable={!loading}
           />
 
-          <ThemedButton
+          <ThemedPressable
             type="primary"
             lightColor="#000"
             darkColor="#fff"
@@ -219,7 +219,7 @@ function SignInForm() {
                 Iniciar sesión
               </Text>
             )}
-          </ThemedButton>
+          </ThemedPressable>
 
           <View style={styles.divider}>
             <View
@@ -244,7 +244,7 @@ function SignInForm() {
             />
           </View>
 
-          <ThemedButton
+          <ThemedPressable
             type="secondary"
             lightColor="#f4f4f5"
             darkColor="#18181b"
@@ -268,13 +268,13 @@ function SignInForm() {
             >
               Continuar con Google
             </Text>
-          </ThemedButton>
+          </ThemedPressable>
 
-          <ThemedButton onPress={() => router.push('/sign-up')}>
+          <ThemedPressable onPress={() => router.push('/sign-up')}>
             <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
               ¿No tienes cuenta? <Text style={styles.linkBold}>Regístrate</Text>
             </Text>
-          </ThemedButton>
+          </ThemedPressable>
         </View>
       </View>
     </KeyboardAvoidingView>

@@ -1,5 +1,6 @@
 import { Stack, useRouter } from 'expo-router'
-import { Pressable, StyleSheet, useColorScheme } from 'react-native'
+import { StyleSheet, useColorScheme } from 'react-native'
+import { PressableScale } from 'pressto'
 
 import { IconSymbol } from '@/components/ui/icon-symbol'
 
@@ -12,16 +13,13 @@ function HeaderBackButton() {
   const tint = isDark ? '#fff' : '#000'
 
   return (
-    <Pressable
+    <PressableScale
       onPress={() => router.back()}
-      style={({ pressed }) => [
-        styles.circle,
-        pressed && styles.pressed,
-      ]}
+      style={styles.circle}
       hitSlop={12}
     >
       <IconSymbol name="chevron.left" size={22} color={tint} />
-    </Pressable>
+    </PressableScale>
   )
 }
 
@@ -51,8 +49,5 @@ const styles = StyleSheet.create({
     borderRadius: SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
   },
 })

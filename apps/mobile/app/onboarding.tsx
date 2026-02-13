@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  Pressable,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -11,12 +10,13 @@ import {
   ScrollView,
   Image,
 } from 'react-native'
+import { PressableScale } from 'pressto'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useRouter } from 'expo-router'
 import { useMutation, Authenticated } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 
 function OnboardingContent() {
   const router = useRouter()
@@ -33,10 +33,7 @@ function OnboardingContent() {
   const [error, setError] = useState('')
 
   const displayBirthday =
-    birthday ||
-    (birthdayDate
-      ? birthdayDate.toISOString().slice(0, 10)
-      : '')
+    birthday || (birthdayDate ? birthdayDate.toISOString().slice(0, 10) : '')
 
   const onBirthdayChange = (_event: unknown, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios')
@@ -114,7 +111,7 @@ function OnboardingContent() {
               <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
                 Fecha de nacimiento (opcional)
               </Text>
-              <Pressable
+              <PressableScale
                 style={[
                   styles.input,
                   styles.dateInput,
@@ -124,21 +121,25 @@ function OnboardingContent() {
                   },
                 ]}
                 onPress={() => !loading && setShowDatePicker(true)}
-                disabled={loading}
+                enabled={!loading}
               >
                 <Text
                   style={[
                     styles.dateInputText,
                     {
                       color: displayBirthday
-                        ? isDark ? '#fff' : '#000'
-                        : isDark ? '#71717a' : '#a1a1aa',
+                        ? isDark
+                          ? '#fff'
+                          : '#000'
+                        : isDark
+                          ? '#71717a'
+                          : '#a1a1aa',
                     },
                   ]}
                 >
                   {displayBirthday || 'YYYY-MM-DD'}
                 </Text>
-              </Pressable>
+              </PressableScale>
               {showDatePicker && (
                 <DateTimePicker
                   value={birthdayDate ?? new Date(2000, 0, 1)}
@@ -148,18 +149,25 @@ function OnboardingContent() {
                   maximumDate={new Date()}
                   minimumDate={new Date(1900, 0, 1)}
                   locale="es-ES"
-                  style={Platform.OS === 'android' ? styles.androidPicker : undefined}
+                  style={
+                    Platform.OS === 'android' ? styles.androidPicker : undefined
+                  }
                 />
               )}
               {Platform.OS === 'ios' && showDatePicker && (
-                <ThemedButton
+                <ThemedPressable
                   onPress={() => setShowDatePicker(false)}
                   style={styles.datePickerDone}
                 >
-                  <Text style={[styles.datePickerDoneText, { color: isDark ? '#fff' : '#000' }]}>
+                  <Text
+                    style={[
+                      styles.datePickerDoneText,
+                      { color: isDark ? '#fff' : '#000' },
+                    ]}
+                  >
                     Listo
                   </Text>
-                </ThemedButton>
+                </ThemedPressable>
               )}
             </View>
 
@@ -185,7 +193,7 @@ function OnboardingContent() {
               />
             </View>
 
-            <ThemedButton
+            <ThemedPressable
               type="primary"
               lightColor="#000"
               darkColor="#fff"
@@ -205,9 +213,9 @@ function OnboardingContent() {
                   Continuar
                 </Text>
               )}
-            </ThemedButton>
+            </ThemedPressable>
 
-            <ThemedButton
+            <ThemedPressable
               onPress={handleSkip}
               disabled={loading}
               style={styles.skipButton}
@@ -220,7 +228,7 @@ function OnboardingContent() {
               >
                 Omitir por ahora
               </Text>
-            </ThemedButton>
+            </ThemedPressable>
           </View>
         </View>
       </ScrollView>

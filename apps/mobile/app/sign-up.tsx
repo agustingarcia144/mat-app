@@ -20,7 +20,7 @@ import {
 } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedButton } from '@/components/themed-button'
+import { ThemedPressable } from '@/components/themed-pressable'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -211,7 +211,7 @@ function SignUpForm() {
               editable={!loading}
             />
 
-            <ThemedButton
+            <ThemedPressable
               type="primary"
               lightColor="#000"
               darkColor="#fff"
@@ -231,13 +231,13 @@ function SignUpForm() {
                   Verificar correo
                 </Text>
               )}
-            </ThemedButton>
+            </ThemedPressable>
 
-            <ThemedButton onPress={() => setVerifying(false)}>
+            <ThemedPressable onPress={() => setVerifying(false)}>
               <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
                 Volver al registro
               </Text>
-            </ThemedButton>
+            </ThemedPressable>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -346,7 +346,7 @@ function SignUpForm() {
               editable={!loading}
             />
 
-            <ThemedButton
+            <ThemedPressable
               type="primary"
               lightColor="#000"
               darkColor="#fff"
@@ -366,7 +366,7 @@ function SignUpForm() {
                   Registrarse
                 </Text>
               )}
-            </ThemedButton>
+            </ThemedPressable>
 
             <View style={styles.divider}>
               <View
@@ -391,7 +391,7 @@ function SignUpForm() {
               />
             </View>
 
-            <ThemedButton
+            <ThemedPressable
               type="secondary"
               lightColor="#f4f4f5"
               darkColor="#18181b"
@@ -410,14 +410,14 @@ function SignUpForm() {
               >
                 Continuar con Google
               </Text>
-            </ThemedButton>
+            </ThemedPressable>
 
-            <ThemedButton onPress={() => router.push('/sign-in')}>
+            <ThemedPressable onPress={() => router.push('/sign-in')}>
               <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
                 ¿Ya tienes cuenta?{' '}
                 <Text style={styles.linkBold}>Iniciar sesión</Text>
               </Text>
-            </ThemedButton>
+            </ThemedPressable>
           </View>
         </View>
       </ScrollView>
