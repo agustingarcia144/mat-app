@@ -150,6 +150,18 @@ export const reservationSchema = z.object({
   notes: z.string().optional(),
 })
 
+export const scheduleFormSchema = z.object({
+  startDate: z.date(),
+  startTime: z
+    .string()
+    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato inválido (HH:mm)'),
+  duration: z.coerce
+    .number()
+    .min(15, 'Mínimo 15 minutos')
+    .max(480, 'Máximo 8 horas'),
+})
+
+
 // Type exports
 export type PlanificationBasicInfo = z.infer<
   typeof planificationBasicInfoSchema
@@ -163,7 +175,11 @@ export type Folder = z.infer<typeof folderSchema>
 export type Assignment = z.infer<typeof assignmentSchema>
 export type ClassForm = z.infer<typeof classSchema>
 // RecurrencePattern type is exported from @repo/core/types to avoid duplication
-export type ScheduleForm = z.infer<typeof scheduleSchema>
+export type Schedule = z.infer<typeof scheduleSchema>
 export type ReservationForm = z.infer<typeof reservationSchema>
+export type ScheduleForm = z.infer<typeof scheduleFormSchema>
+
+// Keep scheduleFormSchema in bundle (referenced by type only otherwise)
+void scheduleFormSchema
 
 export { z }

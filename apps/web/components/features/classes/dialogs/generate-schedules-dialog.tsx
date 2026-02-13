@@ -31,8 +31,10 @@ import { es } from 'date-fns/locale'
 import { Calendar as CalendarIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type Id } from '@/convex/_generated/dataModel'
-import { z } from 'zod'
+import { scheduleFormSchema, z } from '@repo/core/schemas'
 import { toast } from 'sonner'
+
+type ScheduleFormValues = z.infer<typeof scheduleFormSchema>
 
 interface GenerateSchedulesDialogProps {
   open: boolean
@@ -42,19 +44,6 @@ interface GenerateSchedulesDialogProps {
   isRecurring: boolean
   onSuccess?: () => void
 }
-
-const scheduleFormSchema = z.object({
-  startDate: z.date(),
-  startTime: z
-    .string()
-    .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Formato inválido (HH:mm)'),
-  duration: z.coerce
-    .number()
-    .min(15, 'Mínimo 15 minutos')
-    .max(480, 'Máximo 8 horas'),
-})
-
-type ScheduleFormValues = z.infer<typeof scheduleFormSchema>
 
 export default function GenerateSchedulesDialog({
   open,
