@@ -2,7 +2,8 @@
 
 import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
-import { cva, type VariantProps } from 'class-variance-authority'
+import type { VariantProps } from 'class-variance-authority'
+import { cva } from 'class-variance-authority'
 import { PanelLeft } from 'lucide-react'
 
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -675,9 +676,12 @@ const SidebarMenuSkeleton = React.forwardRef<
 >(({ className, showIcon = false, ...props }, ref) => {
   // Random width between 50 to 90%.
   // Use useState with lazy initializer to generate random value only once per component instance
-  const [width] = React.useState(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`
-  })
+  const [width, setWidth] = React.useState('70%')
+
+React.useEffect(() => {
+  const randomWidth = `${Math.floor(Math.random() * 40) + 50}%`
+  setWidth(randomWidth)
+}, [])
 
   return (
     <div
