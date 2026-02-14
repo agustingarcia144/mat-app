@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Dimensions,
 } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { PressableScale } from 'pressto'
@@ -464,38 +465,48 @@ function WorkoutContent() {
               if (blockExercises.length === 0) return null
               return (
                 <View key={block._id} style={styles.blockSection}>
-                  <ThemedText style={styles.blockTitle}>{block.name}</ThemedText>
-                  {blockExercises.map((dayEx) => (
-                    <ExerciseCard
-                      key={dayEx._id}
-                      dayEx={dayEx as DayExerciseForCard}
-                      values={getValuesFor(dayEx)}
-                      saving={savingId === dayEx._id}
-                      isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
-                      onToggleExpand={() => toggleSetsExpanded(dayEx._id)}
-                      isNewSession={isNewSession}
-                      isCompleted={isCompleted}
-                      inputBg={inputBg}
-                      inputColor={inputColor}
-                      borderColor={borderColor}
-                      isDark={isDark}
-                      onPressExercise={() =>
-                        router.push(
-                          `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
-                        )
-                      }
-                      onPressSet={(setIndex) => {
-                        if (isNewSession || isCompleted) return
-                        const setValues = getValuesFor(dayEx)[setIndex] ?? {
-                          reps: '',
-                          weight: '',
-                        }
-                        router.push(
-                          `/home/workout/log-set?dayExId=${encodeURIComponent(dayEx._id)}&setIndex=${setIndex}&reps=${encodeURIComponent(setValues.reps || '')}&weight=${encodeURIComponent(setValues.weight || '')}` as Href
-                        )
-                      }}
-                    />
-                  ))}
+                  <ThemedText style={styles.blockTitle}>
+                    {block.name}
+                  </ThemedText>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.blockCardsScroll}
+                    decelerationRate="fast"
+                  >
+                    {blockExercises.map((dayEx) => (
+                      <View key={dayEx._id} style={styles.blockCardWrapper}>
+                        <ExerciseCard
+                          dayEx={dayEx as DayExerciseForCard}
+                          values={getValuesFor(dayEx)}
+                          saving={savingId === dayEx._id}
+                          isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
+                          onToggleExpand={() => toggleSetsExpanded(dayEx._id)}
+                          isNewSession={isNewSession}
+                          isCompleted={isCompleted}
+                          inputBg={inputBg}
+                          inputColor={inputColor}
+                          borderColor={borderColor}
+                          isDark={isDark}
+                          onPressExercise={() =>
+                            router.push(
+                              `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
+                            )
+                          }
+                          onPressSet={(setIndex) => {
+                            if (isNewSession || isCompleted) return
+                            const setValues = getValuesFor(dayEx)[setIndex] ?? {
+                              reps: '',
+                              weight: '',
+                            }
+                            router.push(
+                              `/home/workout/log-set?dayExId=${encodeURIComponent(dayEx._id)}&setIndex=${setIndex}&reps=${encodeURIComponent(setValues.reps || '')}&weight=${encodeURIComponent(setValues.weight || '')}` as Href
+                            )
+                          }}
+                        />
+                      </View>
+                    ))}
+                  </ScrollView>
                 </View>
               )
             })}
@@ -553,5 +564,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.8,
     marginBottom: 20,
+  },
+  blockCardsScroll: {
+    marginBottom: 8,
+    paddingRight: 24,
+  },
+  blockCardWrapper: {
+    width: Dimensions.get('window').width * 0.72,
+    maxWidth: 320,
+    marginRight: 12,
   },
 })

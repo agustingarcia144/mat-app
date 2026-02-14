@@ -56,6 +56,12 @@ export function ExerciseCard({
   const hasThumbnail = !!thumbnailUrl
   const overlayTextColor = hasThumbnail ? '#fff' : inputColor
 
+  const isExerciseCompleted =
+    values.length >= dayEx.sets &&
+    values.every(
+      (set) => set.reps?.trim().length > 0 && set.weight?.trim().length > 0
+    )
+
   return (
     <View style={[styles.exerciseCard, { borderColor }]}>
       {/* 1. Thumbnail with title (top) */}
@@ -83,8 +89,13 @@ export function ExerciseCard({
             style={styles.thumbnailGradient}
           />
         )}
+        {isExerciseCompleted && (
+          <View style={styles.exerciseCompletedBadge}>
+            <MaterialIcons name="check-circle" size={28} color="#22c55e" />
+          </View>
+        )}
         <View style={styles.exerciseHeaderOverlay}>
-          {saving && (
+          {saving && !isExerciseCompleted && (
             <ActivityIndicator
               size="small"
               color="rgba(255,255,255,0.9)"
@@ -257,6 +268,12 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 16,
     paddingBottom: 16,
+  },
+  exerciseCompletedBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 16,
+    zIndex: 1,
   },
   savingIndicatorOverlay: {
     position: 'absolute',
