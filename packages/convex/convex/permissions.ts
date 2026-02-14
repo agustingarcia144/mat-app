@@ -1,11 +1,12 @@
 import { QueryCtx, MutationCtx } from './_generated/server'
+import type { Id } from './_generated/dataModel'
 
 /**
  * Get current user's role in the active organization
  */
 async function getUserRole(
   ctx: QueryCtx | MutationCtx,
-  organizationId: string
+  organizationId: Id<'organizations'>
 ): Promise<'admin' | 'trainer' | 'member' | null> {
   const identity = await ctx.auth.getUserIdentity()
   if (!identity) return null
@@ -25,7 +26,7 @@ async function getUserRole(
  */
 export async function isAdminOrTrainer(
   ctx: QueryCtx | MutationCtx,
-  organizationId: string
+  organizationId: Id<'organizations'>
 ): Promise<boolean> {
   const role = await getUserRole(ctx, organizationId)
   return role === 'admin' || role === 'trainer'
@@ -36,7 +37,7 @@ export async function isAdminOrTrainer(
  */
 export async function isAdmin(
   ctx: QueryCtx | MutationCtx,
-  organizationId: string
+  organizationId: Id<'organizations'>
 ): Promise<boolean> {
   const role = await getUserRole(ctx, organizationId)
   return role === 'admin'
@@ -47,7 +48,7 @@ export async function isAdmin(
  */
 export async function requireAdminOrTrainer(
   ctx: QueryCtx | MutationCtx,
-  organizationId: string
+  organizationId: Id<'organizations'>
 ) {
   const hasPermission = await isAdminOrTrainer(ctx, organizationId)
   if (!hasPermission) {
@@ -71,7 +72,7 @@ export async function requireAuth(ctx: QueryCtx | MutationCtx) {
  */
 export async function getActiveOrganization(
   ctx: QueryCtx | MutationCtx
-): Promise<string | null> {
+): Promise<Id<'organizations'> | null> {
   const identity = await ctx.auth.getUserIdentity()
   if (!identity) return null
 

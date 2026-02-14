@@ -1,4 +1,6 @@
 import { mutation, query } from './_generated/server'
+import type { MutationCtx } from './_generated/server'
+import type { Id } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireAuth, requireAdminOrTrainer } from './permissions'
 
@@ -75,7 +77,7 @@ export const create = mutation({
       .withIndex('by_organization_parent', (q) =>
         q
           .eq('organizationId', membership.organizationId)
-          .eq('parentId', args.parentId ?? null)
+          .eq('parentId', args.parentId ?? undefined)
       )
       .collect()
 
@@ -136,7 +138,10 @@ export const update = mutation({
 /**
  * Helper: Update paths for all descendant folders
  */
-async function updateDescendantPaths(ctx: any, folderId: string) {
+async function updateDescendantPaths(
+  ctx: MutationCtx,
+  folderId: Id<'folders'>
+) {
   const children = await ctx.db
     .query('folders')
     .withIndex('by_parent', (q) => q.eq('parentId', folderId))
@@ -287,7 +292,7 @@ export const getByParent = query({
       .withIndex('by_organization_parent', (q) =>
         q
           .eq('organizationId', membership.organizationId)
-          .eq('parentId', args.parentId ?? null)
+          .eq('parentId', args.parentId ?? undefined)
       )
       .collect()
   },

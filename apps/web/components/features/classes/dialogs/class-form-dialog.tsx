@@ -43,10 +43,7 @@ import {
   FieldDescription,
   FieldError,
 } from '@/components/ui/field'
-import { classSchema } from '@repo/core/schemas'
-import { z } from 'zod'
-
-type ClassFormValues = z.infer<typeof classSchema>
+import { classSchema, type ClassForm } from '@repo/core/schemas'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Check, ChevronsUpDown, Calendar as CalendarIcon } from 'lucide-react'
@@ -91,7 +88,7 @@ export default function ClassFormDialog({
   const [trainerComboOpen, setTrainerComboOpen] = useState(false)
   const [endDateCalendarOpen, setEndDateCalendarOpen] = useState(false)
 
-  const form = useForm<ClassFormValues>({
+  const form = useForm<ClassForm>({
     resolver: zodResolver(classSchema) as any,
     defaultValues: {
       name: '',
@@ -156,7 +153,7 @@ export default function ClassFormDialog({
 
   const trainers = memberships?.filter((m) => m.role === 'trainer') || []
 
-  const onSubmit = async (data: ClassFormValues) => {
+  const onSubmit = async (data: ClassForm) => {
     setIsSubmitting(true)
     try {
       if (classId) {

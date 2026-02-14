@@ -1,6 +1,20 @@
 import { mutation, query } from './_generated/server'
+import type { Id } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireAuth, requireAdminOrTrainer } from './permissions'
+
+/** Schedule document for insert (status is literal for type compatibility) */
+type ClassScheduleInsert = {
+  classId: Id<'classes'>
+  organizationId: Id<'organizations'>
+  startTime: number
+  endTime: number
+  capacity: number
+  currentReservations: number
+  status: 'scheduled'
+  createdAt: number
+  updatedAt: number
+}
 
 /**
  * Create a new class template
@@ -275,7 +289,7 @@ export const generateSchedules = mutation({
       args.startDate + daysToGenerate * 24 * 60 * 60 * 1000
     const duration = args.endTime - args.startDate
 
-    const schedules = []
+    const schedules: ClassScheduleInsert[] = []
 
     let currentDate = new Date(args.startDate)
     const now = Date.now()
