@@ -4,11 +4,10 @@ import { ThemedText } from '@/components/ui/themed-text'
 import { WEEKDAY_ES } from './constants'
 import { AssignmentDetailExerciseRow } from './assignment-detail-exercise-row'
 import { assignmentDetailStyles as styles } from './assignment-detail-styles'
-import type { DayExerciseWithDetails } from './types'
-import type { ExerciseBlock } from './types'
+import type { WorkoutDay, ExerciseBlock, DayExerciseWithDetails } from './types'
 
 interface AssignmentDetailDayCardProps {
-  day: { _id: string; name: string; dayOfWeek?: number }
+  day: WorkoutDay
   exercises: DayExerciseWithDetails[]
   dayBlocks: ExerciseBlock[]
   isDark: boolean
@@ -29,7 +28,9 @@ export function AssignmentDetailDayCard({
   onExercisePress,
 }: AssignmentDetailDayCardProps) {
   const exercisesUnblocked = exercises.filter((ex) => !ex.blockId)
-  const unblockedSorted = [...exercisesUnblocked].sort((a, b) => a.order - b.order)
+  const unblockedSorted = [...exercisesUnblocked].sort(
+    (a, b) => a.order - b.order
+  )
 
   return (
     <View
@@ -80,7 +81,9 @@ export function AssignmentDetailDayCard({
             return (
               <View key={block._id} style={styles.blockGroup}>
                 <View style={styles.blockHeader}>
-                  <ThemedText style={styles.blockTitle}>{block.name}</ThemedText>
+                  <ThemedText style={styles.blockTitle}>
+                    {block.name}
+                  </ThemedText>
                   <View
                     style={[
                       styles.blockBadge,

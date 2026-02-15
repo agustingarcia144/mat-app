@@ -4,6 +4,7 @@ import { View, Text, StyleSheet } from 'react-native'
 interface OccupancyBadgeProps {
   /** Number of spots left (capacity - currentReservations) */
   spotsLeft: number
+  isDark: boolean
 }
 
 type BadgeState = 'available' | 'last' | 'sold_out'
@@ -25,18 +26,39 @@ function getLabel(spotsLeft: number, state: BadgeState): string {
   }
 }
 
-export function OccupancyBadge({ spotsLeft }: OccupancyBadgeProps) {
+export function OccupancyBadge({ spotsLeft, isDark }: OccupancyBadgeProps) {
   const state = getBadgeState(spotsLeft)
   const label = getLabel(spotsLeft, state)
 
-  const borderColor =
-    state === 'available' ? '#166534' : state === 'last' ? '#92400e' : '#991b1b'
+  const backgroundColor =
+    state === 'available'
+      ? isDark
+        ? 'rgba(34,197,94,0.2)'
+        : '#dcfce7'
+      : state === 'last'
+        ? isDark
+          ? 'rgba(234,88,12,0.2)'
+          : '#ffedd5'
+        : isDark
+          ? 'rgba(185,28,28,0.2)'
+          : '#fee2e2'
+
   const textColor =
-    state === 'available' ? '#166534' : state === 'last' ? '#92400e' : '#991b1b'
+    state === 'available'
+      ? isDark
+        ? '#86efac'
+        : '#166534'
+      : state === 'last'
+        ? isDark
+          ? '#fdba74'
+          : '#c2410c'
+        : isDark
+          ? '#fca5a5'
+          : '#991b1b'
 
   return (
-    <View style={[styles.badge, { borderColor }]}>
-      <Text style={[styles.label, { color: textColor }]} numberOfLines={1}>
+    <View style={[styles.badge, { backgroundColor }]}>
+      <Text style={[styles.badgeText, { color: textColor }]} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -49,9 +71,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 10,
     alignSelf: 'flex-start',
-    borderWidth: 1,
   },
-  label: {
+  badgeText: {
     fontSize: 11,
     fontWeight: '600',
   },

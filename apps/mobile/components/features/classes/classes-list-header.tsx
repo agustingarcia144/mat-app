@@ -46,10 +46,23 @@ export function ClassesListHeader({
         },
       ]}
     >
-      <ThemedText type="title" style={styles.title}>
+      <ThemedText
+        type="title"
+        style={[
+          styles.title,
+          !isDark && styles.titleLight,
+        ]}
+        {...(!isDark && { lightColor: '#18181b' })}
+      >
         Clases
       </ThemedText>
-      <ThemedText style={styles.subtitle}>
+      <ThemedText
+        style={[
+          styles.subtitle,
+          !isDark && styles.subtitleLight,
+        ]}
+        {...(!isDark && { lightColor: '#52525b' })}
+      >
         Reservá tu lugar en las próximas clases
       </ThemedText>
 
@@ -155,9 +168,18 @@ const styles = StyleSheet.create({
   title: {
     marginBottom: 4,
   },
+  titleLight: {
+    letterSpacing: -0.5,
+  },
   subtitle: {
     fontSize: 15,
     opacity: 0.8,
+    marginBottom: 20,
+  },
+  subtitleLight: {
+    opacity: 1,
+    fontSize: 15,
+    lineHeight: 22,
     marginBottom: 20,
   },
   errorBox: {

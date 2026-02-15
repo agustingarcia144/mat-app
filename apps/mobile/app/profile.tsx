@@ -1,12 +1,5 @@
 import React from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  ScrollView,
-  Image,
-} from 'react-native'
+import { View, Text, StyleSheet, ScrollView, Image } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useUser, useClerk } from '@clerk/clerk-expo'
@@ -15,18 +8,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedText } from '@/components/ui/themed-text'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
 import { Colors } from '@/constants/theme'
-
-function LoadingScreen() {
-  const colorScheme = useColorScheme()
-  const backgroundColor = Colors[colorScheme ?? 'light'].background
-  const tintColor = Colors[colorScheme ?? 'light'].tint
-
-  return (
-    <View style={[styles.container, styles.centered, { backgroundColor }]}>
-      <ActivityIndicator size="large" color={tintColor} />
-    </View>
-  )
-}
+import LoadingScreen from '@/components/shared/screens/loading-screen'
 
 function ProfileContent() {
   const router = useRouter()

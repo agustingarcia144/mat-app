@@ -8,7 +8,9 @@ interface AssignmentDetailNotFoundProps {
   paddingTop: number
 }
 
-export function AssignmentDetailNotFound({ paddingTop }: AssignmentDetailNotFoundProps) {
+export function AssignmentDetailNotFound({
+  paddingTop,
+}: AssignmentDetailNotFoundProps) {
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.content, styles.hero, { paddingTop }]}>

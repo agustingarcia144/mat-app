@@ -21,26 +21,7 @@ import {
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
-
-function LoadingScreen() {
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-
-  return (
-    <View
-      style={[
-        {
-          backgroundColor: isDark ? '#000' : '#fff',
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-        },
-      ]}
-    >
-      <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-    </View>
-  )
-}
+import LoadingScreen from '@/components/shared/screens/loading-screen'
 
 function AuthenticatedRedirect() {
   const router = useRouter()

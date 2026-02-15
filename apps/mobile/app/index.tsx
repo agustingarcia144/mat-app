@@ -1,26 +1,10 @@
 import React from 'react'
-import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native'
+import { View, Text, StyleSheet, Image } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Authenticated, Unauthenticated, AuthLoading } from 'convex/react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
-
-function LoadingScreen() {
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-
-  return (
-    <View
-      style={[
-        styles.container,
-        styles.centered,
-        { backgroundColor: isDark ? '#000' : '#fff' },
-      ]}
-    >
-      <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-    </View>
-  )
-}
+import LoadingScreen from '@/components/shared/screens/loading-screen'
 
 function LandingContent() {
   const router = useRouter()
@@ -121,10 +105,6 @@ export default function LandingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   logo: {
     width: 220,

@@ -21,26 +21,7 @@ import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
 import AntDesign from '@expo/vector-icons/AntDesign'
-
-function LoadingScreen() {
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-
-  return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: isDark ? '#000' : '#fff',
-          justifyContent: 'center',
-          alignItems: 'center',
-        },
-      ]}
-    >
-      <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-    </View>
-  )
-}
+import LoadingScreen from '@/components/shared/screens/loading-screen'
 
 function AuthenticatedRedirect() {
   const router = useRouter()

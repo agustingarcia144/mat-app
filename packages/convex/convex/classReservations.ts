@@ -406,3 +406,86 @@ export const getUpcomingByUser = query({
       .sort((a, b) => (a.schedule?.startTime ?? 0) - (b.schedule?.startTime ?? 0))
   },
 })
+
+/**
+ * Get user's reservations for a specific day (by start/end of day timestamps).
+ * Returns non-cancelled reservations with schedule and class populated, sorted by start time.
+ */
+export const getByUserForDate = query({
+  args: {
+    startOfDay: v.number(),
+    endOfDay: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+
+    const reservations = await ctx.db
+      .query('classReservations')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+
+    const nonCancelled = reservations.filter((r) => r.status !== 'cancelled')
+
+    const enriched = await Promise.all(
+      nonCancelled.map(async (reservation) => {
+        const schedule = await ctx.db.get(reservation.scheduleId)
+        const classTemplate = await ctx.db.get(reservation.classId)
+        return {
+          ...reservation,
+          schedule,
+          class: classTemplate,
+        }
+      })
+    )
+
+    return enriched
+      .filter(
+        (r) =>
+          r.schedule &&
+          r.schedule.startTime >= args.startOfDay &&
+          r.schedule.startTime <= args.endOfDay
+      )
+      .sort((a, b) => (a.schedule?.startTime ?? 0) - (b.schedule?.startTime ?? 0))
+  },
+})
+
+/**
+ * Get user's reservations in a date range (by start/end timestamps).
+ * Returns non-cancelled reservations with schedule populated; used to know which days have a class.
+ */
+export const getByUserForDateRange = query({
+  args: {
+    startOfRange: v.number(),
+    endOfRange: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+
+    const reservations = await ctx.db
+      .query('classReservations')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+
+    const nonCancelled = reservations.filter((r) => r.status !== 'cancelled')
+
+    const withSchedule = await Promise.all(
+      nonCancelled.map(async (reservation) => {
+        const schedule = await ctx.db.get(reservation.scheduleId)
+        return { ...reservation, schedule }
+      })
+    )
+
+    return withSchedule.filter(
+      (r) =>
+        r.schedule &&
+        r.schedule.startTime >= args.startOfRange &&
+        r.schedule.startTime <= args.endOfRange
+    )
+  },
+})

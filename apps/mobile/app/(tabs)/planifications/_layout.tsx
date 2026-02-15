@@ -38,6 +38,16 @@ export default function PlanificationsLayout() {
           headerShadowVisible: false,
         }}
       />
+      <Stack.Screen
+        name="[assignmentId]/[exerciseId]"
+        options={{
+          headerShown: true,
+          headerTransparent: true,
+          title: '',
+          headerLeft: () => <HeaderBackButton />,
+          headerShadowVisible: false,
+        }}
+      />
     </Stack>
   )
 }

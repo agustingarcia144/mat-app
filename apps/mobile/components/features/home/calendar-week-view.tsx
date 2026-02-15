@@ -50,6 +50,8 @@ type CalendarWeekViewProps = {
     dayOfWeek?: number
     [key: string]: unknown
   }[]
+  /** YMD strings (yyyy-MM-dd) for days that have at least one reserved class */
+  daysWithClasses?: string[]
 }
 
 export function CalendarWeekView({
@@ -58,6 +60,7 @@ export function CalendarWeekView({
   onWeekChange,
   weekSessions,
   workoutDays,
+  daysWithClasses,
 }: CalendarWeekViewProps) {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
@@ -94,6 +97,9 @@ export function CalendarWeekView({
     workoutDays?.some(
       (d) => d.dayOfWeek !== undefined && d.dayOfWeek === isoWeekday
     ) ?? false
+
+  const hasClassOnDay = (ymd: string) =>
+    daysWithClasses?.includes(ymd) ?? false
 
   const handlePreviousWeek = useCallback(() => {
     const newDate = new Date(selectedDate)
@@ -199,14 +205,16 @@ export function CalendarWeekView({
                   const hasInProgress = inProgressForDay(ymd)
                   const isoWeekday = getISODay(date)
                   const hasScheduled = hasScheduledWorkout(isoWeekday)
+                  const hasClass = hasClassOnDay(ymd)
+                  const hasWorkoutOrClass = hasScheduled || hasClass
 
-                  // Determine circle color: green if completed, orange if scheduled, null otherwise
+                  // Determine circle color: green if completed, blue if in progress, orange if workout or class that day
                   let circleColor: string | null = null
                   if (hasCompleted) {
                     circleColor = '#22c55e' // green
                   } else if (hasInProgress) {
                     circleColor = '#2563eb' // blue
-                  } else if (hasScheduled) {
+                  } else if (hasWorkoutOrClass) {
                     circleColor = '#f97316' // orange
                   }
 

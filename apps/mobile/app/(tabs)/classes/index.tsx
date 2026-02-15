@@ -22,17 +22,7 @@ import {
   type ListRowClass,
   type ListRowReservation,
 } from '@/components/features/classes'
-
-function LoadingScreen() {
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-
-  return (
-    <ThemedView style={[styles.container, styles.centered]}>
-      <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-    </ThemedView>
-  )
-}
+import LoadingScreen from '@/components/shared/screens/loading-screen'
 
 function ClassesContent() {
   const insets = useSafeAreaInsets()

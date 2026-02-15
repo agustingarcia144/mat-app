@@ -1,9 +1,10 @@
 import React from 'react'
-import { View, Text, StyleSheet, Image, Pressable } from 'react-native'
+import { View, Text, Image } from 'react-native'
 import { getVideoThumbnailUrl } from '@repo/core/utils'
 import { ThemedText } from '@/components/ui/themed-text'
 import { assignmentDetailStyles as styles } from './assignment-detail-styles'
 import type { DayExerciseWithDetails } from './types'
+import { PressableScale } from 'pressto'
 
 interface AssignmentDetailExerciseRowProps {
   ex: DayExerciseWithDetails
@@ -23,8 +24,8 @@ export function AssignmentDetailExerciseRow({
     : null
 
   return (
-    <Pressable
-      style={({ pressed }) => [
+    <PressableScale
+      style={[
         styles.exerciseRow,
         {
           backgroundColor: isDark
@@ -32,7 +33,6 @@ export function AssignmentDetailExerciseRow({
             : 'rgba(0,0,0,0.02)',
           borderRadius: 10,
           padding: 12,
-          opacity: pressed ? 0.9 : 1,
         },
       ]}
       onPress={onPress}
@@ -51,13 +51,15 @@ export function AssignmentDetailExerciseRow({
           resizeMode="cover"
         />
       ) : (
-        <View
+        <Image
+          source={require('@/assets/images/mat-wolf-looking.png')}
           style={[
-            styles.exerciseThumbnailPlaceholder,
+            styles.exerciseThumbnail,
             {
-              backgroundColor: isDark ? '#3f3f46' : '#e4e4e7',
+              backgroundColor: isDark ? '#000' : '#fff',
             },
           ]}
+          resizeMode="cover"
         />
       )}
       <View style={styles.exerciseContent}>
@@ -69,6 +71,6 @@ export function AssignmentDetailExerciseRow({
           {ex.weight ? ` · ${ex.weight}` : ''}
         </Text>
       </View>
-    </Pressable>
+    </PressableScale>
   )
 }

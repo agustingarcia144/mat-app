@@ -18,17 +18,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
-
-function LoadingScreen() {
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-
-  return (
-    <ThemedView style={[styles.container, styles.centered]}>
-      <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
-    </ThemedView>
-  )
-}
+import LoadingScreen from '@/components/shared/screens/loading-screen'
 
 function PlanificationsContent() {
   const { user } = useUser()
@@ -58,10 +48,10 @@ function PlanificationsContent() {
     const weeksCount =
       'weeksCount' in item ? (item as { weeksCount: number }).weeksCount : 0
     const startDate = item.startDate
-      ? format(new Date(item.startDate), "d MMM yyyy", { locale: es })
+      ? format(new Date(item.startDate), 'd MMM yyyy', { locale: es })
       : null
     const endDate = item.endDate
-      ? format(new Date(item.endDate), "d MMM yyyy", { locale: es })
+      ? format(new Date(item.endDate), 'd MMM yyyy', { locale: es })
       : null
     const dateRange =
       startDate && endDate
@@ -84,9 +74,7 @@ function PlanificationsContent() {
         <ThemedText style={styles.cardTitle}>{name}</ThemedText>
         <View style={styles.cardMeta}>
           <Text style={[styles.cardMetaText, { color: mutedColor }]}>
-            {weeksCount === 1
-              ? '1 semana'
-              : `${weeksCount} semanas`}
+            {weeksCount === 1 ? '1 semana' : `${weeksCount} semanas`}
           </Text>
           {dateRange ? (
             <Text style={[styles.cardMetaText, { color: mutedColor }]}>

@@ -192,6 +192,7 @@ export function ClassesListRow({
               ) : booking?.canReserve ? (
                 <OccupancyBadge
                   spotsLeft={schedule.capacity - schedule.currentReservations}
+                  isDark={isDark}
                 />
               ) : (
                 <UnavailableBadge isDark={isDark} showIcon={false} />

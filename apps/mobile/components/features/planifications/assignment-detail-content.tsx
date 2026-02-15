@@ -3,7 +3,6 @@ import { View, ScrollView, ActivityIndicator } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useUser } from '@clerk/clerk-expo'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import type { Href } from 'expo-router'
 import { useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import { format } from 'date-fns'
@@ -146,7 +145,7 @@ export function AssignmentDetailContent() {
 
   const handleExercisePress = (ex: { exerciseId: string; _id: string }) => {
     router.push(
-      `/home/exercise/${ex.exerciseId}?dayExerciseId=${ex._id}` as Href
+      `/planifications/${assignmentId}/${ex.exerciseId}?dayExerciseId=${ex._id}`
     )
   }
 
