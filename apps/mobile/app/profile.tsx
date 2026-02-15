@@ -12,8 +12,8 @@ import { useRouter } from 'expo-router'
 import { useUser, useClerk } from '@clerk/clerk-expo'
 import { Authenticated, AuthLoading } from 'convex/react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedText } from '@/components/themed-text'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedText } from '@/components/ui/themed-text'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 import { Colors } from '@/constants/theme'
 
 function LoadingScreen() {

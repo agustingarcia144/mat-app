@@ -1,0 +1,74 @@
+import React from 'react'
+import { View, Text, StyleSheet, Image, Pressable } from 'react-native'
+import { getVideoThumbnailUrl } from '@repo/core/utils'
+import { ThemedText } from '@/components/ui/themed-text'
+import { assignmentDetailStyles as styles } from './assignment-detail-styles'
+import type { DayExerciseWithDetails } from './types'
+
+interface AssignmentDetailExerciseRowProps {
+  ex: DayExerciseWithDetails
+  isDark: boolean
+  muted: string
+  onPress: () => void
+}
+
+export function AssignmentDetailExerciseRow({
+  ex,
+  isDark,
+  muted,
+  onPress,
+}: AssignmentDetailExerciseRowProps) {
+  const thumbnailUrl = ex.exercise?.videoUrl
+    ? getVideoThumbnailUrl(ex.exercise.videoUrl)
+    : null
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.exerciseRow,
+        {
+          backgroundColor: isDark
+            ? 'rgba(255,255,255,0.04)'
+            : 'rgba(0,0,0,0.02)',
+          borderRadius: 10,
+          padding: 12,
+          opacity: pressed ? 0.9 : 1,
+        },
+      ]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={ex.exercise?.name ?? 'Ejercicio'}
+    >
+      {thumbnailUrl ? (
+        <Image
+          source={{ uri: thumbnailUrl }}
+          style={[
+            styles.exerciseThumbnail,
+            {
+              backgroundColor: isDark ? '#3f3f46' : '#e4e4e7',
+            },
+          ]}
+          resizeMode="cover"
+        />
+      ) : (
+        <View
+          style={[
+            styles.exerciseThumbnailPlaceholder,
+            {
+              backgroundColor: isDark ? '#3f3f46' : '#e4e4e7',
+            },
+          ]}
+        />
+      )}
+      <View style={styles.exerciseContent}>
+        <ThemedText style={styles.exerciseName}>
+          {ex.exercise?.name ?? 'Ejercicio'}
+        </ThemedText>
+        <Text style={[styles.exerciseMeta, { color: muted }]}>
+          {ex.sets} × {ex.reps}
+          {ex.weight ? ` · ${ex.weight}` : ''}
+        </Text>
+      </View>
+    </Pressable>
+  )
+}

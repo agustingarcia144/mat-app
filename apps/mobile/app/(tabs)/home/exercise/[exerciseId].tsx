@@ -15,12 +15,12 @@ import { useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import { getVideoThumbnailUrl } from '@repo/core/utils'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedView } from '@/components/themed-view'
-import { ThemedText } from '@/components/themed-text'
-import ParallaxScrollView from '@/components/parallax-scroll-view'
+import { ThemedView } from '@/components/ui/themed-view'
+import { ThemedText } from '@/components/ui/themed-text'
+import ParallaxScrollView from '@/components/ui/parallax-scroll-view'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Colors } from '@/constants/theme'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 
 const HEADER_BG = { light: '#e5e5e5', dark: '#262626' }
 

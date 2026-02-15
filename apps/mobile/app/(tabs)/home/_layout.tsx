@@ -1,44 +1,6 @@
-import { Stack, useRouter } from 'expo-router'
-import { StyleSheet, useColorScheme } from 'react-native'
-import { PressableScale } from 'pressto'
-
-import { IconSymbol } from '@/components/ui/icon-symbol'
-
-const SIZE = 36
-
-function HeaderBackButton() {
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-  const tint = isDark ? '#fff' : '#000'
-
-  return (
-    <PressableScale
-      onPress={() => router.back()}
-      style={styles.circle}
-      hitSlop={12}
-    >
-      <IconSymbol name="chevron.left" size={22} color={tint} />
-    </PressableScale>
-  )
-}
-
-function HeaderCloseButton() {
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-  const tint = isDark ? '#fff' : '#000'
-
-  return (
-    <PressableScale
-      onPress={() => router.back()}
-      style={styles.circle}
-      hitSlop={12}
-    >
-      <IconSymbol name="xmark" size={20} color={tint} />
-    </PressableScale>
-  )
-}
+import { Stack } from 'expo-router'
+import HeaderBackButton from '@/components/ui/header-back-button'
+import HeaderCloseButton from '@/components/ui/header-close-button'
 
 export default function InicioLayout() {
   return (
@@ -49,7 +11,7 @@ export default function InicioLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: 'Entrenamiento',
+          title: '',
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
         }}
@@ -80,13 +42,3 @@ export default function InicioLayout() {
     </Stack>
   )
 }
-
-const styles = StyleSheet.create({
-  circle: {
-    width: SIZE,
-    height: SIZE,
-    borderRadius: SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-})

@@ -11,7 +11,11 @@ export function ClassIcon({ className, isDark }: ClassIconProps) {
     <View
       style={[
         styles.classIcon,
-        { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : '#f97316' },
+        {
+          backgroundColor: isDark
+            ? 'rgba(255,255,255,0.12)'
+            : 'rgba(0,0,0,0.5)',
+        },
       ]}
     >
       <Text

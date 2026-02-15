@@ -19,7 +19,7 @@ import {
 } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 import AntDesign from '@expo/vector-icons/AntDesign'
 
 function LoadingScreen() {

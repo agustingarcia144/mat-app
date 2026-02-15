@@ -15,9 +15,9 @@ import { useRouter } from 'expo-router'
 import { useQuery, Authenticated, AuthLoading } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedView } from '@/components/themed-view'
-import { ThemedText } from '@/components/themed-text'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedView } from '@/components/ui/themed-view'
+import { ThemedText } from '@/components/ui/themed-text'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 import { format, getISODay, startOfWeek, endOfWeek } from 'date-fns'
 import { IconSymbol } from '@/components/ui/icon-symbol'
 import { CalendarWeekView } from '@/components/features/home/calendar-week-view'
@@ -227,14 +227,22 @@ function DashboardContent() {
           </View>
         ) : (
           <>
-            <View style={[styles.calendarFullWidth, { width: windowWidth, marginLeft: -24 }]}>
+            <View
+              style={[
+                styles.calendarFullWidth,
+                { width: windowWidth, marginLeft: -24 },
+              ]}
+            >
               <CalendarWeekView
                 selectedDate={selectedDate}
                 onDateSelect={setSelectedDate}
                 onWeekChange={handleWeekChange}
                 weekSessions={weekSessions}
                 workoutDays={
-                  workoutDays as { dayOfWeek?: number; [key: string]: unknown }[]
+                  workoutDays as {
+                    dayOfWeek?: number
+                    [key: string]: unknown
+                  }[]
                 }
               />
             </View>

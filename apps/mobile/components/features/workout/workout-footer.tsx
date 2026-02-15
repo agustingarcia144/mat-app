@@ -1,6 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 
 export interface WorkoutFooterProps {
   isNewSession: boolean

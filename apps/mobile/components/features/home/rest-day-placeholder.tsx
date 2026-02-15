@@ -1,6 +1,6 @@
 import React from 'react'
 import { View, Image, StyleSheet } from 'react-native'
-import { ThemedText } from '@/components/themed-text'
+import { ThemedText } from '@/components/ui/themed-text'
 
 export function RestDayPlaceholder() {
   return (

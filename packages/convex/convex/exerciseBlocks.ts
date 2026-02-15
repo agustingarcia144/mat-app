@@ -135,6 +135,39 @@ export const getByWorkoutDay = query({
 })
 
 /**
+ * Get all exercise blocks for all workout days of a planification
+ */
+export const getByPlanification = query({
+  args: {
+    planificationId: v.id('planifications'),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const workoutDays = await ctx.db
+      .query('workoutDays')
+      .withIndex('by_planification', (q) =>
+        q.eq('planificationId', args.planificationId)
+      )
+      .collect()
+
+    const blocks: Awaited<ReturnType<typeof ctx.db.query<'exerciseBlocks'>>> = []
+    for (const day of workoutDays) {
+      const dayBlocks = await ctx.db
+        .query('exerciseBlocks')
+        .withIndex('by_workout_day_order', (q) =>
+          q.eq('workoutDayId', day._id)
+        )
+        .order('asc')
+        .collect()
+      blocks.push(...dayBlocks)
+    }
+    return blocks
+  },
+})
+
+/**
  * Get exercise block by ID
  */
 export const getById = query({

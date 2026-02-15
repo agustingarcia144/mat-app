@@ -130,13 +130,20 @@ export const getByUser = query({
       .withIndex('by_user', (q) => q.eq('userId', args.userId))
       .collect()
 
-    // Fetch planification details
+    // Fetch planification details and weeks count
     const withDetails = await Promise.all(
       assignments.map(async (assignment) => {
         const planification = await ctx.db.get(assignment.planificationId)
+        const weeks = await ctx.db
+          .query('workoutWeeks')
+          .withIndex('by_planification', (q) =>
+            q.eq('planificationId', assignment.planificationId)
+          )
+          .collect()
         return {
           ...assignment,
           planification,
+          weeksCount: weeks.length,
         }
       })
     )

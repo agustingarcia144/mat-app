@@ -17,8 +17,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedView } from '@/components/themed-view'
-import { ThemedText } from '@/components/themed-text'
+import { ThemedView } from '@/components/ui/themed-view'
+import { ThemedText } from '@/components/ui/themed-text'
 import { setLogSetSaveCallback } from '@/lib/log-set-bridge'
 import {
   ExerciseCard,

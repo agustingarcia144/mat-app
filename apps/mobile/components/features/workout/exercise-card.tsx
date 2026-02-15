@@ -4,7 +4,7 @@ import { PressableScale } from 'pressto'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { getVideoThumbnailUrl } from '@repo/core/utils'
-import { ThemedText } from '@/components/themed-text'
+import { ThemedText } from '@/components/ui/themed-text'
 
 export interface DayExerciseForCard {
   _id: string
@@ -65,7 +65,7 @@ export function ExerciseCard({
   return (
     <View style={[styles.exerciseCard, { borderColor }]}>
       {/* 1. Thumbnail with title (top) */}
-      <View style={styles.thumbnailSection}>
+      <PressableScale onPress={onPressExercise} style={styles.thumbnailSection}>
         {hasThumbnail ? (
           <Image
             source={{ uri: thumbnailUrl ?? undefined }}
@@ -102,19 +102,16 @@ export function ExerciseCard({
               style={styles.savingIndicatorOverlay}
             />
           )}
-          <PressableScale
-            onPress={onPressExercise}
-            style={styles.exerciseNamePressable}
-          >
+          <View style={styles.exerciseNameContainer}>
             <Text
               style={[styles.exerciseNameOverlay, { color: overlayTextColor }]}
               numberOfLines={2}
             >
               {dayEx.exercise?.name ?? 'Ejercicio'}
             </Text>
-          </PressableScale>
+          </View>
         </View>
-      </View>
+      </PressableScale>
       {/* 2. Expandable trigger (black bar) */}
       <PressableScale
         onPress={onToggleExpand}
@@ -132,7 +129,7 @@ export function ExerciseCard({
         <MaterialIcons
           name={isExpanded ? 'keyboard-arrow-down' : 'keyboard-arrow-up'}
           size={24}
-          color="#fff"
+          color={isDark ? '#fff' : '#000'}
         />
       </PressableScale>
       {/* 3. Expandable section (sets grid) */}
@@ -280,7 +277,7 @@ const styles = StyleSheet.create({
     top: 12,
     right: 16,
   },
-  exerciseNamePressable: {
+  exerciseNameContainer: {
     alignSelf: 'flex-start',
   },
   exerciseNameOverlay: {
@@ -297,12 +294,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: '#000',
   },
   cardFooterLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#fff',
   },
   setsGrid: {
     flexDirection: 'row',

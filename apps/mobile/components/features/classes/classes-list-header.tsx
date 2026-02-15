@@ -1,14 +1,17 @@
 import React from 'react'
-import { View, Text, StyleSheet } from 'react-native'
-import { ThemedText } from '@/components/themed-text'
+import { View, Text, StyleSheet, Pressable } from 'react-native'
+import * as Haptics from 'expo-haptics'
+import { ThemedText } from '@/components/ui/themed-text'
 import { IconSymbol } from '@/components/ui/icon-symbol'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ClassIcon } from './class-icon'
+import { ClassesEmptyStateCard } from './classes-empty-state-card'
 
 export interface NextUpcomingItem {
   type: 'reservation' | 'schedule'
   schedule: {
+    _id: string
     startTime: number
     endTime: number
     currentReservations?: number
@@ -22,6 +25,8 @@ interface ClassesListHeaderProps {
   error: string
   isDark: boolean
   nextUpcoming: NextUpcomingItem | null
+  /** Navigate to class details; same as list row card tap. */
+  onPressCard?: (scheduleId: string) => void
 }
 
 export function ClassesListHeader({
@@ -29,6 +34,7 @@ export function ClassesListHeader({
   error,
   isDark,
   nextUpcoming,
+  onPressCard,
 }: ClassesListHeaderProps) {
   return (
     <View
@@ -65,35 +71,40 @@ export function ClassesListHeader({
         </View>
       ) : null}
 
-      {nextUpcoming?.schedule && nextUpcoming?.class ? (
-        <View
-          style={[
+      {nextUpcoming?.type === 'reservation' &&
+      nextUpcoming?.schedule &&
+      nextUpcoming?.class ? (
+        <Pressable
+          style={({ pressed }) => [
             styles.highlightCard,
             {
-              backgroundColor: isDark ? '#27272a' : '#f4f4f5',
+              backgroundColor: isDark ? 'rgba(234,88,12,0.15)' : '#ffedd5',
               borderWidth: StyleSheet.hairlineWidth,
-              borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+              borderColor: isDark ? 'rgba(234,88,12,0.35)' : '#fed7aa',
             },
+            pressed && styles.highlightCardPressed,
           ]}
+          onPress={() => {
+            if (nextUpcoming.schedule._id && onPressCard) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+              onPressCard(nextUpcoming.schedule._id)
+            }
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`Ver detalles de ${nextUpcoming.class.name}`}
         >
           <View style={styles.highlightCardInner}>
-            <ClassIcon
-              className={nextUpcoming.class.name}
-              isDark={isDark}
-            />
+            <ClassIcon className={nextUpcoming.class.name} isDark={isDark} />
             <View style={styles.highlightCardContent}>
               <Text
                 style={[
                   styles.highlightCardLabel,
                   {
-                    color: isDark ? '#a1a1aa' : '#71717a',
+                    color: isDark ? '#fdba74' : '#c2410c',
                   },
                 ]}
               >
-                {nextUpcoming.type === 'reservation'
-                  ? 'Tu próxima reserva'
-                  : 'Próxima clase'}{' '}
-                ·{' '}
+                Tu próxima reserva ·{' '}
                 {format(new Date(nextUpcoming.schedule.startTime), 'd MMM', {
                   locale: es,
                 })}
@@ -121,21 +132,18 @@ export function ClassesListHeader({
                 {format(new Date(nextUpcoming.schedule.endTime), 'HH:mm', {
                   locale: es,
                 })}
-                {nextUpcoming.type === 'reservation'
-                  ? ' · Reservado'
-                  : nextUpcoming.schedule.currentReservations != null && nextUpcoming.schedule.capacity != null
-                    ? ` · ${nextUpcoming.schedule.currentReservations}/${nextUpcoming.schedule.capacity}`
-                    : ''}
               </Text>
             </View>
             <IconSymbol
               name="chevron.right"
               size={20}
-              color={isDark ? '#a1a1aa' : '#71717a'}
+              color={isDark ? '#fdba74' : '#ea580c'}
             />
           </View>
-        </View>
-      ) : null}
+        </Pressable>
+      ) : (
+        <ClassesEmptyStateCard />
+      )}
     </View>
   )
 }
@@ -165,6 +173,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
+  },
+  highlightCardPressed: {
+    opacity: 0.92,
   },
   highlightCardInner: {
     flexDirection: 'row',

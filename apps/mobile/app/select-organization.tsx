@@ -9,7 +9,7 @@ import {
 import { useOrganizationList } from '@clerk/clerk-expo'
 import { useRouter } from 'expo-router'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',

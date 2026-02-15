@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Picker } from '@react-native-picker/picker'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 import { Colors } from '@/constants/theme'
 import { invokeLogSetSaveCallback } from '@/lib/log-set-bridge'
 

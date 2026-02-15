@@ -12,11 +12,12 @@ import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { useQuery, Authenticated, AuthLoading } from 'convex/react'
 import { api } from '@repo/convex'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { Colors } from '@/constants/theme'
-import { ThemedView } from '@/components/themed-view'
-import { ThemedText } from '@/components/themed-text'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedView } from '@/components/ui/themed-view'
+import { ThemedText } from '@/components/ui/themed-text'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 
 function LoadingScreen() {
   const colorScheme = useColorScheme()
@@ -54,7 +55,23 @@ function PlanificationsContent() {
 
   const renderItem = ({ item }: { item: (typeof assignments)[number] }) => {
     const name = item.planification?.name ?? 'Planificación'
-    const isActive = item.status === 'active'
+    const weeksCount =
+      'weeksCount' in item ? (item as { weeksCount: number }).weeksCount : 0
+    const startDate = item.startDate
+      ? format(new Date(item.startDate), "d MMM yyyy", { locale: es })
+      : null
+    const endDate = item.endDate
+      ? format(new Date(item.endDate), "d MMM yyyy", { locale: es })
+      : null
+    const dateRange =
+      startDate && endDate
+        ? `${startDate} – ${endDate}`
+        : startDate
+          ? `Desde ${startDate}`
+          : endDate
+            ? `Hasta ${endDate}`
+            : null
+    const mutedColor = isDark ? '#a1a1aa' : '#71717a'
 
     return (
       <ThemedPressable
@@ -63,43 +80,19 @@ function PlanificationsContent() {
         darkColor="#27272a"
         style={[styles.card, { borderColor: isDark ? '#3f3f46' : '#e4e4e7' }]}
         onPress={() => router.push(`/planifications/${item._id}` as Href)}
-        activeOpacity={0.7}
       >
         <ThemedText style={styles.cardTitle}>{name}</ThemedText>
         <View style={styles.cardMeta}>
-          <View
-            style={[
-              styles.badge,
-              {
-                backgroundColor: isActive
-                  ? Colors[colorScheme ?? 'light'].tint
-                  : isDark
-                    ? '#3f3f46'
-                    : '#e4e4e7',
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.badgeText,
-                {
-                  color: isActive
-                    ? colorScheme === 'dark'
-                      ? '#000'
-                      : '#fff'
-                    : isDark
-                      ? '#a1a1aa'
-                      : '#52525b',
-                },
-              ]}
-            >
-              {item.status === 'active'
-                ? 'Activa'
-                : item.status === 'completed'
-                  ? 'Completada'
-                  : 'Cancelada'}
+          <Text style={[styles.cardMetaText, { color: mutedColor }]}>
+            {weeksCount === 1
+              ? '1 semana'
+              : `${weeksCount} semanas`}
+          </Text>
+          {dateRange ? (
+            <Text style={[styles.cardMetaText, { color: mutedColor }]}>
+              {dateRange}
             </Text>
-          </View>
+          ) : null}
         </View>
       </ThemedPressable>
     )
@@ -213,16 +206,10 @@ const styles = StyleSheet.create({
   },
   cardMeta: {
     marginTop: 8,
+    gap: 4,
   },
-  badge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
+  cardMetaText: {
+    fontSize: 13,
   },
   empty: {
     flex: 1,

@@ -11,7 +11,7 @@ import Animated, {
 import { addDays, endOfWeek, format, getISODay, startOfWeek } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 import { IconSymbol } from '../../ui/icon-symbol'
 
 const SWIPE_THRESHOLD = 50
@@ -155,7 +155,10 @@ export function CalendarWeekView({
     transform: [{ translateX: dragX.value }],
   }))
 
-  const edgeFadeColor = isDark ? 'rgba(0,0,0,1)' : 'rgba(255,255,255,1)'
+  const edgeFadeColors = isDark
+    ? (['rgba(0,0,0,1)', 'transparent'] as const)
+    : (['rgba(0,0,0,0.04)', 'transparent'] as const)
+  const edgeFadeLocations = isDark ? ([0, 0.6] as const) : ([0, 0.7] as const)
 
   const arrowColor = isDark ? '#fff' : '#000'
 
@@ -272,16 +275,16 @@ export function CalendarWeekView({
             </Animated.View>
           </GestureDetector>
           <LinearGradient
-            colors={[edgeFadeColor, 'transparent']}
-            locations={[0, 0.6]}
+            colors={[edgeFadeColors[0], edgeFadeColors[1]]}
+            locations={[0, edgeFadeLocations[1]]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={[styles.edgeFade, styles.edgeFadeLeft]}
             pointerEvents="none"
           />
           <LinearGradient
-            colors={['transparent', edgeFadeColor]}
-            locations={[0.4, 1]}
+            colors={[edgeFadeColors[1], edgeFadeColors[0]]}
+            locations={[1 - edgeFadeLocations[1], 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={[styles.edgeFade, styles.edgeFadeRight]}

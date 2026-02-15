@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router'
 import { useMutation, Authenticated } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedPressable } from '@/components/themed-pressable'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
 
 function OnboardingContent() {
   const router = useRouter()

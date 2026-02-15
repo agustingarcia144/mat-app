@@ -5,26 +5,9 @@ import { useEffect } from 'react'
 import { useColorScheme } from 'react-native'
 import { useConvexAuth, useQuery } from 'convex/react'
 import { api } from '@repo/convex'
-import { IconSymbol } from '@/components/ui/icon-symbol'
 import Providers from '@/components/providers/providers'
 import { Colors } from '@/constants/theme'
-import { PressableScale } from 'pressto'
-
-function ProfileModalCloseButton() {
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const tint = colorScheme === 'dark' ? '#fff' : '#000'
-  return (
-    <PressableScale
-      enabled={true}
-      onPress={() => router.back()}
-      hitSlop={12}
-      style={{ padding: 8 }}
-    >
-      <IconSymbol name="xmark" size={22} color={tint} />
-    </PressableScale>
-  )
-}
+import HeaderCloseButton from '@/components/ui/header-close-button'
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useConvexAuth()
@@ -88,7 +71,7 @@ function RootLayoutNav() {
             headerShadowVisible: false,
             headerStyle: { backgroundColor },
             headerTintColor,
-            headerRight: () => <ProfileModalCloseButton />,
+            headerRight: () => <HeaderCloseButton />,
             headerLeft: () => null,
             gestureEnabled: true,
           }}

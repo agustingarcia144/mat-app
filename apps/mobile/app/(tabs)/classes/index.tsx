@@ -1,13 +1,15 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { StyleSheet, ActivityIndicator, Alert } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
+import type { Href } from 'expo-router'
 import { FlashList } from '@shopify/flash-list'
 import { useQuery, useMutation, Authenticated, AuthLoading } from 'convex/react'
 import { api } from '@repo/convex'
 import { format } from 'date-fns'
 
 import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedView } from '@/components/themed-view'
+import { ThemedView } from '@/components/ui/themed-view'
 import {
   ClassesListHeader,
   ClassesListRow,
@@ -34,6 +36,7 @@ function LoadingScreen() {
 
 function ClassesContent() {
   const insets = useSafeAreaInsets()
+  const router = useRouter()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
 
@@ -239,22 +242,26 @@ function ClassesContent() {
   const handleReserve = useCallback(
     (scheduleId: string) => {
       setError('')
-      Alert.alert('Reservar clase', '¿Querés reservar tu lugar en esta clase?', [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Sí, reservar',
-          onPress: async () => {
-            setBusyScheduleId(scheduleId)
-            try {
-              await reserve({ scheduleId: scheduleId as any })
-            } catch (e: any) {
-              setError(e?.message ?? 'No se pudo reservar la clase')
-            } finally {
-              setBusyScheduleId(null)
-            }
+      Alert.alert(
+        'Reservar clase',
+        '¿Querés reservar tu lugar en esta clase?',
+        [
+          { text: 'No', style: 'cancel' },
+          {
+            text: 'Sí, reservar',
+            onPress: async () => {
+              setBusyScheduleId(scheduleId)
+              try {
+                await reserve({ scheduleId: scheduleId as any })
+              } catch (e: any) {
+                setError(e?.message ?? 'No se pudo reservar la clase')
+              } finally {
+                setBusyScheduleId(null)
+              }
+            },
           },
-        },
-      ])
+        ]
+      )
     },
     [reserve]
   )
@@ -283,6 +290,13 @@ function ClassesContent() {
     [cancelReservation]
   )
 
+  const handlePressCard = useCallback(
+    (scheduleId: string) => {
+      router.push(`/classes/${scheduleId}` as Href)
+    },
+    [router]
+  )
+
   const listHeader = useMemo(
     () => (
       <ClassesListHeader
@@ -290,9 +304,10 @@ function ClassesContent() {
         error={error}
         isDark={isDark}
         nextUpcoming={nextUpcoming}
+        onPressCard={handlePressCard}
       />
     ),
-    [insets.top, error, isDark, nextUpcoming]
+    [insets.top, error, isDark, nextUpcoming, handlePressCard]
   )
 
   const renderListItem = useCallback(
@@ -314,6 +329,7 @@ function ClassesContent() {
         }
         onReserve={handleReserve}
         onCancel={handleCancel}
+        onPressCard={handlePressCard}
       />
     ),
     [
@@ -325,6 +341,7 @@ function ClassesContent() {
       getCancellationState,
       handleReserve,
       handleCancel,
+      handlePressCard,
     ]
   )
 
