@@ -1,4 +1,5 @@
 import { mutation, query } from './_generated/server'
+import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireAuth } from './permissions'
 
@@ -152,7 +153,7 @@ export const getByPlanification = query({
       )
       .collect()
 
-    const blocks: Awaited<ReturnType<typeof ctx.db.query<'exerciseBlocks'>>> = []
+    const blocks: Doc<'exerciseBlocks'>[] = []
     for (const day of workoutDays) {
       const dayBlocks = await ctx.db
         .query('exerciseBlocks')

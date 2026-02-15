@@ -41,47 +41,40 @@ import VideoPlayer from './videoplayer'
 import Image from 'next/image'
 import wolfImg from '@/assets/mat-wolf-looking.png'
 
-import {
-  CATEGORIES,
-  EQUIPMENT_OPTIONS,
-  MUSCLE_GROUPS,
-} from '@repo/core'
-
+import { CATEGORIES, EQUIPMENT_OPTIONS, MUSCLE_GROUPS } from '@repo/core'
 
 type FilterType = 'none' | 'category' | 'muscle' | 'equipment'
 
-const normalize = (v?: string) =>
-  (v ?? '').toString().trim().toLowerCase()
+const normalize = (v?: string) => (v ?? '').toString().trim().toLowerCase()
 
-export default function ExerciseLibrary() {
+export interface ExerciseLibraryProps {
+  showActions?: boolean
+}
+
+export default function ExerciseLibrary({
+  showActions = true,
+}: ExerciseLibraryProps) {
   const [search, setSearch] = useState('')
-  const [filterType, setFilterType] =
-    useState<FilterType>('none')
+  const [filterType, setFilterType] = useState<FilterType>('none')
   const [filterValue, setFilterValue] = useState('')
-  const [showCreateDialog, setShowCreateDialog] =
-    useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
 
-  const [exerciseToEdit, setExerciseToEdit] =
-    useState<Doc<'exercises'> | null>(null)
+  const [exerciseToEdit, setExerciseToEdit] = useState<Doc<'exercises'> | null>(
+    null
+  )
 
   const [exerciseToDelete, setExerciseToDelete] =
     useState<Doc<'exercises'> | null>(null)
 
-  const exercises = useQuery(
-    api.exercises.getByOrganization
-  )
+  const exercises = useQuery(api.exercises.getByOrganization)
   const removeExercise = useMutation(api.exercises.remove)
 
-  const list = exercises ?? []
-
   const filtered = useMemo(() => {
+    const list = exercises ?? []
     const term = normalize(search)
     const selected = normalize(filterValue)
 
-    const isAll =
-      !selected ||
-      selected === 'all' ||
-      selected === 'todos'
+    const isAll = !selected || selected === 'all' || selected === 'todos'
 
     return list.filter((e) => {
       const matchesSearch =
@@ -89,41 +82,34 @@ export default function ExerciseLibrary() {
         normalize(e.name).includes(term) ||
         normalize(e.description).includes(term) ||
         (Array.isArray(e.muscleGroups) &&
-          e.muscleGroups.some((m) =>
-            normalize(m).includes(term)
-          )) ||
+          e.muscleGroups.some((m) => normalize(m).includes(term))) ||
         normalize(e.category).includes(term) ||
         normalize(e.equipment).includes(term)
 
       let matchesFilter = true
 
       if (filterType === 'category' && !isAll) {
-        matchesFilter =
-          normalize(e.category) === selected
+        matchesFilter = normalize(e.category) === selected
       }
 
       if (filterType === 'equipment' && !isAll) {
-        matchesFilter =
-          normalize(e.equipment) === selected
+        matchesFilter = normalize(e.equipment) === selected
       }
 
       if (filterType === 'muscle' && !isAll) {
         matchesFilter =
           Array.isArray(e.muscleGroups) &&
-          e.muscleGroups.some(
-            (m) => normalize(m) === selected
-          )
+          e.muscleGroups.some((m) => normalize(m) === selected)
       }
 
       return matchesSearch && matchesFilter
     })
-  }, [list, search, filterType, filterValue])
+  }, [exercises, search, filterType, filterValue])
 
   const getOptions = () => {
     if (filterType === 'category') return CATEGORIES
     if (filterType === 'muscle') return MUSCLE_GROUPS
-    if (filterType === 'equipment')
-      return EQUIPMENT_OPTIONS
+    if (filterType === 'equipment') return EQUIPMENT_OPTIONS
     return []
   }
 
@@ -157,23 +143,14 @@ export default function ExerciseLibrary() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">Todos</SelectItem>
-              <SelectItem value="category">
-                Categoría
-              </SelectItem>
-              <SelectItem value="muscle">
-                Músculo
-              </SelectItem>
-              <SelectItem value="equipment">
-                Equipo
-              </SelectItem>
+              <SelectItem value="category">Categoría</SelectItem>
+              <SelectItem value="muscle">Músculo</SelectItem>
+              <SelectItem value="equipment">Equipo</SelectItem>
             </SelectContent>
           </Select>
 
           {filterType !== 'none' && (
-            <Select
-              value={filterValue}
-              onValueChange={setFilterValue}
-            >
+            <Select value={filterValue} onValueChange={setFilterValue}>
               <SelectTrigger className="w-full md:w-56">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
@@ -191,16 +168,18 @@ export default function ExerciseLibrary() {
           )}
         </div>
 
-        <Button
-          className="md:ml-auto"
-          onClick={() => {
-            setExerciseToEdit(null)
-            setShowCreateDialog(true)
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          Nuevo ejercicio
-        </Button>
+        {showActions && (
+          <Button
+            className="md:ml-auto"
+            onClick={() => {
+              setExerciseToEdit(null)
+              setShowCreateDialog(true)
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo ejercicio
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -225,28 +204,24 @@ export default function ExerciseLibrary() {
               className="border rounded-lg overflow-hidden hover:border-primary transition-colors group relative"
             >
               {e.videoUrl ? (
-                <VideoPlayer
-                  videoUrl={e.videoUrl}
-                  title={e.name}
-                />
+                <VideoPlayer videoUrl={e.videoUrl} title={e.name} />
               ) : (
                 <div className="aspect-video w-full relative bg-muted flex items-center justify-center">
-  <div className="relative w-[90%] h-[90%]">
-    <Image
-      src={wolfImg}
-      alt="WOLFI NO ENCUENTRA TU VIDEO"
-      fill
-      className="object-contain opacity-80"
-    />
-  </div>
+                  <div className="relative w-[90%] h-[90%]">
+                    <Image
+                      src={wolfImg}
+                      alt="WOLFI NO ENCUENTRA TU VIDEO"
+                      fill
+                      className="object-contain opacity-80"
+                    />
+                  </div>
 
-  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-    <span className="text-xs text-white opacity-80">
-      WOLFI NO ENCUENTRA TU VIDEO
-    </span>
-  </div>
-</div>
-
+                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                    <span className="text-xs text-white opacity-80">
+                      WOLFI NO ENCUENTRA TU VIDEO
+                    </span>
+                  </div>
+                </div>
               )}
 
               <div
@@ -255,9 +230,7 @@ export default function ExerciseLibrary() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold mb-2">
-                      {e.name}
-                    </h3>
+                    <h3 className="font-semibold mb-2">{e.name}</h3>
 
                     {e.description && (
                       <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
@@ -291,43 +264,43 @@ export default function ExerciseLibrary() {
                     </div>
                   </div>
 
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 shrink-0"
-                        onClick={(ev) =>
-                          ev.stopPropagation()
-                        }
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
+                  {showActions && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={(ev) => ev.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
 
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={(ev) => {
-                          ev.stopPropagation()
-                          setExerciseToEdit(e)
-                        }}
-                      >
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Editar
-                      </DropdownMenuItem>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            setExerciseToEdit(e)
+                          }}
+                        >
+                          <Pencil className="h-4 w-4 mr-2" />
+                          Editar
+                        </DropdownMenuItem>
 
-                      <DropdownMenuItem
-                        onClick={(ev) => {
-                          ev.stopPropagation()
-                          setExerciseToDelete(e)
-                        }}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        <DropdownMenuItem
+                          onClick={(ev) => {
+                            ev.stopPropagation()
+                            setExerciseToDelete(e)
+                          }}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               </div>
             </div>
@@ -348,28 +321,19 @@ export default function ExerciseLibrary() {
 
       <Dialog
         open={!!exerciseToDelete}
-        onOpenChange={(open) =>
-          !open && setExerciseToDelete(null)
-        }
+        onOpenChange={(open) => !open && setExerciseToDelete(null)}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              Eliminar ejercicio
-            </DialogTitle>
+            <DialogTitle>Eliminar ejercicio</DialogTitle>
             <DialogDescription>
-              ¿Estás seguro de eliminar "
-              {exerciseToDelete?.name}"?
+              ¿Estás seguro de eliminar &quot;
+              {exerciseToDelete?.name}&quot;?
             </DialogDescription>
           </DialogHeader>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() =>
-                setExerciseToDelete(null)
-              }
-            >
+            <Button variant="outline" onClick={() => setExerciseToDelete(null)}>
               Cancelar
             </Button>
 
