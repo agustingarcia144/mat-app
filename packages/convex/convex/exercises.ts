@@ -16,7 +16,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
-
+    
     // Get user's organization
     const membership = await ctx.db
       .query('organizationMemberships')
@@ -128,12 +128,14 @@ export const getByOrganization = query({
 
     if (!membership) return []
 
-    return await ctx.db
+    const exercises = await ctx.db
       .query('exercises')
       .withIndex('by_organization', (q) =>
         q.eq('organizationId', membership.organizationId)
       )
       .collect()
+
+    return exercises.sort((a, b) => a.name.localeCompare(b.name))
   },
 })
 
@@ -144,12 +146,13 @@ export const search = query({
   args: {
     searchTerm: v.string(),
     category: v.optional(v.string()),
+    equipment: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    // Get user's organization
+    
     const membership = await ctx.db
       .query('organizationMemberships')
       .withIndex('by_user', (q) => q.eq('userId', identity.subject))
@@ -163,24 +166,32 @@ export const search = query({
         q.eq('organizationId', membership.organizationId)
       )
       .collect()
-
     // Filter by category if provided
-    if (args.category) {
-      exercises = exercises.filter((e) => e.category === args.category)
+    if (args.category && args.category !== 'all') {
+      exercises = exercises.filter(
+        (e) => e.category === args.category
+      )
     }
-
-    // Filter by search term
+    if (args.equipment && args.equipment !== 'all') {
+      exercises = exercises.filter(
+        (e) => e.equipment === args.equipment
+      )
+    }
     if (args.searchTerm) {
       const term = args.searchTerm.toLowerCase()
+
       exercises = exercises.filter(
         (e) =>
           e.name.toLowerCase().includes(term) ||
           e.description?.toLowerCase().includes(term) ||
-          e.muscleGroups.some((m) => m.toLowerCase().includes(term))
+          e.muscleGroups.some((m) =>
+            m.toLowerCase().includes(term)
+          )
       )
     }
-
-    return exercises
+    return exercises.sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
   },
 })
 

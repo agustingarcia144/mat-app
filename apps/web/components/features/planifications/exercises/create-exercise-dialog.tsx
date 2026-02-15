@@ -30,6 +30,13 @@ import {
   FieldError,
 } from '@/components/ui/field'
 import { exerciseSchema, Exercise } from '@repo/core/schemas'
+
+import {
+  CATEGORIES,
+  EQUIPMENT_OPTIONS,
+  MUSCLE_GROUPS,
+} from '@repo/core'
+
 import { toast } from 'sonner'
 
 interface CreateExerciseDialogProps {
@@ -37,40 +44,6 @@ interface CreateExerciseDialogProps {
   onOpenChange: (open: boolean) => void
   exercise?: Doc<'exercises'> | null
 }
-
-const CATEGORIES = [
-  'Tren superior',
-  'Tren inferior',
-  'Core',
-  'Cardio',
-  'Funcional',
-  'Movilidad',
-]
-
-const EQUIPMENT_OPTIONS = [
-  'Barra',
-  'Mancuernas',
-  'Máquina',
-  'Peso corporal',
-  'Bandas',
-  'Kettlebell',
-  'TRX',
-  'Otro',
-]
-
-const MUSCLE_GROUPS = [
-  'pecho',
-  'espalda',
-  'hombros',
-  'bíceps',
-  'tríceps',
-  'cuádriceps',
-  'isquiotibiales',
-  'glúteos',
-  'pantorrillas',
-  'core',
-  'abdominales',
-]
 
 export default function CreateExerciseDialog({
   open,
