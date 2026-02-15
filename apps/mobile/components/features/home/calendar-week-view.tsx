@@ -1,9 +1,8 @@
 import React, { useCallback, useMemo } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { LinearGradient } from 'expo-linear-gradient'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import { scheduleOnRN } from 'react-native-worklets'
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -98,8 +97,7 @@ export function CalendarWeekView({
       (d) => d.dayOfWeek !== undefined && d.dayOfWeek === isoWeekday
     ) ?? false
 
-  const hasClassOnDay = (ymd: string) =>
-    daysWithClasses?.includes(ymd) ?? false
+  const hasClassOnDay = (ymd: string) => daysWithClasses?.includes(ymd) ?? false
 
   const handlePreviousWeek = useCallback(() => {
     const newDate = new Date(selectedDate)
@@ -134,7 +132,7 @@ export function CalendarWeekView({
               { duration: WHEEL_DURATION_MS },
               (finished) => {
                 if (finished) {
-                  runOnJS(handlePreviousWeek)()
+                  scheduleOnRN(handlePreviousWeek)
                   dragX.value = 0
                 }
               }
@@ -145,7 +143,7 @@ export function CalendarWeekView({
               { duration: WHEEL_DURATION_MS },
               (finished) => {
                 if (finished) {
-                  runOnJS(handleNextWeek)()
+                  scheduleOnRN(handleNextWeek)
                   dragX.value = 0
                 }
               }
@@ -160,11 +158,6 @@ export function CalendarWeekView({
   const animatedStripStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: dragX.value }],
   }))
-
-  const edgeFadeColors = isDark
-    ? (['rgba(0,0,0,1)', 'transparent'] as const)
-    : (['rgba(0,0,0,0.04)', 'transparent'] as const)
-  const edgeFadeLocations = isDark ? ([0, 0.6] as const) : ([0, 0.7] as const)
 
   const arrowColor = isDark ? '#fff' : '#000'
 
@@ -282,22 +275,6 @@ export function CalendarWeekView({
               </View>
             </Animated.View>
           </GestureDetector>
-          <LinearGradient
-            colors={[edgeFadeColors[0], edgeFadeColors[1]]}
-            locations={[0, edgeFadeLocations[1]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.edgeFade, styles.edgeFadeLeft]}
-            pointerEvents="none"
-          />
-          <LinearGradient
-            colors={[edgeFadeColors[1], edgeFadeColors[0]]}
-            locations={[1 - edgeFadeLocations[1], 1]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.edgeFade, styles.edgeFadeRight]}
-            pointerEvents="none"
-          />
         </View>
 
         <ThemedPressable
@@ -351,18 +328,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  edgeFade: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 14,
-  },
-  edgeFadeLeft: {
-    left: 0,
-  },
-  edgeFadeRight: {
-    right: 0,
   },
   dayCell: {
     width: 38,
