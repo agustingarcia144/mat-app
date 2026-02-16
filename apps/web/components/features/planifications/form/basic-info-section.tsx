@@ -1,18 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { Controller, UseFormReturn } from 'react-hook-form'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, FolderOpen } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Field,
@@ -25,6 +20,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { FolderTree } from '@/components/features/planifications/folder-tree/folder-tree'
 
 interface BasicInfoSectionProps {
   form: UseFormReturn<any>
@@ -32,6 +34,7 @@ interface BasicInfoSectionProps {
 
 export default function BasicInfoSection({ form }: BasicInfoSectionProps) {
   const folders = useQuery(api.folders.getTree)
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false)
 
   return (
     <Collapsible defaultOpen>
@@ -46,9 +49,7 @@ export default function BasicInfoSection({ form }: BasicInfoSectionProps) {
           </button>
         </CollapsibleTrigger>
 
-        <CollapsibleContent
-          className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 duration-200"
-        >
+        <CollapsibleContent className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 duration-200">
           <div className="space-y-4 pt-4 px-2">
             <Controller
               name="name"
@@ -66,7 +67,9 @@ export default function BasicInfoSection({ form }: BasicInfoSectionProps) {
                   <FieldDescription>
                     Proporciona un nombre descriptivo para la planificación.
                   </FieldDescription>
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
                 </Field>
               )}
             />
@@ -85,7 +88,9 @@ export default function BasicInfoSection({ form }: BasicInfoSectionProps) {
                     rows={3}
                     autoComplete="off"
                   />
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
                 </Field>
               )}
             />
@@ -96,23 +101,57 @@ export default function BasicInfoSection({ form }: BasicInfoSectionProps) {
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor={field.name}>Carpeta</FieldLabel>
-                  <Select
-                    value={field.value || 'root'}
-                    onValueChange={(v) => field.onChange(v === 'root' ? undefined : v)}
+                  <div className="flex gap-2">
+                    <Input
+                      id={field.name}
+                      readOnly
+                      aria-invalid={fieldState.invalid}
+                      className="flex-1 min-w-0 bg-muted"
+                      value={
+                        field.value
+                          ? (folders?.find((f) => f._id === field.value)
+                              ?.path ?? field.value)
+                          : 'Sin carpeta'
+                      }
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => setFolderPickerOpen(true)}
+                      aria-label="Abrir selector de carpeta"
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                      Seleccionar carpeta
+                    </Button>
+                  </div>
+                  <Dialog
+                    open={folderPickerOpen}
+                    onOpenChange={setFolderPickerOpen}
                   >
-                    <SelectTrigger id={field.name} aria-invalid={fieldState.invalid}>
-                      <SelectValue placeholder="Seleccionar carpeta" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="root">Sin carpeta</SelectItem>
-                      {folders?.map((folder) => (
-                        <SelectItem key={folder._id} value={folder._id}>
-                          {folder.path}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                    <DialogContent className="max-w-sm">
+                      <DialogHeader>
+                        <DialogTitle>Seleccionar carpeta</DialogTitle>
+                      </DialogHeader>
+                      <div className="max-h-[60vh] overflow-y-auto py-2">
+                        <FolderTree
+                          folders={folders ?? []}
+                          selectedId={field.value ?? null}
+                          onSelect={(id) => {
+                            field.onChange(id ?? undefined)
+                            setFolderPickerOpen(false)
+                          }}
+                          showCreateDialog={false}
+                          setShowCreateDialog={() => {}}
+                          rootLabel="Sin carpeta"
+                          disableCreate
+                        />
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
                 </Field>
               )}
             />
@@ -121,7 +160,10 @@ export default function BasicInfoSection({ form }: BasicInfoSectionProps) {
               name="isTemplate"
               control={form.control}
               render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid} orientation="horizontal">
+                <Field
+                  data-invalid={fieldState.invalid}
+                  orientation="horizontal"
+                >
                   <Checkbox
                     id={field.name}
                     checked={field.value}
@@ -134,7 +176,9 @@ export default function BasicInfoSection({ form }: BasicInfoSectionProps) {
                   >
                     Marcar como plantilla reutilizable
                   </FieldLabel>
-                  {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
                 </Field>
               )}
             />

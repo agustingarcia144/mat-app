@@ -14,6 +14,8 @@ interface WeeklyTimelineProps {
   currentDate: Date
   onDateChange: (date: Date) => void
   onScheduleClick: (scheduleId: Id<'classSchedules'>) => void
+  /** When false, week navigation is rendered by the parent (e.g. classes page). Default true. */
+  showWeekNavigation?: boolean
 }
 
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 6) // 6am to 10pm
@@ -24,6 +26,7 @@ export default function WeeklyTimeline({
   currentDate,
   onDateChange,
   onScheduleClick,
+  showWeekNavigation = true,
 }: WeeklyTimelineProps) {
   const weekStart = useMemo(
     () => startOfWeek(currentDate, { weekStartsOn: 1 }),
@@ -83,34 +86,35 @@ export default function WeeklyTimeline({
 
   return (
     <div className="space-y-4">
-      {/* Header with navigation */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={goToPreviousWeek}
-            aria-label="Previous week"
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <Button variant="outline" onClick={goToToday}>
-            Hoy
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={goToNextWeek}
-            aria-label="Next week"
-          >
-            <ChevronRight className="h-4 w-4" aria-hidden="true" />
-          </Button>
+      {showWeekNavigation && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={goToPreviousWeek}
+              aria-label="Semana anterior"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+            </Button>
+            <Button variant="outline" onClick={goToToday}>
+              Hoy
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={goToNextWeek}
+              aria-label="Semana siguiente"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </Button>
+          </div>
+          <h2 className="text-lg font-semibold">
+            {format(weekStart, 'd', { locale: es })} -{' '}
+            {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", { locale: es })}
+          </h2>
         </div>
-        <h2 className="text-lg font-semibold">
-          {format(weekStart, 'd', { locale: es })} -{' '}
-          {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", { locale: es })}
-        </h2>
-      </div>
+      )}
 
       {/* Calendar grid */}
       <div className="border rounded-lg overflow-hidden">

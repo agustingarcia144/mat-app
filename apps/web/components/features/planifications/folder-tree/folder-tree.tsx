@@ -38,6 +38,10 @@ interface FolderTreeProps {
   onSelect: (id: string | null) => void
   showCreateDialog: boolean
   setShowCreateDialog: (show: boolean) => void
+  /** Label for the root option (e.g. "Sin carpeta" in picker mode). Default "Todas" */
+  rootLabel?: string
+  /** When true, hide create-folder actions (for picker/select mode). */
+  disableCreate?: boolean
 }
 
 interface FolderItemProps {
@@ -46,6 +50,7 @@ interface FolderItemProps {
   level: number
   selectedId: string | null
   onSelect: (id: string | null) => void
+  disableCreate?: boolean
 }
 
 function FolderItem({
@@ -54,6 +59,7 @@ function FolderItem({
   level,
   selectedId,
   onSelect,
+  disableCreate,
 }: FolderItemProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -102,42 +108,45 @@ function FolderItem({
           <span className="text-sm truncate">{folder.name}</span>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 opacity-0 group-hover:opacity-100"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreHorizontal className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setShowCreateDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva subcarpeta
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {!disableCreate && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nueva subcarpeta
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {isExpanded && hasChildren && (
         <div>
-          {child?.map((child) => (
+          {child?.map((childFolder) => (
             <FolderTreeItem
-              key={child._id}
-              folder={child}
+              key={childFolder._id}
+              folder={childFolder}
               folders={[]}
               level={level + 1}
               selectedId={selectedId}
               onSelect={onSelect}
+              disableCreate={disableCreate}
             />
           ))}
         </div>
       )}
 
-      {showCreateDialog && (
+      {!disableCreate && showCreateDialog && (
         <CreateFolderDialog
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
@@ -154,12 +163,14 @@ function FolderTreeItem({
   level,
   selectedId,
   onSelect,
+  disableCreate,
 }: {
   folder: FolderData
   folders: FolderData[]
   level: number
   selectedId: string | null
   onSelect: (id: string | null) => void
+  disableCreate?: boolean
 }) {
   const child = folders.filter((f) => f.parentId === folder._id)
   return (
@@ -169,6 +180,7 @@ function FolderTreeItem({
       level={level}
       selectedId={selectedId}
       onSelect={onSelect}
+      disableCreate={disableCreate}
     />
   )
 }
@@ -179,6 +191,8 @@ function FolderTree({
   onSelect,
   showCreateDialog,
   setShowCreateDialog,
+  rootLabel = 'Todas',
+  disableCreate = false,
 }: FolderTreeProps) {
   const rootFolders = folders.filter((f) => !f.parentId)
 
@@ -193,7 +207,7 @@ function FolderTree({
         onClick={() => onSelect(null)}
       >
         <Folder className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Todas</span>
+        <span className="text-sm font-medium">{rootLabel}</span>
       </div>
 
       {/* Folder tree */}
@@ -205,17 +219,22 @@ function FolderTree({
           level={0}
           selectedId={selectedId}
           onSelect={onSelect}
+          disableCreate={disableCreate}
         />
       ))}
 
-      <CreateFolderDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-        parentId={undefined}
-      />
+      {!disableCreate && (
+        <CreateFolderDialog
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          parentId={undefined}
+        />
+      )}
     </div>
   )
 }
+
+export { FolderTree }
 
 export default function FolderTreeSidebar({
   folders,

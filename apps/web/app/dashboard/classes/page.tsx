@@ -16,8 +16,9 @@ import ClassFormDialog from '@/components/features/classes/dialogs/class-form-di
 import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule-detail-dialog'
 import WeeklyTimeline from '@/components/features/classes/calendar/weekly-timeline'
 import ClassList from '@/components/features/classes/class-list'
-import { Plus, Calendar, List } from 'lucide-react'
-import { startOfWeek, endOfWeek, addDays } from 'date-fns'
+import { Plus, Calendar, List, ChevronLeft, ChevronRight } from 'lucide-react'
+import { startOfWeek, endOfWeek, addDays, format } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { type Id } from '@/convex/_generated/dataModel'
 
 export default function ClassesPage() {
@@ -34,6 +35,10 @@ export default function ClassesPage() {
   // Get schedules for the current week
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 })
+
+  const goToPreviousWeek = () => setCurrentDate((d) => addDays(d, -7))
+  const goToNextWeek = () => setCurrentDate((d) => addDays(d, 7))
+  const goToToday = () => setCurrentDate(new Date())
 
   const schedules = useQuery(
     api.classSchedules.getByOrganizationAndDateRange,
@@ -132,7 +137,36 @@ export default function ClassesPage() {
 
       {/* Content */}
       {selectedView === 'calendar' ? (
-        <div className="border rounded-lg p-4">
+        <div className="border rounded-lg p-4 space-y-4">
+          {/* Week navigation – always visible so users can move between weeks even when empty */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={goToPreviousWeek}
+                aria-label="Semana anterior"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+              </Button>
+              <Button variant="outline" onClick={goToToday}>
+                Hoy
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={goToNextWeek}
+                aria-label="Semana siguiente"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Button>
+            </div>
+            <h2 className="text-lg font-semibold">
+              {format(weekStart, 'd', { locale: es })} -{' '}
+              {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", { locale: es })}
+            </h2>
+          </div>
+
           {schedules === undefined ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">Cargando calendario...</p>
@@ -152,6 +186,7 @@ export default function ClassesPage() {
               currentDate={currentDate}
               onDateChange={setCurrentDate}
               onScheduleClick={handleScheduleClick}
+              showWeekNavigation={false}
             />
           )}
         </div>

@@ -5,8 +5,9 @@ import { UseFormReturn, useFieldArray, Controller } from 'react-hook-form'
 import { Plus, ChevronDown, ChevronUp, Trash2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import WorkoutWeekDays from '@/components/features/planifications/form/workout-week-days'
-import { Field, FieldLabel, FieldError } from '@/components/ui/field'
+import WeekCalendarRow from '@/components/features/planifications/form/week-calendar-row'
+import { Field, FieldError } from '@/components/ui/field'
+import { usePlanificationFormOptional } from '@/contexts/planification-form-context'
 import { PlanificationForm } from '@repo/core/schemas'
 import {
   Tooltip,
@@ -21,6 +22,7 @@ interface WorkoutWeeksSectionProps {
 export default function WorkoutWeeksSection({
   form,
 }: WorkoutWeeksSectionProps) {
+  const { planificationId } = usePlanificationFormOptional()
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'workoutWeeks',
@@ -183,7 +185,11 @@ export default function WorkoutWeeksSection({
 
                 {isExpanded && (
                   <div className="ml-11 mt-4">
-                    <WorkoutWeekDays form={form} weekIndex={weekIndex} />
+                    <WeekCalendarRow
+                      form={form}
+                      weekIndex={weekIndex}
+                      planificationId={planificationId}
+                    />
                   </div>
                 )}
               </div>
