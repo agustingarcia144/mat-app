@@ -10,12 +10,13 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
-import Link from 'next/link'
 import PlanificationList from '@/components/features/planifications/library/planification-list'
 import FolderTreeSidebar from '@/components/features/planifications/folder-tree/folder-tree'
+import CreatePlanificationDialog from '@/components/features/planifications/dialogs/create-planification-dialog'
 
 export default function PlanificationsPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
   const folders = useQuery(api.folders.getTree)
   const planifications = useQuery(api.planifications.getByFolder, {
@@ -31,13 +32,16 @@ export default function PlanificationsPage() {
             Gestiona programas de entrenamiento
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/planifications/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Nueva planificación
-          </Link>
+        <Button onClick={() => setCreateDialogOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nueva planificación
         </Button>
       </div>
+
+      <CreatePlanificationDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
 
       <ResizablePanelGroup
         orientation="horizontal"

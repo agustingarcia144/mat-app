@@ -35,7 +35,7 @@ export default function NewDayPage({
       exercises: [],
     })
     router.replace(
-      `/dashboard/planifications/${planificationId}/edit/day/${weekIndex}/${newIndex}`
+      `/dashboard/planifications/${planificationId}/edit/day/${weekIndex}/${newIndex}?new=1`
     )
   }, [planificationId, weekIndex, dayOfWeek, fields.length, append, router])
 

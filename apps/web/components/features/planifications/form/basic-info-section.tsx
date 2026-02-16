@@ -30,27 +30,19 @@ import { FolderTree } from '@/components/features/planifications/folder-tree/fol
 
 interface BasicInfoSectionProps {
   form: UseFormReturn<any>
+  /** When false, the chevron icon is hidden. Default true. */
+  showCollapsibleIcon?: boolean
 }
 
-export default function BasicInfoSection({ form }: BasicInfoSectionProps) {
+export default function BasicInfoSection({
+  form,
+  showCollapsibleIcon = true,
+}: BasicInfoSectionProps) {
   const folders = useQuery(api.folders.getTree)
   const [folderPickerOpen, setFolderPickerOpen] = useState(false)
 
-  return (
-    <Collapsible defaultOpen>
-      <div className="rounded-lg border p-6 space-y-4">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="group flex w-full items-center justify-between text-left font-semibold hover:opacity-80 transition-opacity"
-          >
-            <h2 className="text-lg font-semibold">Información básica</h2>
-            <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-          </button>
-        </CollapsibleTrigger>
-
-        <CollapsibleContent className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 duration-200">
-          <div className="space-y-4 pt-4 px-2">
+  const formContent = (
+    <div className="space-y-4 pt-4 px-2">
             <Controller
               name="name"
               control={form.control}
@@ -182,7 +174,32 @@ export default function BasicInfoSection({ form }: BasicInfoSectionProps) {
                 </Field>
               )}
             />
-          </div>
+    </div>
+  )
+
+  if (!showCollapsibleIcon) {
+    return (
+      <div className="rounded-lg border p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Información básica</h2>
+        {formContent}
+      </div>
+    )
+  }
+
+  return (
+    <Collapsible defaultOpen>
+      <div className="rounded-lg border p-6 space-y-4">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="group flex w-full items-center justify-between text-left font-semibold hover:opacity-80 transition-opacity"
+          >
+            <h2 className="text-lg font-semibold">Información básica</h2>
+            <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 duration-200">
+          {formContent}
         </CollapsibleContent>
       </div>
     </Collapsible>

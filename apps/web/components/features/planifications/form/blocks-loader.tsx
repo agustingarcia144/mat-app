@@ -56,26 +56,29 @@ export default function BlocksLoader({
   }, [])
 
   useEffect(() => {
-    // Reset callback flag if dayIds length changes
+    // Reset callback flag when dayIds change (no setState — avoids cascading renders)
     if (prevDayIdsLength.current !== dayIds.length) {
       hasCalledCallback.current = false
       prevDayIdsLength.current = dayIds.length
-      setLoadedBlocks(new Map()) // Reset loaded blocks when dayIds change
-      return
     }
 
-    // Only call callback when we have blocks for all days (or empty arrays) and haven't called it yet
+    // Consider only blocks for current dayIds (ignore stale entries when dayIds changed)
+    const dayIdsSet = new Set(dayIds)
+    const entries = Array.from(loadedBlocks.entries()).filter(([dayId]) =>
+      dayIdsSet.has(dayId)
+    )
+    const blocksForCurrentDays = new Map<string, any[]>(entries)
+
+    // Only call callback when we have blocks for all current days and haven't called it yet
     if (
-      loadedBlocks.size === dayIds.length &&
+      blocksForCurrentDays.size === dayIds.length &&
       dayIds.length > 0 &&
       !hasCalledCallback.current
     ) {
       hasCalledCallback.current = true
-      // Create a new Map to avoid reference issues
-      const blocksMap = new Map(loadedBlocks)
-      onBlocksLoadedRef.current(blocksMap)
+      onBlocksLoadedRef.current(blocksForCurrentDays)
     }
-  }, [dayIds.length, loadedBlocks])
+  }, [dayIds.length, dayIds, loadedBlocks])
 
   return (
     <>

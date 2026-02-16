@@ -91,12 +91,18 @@ function EditFormShell({
   const [blocksByDay, setBlocksByDay] = useState<Map<string, any[]>>(new Map())
   const blocksLoadedRef = useRef(false)
   const hasInitialized = useRef(false)
+  const [initialFormValues, setInitialFormValues] =
+    useState<PlanificationFormType | null>(null)
 
   const dayIds = useMemo(
     () =>
-      (fullWeeksData || []).flatMap((week: any) =>
-        (week.workoutDays || []).map((day: any) => day.id)
-      ).filter((id: string) => typeof id === 'string' && !id.startsWith('temp-')),
+      (fullWeeksData || [])
+        .flatMap((week: any) =>
+          (week.workoutDays || []).map((day: any) => day.id)
+        )
+        .filter(
+          (id: string) => typeof id === 'string' && !id.startsWith('temp-')
+        ),
     [fullWeeksData]
   )
 
@@ -123,36 +129,33 @@ function EditFormShell({
     }))
   }, [fullWeeksData, blocksByDay])
 
+  // Minimal defaultValues so the form baseline is set only via reset() in the effect.
+  // This ensures isDirty is correct after create+redirect (single source of truth).
   const form = useForm<PlanificationFormType>({
     resolver: zodResolver(planificationFormSchema),
     defaultValues: {
-      name: planification?.name ?? '',
-      description: planification?.description ?? '',
-      folderId: planification?.folderId,
-      isTemplate: planification?.isTemplate ?? false,
-      workoutWeeks:
-        fullWeeksData && fullWeeksData.length > 0
-          ? fullWeeksData
-          : [
-              {
-                id: 'temp-week-1',
-                name: 'Semana 1',
-                workoutDays: [],
-              },
-            ],
+      name: '',
+      description: '',
+      folderId: undefined,
+      isTemplate: false,
+      workoutWeeks: [
+        {
+          id: 'temp-week-1',
+          name: 'Semana 1',
+          workoutDays: [],
+        },
+      ],
     },
   })
 
   useEffect(() => {
-    if (
-      !planification ||
-      !fullWeeksDataWithBlocks ||
-      !blocksLoadedRef.current ||
-      hasInitialized.current
-    )
-      return
+    if (!planification || hasInitialized.current) return
+    // fullWeeksDataWithBlocks is null while loading; [] for new planification (no weeks). Both are "data ready" when not null.
+    if (fullWeeksDataWithBlocks === null) return
+    // When there are no days, we don't wait for BlocksLoader (it never fires when dayIds is empty)
+    if (dayIds.length > 0 && !blocksLoadedRef.current) return
     hasInitialized.current = true
-    form.reset({
+    const serverValues = {
       name: planification.name,
       description: planification.description ?? '',
       folderId: planification.folderId,
@@ -167,8 +170,12 @@ function EditFormShell({
                 workoutDays: [],
               },
             ],
-    })
-  }, [planification, fullWeeksDataWithBlocks, form])
+    }
+    form.reset(serverValues, { keepDefaultValues: false })
+    // Sync initial snapshot so consumers can detect unsaved changes (deepEqual vs current values).
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- run once after reset; no alternative without ref-read-during-render
+    setInitialFormValues(serverValues)
+  }, [planification, fullWeeksDataWithBlocks, form, dayIds.length])
 
   const onSubmit = useCallback(
     async (data: PlanificationFormType) => {
@@ -274,6 +281,7 @@ function EditFormShell({
         }
 
         setIsSaving(false)
+        setInitialFormValues(data)
         if (redirectAfterSave === 'edit') {
           router.push(`/dashboard/planifications/${planificationId}/edit`)
         } else {
@@ -289,6 +297,7 @@ function EditFormShell({
       planificationId,
       fullWeeksData,
       redirectAfterSave,
+      setInitialFormValues,
       updatePlanification,
       removeWorkoutWeek,
       createWorkoutWeek,
@@ -334,6 +343,9 @@ function EditFormShell({
         onSubmit={onSubmit}
         isSaving={isSaving}
         setRedirectAfterSave={setRedirectAfterSave}
+        initialFormValues={initialFormValues}
+        setInitialFormValues={setInitialFormValues}
+        isNewPlanification={(fullWeeksData || []).length === 0}
       >
         {children}
       </PlanificationFormProvider>
@@ -349,5 +361,9 @@ export default function EditPlanificationLayout({
   children: React.ReactNode
 }) {
   const { id } = use(params)
-  return <EditFormShell planificationId={id}>{children}</EditFormShell>
+  return (
+    <EditFormShell key={id} planificationId={id}>
+      {children}
+    </EditFormShell>
+  )
 }

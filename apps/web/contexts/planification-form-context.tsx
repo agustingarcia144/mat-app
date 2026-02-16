@@ -15,6 +15,12 @@ type PlanificationFormContextValue = {
   isSaving: boolean
   /** When 'view', redirect to planification view after save; when 'edit', redirect to edit page. Day page sets 'edit'. */
   setRedirectAfterSave: (to: RedirectAfterSave) => void
+  /** Initial form values (set after reset in layout). Used for reliable unsaved-changes detection. */
+  initialFormValues: PlanificationForm | null
+  /** Set initial form values (call from layout after form.reset). */
+  setInitialFormValues: (values: PlanificationForm) => void
+  /** True when planification was just created (no weeks from server). Show unsaved toast always. */
+  isNewPlanification: boolean
 }
 
 const PlanificationFormContext = createContext<PlanificationFormContextValue>({
@@ -24,6 +30,9 @@ const PlanificationFormContext = createContext<PlanificationFormContextValue>({
   onSubmit: async () => {},
   isSaving: false,
   setRedirectAfterSave: () => {},
+  initialFormValues: null,
+  setInitialFormValues: () => {},
+  isNewPlanification: false,
 })
 
 export function usePlanificationForm(): {
@@ -33,10 +42,15 @@ export function usePlanificationForm(): {
   onSubmit: (data: PlanificationForm) => Promise<void>
   isSaving: boolean
   setRedirectAfterSave: (to: RedirectAfterSave) => void
+  initialFormValues: PlanificationForm | null
+  setInitialFormValues: (values: PlanificationForm) => void
+  isNewPlanification: boolean
 } {
   const ctx = useContext(PlanificationFormContext)
   if (!ctx.form || ctx.planificationId == null) {
-    throw new Error('usePlanificationForm must be used within PlanificationFormProvider')
+    throw new Error(
+      'usePlanificationForm must be used within PlanificationFormProvider'
+    )
   }
   return {
     form: ctx.form,
@@ -45,6 +59,9 @@ export function usePlanificationForm(): {
     onSubmit: ctx.onSubmit,
     isSaving: ctx.isSaving,
     setRedirectAfterSave: ctx.setRedirectAfterSave,
+    initialFormValues: ctx.initialFormValues,
+    setInitialFormValues: ctx.setInitialFormValues,
+    isNewPlanification: ctx.isNewPlanification,
   }
 }
 
@@ -59,6 +76,9 @@ export function PlanificationFormProvider({
   onSubmit,
   isSaving,
   setRedirectAfterSave,
+  initialFormValues,
+  setInitialFormValues,
+  isNewPlanification,
   children,
 }: {
   form: UseFormReturn<PlanificationForm>
@@ -67,6 +87,9 @@ export function PlanificationFormProvider({
   onSubmit: (data: PlanificationForm) => Promise<void>
   isSaving: boolean
   setRedirectAfterSave: (to: RedirectAfterSave) => void
+  initialFormValues: PlanificationForm | null
+  setInitialFormValues: (values: PlanificationForm) => void
+  isNewPlanification: boolean
   children: ReactNode
 }) {
   return (
@@ -78,6 +101,9 @@ export function PlanificationFormProvider({
         onSubmit,
         isSaving,
         setRedirectAfterSave,
+        initialFormValues,
+        setInitialFormValues,
+        isNewPlanification,
       }}
     >
       {children}

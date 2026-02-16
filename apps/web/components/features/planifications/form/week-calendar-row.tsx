@@ -2,8 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
-import { UseFormReturn, useFieldArray, Controller, useWatch } from 'react-hook-form'
-import { Plus, ChevronDown, ChevronUp, Trash2, Copy, Pencil, GripVertical, MoreVertical } from 'lucide-react'
+import { UseFormReturn, useFieldArray, useWatch } from 'react-hook-form'
+import { Plus, Trash2, Copy, Pencil, GripVertical, MoreVertical } from 'lucide-react'
 import {
   DragDropProvider,
   useDraggable,
@@ -11,9 +11,7 @@ import {
   useDragDropMonitor,
 } from '@dnd-kit/react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import DayBlocksContent from '@/components/features/planifications/form/day-blocks-content'
-import { Field, FieldError } from '@/components/ui/field'
 import { PlanificationForm } from '@repo/core/schemas'
 import {
   Tooltip,
@@ -143,6 +141,120 @@ function WeekdayDropZone({
   )
 }
 
+/** Single day card used for both edit and new planification flows. */
+function DayCardContent({
+  day,
+  blockCount,
+  exerciseCount,
+  isSummaryMode,
+  planificationId,
+  weekIndex,
+  dayIndex,
+  fieldId,
+  isExpanded,
+  exercisesVisible,
+  onToggleExpand,
+  onCopyDay,
+  onRemove,
+  onToggleExercisesVisible,
+  expandedContent,
+}: {
+  day: any
+  blockCount: number
+  exerciseCount: number
+  isSummaryMode: boolean
+  planificationId?: string | null
+  weekIndex: number
+  dayIndex: number
+  fieldId: string
+  isExpanded: boolean
+  exercisesVisible: boolean
+  onToggleExpand: (fieldId: string) => void
+  onCopyDay: (dayIndex: number) => void
+  onRemove: (dayIndex: number) => void
+  onToggleExercisesVisible: (fieldId: string) => void
+  expandedContent: React.ReactNode
+}) {
+  return (
+    <div className="p-2 text-sm flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="font-medium truncate flex-1" title={day?.name}>
+          {day?.name || 'Sin nombre'}
+        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              aria-label="Abrir menú del día"
+            >
+              <MoreVertical className="h-3 w-3 text-muted-foreground" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isSummaryMode ? (
+              <DropdownMenuItem asChild>
+                <Link
+                  href={`/dashboard/planifications/${planificationId}/edit/day/${weekIndex}/${dayIndex}`}
+                  className="flex items-center gap-2"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Editar
+                </Link>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                onClick={() => onToggleExpand(fieldId)}
+                className="flex items-center gap-2"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                {isExpanded ? 'Cerrar' : 'Editar'}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => onCopyDay(dayIndex)}>
+              <Copy className="h-3.5 w-3.5" />
+              Duplicar
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => onRemove(dayIndex)}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {blockCount} {blockCount === 1 ? 'bloque' : 'bloques'} · {exerciseCount}{' '}
+        {exerciseCount === 1 ? 'ejercicio' : 'ejercicios'}
+      </p>
+      {exerciseCount > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => onToggleExercisesVisible(fieldId)}
+            className="text-xs text-primary hover:underline text-left"
+          >
+            {exercisesVisible ? 'Ocultar ejercicios' : 'Ver ejercicios'}
+          </button>
+          {exercisesVisible && (
+            <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside max-h-24 overflow-y-auto">
+              {(day?.exercises ?? []).map((ex: any) => (
+                <li key={ex.id} className="truncate">
+                  {ex.exerciseName}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      {expandedContent}
+    </div>
+  )
+}
+
 interface WeekCalendarRowProps {
   form: UseFormReturn<PlanificationForm>
   weekIndex: number
@@ -185,7 +297,7 @@ export default function WeekCalendarRow({
 
   const addDay = (dayOfWeek: number) => {
     if (planificationId) {
-      return // Navigation handled by Link
+      return // Navigation handled by Link (edit flow)
     }
     const newId = `temp-${++nextIdRef.current}`
     append({
@@ -213,7 +325,8 @@ export default function WeekCalendarRow({
           order: currentBlocks.length,
           notes: '',
         },
-      ]
+      ],
+      { shouldDirty: true }
     )
   }
 
@@ -227,7 +340,8 @@ export default function WeekCalendarRow({
     const newBlocks = currentDay.blocks?.filter((_, i) => i !== blockIndex) || []
     form.setValue(
       `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.blocks`,
-      newBlocks
+      newBlocks,
+      { shouldDirty: true }
     )
 
     const exercises = currentDay.exercises || []
@@ -235,7 +349,8 @@ export default function WeekCalendarRow({
       `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises`,
       exercises.map((ex) =>
         ex.blockId === block.id ? { ...ex, blockId: undefined, blockName: undefined } : ex
-      )
+      ),
+      { shouldDirty: true }
     )
   }
 
@@ -263,7 +378,8 @@ export default function WeekCalendarRow({
           weight: '',
           notes: '',
         },
-      ]
+      ],
+      { shouldDirty: true }
     )
   }
 
@@ -273,7 +389,8 @@ export default function WeekCalendarRow({
     )
     form.setValue(
       `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises`,
-      currentDay.exercises.filter((_, i) => i !== exerciseIndex)
+      currentDay.exercises.filter((_, i) => i !== exerciseIndex),
+      { shouldDirty: true }
     )
   }
 
@@ -452,82 +569,27 @@ export default function WeekCalendarRow({
                   const isExpanded = expandedDayIds.has(field.id)
                   const exercisesVisible = exercisesVisibleDayIds.has(field.id)
 
-                  if (isSummaryMode) {
-                    return (
-                      <DraggableDayCard
-                        key={field.id}
-                        weekIndex={weekIndex}
-                        dayIndex={dayIndex}
-                        withHandle
-                      >
-                        <div className="p-2 text-sm flex flex-col gap-1.5">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-medium truncate flex-1" title={day?.name}>
-                              {day?.name || 'Sin nombre'}
-                            </span>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 shrink-0"
-                                  aria-label="Abrir menú del día"
-                                >
-                                  <MoreVertical className="h-3 w-3 text-muted-foreground" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild>
-                                  <Link
-                                    href={`/dashboard/planifications/${planificationId}/edit/day/${weekIndex}/${dayIndex}`}
-                                    className="flex items-center gap-2"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                    Editar
-                                  </Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => copyDay(dayIndex)}>
-                                  <Copy className="h-3.5 w-3.5" />
-                                  Duplicar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => remove(dayIndex)}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  Eliminar
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {blockCount} {blockCount === 1 ? 'bloque' : 'bloques'} · {exerciseCount}{' '}
-                            {exerciseCount === 1 ? 'ejercicio' : 'ejercicios'}
-                          </p>
-                          {exerciseCount > 0 && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => toggleExercisesVisible(field.id)}
-                                className="text-xs text-primary hover:underline text-left"
-                              >
-                                {exercisesVisible ? 'Ocultar ejercicios' : 'Ver ejercicios'}
-                              </button>
-                              {exercisesVisible && (
-                                <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside max-h-24 overflow-y-auto">
-                                  {(day?.exercises ?? []).map((ex: any) => (
-                                    <li key={ex.id} className="truncate">
-                                      {ex.exerciseName}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </DraggableDayCard>
-                    )
-                  }
+                  const expandedContent =
+                    !isSummaryMode && isExpanded ? (
+                      <div className="mt-2 pt-2 border-t max-h-[320px] overflow-y-auto overflow-x-hidden rounded-md pr-1 -mr-1">
+                        <DayBlocksContent
+                          form={form}
+                          weekIndex={weekIndex}
+                          dayIndex={dayIndex}
+                          day={day ?? { exercises: [] }}
+                          onAddBlock={() => addBlockToDay(dayIndex)}
+                          onRemoveBlock={(blockIndex) =>
+                            removeBlockFromDay(dayIndex, blockIndex)
+                          }
+                          onAddExercise={(ex, blockId) =>
+                            addExerciseToDay(dayIndex, ex, blockId)
+                          }
+                          onRemoveExercise={(exerciseIndex) =>
+                            removeExercise(dayIndex, exerciseIndex)
+                          }
+                        />
+                      </div>
+                    ) : null
 
                   return (
                     <DraggableDayCard
@@ -536,86 +598,23 @@ export default function WeekCalendarRow({
                       dayIndex={dayIndex}
                       withHandle
                     >
-                      <div className="p-2 text-sm">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 shrink-0"
-                            onClick={() => toggleDayExpanded(field.id)}
-                          >
-                            {isExpanded ? (
-                              <ChevronUp className="h-3.5 w-3.5" />
-                            ) : (
-                              <ChevronDown className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
-                          <Controller
-                            name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.name`}
-                            control={form.control}
-                            render={({ field: nameField, fieldState }) => (
-                              <Field
-                                data-invalid={fieldState.invalid}
-                                className="flex-1 min-w-0"
-                              >
-                                <Input
-                                  {...nameField}
-                                  aria-invalid={fieldState.invalid}
-                                  placeholder="Nombre del día"
-                                  className="h-8 text-sm"
-                                />
-                                {fieldState.invalid && (
-                                  <FieldError errors={[fieldState.error]} />
-                                )}
-                              </Field>
-                            )}
-                          />
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 shrink-0"
-                                onClick={() => copyDay(dayIndex)}
-                              >
-                                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Copiar día</TooltipContent>
-                          </Tooltip>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 shrink-0"
-                            onClick={() => remove(dayIndex)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        </div>
-                        {isExpanded && (
-                          <div className="mt-2 pt-2 border-t max-h-[320px] overflow-y-auto overflow-x-hidden rounded-md pr-1 -mr-1">
-                            <DayBlocksContent
-                              form={form}
-                              weekIndex={weekIndex}
-                              dayIndex={dayIndex}
-                              day={day ?? { exercises: [] }}
-                              onAddBlock={() => addBlockToDay(dayIndex)}
-                              onRemoveBlock={(blockIndex) =>
-                                removeBlockFromDay(dayIndex, blockIndex)
-                              }
-                              onAddExercise={(ex, blockId) =>
-                                addExerciseToDay(dayIndex, ex, blockId)
-                              }
-                              onRemoveExercise={(exerciseIndex) =>
-                                removeExercise(dayIndex, exerciseIndex)
-                              }
-                            />
-                          </div>
-                        )}
-                      </div>
+                      <DayCardContent
+                        day={day}
+                        blockCount={blockCount}
+                        exerciseCount={exerciseCount}
+                        isSummaryMode={isSummaryMode}
+                        planificationId={planificationId}
+                        weekIndex={weekIndex}
+                        dayIndex={dayIndex}
+                        fieldId={field.id}
+                        isExpanded={isExpanded}
+                        exercisesVisible={exercisesVisible}
+                        onToggleExpand={toggleDayExpanded}
+                        onCopyDay={copyDay}
+                        onRemove={remove}
+                        onToggleExercisesVisible={toggleExercisesVisible}
+                        expandedContent={expandedContent}
+                      />
                     </DraggableDayCard>
                   )
                 })}

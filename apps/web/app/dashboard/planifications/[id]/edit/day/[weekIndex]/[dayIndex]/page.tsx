@@ -1,7 +1,8 @@
 'use client'
 
-import { use, useCallback, useEffect } from 'react'
+import { use, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -25,6 +26,38 @@ import { parseLibraryExerciseDragId } from '@/components/features/planifications
 import ExerciseSelector from '@/components/features/planifications/exercises/exercise-selector'
 import { Field, FieldError } from '@/components/ui/field'
 import type { PlanificationForm } from '@repo/core/schemas'
+
+type DayForCompare = PlanificationForm['workoutWeeks'][0]['workoutDays'][0]
+
+/** Normalize a day for comparison: ignore temp ids, treat "Sin bloque" consistently (empty blocks vs only Sin bloque = same). */
+function normalizedDaySignature(day: DayForCompare | null | undefined): string {
+  if (!day) return JSON.stringify({ name: '', blocks: [], exercises: [] })
+  const userBlocks = (day.blocks ?? []).filter((b) => b.id !== SIN_BLOQUE_ID)
+  const blocksKey = userBlocks
+    .sort((a, b) => a.order - b.order)
+    .map((b) => ({ name: b.name, order: b.order, notes: b.notes ?? '' }))
+  const exercisesKey = (day.exercises ?? []).map((e) => ({
+    exerciseId: e.exerciseId,
+    blockId: e.blockId ?? SIN_BLOQUE_ID,
+    sets: e.sets,
+    reps: e.reps,
+    weight: e.weight ?? '',
+    notes: e.notes ?? '',
+  }))
+  return JSON.stringify({
+    name: day.name ?? '',
+    dayOfWeek: day.dayOfWeek,
+    blocks: blocksKey,
+    exercises: exercisesKey,
+  })
+}
+
+function normalizedDayEqual(
+  a: DayForCompare | null | undefined,
+  b: DayForCompare | null | undefined
+): boolean {
+  return normalizedDaySignature(a) === normalizedDaySignature(b)
+}
 
 function DayEditDndContent({
   form,
@@ -154,7 +187,8 @@ function DayEditDndContent({
       // Move exercise into a block drop zone (e.g. empty area of block)
       if (
         sourceId.startsWith(EXERCISE_PREFIX) &&
-        (targetId.startsWith(DROP_BLOCK_PREFIX) || targetId.startsWith(BLOCK_PREFIX))
+        (targetId.startsWith(DROP_BLOCK_PREFIX) ||
+          targetId.startsWith(BLOCK_PREFIX))
       ) {
         const targetBlockId = targetId.startsWith(DROP_BLOCK_PREFIX)
           ? targetId.slice(DROP_BLOCK_PREFIX.length)
@@ -267,25 +301,61 @@ function DayEditDndContent({
   )
 }
 
-export default function EditDayPage({
-  params,
+export function DayEditPageContent({
+  weekIndex,
+  dayIndex,
 }: {
-  params: Promise<{ id: string; weekIndex: string; dayIndex: string }>
+  weekIndex: number
+  dayIndex: number
 }) {
+  const searchParams = useSearchParams()
+  const isNewDay = searchParams.get('new') === '1'
   const { planificationId, form, onSubmit, isSaving, setRedirectAfterSave } =
     usePlanificationForm()
-  // Subscribe to form values so this component re-renders when user edits (formState.isDirty
-  // updates inside RHF but the consumer must re-render to run the toast effect).
-  form.watch()
-  const isDirty = form.formState.isDirty
+  const toastId = 'day-unsaved-changes'
+  const planificationToastId = 'planification-unsaved-changes'
+  // Snapshot of form state when we entered this page; used by Descartar to revert and for unsaved detection.
+  const entrySnapshotRef = useRef<PlanificationForm | null>(null)
+  const [entrySnapshot, setEntrySnapshot] = useState<PlanificationForm | null>(
+    null
+  )
+
+  useEffect(() => {
+    if (entrySnapshotRef.current === null) {
+      const snapshot = JSON.parse(
+        JSON.stringify(form.getValues())
+      ) as PlanificationForm
+      entrySnapshotRef.current = snapshot
+      // One-time snapshot for unsaved detection; state needed so we don't read ref during render.
+      // eslint-disable-next-line -- run-once snapshot after mount
+      setEntrySnapshot(snapshot)
+    }
+  }, [form])
+
+  const initialDay =
+    entrySnapshot?.workoutWeeks?.[weekIndex]?.workoutDays?.[dayIndex]
+  // Only watch this day so we re-render when its data changes; persist happens on toast "Guardar cambios".
+  const day = form.watch(`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`)
+  const hasUnsavedChanges = isNewDay
+    ? true
+    : entrySnapshot === null
+      ? false
+      : !normalizedDayEqual(initialDay, day)
+
   const handleSave = useCallback(
-    () => form.handleSubmit(onSubmit)(),
+    () =>
+      form.handleSubmit(async (data) => {
+        await onSubmit(data)
+        toast.dismiss(toastId)
+      })(),
     [form, onSubmit]
   )
 
-  const toastId = 'day-unsaved-changes'
+  // Show toast only when there are unsaved changes; dismiss when user reverts or after save.
+  // Dismiss the other page's toast so only one toast is visible when switching between edit and day edit.
   useEffect(() => {
-    if (isDirty) {
+    if (hasUnsavedChanges) {
+      toast.dismiss(planificationToastId)
       toast.message('Tienes cambios sin guardar', {
         id: toastId,
         position: 'bottom-center',
@@ -294,39 +364,24 @@ export default function EditDayPage({
         action: {
           label: isSaving ? 'Guardando…' : 'Guardar cambios',
           onClick: () => {
-            if (!isSaving) {
-              toast.dismiss(toastId)
-              handleSave()
-            }
+            if (!isSaving) handleSave()
           },
         },
       })
     } else {
       toast.dismiss(toastId)
     }
-  }, [isDirty, isSaving, handleSave])
-
-  useEffect(() => {
-    return () => {
-      toast.dismiss(toastId)
-    }
-  }, [])
+  }, [hasUnsavedChanges, isSaving, handleSave])
 
   useEffect(() => {
     setRedirectAfterSave('edit')
     return () => setRedirectAfterSave('view')
   }, [setRedirectAfterSave])
 
-  const { weekIndex: weekIndexStr, dayIndex: dayIndexStr } = use(params)
-  const weekIndex = Number(weekIndexStr)
-  const dayIndex = Number(dayIndexStr)
-
   const { fields } = useFieldArray({
     control: form.control,
     name: `workoutWeeks.${weekIndex}.workoutDays`,
   })
-
-  const day = form.watch(`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`)
 
   useEffect(() => {
     if (!day) return
@@ -449,15 +504,18 @@ export default function EditDayPage({
     )
   }
 
+  const backHref = `/dashboard/planifications/${planificationId}/edit`
+
   if (dayIndex < 0 || dayIndex >= fields.length) {
     return (
       <div className="w-full py-6">
-        <p className="text-destructive">Día no encontrado.</p>
         <Button variant="link" asChild className="mt-2">
-          <Link href={`/dashboard/planifications/${planificationId}/edit`}>
-            Volver a la planificación
+          <Link href={backHref}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Volver
           </Link>
         </Button>
+        <p className="text-destructive">Día no encontrado.</p>
       </div>
     )
   }
@@ -466,9 +524,9 @@ export default function EditDayPage({
     <div className="w-full py-6">
       <div className="mb-6">
         <Button variant="ghost" size="sm" className="mb-4" asChild>
-          <Link href={`/dashboard/planifications/${planificationId}/edit`}>
+          <Link href={backHref}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver al calendario
+            Volver
           </Link>
         </Button>
 
@@ -492,5 +550,19 @@ export default function EditDayPage({
         />
       </LibraryExerciseNamesProvider>
     </div>
+  )
+}
+
+export default function EditDayPage({
+  params,
+}: {
+  params: Promise<{ id: string; weekIndex: string; dayIndex: string }>
+}) {
+  const { weekIndex, dayIndex } = use(params)
+  return (
+    <DayEditPageContent
+      weekIndex={Number(weekIndex)}
+      dayIndex={Number(dayIndex)}
+    />
   )
 }
