@@ -16,7 +16,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
-    
+
     // Get user's organization
     const membership = await ctx.db
       .query('organizationMemberships')
@@ -152,7 +152,6 @@ export const search = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    
     const membership = await ctx.db
       .query('organizationMemberships')
       .withIndex('by_user', (q) => q.eq('userId', identity.subject))
@@ -168,14 +167,10 @@ export const search = query({
       .collect()
     // Filter by category if provided
     if (args.category && args.category !== 'all') {
-      exercises = exercises.filter(
-        (e) => e.category === args.category
-      )
+      exercises = exercises.filter((e) => e.category === args.category)
     }
     if (args.equipment && args.equipment !== 'all') {
-      exercises = exercises.filter(
-        (e) => e.equipment === args.equipment
-      )
+      exercises = exercises.filter((e) => e.equipment === args.equipment)
     }
     if (args.searchTerm) {
       const term = args.searchTerm.toLowerCase()
@@ -184,14 +179,10 @@ export const search = query({
         (e) =>
           e.name.toLowerCase().includes(term) ||
           e.description?.toLowerCase().includes(term) ||
-          e.muscleGroups.some((m) =>
-            m.toLowerCase().includes(term)
-          )
+          e.muscleGroups.some((m) => m.toLowerCase().includes(term))
       )
     }
-    return exercises.sort((a, b) =>
-      a.name.localeCompare(b.name)
-    )
+    return exercises.sort((a, b) => a.name.localeCompare(b.name))
   },
 })
 
@@ -202,14 +193,16 @@ export const listFacets = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return { categories: [] as string[], equipment: [] as string[] }
+    if (!identity)
+      return { categories: [] as string[], equipment: [] as string[] }
 
     const membership = await ctx.db
       .query('organizationMemberships')
       .withIndex('by_user', (q) => q.eq('userId', identity.subject))
       .first()
 
-    if (!membership) return { categories: [] as string[], equipment: [] as string[] }
+    if (!membership)
+      return { categories: [] as string[], equipment: [] as string[] }
 
     const exercises = await ctx.db
       .query('exercises')
@@ -218,8 +211,17 @@ export const listFacets = query({
       )
       .collect()
 
-    const categories = [...new Set(exercises.map((e) => e.category).filter(Boolean))].sort()
-    const equipment = [...new Set(exercises.map((e) => e.equipment).filter(Boolean))].sort()
+    const categories = Array.from(
+      new Set(
+        exercises.map((e) => e.category).filter((v): v is string => Boolean(v))
+      )
+    ).sort()
+
+    const equipment = Array.from(
+      new Set(
+        exercises.map((e) => e.equipment).filter((v): v is string => Boolean(v))
+      )
+    ).sort()
 
     return { categories, equipment }
   },
