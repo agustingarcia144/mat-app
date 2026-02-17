@@ -25,6 +25,11 @@ import DayBlocksContent, {
 import { parseLibraryExerciseDragId } from '@/components/features/planifications/exercises/library-exercise-card'
 import ExerciseSelector from '@/components/features/planifications/exercises/exercise-selector'
 import { Field, FieldError } from '@/components/ui/field'
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@/components/ui/resizable'
 import type { PlanificationForm } from '@repo/core/schemas'
 
 type DayForCompare = PlanificationForm['workoutWeeks'][0]['workoutDays'][0]
@@ -239,64 +244,75 @@ function DayEditDndContent({
 
   return (
     <DragDropProvider onDragEnd={handleDragEnd}>
-      <div className="grid grid-cols-[1fr_380px] gap-6 items-start min-w-0">
-        <div className="space-y-6 rounded-lg border p-6 bg-background min-w-0">
-          <div className="flex items-end justify-between gap-4">
-            <Controller
-              name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.name`}
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field
-                  data-invalid={fieldState.invalid}
-                  className="flex-1 min-w-0"
-                >
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Nombre del día
-                  </label>
-                  <Input
-                    {...field}
-                    aria-invalid={fieldState.invalid}
-                    placeholder="Ej: Día 1, Piernas, etc."
-                    className="h-10"
-                  />
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
+      <div className="rounded-lg border bg-background overflow-hidden h-full min-h-0 flex flex-col">
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="flex-1 min-h-0 w-full items-stretch"
+        >
+          <ResizablePanel defaultSize="70" minSize="50" className="min-w-0 flex flex-col min-h-0">
+            <div className="space-y-6 p-6 min-w-0 flex-1 min-h-0 overflow-auto">
+            <div className="flex items-end justify-between gap-4">
+              <Controller
+                name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.name`}
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field
+                    data-invalid={fieldState.invalid}
+                    className="flex-1 min-w-0"
+                  >
+                    <label className="text-sm font-medium mb-1.5 block">
+                      Nombre del día
+                    </label>
+                    <Input
+                      {...field}
+                      aria-invalid={fieldState.invalid}
+                      placeholder="Ej: Día 1, Piernas, etc."
+                      className="h-10"
+                    />
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onAddBlock}
+                className="h-9 shrink-0 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Agregar bloque
+              </Button>
+            </div>
+
+            <DayBlocksContent
+              form={form}
+              weekIndex={weekIndex}
+              dayIndex={dayIndex}
+              day={day ?? { exercises: [] }}
+              onAddBlock={onAddBlock}
+              onRemoveBlock={onRemoveBlock}
+              onAddExercise={onAddExercise}
+              onRemoveExercise={onRemoveExercise}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onAddBlock}
-              className="h-9 shrink-0 text-xs"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Agregar bloque
-            </Button>
           </div>
+        </ResizablePanel>
 
-          <DayBlocksContent
-            form={form}
-            weekIndex={weekIndex}
-            dayIndex={dayIndex}
-            day={day ?? { exercises: [] }}
-            onAddBlock={onAddBlock}
-            onRemoveBlock={onRemoveBlock}
-            onAddExercise={onAddExercise}
-            onRemoveExercise={onRemoveExercise}
-          />
-        </div>
+        <ResizableHandle withHandle />
 
-        <div className="rounded-lg border p-4 bg-background shrink-0 flex flex-col h-[calc(100vh-320px)] min-h-[280px]">
-          <h2 className="text-sm font-semibold mb-3 shrink-0">
-            Biblioteca de ejercicios
-          </h2>
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <ExerciseSelector className="h-full" />
+        <ResizablePanel defaultSize="30" minSize="20" className="min-w-0 flex flex-col min-h-0">
+          <div className="p-4 flex flex-col flex-1 min-h-0">
+            <h2 className="text-sm font-semibold mb-3 shrink-0">
+              Biblioteca de ejercicios
+            </h2>
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              <ExerciseSelector className="flex-1 min-h-0" />
+            </div>
           </div>
-        </div>
+        </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </DragDropProvider>
   )
@@ -529,8 +545,8 @@ export function DayEditPageContent({
   }
 
   return (
-    <div className="w-full py-6">
-      <div className="mb-6">
+    <div className="w-full py-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
+      <div className="mb-6 shrink-0">
         <Button variant="ghost" size="sm" className="mb-4" asChild>
           <Link
             href={backHref}
@@ -551,8 +567,9 @@ export function DayEditPageContent({
         </p>
       </div>
 
-      <LibraryExerciseNamesProvider>
-        <DayEditDndContent
+      <div className="flex-1 min-h-0 flex flex-col">
+        <LibraryExerciseNamesProvider>
+          <DayEditDndContent
           form={form}
           weekIndex={weekIndex}
           dayIndex={dayIndex}
@@ -562,7 +579,8 @@ export function DayEditPageContent({
           onAddExercise={addExerciseToDay}
           onRemoveExercise={removeExercise}
         />
-      </LibraryExerciseNamesProvider>
+        </LibraryExerciseNamesProvider>
+      </div>
     </div>
   )
 }

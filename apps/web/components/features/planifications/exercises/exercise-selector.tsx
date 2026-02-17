@@ -37,7 +37,7 @@ export default function ExerciseSelector({
   }, [libraryNames, exercises])
 
   return (
-    <div className={`flex flex-col min-h-0 h-full overflow-hidden ${className ?? ''}`}>
+    <div className={`flex flex-col flex-1 min-h-0 overflow-hidden ${className ?? ''}`}>
       <div className="relative mb-4 shrink-0">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
@@ -53,16 +53,16 @@ export default function ExerciseSelector({
       </p>
 
       <ScrollArea className="flex-1 min-h-0">
-        <div className="space-y-2 pr-2">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 pr-2 pb-2">
           {exercises === undefined ? (
-            Array.from({ length: 5 }).map((_, i) => (
+            Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="p-3 border rounded-lg">
-                <Skeleton className="h-5 w-40 mb-2" />
-                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-5 w-full mb-2" />
+                <Skeleton className="h-3 w-2/3" />
               </div>
             ))
           ) : exercises.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="col-span-full text-center py-8 text-muted-foreground">
               <p>No se encontraron ejercicios</p>
               <p className="text-sm mt-1">
                 {searchTerm
@@ -75,7 +75,7 @@ export default function ExerciseSelector({
               <div
                 key={exercise._id}
                 onClick={() => onSelect?.({ id: exercise._id, name: exercise.name })}
-                className={onSelect ? 'cursor-pointer' : undefined}
+                className={onSelect ? 'cursor-pointer min-w-0' : 'min-w-0'}
               >
                 <LibraryExerciseCard exercise={exercise} />
               </div>

@@ -177,6 +177,7 @@ export default function DayBlocksContent({
                     aria-invalid={fieldState.invalid}
                     placeholder="Nombre del bloque"
                     className="h-7 text-xs font-medium border-0 shadow-none focus-visible:border focus-visible:border-input focus-visible:shadow-sm"
+                    disabled={isSinBloque}
                   />
                   {fieldState.invalid && (
                     <FieldError errors={[fieldState.error]} />
@@ -184,15 +185,17 @@ export default function DayBlocksContent({
                 </Field>
               )}
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              onClick={() => onRemoveBlock(blockIndex)}
-            >
-              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-            </Button>
+            {!isSinBloque && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={() => onRemoveBlock(blockIndex)}
+              >
+                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+              </Button>
+            )}
           </div>
         )
         return (

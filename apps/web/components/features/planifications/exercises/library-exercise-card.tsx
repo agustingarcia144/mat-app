@@ -5,6 +5,8 @@ import Image from 'next/image'
 import { getVideoThumbnailUrl } from '@repo/core/utils'
 import { Badge } from '@/components/ui/badge'
 
+import fallbackThumbnail from '@/assets/mat-wolf-looking.png'
+
 const LIBRARY_PREFIX = 'library-'
 
 export interface LibraryExercise {
@@ -44,40 +46,34 @@ export default function LibraryExerciseCard({
   return (
     <div
       ref={ref as (el: HTMLDivElement | null) => void}
-      className={`border rounded-lg overflow-hidden transition-colors cursor-grab active:cursor-grabbing touch-none select-none ${
+      className={`h-[240px] flex flex-col border rounded-lg overflow-hidden transition-colors cursor-grab active:cursor-grabbing touch-none select-none ${
         isDragging ? 'opacity-50 ring-2 ring-primary' : 'hover:border-primary'
       }`}
     >
-      {thumbnailUrl && (
-        <div className="aspect-video w-full bg-muted relative">
-          <Image
-            src={thumbnailUrl}
-            alt={`Miniatura de ${exercise.name}`}
-            fill
-            className="object-cover"
-            sizes="(max-width: 512px) 100vw, 512px"
-          />
-        </div>
-      )}
-      <div className="p-3">
-        <div className="flex items-start justify-between">
-          <div className="flex-1 min-w-0">
-            <h4 className="font-medium truncate">{exercise.name}</h4>
-            {exercise.description && (
-              <p className="text-sm text-muted-foreground line-clamp-1 mt-1">
-                {exercise.description}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
+      <div className="aspect-video w-full shrink-0 bg-muted relative">
+        <Image
+          src={thumbnailUrl ?? fallbackThumbnail}
+          alt={`Miniatura de ${exercise.name}`}
+          fill
+          className="object-cover"
+          sizes="(max-width: 512px) 100vw, 512px"
+        />
+      </div>
+      <div className="p-3 flex-1 min-h-0 flex flex-col">
+        <h4 className="font-medium truncate">{exercise.name}</h4>
+        {exercise.description && (
+          <p className="text-sm text-muted-foreground line-clamp-2 mt-1 shrink-0">
+            {exercise.description}
+          </p>
+        )}
+        <div className="flex items-center gap-2 mt-2 flex-wrap min-h-0">
           {exercise.category && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-xs shrink-0">
               {exercise.category}
             </Badge>
           )}
           {exercise.equipment && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground truncate min-w-0">
               {exercise.equipment}
             </span>
           )}
