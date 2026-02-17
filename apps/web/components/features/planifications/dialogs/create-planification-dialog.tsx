@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
 import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 import { api } from '@/convex/_generated/api'
 import {
   planificationBasicInfoSchema,
@@ -23,9 +24,11 @@ import { toast } from 'sonner'
 export default function CreatePlanificationDialog({
   open,
   onOpenChange,
+  folderId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  folderId?: string
 }) {
   const router = useRouter()
   const createPlanification = useMutation(api.planifications.create)
@@ -39,6 +42,18 @@ export default function CreatePlanificationDialog({
       isTemplate: false,
     },
   })
+
+  // Reset form when dialog opens or folderId changes
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: '',
+        description: '',
+        folderId: folderId as any,
+        isTemplate: false,
+      })
+    }
+  }, [open, folderId, form])
 
   const onSubmit = form.handleSubmit(async (data) => {
     try {

@@ -29,11 +29,14 @@ export const create = mutation({
 
     const now = Date.now()
 
+    // Templates must not belong to any folder
+    const folderId = args.isTemplate ? undefined : args.folderId
+
     return await ctx.db.insert('planifications', {
       organizationId: membership.organizationId,
       name: args.name,
       description: args.description,
-      folderId: args.folderId,
+      folderId,
       isTemplate: args.isTemplate,
       createdBy: identity.subject,
       createdAt: now,
@@ -65,10 +68,14 @@ export const update = mutation({
 
     const { id, ...updates } = args
 
-    await ctx.db.patch(id, {
-      ...updates,
-      updatedAt: Date.now(),
-    })
+    // Templates must not belong to any folder
+    const patch: Record<string, unknown> = { ...updates, updatedAt: Date.now() }
+    const isTemplate = updates.isTemplate ?? planification.isTemplate
+    if (isTemplate) {
+      patch.folderId = undefined
+    }
+
+    await ctx.db.patch(id, patch)
   },
 })
 
@@ -283,12 +290,14 @@ export const getByFolder = query({
 
     if (!membership) return []
 
-    // Root level (Todas): return all planifications for the organization
+    // Root level (Todas): return only non-template planifications
     if (args.folderId === undefined) {
       return await ctx.db
         .query('planifications')
-        .withIndex('by_organization', (q) =>
-          q.eq('organizationId', membership.organizationId)
+        .withIndex('by_organization_isTemplate', (q) =>
+          q
+            .eq('organizationId', membership.organizationId)
+            .eq('isTemplate', false)
         )
         .collect()
     }
@@ -301,5 +310,36 @@ export const getByFolder = query({
           .eq('folderId', args.folderId)
       )
       .collect()
+  },
+})
+
+/**
+ * Get all templates for the current user's organization.
+ * Templates are planifications with isTemplate: true and no folder.
+ */
+export const getTemplates = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const membership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
+      .first()
+
+    if (!membership) return []
+
+    const templates = await ctx.db
+      .query('planifications')
+      .withIndex('by_organization_isTemplate', (q) =>
+        q
+          .eq('organizationId', membership.organizationId)
+          .eq('isTemplate', true)
+      )
+      .collect()
+
+    // Sort by updatedAt descending (most recently updated first)
+    return templates.sort((a, b) => b.updatedAt - a.updatedAt)
   },
 })

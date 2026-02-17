@@ -117,7 +117,8 @@ export default defineSchema({
     .index('by_organization', ['organizationId'])
     .index('by_folder', ['folderId'])
     .index('by_created_by', ['createdBy'])
-    .index('by_organization_folder', ['organizationId', 'folderId']),
+    .index('by_organization_folder', ['organizationId', 'folderId'])
+    .index('by_organization_isTemplate', ['organizationId', 'isTemplate']),
 
   // Workout Weeks - Weeks within a planification
   workoutWeeks: defineTable({

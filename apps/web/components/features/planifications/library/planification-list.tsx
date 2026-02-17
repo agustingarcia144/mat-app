@@ -162,12 +162,14 @@ export default function PlanificationList({
 
   if (planifications.length === 0) {
     return (
-      <div className="text-center py-12 border rounded-lg border-dashed">
-        <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-        <h3 className="font-medium mb-1">No hay planificaciones</h3>
-        <p className="text-sm text-muted-foreground">
-          Crea tu primera planificación para comenzar
-        </p>
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="text-center">
+          <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+          <h3 className="font-medium mb-1">No hay planificaciones</h3>
+          <p className="text-sm text-muted-foreground">
+            Crea tu primera planificación para comenzar
+          </p>
+        </div>
       </div>
     )
   }

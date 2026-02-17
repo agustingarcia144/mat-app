@@ -119,7 +119,9 @@ export default function PlanificationViewPage({
           </div>
 
           <div className="flex items-center gap-3">
-            {assignments && assignments.length > 0 && (
+            {!planification.isTemplate &&
+              assignments &&
+              assignments.length > 0 && (
               <AvatarGroup>
                 {assignments.slice(0, 3).map((assignment) => {
                   const user = assignment.user
@@ -180,16 +182,20 @@ export default function PlanificationViewPage({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() => setAssignedMembersDialogOpen(true)}
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Ver Asignados
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setAssignDialogOpen(true)}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Asignar
-                </DropdownMenuItem>
+                {!planification.isTemplate && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => setAssignedMembersDialogOpen(true)}
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      Ver Asignados
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setAssignDialogOpen(true)}>
+                      <Users className="h-4 w-4 mr-2" />
+                      Asignar
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuItem asChild>
                   <Link href={`/dashboard/planifications/${id}/edit`}>
                     <Edit className="h-4 w-4 mr-2" />
@@ -224,17 +230,21 @@ export default function PlanificationViewPage({
         planification={planification}
         onSuccess={() => router.push('/dashboard/planifications')}
       />
-      <AssignDialog
-        open={assignDialogOpen}
-        onOpenChange={setAssignDialogOpen}
-        planificationId={id}
-      />
-      <AssignedMembersDialog
-        open={assignedMembersDialogOpen}
-        onOpenChange={setAssignedMembersDialogOpen}
-        assignments={assignments || []}
-        planificationName={planification.name}
-      />
+      {!planification.isTemplate && (
+        <>
+          <AssignDialog
+            open={assignDialogOpen}
+            onOpenChange={setAssignDialogOpen}
+            planificationId={id}
+          />
+          <AssignedMembersDialog
+            open={assignedMembersDialogOpen}
+            onOpenChange={setAssignedMembersDialogOpen}
+            assignments={assignments || []}
+            planificationName={planification.name}
+          />
+        </>
+      )}
 
       <div className="space-y-6">
         {workoutWeeks.length === 0 ? (

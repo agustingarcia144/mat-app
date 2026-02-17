@@ -16,6 +16,14 @@ export const assign = mutation({
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
 
+    const planification = await ctx.db.get(args.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    if (planification.isTemplate) {
+      throw new Error('No se pueden asignar plantillas a miembros')
+    }
+
     // Get user's organization
     const membership = await ctx.db
       .query('organizationMemberships')
