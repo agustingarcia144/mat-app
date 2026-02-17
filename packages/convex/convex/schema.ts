@@ -173,6 +173,7 @@ export default defineSchema({
     sets: v.number(),
     reps: v.string(), // Can be "10", "10-12", "AMRAP", etc.
     weight: v.optional(v.string()), // e.g., "50kg", "BW", "25lb"
+    timeSeconds: v.optional(v.number()), // Time in seconds (e.g. plank duration)
     notes: v.optional(v.string()),
     // Timestamps
     createdAt: v.number(),

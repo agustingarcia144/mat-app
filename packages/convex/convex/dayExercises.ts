@@ -14,6 +14,7 @@ export const create = mutation({
     sets: v.number(),
     reps: v.string(),
     weight: v.optional(v.string()),
+    timeSeconds: v.optional(v.number()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -37,6 +38,7 @@ export const create = mutation({
       sets: args.sets,
       reps: args.reps,
       weight: args.weight,
+      timeSeconds: args.timeSeconds,
       notes: args.notes,
       createdAt: now,
       updatedAt: now,
@@ -54,6 +56,7 @@ export const update = mutation({
     sets: v.optional(v.number()),
     reps: v.optional(v.string()),
     weight: v.optional(v.string()),
+    timeSeconds: v.optional(v.number()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

@@ -7,6 +7,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getVideoThumbnailUrl } from '@repo/core/utils'
 import Image from 'next/image'
 import ExerciseVideoDialog from '@/components/features/planifications/exercises/exercise-video-dialog'
+import matWolfFallback from '@/assets/mat-wolf-looking.png'
+
+function formatTimeSeconds(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return mins > 0 && secs > 0
+    ? `${mins} min ${secs} s`
+    : mins > 0
+      ? `${mins} min`
+      : `${secs} s`
+}
 
 export default function WorkoutDayCard({ day }: { day: any }) {
   const [videoDialogOpen, setVideoDialogOpen] = useState(false)
@@ -27,7 +38,10 @@ export default function WorkoutDayCard({ day }: { day: any }) {
 
   const { exercisesByBlock, unblockedExercises } = useMemo(() => {
     if (!dayExercises || !blocks) {
-      return { exercisesByBlock: new Map<string, ExerciseType[]>(), unblockedExercises: [] as ExerciseType[] }
+      return {
+        exercisesByBlock: new Map<string, ExerciseType[]>(),
+        unblockedExercises: [] as ExerciseType[],
+      }
     }
 
     const byBlock = new Map<string, ExerciseType[]>()
@@ -99,26 +113,25 @@ export default function WorkoutDayCard({ day }: { day: any }) {
                           <span className="text-sm font-medium text-muted-foreground w-6 shrink-0">
                             {i + 1}.
                           </span>
-                          {thumbnailUrl && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openVideoDialog(
-                                  ex.exercise?.videoUrl ?? '',
-                                  ex.exercise?.name || 'Ejercicio'
-                                )
-                              }
-                              className="relative shrink-0 w-16 h-16 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
-                            >
-                              <Image
-                                src={thumbnailUrl}
-                                alt={`Video de ${ex.exercise?.name || 'ejercicio'}`}
-                                fill
-                                className="object-cover"
-                                sizes="64px"
-                              />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              ex.exercise?.videoUrl &&
+                              openVideoDialog(
+                                ex.exercise.videoUrl,
+                                ex.exercise?.name || 'Ejercicio'
+                              )
+                            }
+                            className="relative shrink-0 w-16 h-16 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
+                          >
+                            <Image
+                              src={thumbnailUrl ?? matWolfFallback}
+                              alt={`Video de ${ex.exercise?.name || 'ejercicio'}`}
+                              fill
+                              className="object-cover"
+                              sizes="64px"
+                            />
+                          </button>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium">
                               {ex.exercise?.name || 'Ejercicio eliminado'}
@@ -137,6 +150,14 @@ export default function WorkoutDayCard({ day }: { day: any }) {
                               <>
                                 <span className="text-muted-foreground">@</span>
                                 <span className="font-medium">{ex.weight}</span>
+                              </>
+                            )}
+                            {ex.timeSeconds != null && ex.timeSeconds > 0 && (
+                              <>
+                                <span className="text-muted-foreground">·</span>
+                                <span className="font-medium">
+                                  {formatTimeSeconds(ex.timeSeconds)}
+                                </span>
                               </>
                             )}
                           </div>
@@ -168,26 +189,25 @@ export default function WorkoutDayCard({ day }: { day: any }) {
                       <span className="text-sm font-medium text-muted-foreground w-6 shrink-0">
                         {i + 1}.
                       </span>
-                      {thumbnailUrl && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openVideoDialog(
-                              ex.exercise?.videoUrl ?? '',
-                              ex.exercise?.name || 'Ejercicio'
-                            )
-                          }
-                          className="relative shrink-0 w-16 h-16 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
-                        >
-                          <Image
-                            src={thumbnailUrl}
-                            alt={`Video de ${ex.exercise?.name || 'ejercicio'}`}
-                            fill
-                            className="object-cover"
-                            sizes="64px"
-                          />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          ex.exercise?.videoUrl &&
+                          openVideoDialog(
+                            ex.exercise.videoUrl,
+                            ex.exercise?.name || 'Ejercicio'
+                          )
+                        }
+                        className="relative shrink-0 w-16 h-16 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
+                      >
+                        <Image
+                          src={thumbnailUrl ?? matWolfFallback}
+                          alt={`Video de ${ex.exercise?.name || 'ejercicio'}`}
+                          fill
+                          className="object-cover"
+                          sizes="64px"
+                        />
+                      </button>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium">
                           {ex.exercise?.name || 'Ejercicio eliminado'}
@@ -206,6 +226,14 @@ export default function WorkoutDayCard({ day }: { day: any }) {
                           <>
                             <span className="text-muted-foreground">@</span>
                             <span className="font-medium">{ex.weight}</span>
+                          </>
+                        )}
+                        {ex.timeSeconds != null && ex.timeSeconds > 0 && (
+                          <>
+                            <span className="text-muted-foreground">·</span>
+                            <span className="font-medium">
+                              {formatTimeSeconds(ex.timeSeconds)}
+                            </span>
                           </>
                         )}
                       </div>

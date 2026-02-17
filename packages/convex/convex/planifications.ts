@@ -220,6 +220,7 @@ export const duplicate = mutation({
             sets: exercise.sets,
             reps: exercise.reps,
             weight: exercise.weight,
+            timeSeconds: exercise.timeSeconds,
             notes: exercise.notes,
             createdAt: now,
             updatedAt: now,

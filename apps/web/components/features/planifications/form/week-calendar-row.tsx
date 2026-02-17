@@ -376,6 +376,7 @@ export default function WeekCalendarRow({
           sets: 3,
           reps: '10',
           weight: '',
+          timeSeconds: undefined,
           notes: '',
         },
       ],

@@ -24,6 +24,8 @@ export const dayExerciseSchema = z.object({
   sets: z.number().min(1, 'Debe tener al menos 1 serie').int(),
   reps: z.string().min(1, 'Las repeticiones son requeridas'),
   weight: z.string().optional(),
+  /** Time in seconds (always stored in seconds; UI may display/input in minutes) */
+  timeSeconds: z.number().int().min(0).optional(),
   notes: z.string().optional(),
 })
 

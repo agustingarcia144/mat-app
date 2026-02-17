@@ -1,5 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+import { useMutation } from 'convex/react'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import {
   Dialog,
   DialogContent,
@@ -9,9 +13,11 @@ import {
 } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Calendar, User } from 'lucide-react'
+import { Calendar, User, UserMinus } from 'lucide-react'
+import { toast } from 'sonner'
 import StatusBadge from '../../../shared/badges/status-badge'
 
 interface AssignedMembersDialogProps {
@@ -27,6 +33,22 @@ export default function AssignedMembersDialog({
   assignments,
   planificationName,
 }: AssignedMembersDialogProps) {
+  const unassign = useMutation(api.planificationAssignments.unassign)
+  const [unassigningId, setUnassigningId] = useState<Id<'planificationAssignments'> | null>(null)
+
+  const handleUnassign = async (assignmentId: Id<'planificationAssignments'>) => {
+    setUnassigningId(assignmentId)
+    try {
+      await unassign({ id: assignmentId })
+      toast.success('Miembro desasignado')
+    } catch (error) {
+      console.error('Failed to unassign:', error)
+      toast.error('Error al desasignar')
+    } finally {
+      setUnassigningId(null)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
@@ -121,6 +143,16 @@ export default function AssignedMembersDialog({
                         </p>
                       )}
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => handleUnassign(assignment._id)}
+                      disabled={unassigningId === assignment._id}
+                    >
+                      <UserMinus className="h-4 w-4 mr-1.5" />
+                      {unassigningId === assignment._id ? 'Desasignando...' : 'Desasignar'}
+                    </Button>
                   </div>
                 )
               })}

@@ -74,6 +74,7 @@ function EditFormShell({
             sets: ex.sets,
             reps: ex.reps,
             weight: ex.weight || '',
+            timeSeconds: ex.timeSeconds,
             notes: ex.notes || '',
           })),
         }
@@ -260,6 +261,7 @@ function EditFormShell({
                     sets: exercise.sets,
                     reps: exercise.reps,
                     weight: exercise.weight,
+                    timeSeconds: exercise.timeSeconds,
                     notes: exercise.notes,
                   })
                 }
@@ -274,6 +276,7 @@ function EditFormShell({
                 sets: exercise.sets,
                 reps: exercise.reps,
                 weight: exercise.weight,
+                timeSeconds: exercise.timeSeconds,
                 notes: exercise.notes,
               })
             }

@@ -161,7 +161,7 @@ export const getByUser = query({
 })
 
 /**
- * Get assignments for a planification
+ * Get assignments for a planification (excludes cancelled / unassigned)
  */
 export const getByPlanification = query({
   args: {
@@ -171,12 +171,13 @@ export const getByPlanification = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    const assignments = await ctx.db
+    const allAssignments = await ctx.db
       .query('planificationAssignments')
       .withIndex('by_planification', (q) =>
         q.eq('planificationId', args.planificationId)
       )
       .collect()
+    const assignments = allAssignments.filter((a) => a.status !== 'cancelled')
 
     // Fetch user details for each assignment
     const withUserDetails = await Promise.all(

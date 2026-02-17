@@ -37,14 +37,27 @@ interface ExerciseFormCardProps {
 function formatSetsRepsWeight(
   sets: number | undefined,
   reps: string | undefined,
-  weight: string | undefined
+  weight: string | undefined,
+  timeSeconds: number | undefined
 ): string {
   const parts: string[] = []
   if (sets != null && !Number.isNaN(sets)) parts.push(`${sets} ×`)
   if (reps?.trim()) parts.push(reps.trim())
   const main = parts.join(' ')
-  if (weight?.trim()) return `${main} · ${weight.trim()} kg`
-  return main || '—'
+  let suffix = ''
+  if (weight?.trim()) suffix = ` · ${weight.trim()} kg`
+  if (timeSeconds != null && timeSeconds > 0) {
+    const mins = Math.floor(timeSeconds / 60)
+    const secs = timeSeconds % 60
+    const timeStr =
+      mins > 0 && secs > 0
+        ? `${mins} min ${secs} s`
+        : mins > 0
+          ? `${mins} min`
+          : `${secs} s`
+    suffix = suffix ? `${suffix} · ${timeStr}` : ` · ${timeStr}`
+  }
+  return (main || '—') + suffix
 }
 
 export default function ExerciseFormCard({
@@ -60,6 +73,8 @@ export default function ExerciseFormCard({
   const [localSets, setLocalSets] = useState<number>(1)
   const [localReps, setLocalReps] = useState<string>('')
   const [localWeight, setLocalWeight] = useState<string>('')
+  const [localTimeMinutes, setLocalTimeMinutes] = useState<string>('')
+  const [localTimeSeconds, setLocalTimeSeconds] = useState<string>('')
   const [saveError, setSaveError] = useState<{
     sets?: string
     reps?: string
@@ -88,6 +103,14 @@ export default function ExerciseFormCard({
     setLocalSets(ex?.sets ?? 1)
     setLocalReps(ex?.reps ?? '')
     setLocalWeight(ex?.weight ?? '')
+    const ts = ex?.timeSeconds
+    if (ts != null && ts > 0) {
+      setLocalTimeMinutes(String(Math.floor(ts / 60)))
+      setLocalTimeSeconds(String(ts % 60))
+    } else {
+      setLocalTimeMinutes('')
+      setLocalTimeSeconds('')
+    }
     setSaveError(null)
     setDialogOpen(true)
   }, [form, weekIndex, dayIndex, exerciseIndex])
@@ -112,6 +135,16 @@ export default function ExerciseFormCard({
     form.setValue(`${basePath}.weight` as any, localWeight?.trim() ?? '', {
       shouldDirty: true,
     })
+    const mins = Math.max(0, Math.floor(Number(localTimeMinutes?.trim()) || 0))
+    const secs = Math.max(
+      0,
+      Math.min(59, Math.floor(Number(localTimeSeconds?.trim()) || 0))
+    )
+    const timeSecondsToSave =
+      mins > 0 || secs > 0 ? mins * 60 + secs : undefined
+    form.setValue(`${basePath}.timeSeconds` as any, timeSecondsToSave, {
+      shouldDirty: true,
+    })
     form.trigger(`${basePath}` as any).catch(() => {})
     setDialogOpen(false)
   }
@@ -119,7 +152,8 @@ export default function ExerciseFormCard({
   const summaryText = formatSetsRepsWeight(
     exercise?.sets,
     exercise?.reps,
-    exercise?.weight
+    exercise?.weight,
+    exercise?.timeSeconds
   )
 
   return (
@@ -189,7 +223,7 @@ export default function ExerciseFormCard({
 
           <div className="space-y-4 py-2">
             {thumbnailUrl && (
-              <div className="relative h-32 w-full rounded-md overflow-hidden bg-muted">
+              <div className="relative h-64 w-full rounded-md overflow-hidden bg-muted">
                 <Image
                   src={thumbnailUrl}
                   alt=""
@@ -207,12 +241,11 @@ export default function ExerciseFormCard({
                 </label>
                 <Input
                   type="number"
-                  min={1}
                   value={localSets}
                   onChange={(e) =>
-                    setLocalSets(parseInt(e.target.value, 10) || 1)
+                    setLocalSets(parseInt(e.target.value, 10) || 0)
                   }
-                  placeholder="S"
+                  placeholder="Series"
                   className="h-9"
                 />
                 {saveError?.sets && (
@@ -224,7 +257,7 @@ export default function ExerciseFormCard({
                 <Input
                   value={localReps}
                   onChange={(e) => setLocalReps(e.target.value)}
-                  placeholder="R"
+                  placeholder="Repeticiones"
                   className="h-9"
                 />
                 {saveError?.reps && (
@@ -241,6 +274,40 @@ export default function ExerciseFormCard({
                   placeholder="Opcional"
                   className="h-9"
                 />
+              </Field>
+              <Field>
+                <label className="text-sm font-medium block mb-1.5">
+                  Tiempo
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={localTimeMinutes}
+                      onChange={(e) => setLocalTimeMinutes(e.target.value)}
+                      placeholder="0"
+                      className="h-9 w-20"
+                    />
+                    <span className="text-sm text-muted-foreground shrink-0">
+                      min
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={localTimeSeconds}
+                      onChange={(e) => setLocalTimeSeconds(e.target.value)}
+                      placeholder="0"
+                      className="h-9 w-20"
+                    />
+                    <span className="text-sm text-muted-foreground shrink-0">
+                      seg
+                    </span>
+                  </div>
+                </div>
               </Field>
             </div>
           </div>

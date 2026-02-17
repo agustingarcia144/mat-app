@@ -42,6 +42,7 @@ function normalizedDaySignature(day: DayForCompare | null | undefined): string {
     sets: e.sets,
     reps: e.reps,
     weight: e.weight ?? '',
+    timeSeconds: e.timeSeconds,
     notes: e.notes ?? '',
   }))
   return JSON.stringify({
@@ -484,6 +485,7 @@ export function DayEditPageContent({
             sets: 3,
             reps: '10',
             weight: '',
+            timeSeconds: undefined,
             notes: '',
           },
         ],
