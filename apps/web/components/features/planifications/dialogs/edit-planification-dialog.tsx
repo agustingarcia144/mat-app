@@ -55,6 +55,16 @@ export default function EditPlanificationDialog({
     }
   }, [open, contextForm, form])
 
+  // Radix Dialog can leave body with pointer-events: none when closed (controlled from outside). Reset so the page stays clickable.
+  useEffect(() => {
+    if (!open) {
+      const id = setTimeout(() => {
+        document.body.style.pointerEvents = ''
+      }, 0)
+      return () => clearTimeout(id)
+    }
+  }, [open])
+
   const onSubmit = form.handleSubmit(async (data) => {
     try {
       await updatePlanification({

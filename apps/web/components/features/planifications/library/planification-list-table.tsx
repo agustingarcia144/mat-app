@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, Calendar, MoreVertical } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -83,15 +84,13 @@ function PlanificationTableRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  router.push(
-                    `/dashboard/planifications/${planification._id}/edit`
-                  )
-                }}
-              >
-                Editar
+              <DropdownMenuItem asChild>
+                <Link
+                  href={`/dashboard/planifications/${planification._id}/edit`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Editar
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useState } from 'react'
+import { use, useState, useEffect } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,16 @@ export default function EditPlanificationPage({
   const planification = useQuery(api.planifications.getById, {
     id: id as any,
   })
+
+  // Radix (e.g. DropdownMenu) can leave body with pointer-events: none when
+  // closing during navigation, making the new page unclickable. Clear it on mount.
+  useEffect(() => {
+    const cleanup = () => {
+      document.body.style.pointerEvents = ''
+    }
+    cleanup()
+    return () => cleanup()
+  }, [])
 
   if (planification === undefined) {
     return (
