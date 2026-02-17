@@ -159,6 +159,7 @@ export const scheduleFormSchema = z.object({
     .number()
     .min(15, 'Mínimo 15 minutos')
     .max(480, 'Máximo 8 horas'),
+  endDate: z.date().optional(), // Optional end date for generation (from Generate Schedules dialog)
 })
 
 

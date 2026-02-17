@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -16,20 +16,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Calendar } from '@/components/ui/calendar'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import {
   Field,
   FieldLabel,
   FieldDescription,
   FieldError,
 } from '@/components/ui/field'
-import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Calendar as CalendarIcon } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import type { DateRange } from 'react-day-picker'
 import { type Id } from '@/convex/_generated/dataModel'
 import { scheduleFormSchema, z } from '@repo/core/schemas'
 import { toast } from 'sonner'
@@ -55,7 +48,6 @@ export default function GenerateSchedulesDialog({
 }: GenerateSchedulesDialogProps) {
   const generateSchedules = useMutation(api.classes.generateSchedules)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [calendarOpen, setCalendarOpen] = useState(false)
 
   const form = useForm<ScheduleFormValues>({
     resolver: zodResolver(scheduleFormSchema) as any,
@@ -63,15 +55,26 @@ export default function GenerateSchedulesDialog({
       startDate: new Date(),
       startTime: '09:00',
       duration: 60,
+      endDate: undefined,
     },
   })
 
   const {
     register,
     handleSubmit,
-    control,
+    watch,
+    setValue,
     formState: { errors },
   } = form
+
+  const startDate = watch('startDate')
+  const endDate = watch('endDate')
+  const dateRange: DateRange | undefined = startDate
+    ? { from: startDate, to: endDate ?? undefined }
+    : undefined
+
+  const todayStart = new Date()
+  todayStart.setHours(0, 0, 0, 0)
 
   const onSubmit = async (data: ScheduleFormValues) => {
     setIsSubmitting(true)
@@ -89,6 +92,9 @@ export default function GenerateSchedulesDialog({
         startDate: startTime,
         endTime,
         daysToGenerate: isRecurring ? 90 : undefined,
+        endDate: data.endDate
+          ? new Date(data.endDate).setHours(23, 59, 59, 999)
+          : undefined,
       })
 
       console.log('Schedules generated:', result)
@@ -107,53 +113,38 @@ export default function GenerateSchedulesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Generar Horarios</DialogTitle>
           <DialogDescription>
             Crear horarios para la clase &quot;{classTitle}&quot;
-            {isRecurring && ' (se generarán los próximos 90 días)'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4">
-          {/* Start Date */}
+          {/* Date range: start and optional end */}
           <Field>
-            <FieldLabel>Fecha de inicio</FieldLabel>
-            <Controller
-              name="startDate"
-              control={control}
-              render={({ field }) => (
-                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal',
-                        !field.value && 'text-muted-foreground'
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {field.value
-                        ? format(field.value, 'PPP', { locale: es })
-                        : 'Seleccionar fecha'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={(date) => {
-                        field.onChange(date)
-                        setCalendarOpen(false)
-                      }}
-                      disabled={(date) =>
-                        date < new Date(new Date().setHours(0, 0, 0, 0))
-                      }
-                    />
-                  </PopoverContent>
-                </Popover>
-              )}
+            <FieldLabel>Rango de fechas</FieldLabel>
+            <FieldDescription>
+              Selecciona la fecha de inicio y, opcionalmente, la fecha de fin.
+              Si no seleccionas fin, se generarán horarios hasta 90 días desde
+              el inicio.
+            </FieldDescription>
+            <Calendar
+              mode="range"
+              defaultMonth={dateRange?.from}
+              selected={dateRange}
+              onSelect={(range) => {
+                if (range?.from) {
+                  setValue('startDate', range.from)
+                  setValue('endDate', range.to ?? undefined)
+                }
+              }}
+              numberOfMonths={2}
+              showOutsideDays={false}
+              locale={es}
+              disabled={(date) => date < todayStart}
+              className="rounded-md border"
             />
             {errors.startDate && (
               <FieldError>{errors.startDate.message}</FieldError>
@@ -164,7 +155,6 @@ export default function GenerateSchedulesDialog({
           <Field>
             <FieldLabel>Hora de inicio</FieldLabel>
             <Input type="time" {...register('startTime')} placeholder="09:00" />
-            <FieldDescription>Formato 24 horas (ej: 14:30)</FieldDescription>
             {errors.startTime && (
               <FieldError>{errors.startTime.message}</FieldError>
             )}

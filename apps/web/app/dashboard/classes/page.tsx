@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/ui/skeleton'
 import ClassFormDialog from '@/components/features/classes/dialogs/class-form-dialog'
 import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule-detail-dialog'
 import WeeklyTimeline from '@/components/features/classes/calendar/weekly-timeline'
@@ -23,11 +24,17 @@ import { type Id } from '@/convex/_generated/dataModel'
 
 export default function ClassesPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedView, setSelectedView] = useState<'calendar' | 'list'>('calendar')
+  const [selectedView, setSelectedView] = useState<'calendar' | 'list'>(
+    'calendar'
+  )
   const [classFormOpen, setClassFormOpen] = useState(false)
-  const [editingClassId, setEditingClassId] = useState<Id<'classes'> | undefined>()
+  const [editingClassId, setEditingClassId] = useState<
+    Id<'classes'> | undefined
+  >()
   const [scheduleDetailOpen, setScheduleDetailOpen] = useState(false)
-  const [selectedScheduleId, setSelectedScheduleId] = useState<Id<'classSchedules'> | undefined>()
+  const [selectedScheduleId, setSelectedScheduleId] = useState<
+    Id<'classSchedules'> | undefined
+  >()
   const [classFilter, setClassFilter] = useState<string>('all')
 
   const classes = useQuery(api.classes.getByOrganization, { activeOnly: false })
@@ -40,19 +47,16 @@ export default function ClassesPage() {
   const goToNextWeek = () => setCurrentDate((d) => addDays(d, 7))
   const goToToday = () => setCurrentDate(new Date())
 
-  const schedules = useQuery(
-    api.classSchedules.getByOrganizationAndDateRange,
-    {
-      startDate: weekStart.getTime(),
-      endDate: weekEnd.getTime(),
-      classId: classFilter === 'all' ? undefined : (classFilter as Id<'classes'>),
-    }
-  )
+  const schedules = useQuery(api.classSchedules.getByOrganizationAndDateRange, {
+    startDate: weekStart.getTime(),
+    endDate: weekEnd.getTime(),
+    classId: classFilter === 'all' ? undefined : (classFilter as Id<'classes'>),
+  })
 
   // Enrich schedules with class data
   const enrichedSchedules = useMemo(() => {
     if (!schedules || !classes) return []
-    
+
     return schedules.map((schedule) => ({
       ...schedule,
       class: classes.find((c) => c._id === schedule.classId),
@@ -102,7 +106,10 @@ export default function ClassesPage() {
 
       {/* View toggle and filters */}
       <div className="flex items-center justify-between">
-        <Tabs value={selectedView} onValueChange={(v) => setSelectedView(v as 'calendar' | 'list')}>
+        <Tabs
+          value={selectedView}
+          onValueChange={(v) => setSelectedView(v as 'calendar' | 'list')}
+        >
           <TabsList>
             <TabsTrigger value="calendar" className="gap-2">
               <Calendar className="h-4 w-4" />
@@ -163,22 +170,43 @@ export default function ClassesPage() {
             </div>
             <h2 className="text-lg font-semibold">
               {format(weekStart, 'd', { locale: es })} -{' '}
-              {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", { locale: es })}
+              {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", {
+                locale: es,
+              })}
             </h2>
           </div>
 
           {schedules === undefined ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">Cargando calendario...</p>
-            </div>
-          ) : enrichedSchedules.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">
-                No hay clases programadas para esta semana
-              </p>
-              <Button onClick={handleNewClass} className="mt-4">
-                Crear primera clase
-              </Button>
+            <div className="border rounded-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <div className="min-w-[800px]">
+                  {/* Day headers */}
+                  <div className="grid grid-cols-8 bg-muted">
+                    <Skeleton className="h-14 rounded-none border-r border-b border-border" />
+                    {Array.from({ length: 7 }).map((_, i) => (
+                      <Skeleton
+                        key={i}
+                        className="h-14 rounded-none border-r border-b border-border"
+                      />
+                    ))}
+                  </div>
+                  {/* Time rows */}
+                  {Array.from({ length: 12 }).map((_, rowIndex) => (
+                    <div
+                      key={rowIndex}
+                      className="grid grid-cols-8 border-b border-border last:border-b-0"
+                    >
+                      <Skeleton className="h-[60px] rounded-none border-r border-border" />
+                      {Array.from({ length: 7 }).map((_, colIndex) => (
+                        <Skeleton
+                          key={colIndex}
+                          className="h-[60px] rounded-none border-r border-border"
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
             <WeeklyTimeline
@@ -198,9 +226,7 @@ export default function ClassesPage() {
             </div>
           ) : classes.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">
-                No hay clases creadas
-              </p>
+              <p className="text-muted-foreground">No hay clases creadas</p>
               <Button onClick={handleNewClass} className="mt-4">
                 Crear primera clase
               </Button>

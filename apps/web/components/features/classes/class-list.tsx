@@ -1,43 +1,28 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { DataTable } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  CheckCircle2,
-  XCircle,
-  CalendarPlus,
-} from 'lucide-react'
-import { type ColumnDef } from '@tanstack/react-table'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { type Id } from '@/convex/_generated/dataModel'
 import GenerateSchedulesDialog from './dialogs/generate-schedules-dialog'
+import {
+  getClassListColumns,
+  type ClassRow,
+} from './class-list-columns'
 import { toast } from 'sonner'
 
 interface ClassListProps {
   onEditClass: (classId: Id<'classes'>) => void
-}
-
-type ClassRow = {
-  _id: Id<'classes'>
-  name: string
-  capacity: number
-  isRecurring: boolean
-  isActive: boolean
-  trainerId?: string
-  bookingWindowDays: number
-  cancellationWindowHours: number
 }
 
 export default function ClassList({ onEditClass }: ClassListProps) {
@@ -49,6 +34,11 @@ export default function ClassList({ onEditClass }: ClassListProps) {
   )
 
   const [deletingId, setDeletingId] = useState<Id<'classes'> | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [classToDelete, setClassToDelete] = useState<{
+    id: Id<'classes'>
+    name: string
+  } | null>(null)
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
   const [selectedClassForGenerate, setSelectedClassForGenerate] = useState<{
     id: Id<'classes'>
@@ -66,17 +56,18 @@ export default function ClassList({ onEditClass }: ClassListProps) {
     return map
   }, [memberships])
 
-  const handleDelete = async (id: Id<'classes'>) => {
-    if (
-      !confirm(
-        '¿Estás seguro de eliminar esta clase? Se eliminarán todas las clases futuras programadas.'
-      )
-    ) {
-      return
-    }
-    setDeletingId(id)
+  const handleDeleteClick = useCallback((classItem: ClassRow) => {
+    setClassToDelete({ id: classItem._id, name: classItem.name })
+    setDeleteConfirmOpen(true)
+  }, [])
+
+  const handleDeleteConfirm = async () => {
+    if (!classToDelete) return
+    setDeletingId(classToDelete.id)
+    setDeleteConfirmOpen(false)
     try {
-      await removeClass({ id })
+      await removeClass({ id: classToDelete.id })
+      toast.success('Clase eliminada correctamente')
     } catch (error) {
       console.error('Error deleting class:', error)
       toast.error(
@@ -84,162 +75,55 @@ export default function ClassList({ onEditClass }: ClassListProps) {
       )
     } finally {
       setDeletingId(null)
+      setClassToDelete(null)
     }
   }
 
-  const handleToggleActive = async (
-    id: Id<'classes'>,
-    currentActive: boolean
-  ) => {
-    try {
-      await updateClass({
-        id,
-        isActive: !currentActive,
-      })
-    } catch (error) {
-      console.error('Error toggling active:', error)
-      toast.error(
-        error instanceof Error ? error.message : 'Error al actualizar la clase'
-      )
-    }
-  }
+  const handleToggleActive = useCallback(
+    async (id: Id<'classes'>, currentActive: boolean) => {
+      try {
+        await updateClass({
+          id,
+          isActive: !currentActive,
+        })
+      } catch (error) {
+        console.error('Error toggling active:', error)
+        toast.error(
+          error instanceof Error ? error.message : 'Error al actualizar la clase'
+        )
+      }
+    },
+    [updateClass]
+  )
 
-  const handleGenerateSchedules = (classItem: ClassRow) => {
+  const handleGenerateSchedules = useCallback((classItem: ClassRow) => {
     setSelectedClassForGenerate({
       id: classItem._id,
       name: classItem.name,
       isRecurring: classItem.isRecurring,
     })
     setGenerateDialogOpen(true)
-  }
+  }, [])
 
-  const columns: ColumnDef<ClassRow>[] = [
-    {
-      accessorKey: 'name',
-      header: 'Nombre',
-      cell: ({ row }) => (
-        <div>
-          <div className="font-medium">{row.original.name}</div>
-          {row.original.trainerId && (
-            <div className="text-xs text-muted-foreground">
-              {trainersMap.get(row.original.trainerId)}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'capacity',
-      header: 'Capacidad',
-      cell: ({ row }) => (
-        <span className="font-mono">{row.original.capacity}</span>
-      ),
-    },
-    {
-      accessorKey: 'isRecurring',
-      header: 'Recurrente',
-      cell: ({ row }) =>
-        row.original.isRecurring ? (
-          <Badge variant="default">Sí</Badge>
-        ) : (
-          <Badge variant="secondary">No</Badge>
-        ),
-    },
-    {
-      accessorKey: 'bookingWindowDays',
-      header: 'Ventana reserva',
-      cell: ({ row }) => (
-        <span className="text-sm">
-          {row.original.bookingWindowDays}{' '}
-          {row.original.bookingWindowDays === 1 ? 'día' : 'días'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'cancellationWindowHours',
-      header: 'Ventana cancelación',
-      cell: ({ row }) => (
-        <span className="text-sm">
-          {row.original.cancellationWindowHours}{' '}
-          {row.original.cancellationWindowHours === 1 ? 'hora' : 'horas'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'isActive',
-      header: 'Estado',
-      cell: ({ row }) =>
-        row.original.isActive ? (
-          <Badge variant="default" className="gap-1">
-            <CheckCircle2 className="h-3 w-3" />
-            Activa
-          </Badge>
-        ) : (
-          <Badge variant="secondary" className="gap-1">
-            <XCircle className="h-3 w-3" />
-            Inactiva
-          </Badge>
-        ),
-    },
-    {
-      id: 'actions',
-      cell: ({ row }) => {
-        const classItem = row.original
-        const isDeleting = deletingId === classItem._id
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-8 w-8 p-0"
-                disabled={isDeleting}
-              >
-                <span className="sr-only">Abrir menú</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => handleGenerateSchedules(classItem)}
-              >
-                <CalendarPlus className="mr-2 h-4 w-4" />
-                Generar Horarios
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onEditClass(classItem._id)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() =>
-                  handleToggleActive(classItem._id, classItem.isActive)
-                }
-              >
-                {classItem.isActive ? (
-                  <>
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Desactivar
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Activar
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => handleDelete(classItem._id)}
-                className="text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      },
-    },
-  ]
+  const columns = useMemo(
+    () =>
+      getClassListColumns({
+        trainersMap,
+        deletingId,
+        onEditClass,
+        onGenerateSchedules: handleGenerateSchedules,
+        onToggleActive: handleToggleActive,
+        onDeleteClick: handleDeleteClick,
+      }),
+    [
+      trainersMap,
+      deletingId,
+      onEditClass,
+      handleGenerateSchedules,
+      handleToggleActive,
+      handleDeleteClick,
+    ]
+  )
 
   if (!classes) {
     return <div>Cargando...</div>
@@ -248,6 +132,39 @@ export default function ClassList({ onEditClass }: ClassListProps) {
   return (
     <div>
       <DataTable columns={columns} data={classes} />
+
+      <Dialog
+        open={deleteConfirmOpen}
+        onOpenChange={(open) => {
+          setDeleteConfirmOpen(open)
+          if (!open) setClassToDelete(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar clase</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de eliminar la clase &quot;{classToDelete?.name ?? ''}&quot;?
+              Se eliminarán todas las clases futuras programadas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deletingId !== null}
+            >
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {selectedClassForGenerate && (
         <GenerateSchedulesDialog

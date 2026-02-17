@@ -36,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Calendar } from '@/components/ui/calendar'
 import {
   Field,
   FieldLabel,
@@ -44,9 +43,7 @@ import {
   FieldError,
 } from '@/components/ui/field'
 import { classSchema, type ClassForm } from '@repo/core/schemas'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { Check, ChevronsUpDown, Calendar as CalendarIcon } from 'lucide-react'
+import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type Id } from '@/convex/_generated/dataModel'
 import { toast } from 'sonner'
@@ -68,6 +65,22 @@ const DAYS_OF_WEEK = [
   { value: 6, label: 'Sábado' },
 ]
 
+// Combined frequency + interval for single select (value: "frequency_interval")
+const RECURRENCE_FREQUENCY_OPTIONS = [
+  { value: 'hourly_1', label: 'Cada hora' },
+  { value: 'hourly_2', label: 'Cada 2 horas' },
+  { value: 'hourly_3', label: 'Cada 3 horas' },
+  { value: 'daily_1', label: 'Diaria' },
+  { value: 'daily_2', label: 'Cada 2 días' },
+  { value: 'daily_3', label: 'Cada 3 días' },
+  { value: 'weekly_1', label: 'Semanal' },
+  { value: 'weekly_2', label: 'Cada 2 semanas' },
+  { value: 'weekly_3', label: 'Cada 3 semanas' },
+  { value: 'monthly_1', label: 'Mensual' },
+  { value: 'monthly_2', label: 'Cada 2 meses' },
+  { value: 'monthly_3', label: 'Cada 3 meses' },
+] as const
+
 export default function ClassFormDialog({
   open,
   onOpenChange,
@@ -86,7 +99,6 @@ export default function ClassFormDialog({
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [trainerComboOpen, setTrainerComboOpen] = useState(false)
-  const [endDateCalendarOpen, setEndDateCalendarOpen] = useState(false)
 
   const form = useForm<ClassForm>({
     resolver: zodResolver(classSchema) as any,
@@ -374,48 +386,50 @@ export default function ClassFormDialog({
                 <Controller
                   name="recurrencePattern.frequency"
                   control={control}
-                  render={({ field }) => (
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar frecuencia" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="hourly">Cada hora</SelectItem>
-                        <SelectItem value="daily">Diaria</SelectItem>
-                        <SelectItem value="weekly">Semanal</SelectItem>
-                        <SelectItem value="monthly">Mensual</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
+                  render={({ field: freqField }) => {
+                    const interval = watch('recurrencePattern.interval') ?? 1
+                    const clamped = Math.min(Math.max(interval, 1), 3)
+                    const combinedValue = `${freqField.value ?? 'daily'}_${clamped}`
+                    const selectValue = RECURRENCE_FREQUENCY_OPTIONS.some(
+                      (o) => o.value === combinedValue
+                    )
+                      ? combinedValue
+                      : `${freqField.value ?? 'daily'}_1`
+                    return (
+                      <Select
+                        value={selectValue}
+                        onValueChange={(value) => {
+                          const [freq, intervalStr] = value.split('_')
+                          freqField.onChange(freq)
+                          setValue(
+                            'recurrencePattern.interval',
+                            parseInt(intervalStr ?? '1', 10)
+                          )
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar frecuencia" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {RECURRENCE_FREQUENCY_OPTIONS.map((opt) => (
+                            <SelectItem
+                              key={opt.value}
+                              value={opt.value}
+                            >
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )
+                  }}
                 />
                 {errors.recurrencePattern?.frequency && (
                   <FieldError>
                     {errors.recurrencePattern.frequency.message}
                   </FieldError>
                 )}
-              </Field>
-
-              <Field>
-                <FieldLabel>Intervalo</FieldLabel>
-                <Input
-                  type="number"
-                  {...register('recurrencePattern.interval', {
-                    valueAsNumber: true,
-                  })}
-                  min={1}
-                  placeholder="1"
-                />
-                <FieldDescription>
-                  Cada cuántos{' '}
-                  {frequency === 'hourly'
-                    ? 'horas'
-                    : frequency === 'daily'
-                      ? 'días'
-                      : frequency === 'weekly'
-                        ? 'semanas'
-                        : 'meses'}
-                </FieldDescription>
-                {errors.recurrencePattern?.interval && (
+                {(errors.recurrencePattern?.interval != null) && (
                   <FieldError>
                     {errors.recurrencePattern.interval.message}
                   </FieldError>
@@ -446,55 +460,6 @@ export default function ClassFormDialog({
                   )}
                 </Field>
               )}
-
-              <Field>
-                <FieldLabel>Fecha de fin (opcional)</FieldLabel>
-                <Controller
-                  name="recurrencePattern.endDate"
-                  control={control}
-                  render={({ field }) => (
-                    <Popover
-                      open={endDateCalendarOpen}
-                      onOpenChange={setEndDateCalendarOpen}
-                    >
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            'w-full justify-start text-left font-normal',
-                            !field.value && 'text-muted-foreground'
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {field.value
-                            ? format(new Date(field.value), 'PPP', {
-                                locale: es,
-                              })
-                            : 'Seleccionar fecha'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={
-                            field.value ? new Date(field.value) : undefined
-                          }
-                          onSelect={(date) => {
-                            field.onChange(date?.getTime())
-                            setEndDateCalendarOpen(false)
-                          }}
-                          disabled={(date) =>
-                            date < new Date(new Date().setHours(0, 0, 0, 0))
-                          }
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                />
-                <FieldDescription>
-                  Dejar vacío para repetir indefinidamente
-                </FieldDescription>
-              </Field>
             </div>
           )}
 

@@ -254,6 +254,7 @@ export const generateSchedules = mutation({
     startDate: v.number(), // First occurrence start time
     endTime: v.number(), // Duration (end time for first occurrence)
     daysToGenerate: v.optional(v.number()), // Default 90 days
+    endDate: v.optional(v.number()), // Optional end date (timestamp) from Generate Schedules dialog
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx)
@@ -285,6 +286,7 @@ export const generateSchedules = mutation({
     const pattern = classTemplate.recurrencePattern
     const daysToGenerate = args.daysToGenerate ?? 90
     const endDate =
+      args.endDate ??
       pattern.endDate ??
       args.startDate + daysToGenerate * 24 * 60 * 60 * 1000
     const duration = args.endTime - args.startDate
