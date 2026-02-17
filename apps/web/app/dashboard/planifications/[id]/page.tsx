@@ -91,173 +91,178 @@ export default function PlanificationViewPage({
   }
 
   return (
-    <div className="container mx-auto py-6 max-w-5xl">
-      <div className="mb-6">
-        <Button variant="ghost" size="sm" className="mb-4" asChild>
-          <Link href="/dashboard/planifications">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver a planificaciones
-          </Link>
-        </Button>
-
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold">{planification.name}</h1>
-              {planification.isTemplate && (
-                <Badge variant="secondary">Plantilla</Badge>
+    <div className="w-full py-6">
+      <Button variant="ghost" size="sm" className="mb-4" asChild>
+        <Link href="/dashboard/planifications">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Volver a planificaciones
+        </Link>
+      </Button>
+      <div className="container mx-auto py-6 max-w-5xl">
+        <div className="mb-6">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-3xl font-bold">{planification.name}</h1>
+                {planification.isTemplate && (
+                  <Badge variant="secondary">Plantilla</Badge>
+                )}
+              </div>
+              {planification.description && (
+                <p className="text-muted-foreground">
+                  {planification.description}
+                </p>
               )}
-            </div>
-            {planification.description && (
-              <p className="text-muted-foreground">
-                {planification.description}
+              <p className="text-sm text-muted-foreground mt-2">
+                Creado el {formatDate(planification.createdAt, 'dd/MM/yyyy')}
               </p>
-            )}
-            <p className="text-sm text-muted-foreground mt-2">
-              Creado el {formatDate(planification.createdAt, 'dd/MM/yyyy')}
-            </p>
-          </div>
+            </div>
 
-          <div className="flex items-center gap-3">
-            {!planification.isTemplate &&
-              assignments &&
-              assignments.length > 0 && (
-              <AvatarGroup>
-                {assignments.slice(0, 3).map((assignment) => {
-                  const user = assignment.user
-                  const initials = user?.fullName
-                    ? user.fullName
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')
-                        .toUpperCase()
-                        .slice(0, 2)
-                    : user?.email
-                      ? user.email[0].toUpperCase()
-                      : '?'
+            <div className="flex items-center gap-3">
+              {!planification.isTemplate &&
+                assignments &&
+                assignments.length > 0 && (
+                  <AvatarGroup>
+                    {assignments.slice(0, 3).map((assignment) => {
+                      const user = assignment.user
+                      const initials = user?.fullName
+                        ? user.fullName
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')
+                            .toUpperCase()
+                            .slice(0, 2)
+                        : user?.email
+                          ? user.email[0].toUpperCase()
+                          : '?'
 
-                  return (
-                    <Tooltip key={assignment._id}>
-                      <TooltipTrigger asChild>
-                        <Avatar key={assignment._id} className="h-8 w-8">
-                          {user?.imageUrl && (
-                            <AvatarImage
-                              src={user.imageUrl}
-                              alt={user.fullName || user.email || 'User'}
-                            />
-                          )}
-                          <AvatarFallback className="text-xs">
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {user?.fullName ||
-                          user?.email ||
-                          'Usuario no encontrado'}
-                      </TooltipContent>
-                    </Tooltip>
-                  )
-                })}
-                {assignments.length > 3 && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <AvatarGroupCount
-                        className="h-8 w-8 text-xs cursor-pointer hover:bg-muted/80 transition-colors"
+                      return (
+                        <Tooltip key={assignment._id}>
+                          <TooltipTrigger asChild>
+                            <Avatar key={assignment._id} className="h-8 w-8">
+                              {user?.imageUrl && (
+                                <AvatarImage
+                                  src={user.imageUrl}
+                                  alt={user.fullName || user.email || 'User'}
+                                />
+                              )}
+                              <AvatarFallback className="text-xs">
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {user?.fullName ||
+                              user?.email ||
+                              'Usuario no encontrado'}
+                          </TooltipContent>
+                        </Tooltip>
+                      )
+                    })}
+                    {assignments.length > 3 && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <AvatarGroupCount
+                            className="h-8 w-8 text-xs cursor-pointer hover:bg-muted/80 transition-colors"
+                            onClick={() => setAssignedMembersDialogOpen(true)}
+                          >
+                            +{assignments.length - 3}
+                          </AvatarGroupCount>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver Asignados</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </AvatarGroup>
+                )}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {!planification.isTemplate && (
+                    <>
+                      <DropdownMenuItem
                         onClick={() => setAssignedMembersDialogOpen(true)}
                       >
-                        +{assignments.length - 3}
-                      </AvatarGroupCount>
-                    </TooltipTrigger>
-                    <TooltipContent>Ver Asignados</TooltipContent>
-                  </Tooltip>
-                )}
-              </AvatarGroup>
-            )}
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {!planification.isTemplate && (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => setAssignedMembersDialogOpen(true)}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Ver Asignados
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setAssignDialogOpen(true)}>
-                      <Users className="h-4 w-4 mr-2" />
-                      Asignar
-                    </DropdownMenuItem>
-                  </>
-                )}
-                <DropdownMenuItem asChild>
-                  <Link href={`/dashboard/planifications/${id}/edit`}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Editar
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setDuplicateDialogOpen(true)}>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Duplicar
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setDeleteDialogOpen(true)}
-                  className="text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Eliminar
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                        <Users className="h-4 w-4 mr-2" />
+                        Ver Asignados
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setAssignDialogOpen(true)}
+                      >
+                        <Users className="h-4 w-4 mr-2" />
+                        Asignar
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link href={`/dashboard/planifications/${id}/edit`}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Editar
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setDuplicateDialogOpen(true)}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Duplicar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setDeleteDialogOpen(true)}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Eliminar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
-      </div>
 
-      <DuplicatePlanificationDialog
-        open={duplicateDialogOpen}
-        onOpenChange={setDuplicateDialogOpen}
-        planification={planification}
-      />
-      <DeletePlanificationDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        planification={planification}
-        onSuccess={() => router.push('/dashboard/planifications')}
-      />
-      {!planification.isTemplate && (
-        <>
-          <AssignDialog
-            open={assignDialogOpen}
-            onOpenChange={setAssignDialogOpen}
-            planificationId={id}
-          />
-          <AssignedMembersDialog
-            open={assignedMembersDialogOpen}
-            onOpenChange={setAssignedMembersDialogOpen}
-            assignments={assignments || []}
-            planificationName={planification.name}
-          />
-        </>
-      )}
-
-      <div className="space-y-6">
-        {workoutWeeks.length === 0 ? (
-          <div className="text-center py-12 border rounded-lg border-dashed">
-            <p className="text-muted-foreground">
-              Esta planificación no tiene semanas de entrenamiento
-            </p>
-          </div>
-        ) : (
-          workoutWeeks.map((week) => (
-            <WorkoutWeekCard key={week._id} week={week} />
-          ))
+        <DuplicatePlanificationDialog
+          open={duplicateDialogOpen}
+          onOpenChange={setDuplicateDialogOpen}
+          planification={planification}
+        />
+        <DeletePlanificationDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          planification={planification}
+          onSuccess={() => router.push('/dashboard/planifications')}
+        />
+        {!planification.isTemplate && (
+          <>
+            <AssignDialog
+              open={assignDialogOpen}
+              onOpenChange={setAssignDialogOpen}
+              planificationId={id}
+            />
+            <AssignedMembersDialog
+              open={assignedMembersDialogOpen}
+              onOpenChange={setAssignedMembersDialogOpen}
+              assignments={assignments || []}
+              planificationName={planification.name}
+            />
+          </>
         )}
+
+        <div className="space-y-6">
+          {workoutWeeks.length === 0 ? (
+            <div className="text-center py-12 border rounded-lg border-dashed">
+              <p className="text-muted-foreground">
+                Esta planificación no tiene semanas de entrenamiento
+              </p>
+            </div>
+          ) : (
+            workoutWeeks.map((week) => (
+              <WorkoutWeekCard key={week._id} week={week} />
+            ))
+          )}
+        </div>
       </div>
     </div>
   )

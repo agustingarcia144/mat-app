@@ -196,6 +196,36 @@ export const search = query({
 })
 
 /**
+ * List distinct categories and equipment for the current org (for filter badges)
+ */
+export const listFacets = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return { categories: [] as string[], equipment: [] as string[] }
+
+    const membership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
+      .first()
+
+    if (!membership) return { categories: [] as string[], equipment: [] as string[] }
+
+    const exercises = await ctx.db
+      .query('exercises')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', membership.organizationId)
+      )
+      .collect()
+
+    const categories = [...new Set(exercises.map((e) => e.category).filter(Boolean))].sort()
+    const equipment = [...new Set(exercises.map((e) => e.equipment).filter(Boolean))].sort()
+
+    return { categories, equipment }
+  },
+})
+
+/**
  * Get exercise by ID
  */
 export const getById = query({

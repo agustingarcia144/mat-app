@@ -55,37 +55,38 @@ export default function EditPlanificationPage({
 
   return (
     <div className="w-full py-6">
-      <div className="mb-6">
-        <Button variant="ghost" size="sm" className="mb-4" asChild>
-          <Link
-            href={`/dashboard/planifications/${id}`}
-            onClick={() => toast.dismiss(PLANIFICATION_UNSAVED_TOAST_ID)}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
-          </Link>
-        </Button>
-
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">
-            Editar planificación - {planification.name}
-          </h1>
-          <Button
-            type="button"
-            onClick={() => setEditDialogOpen(true)}
-            aria-label="Editar información básica"
-          >
-            <Pencil className="h-4 w-4 mr-2" />
-            Editar información básica
-          </Button>
+      <Button variant="ghost" size="sm" className="mb-4" asChild>
+        <Link
+          href={`/dashboard/planifications/${id}`}
+          onClick={() => toast.dismiss(PLANIFICATION_UNSAVED_TOAST_ID)}
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Volver
+        </Link>
+      </Button>
+      <div className="w-full p-6">
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold">
+              Editar planificación - {planification.name}
+            </h1>
+            <Button
+              type="button"
+              onClick={() => setEditDialogOpen(true)}
+              aria-label="Editar información básica"
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Editar información básica
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <EditPlanificationDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-      />
-      <PlanificationEditForm />
+        <EditPlanificationDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+        />
+        <PlanificationEditForm />
+      </div>
     </div>
   )
 }

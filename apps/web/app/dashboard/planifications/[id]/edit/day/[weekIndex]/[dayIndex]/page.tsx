@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { DragDropProvider } from '@dnd-kit/react'
 import { usePlanificationForm } from '@/contexts/planification-form-context'
@@ -249,69 +249,77 @@ function DayEditDndContent({
           orientation="horizontal"
           className="flex-1 min-h-0 w-full items-stretch"
         >
-          <ResizablePanel defaultSize="70" minSize="50" className="min-w-0 flex flex-col min-h-0">
+          <ResizablePanel
+            defaultSize="70"
+            minSize="50"
+            className="min-w-0 flex flex-col min-h-0"
+          >
             <div className="space-y-6 p-6 min-w-0 flex-1 min-h-0 overflow-auto">
-            <div className="flex items-end justify-between gap-4">
-              <Controller
-                name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.name`}
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field
-                    data-invalid={fieldState.invalid}
-                    className="flex-1 min-w-0"
-                  >
-                    <label className="text-sm font-medium mb-1.5 block">
-                      Nombre del día
-                    </label>
-                    <Input
-                      {...field}
-                      aria-invalid={fieldState.invalid}
-                      placeholder="Ej: Día 1, Piernas, etc."
-                      className="h-10"
-                    />
-                    {fieldState.invalid && (
-                      <FieldError errors={[fieldState.error]} />
-                    )}
-                  </Field>
-                )}
+              <div className="flex items-end justify-between gap-4">
+                <Controller
+                  name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.name`}
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field
+                      data-invalid={fieldState.invalid}
+                      className="flex-1 min-w-0"
+                    >
+                      <label className="text-sm font-medium mb-1.5 block">
+                        Nombre del día
+                      </label>
+                      <Input
+                        {...field}
+                        aria-invalid={fieldState.invalid}
+                        placeholder="Ej: Día 1, Piernas, etc."
+                        className="h-10"
+                      />
+                      {fieldState.invalid && (
+                        <FieldError errors={[fieldState.error]} />
+                      )}
+                    </Field>
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onAddBlock}
+                  className="h-9 shrink-0 text-xs"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Agregar bloque
+                </Button>
+              </div>
+
+              <DayBlocksContent
+                form={form}
+                weekIndex={weekIndex}
+                dayIndex={dayIndex}
+                day={day ?? { exercises: [] }}
+                onAddBlock={onAddBlock}
+                onRemoveBlock={onRemoveBlock}
+                onAddExercise={onAddExercise}
+                onRemoveExercise={onRemoveExercise}
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={onAddBlock}
-                className="h-9 shrink-0 text-xs"
-              >
-                <Plus className="h-3.5 w-3.5 mr-1.5" />
-                Agregar bloque
-              </Button>
             </div>
+          </ResizablePanel>
 
-            <DayBlocksContent
-              form={form}
-              weekIndex={weekIndex}
-              dayIndex={dayIndex}
-              day={day ?? { exercises: [] }}
-              onAddBlock={onAddBlock}
-              onRemoveBlock={onRemoveBlock}
-              onAddExercise={onAddExercise}
-              onRemoveExercise={onRemoveExercise}
-            />
-          </div>
-        </ResizablePanel>
+          <ResizableHandle withHandle />
 
-        <ResizableHandle withHandle />
-
-        <ResizablePanel defaultSize="30" minSize="20" className="min-w-0 flex flex-col min-h-0">
-          <div className="p-4 flex flex-col flex-1 min-h-0">
-            <h2 className="text-sm font-semibold mb-3 shrink-0">
-              Biblioteca de ejercicios
-            </h2>
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              <ExerciseSelector className="flex-1 min-h-0" />
+          <ResizablePanel
+            defaultSize="30"
+            minSize="20"
+            className="min-w-0 flex flex-col min-h-0"
+          >
+            <div className="p-4 flex flex-col flex-1 min-h-0">
+              <h2 className="text-sm font-semibold mb-3 shrink-0">
+                Biblioteca de ejercicios
+              </h2>
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <ExerciseSelector className="flex-1 min-h-0" />
+              </div>
             </div>
-          </div>
-        </ResizablePanel>
+          </ResizablePanel>
         </ResizablePanelGroup>
       </div>
     </DragDropProvider>
@@ -378,17 +386,37 @@ export function DayEditPageContent({
         position: 'bottom-center',
         duration: Infinity,
         dismissible: false,
-        action: {
-          label: isSaving ? 'Guardando…' : 'Guardar cambios',
-          onClick: () => {
-            if (!isSaving) handleSave()
-          },
-        },
+        action: (
+          <Button
+            size="sm"
+            disabled={isSaving}
+            onClick={() => {
+              if (!isSaving) handleSave()
+            }}
+            className="h-8"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Guardando
+              </>
+            ) : (
+              'Guardar cambios'
+            )}
+          </Button>
+        ),
       })
     } else {
       toast.dismiss(toastId)
     }
   }, [hasUnsavedChanges, isSaving, handleSave])
+
+  // Dismiss toast only when leaving the page (e.g. sidebar navigation), not when effect deps change.
+  useEffect(() => {
+    return () => {
+      toast.dismiss(toastId)
+    }
+  }, [])
 
   useEffect(() => {
     setRedirectAfterSave('edit')
@@ -539,47 +567,48 @@ export function DayEditPageContent({
             Volver
           </Link>
         </Button>
-        <p className="text-destructive">Día no encontrado.</p>
+        <p className="text-destructive text-center">Día no encontrado.</p>
       </div>
     )
   }
 
   return (
-    <div className="w-full py-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
-      <div className="mb-6 shrink-0">
-        <Button variant="ghost" size="sm" className="mb-4" asChild>
-          <Link
-            href={backHref}
-            onClick={() => {
-              toast.dismiss(toastId)
-              toast.dismiss(planificationToastId)
-            }}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
-          </Link>
-        </Button>
+    <div className="w-full py-6">
+      <Button variant="ghost" size="sm" className="mb-4" asChild>
+        <Link
+          href={backHref}
+          onClick={() => {
+            toast.dismiss(toastId)
+            toast.dismiss(planificationToastId)
+          }}
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Volver
+        </Link>
+      </Button>
+      <div className="w-full p-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
+        <div className="mb-6 shrink-0">
+          <h1 className="text-2xl font-bold">Editar día</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Los cambios se guardan al hacer clic en &quot;Guardar cambios&quot;
+            en la planificación.
+          </p>
+        </div>
 
-        <h1 className="text-2xl font-bold">Editar día</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Los cambios se guardan al hacer clic en &quot;Guardar cambios&quot; en
-          la planificación.
-        </p>
-      </div>
-
-      <div className="flex-1 min-h-0 flex flex-col">
-        <LibraryExerciseNamesProvider>
-          <DayEditDndContent
-          form={form}
-          weekIndex={weekIndex}
-          dayIndex={dayIndex}
-          day={day ?? { exercises: [] }}
-          onAddBlock={addBlockToDay}
-          onRemoveBlock={removeBlockFromDay}
-          onAddExercise={addExerciseToDay}
-          onRemoveExercise={removeExercise}
-        />
-        </LibraryExerciseNamesProvider>
+        <div className="flex-1 min-h-0 flex flex-col">
+          <LibraryExerciseNamesProvider>
+            <DayEditDndContent
+              form={form}
+              weekIndex={weekIndex}
+              dayIndex={dayIndex}
+              day={day ?? { exercises: [] }}
+              onAddBlock={addBlockToDay}
+              onRemoveBlock={removeBlockFromDay}
+              onAddExercise={addExerciseToDay}
+              onRemoveExercise={removeExercise}
+            />
+          </LibraryExerciseNamesProvider>
+        </div>
       </div>
     </div>
   )
