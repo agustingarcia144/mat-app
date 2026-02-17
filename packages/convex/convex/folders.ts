@@ -269,6 +269,50 @@ export const getTree = query({
 })
 
 /**
+ * Get folder IDs that can be deleted (no subfolders, no planifications).
+ * Used to show "Eliminar" only for empty folders.
+ */
+export const getDeletableFolderIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const membership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
+      .first()
+
+    if (!membership) return []
+
+    const folders = await ctx.db
+      .query('folders')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', membership.organizationId)
+      )
+      .collect()
+
+    const deletableIds: Id<'folders'>[] = []
+    for (const folder of folders) {
+      const hasChildren = await ctx.db
+        .query('folders')
+        .withIndex('by_parent', (q) => q.eq('parentId', folder._id))
+        .first()
+      if (hasChildren) continue
+
+      const hasPlanifications = await ctx.db
+        .query('planifications')
+        .withIndex('by_folder', (q) => q.eq('folderId', folder._id))
+        .first()
+      if (hasPlanifications) continue
+
+      deletableIds.push(folder._id)
+    }
+    return deletableIds
+  },
+})
+
+/**
  * Get folders by parent for the current user's organization (for lazy loading)
  */
 export const getByParent = query({

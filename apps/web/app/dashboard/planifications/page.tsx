@@ -28,6 +28,7 @@ export default function PlanificationsPage() {
   const [dialogFolderId, setDialogFolderId] = useState<string | undefined>()
 
   const folders = useQuery(api.folders.getTree)
+  const deletableFolderIds = useQuery(api.folders.getDeletableFolderIds)
   const planifications = useQuery(api.planifications.getByFolder, {
     folderId: selectedFolderId ? (selectedFolderId as any) : undefined,
   })
@@ -87,6 +88,7 @@ export default function PlanificationsPage() {
             folders={folders || []}
             selectedId={selectedFolderId}
             onSelect={setSelectedFolderId}
+            deletableFolderIds={deletableFolderIds ?? []}
           />
         </ResizablePanel>
         <ResizableHandle />
