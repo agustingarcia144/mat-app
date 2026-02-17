@@ -2,12 +2,15 @@
 
 import { use, useState, useEffect } from 'react'
 import { useQuery } from 'convex/react'
+import { toast } from 'sonner'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import Link from 'next/link'
-import PlanificationEditForm from '@/components/features/planifications/form/planification-edit-form'
+import PlanificationEditForm, {
+  PLANIFICATION_UNSAVED_TOAST_ID,
+} from '@/components/features/planifications/form/planification-edit-form'
 import EditPlanificationDialog from '@/components/features/planifications/dialogs/edit-planification-dialog'
 
 export default function EditPlanificationPage({
@@ -54,7 +57,10 @@ export default function EditPlanificationPage({
     <div className="w-full py-6">
       <div className="mb-6">
         <Button variant="ghost" size="sm" className="mb-4" asChild>
-          <Link href={`/dashboard/planifications/${id}`}>
+          <Link
+            href={`/dashboard/planifications/${id}`}
+            onClick={() => toast.dismiss(PLANIFICATION_UNSAVED_TOAST_ID)}
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver
           </Link>

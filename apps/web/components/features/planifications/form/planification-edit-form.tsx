@@ -6,7 +6,7 @@ import { usePlanificationForm } from '@/contexts/planification-form-context'
 import { deepEqual } from '@/lib/utils'
 import WorkoutWeeksSection from './workout-weeks-section'
 
-const toastId = 'planification-unsaved-changes'
+export const PLANIFICATION_UNSAVED_TOAST_ID = 'planification-unsaved-changes'
 const dayToastId = 'day-unsaved-changes'
 
 export default function PlanificationEditForm() {
@@ -30,7 +30,7 @@ export default function PlanificationEditForm() {
     () =>
       form.handleSubmit(async (data) => {
         await onSubmit(data)
-        toast.dismiss(toastId)
+        toast.dismiss(PLANIFICATION_UNSAVED_TOAST_ID)
       })(),
     [form, onSubmit]
   )
@@ -44,7 +44,7 @@ export default function PlanificationEditForm() {
     if (hasUnsavedChanges) {
       toast.dismiss(dayToastId)
       toast.message('Tienes cambios sin guardar', {
-        id: toastId,
+        id: PLANIFICATION_UNSAVED_TOAST_ID,
         position: 'bottom-center',
         duration: Infinity,
         dismissible: false,
@@ -56,7 +56,7 @@ export default function PlanificationEditForm() {
         },
       })
     } else {
-      toast.dismiss(toastId)
+      toast.dismiss(PLANIFICATION_UNSAVED_TOAST_ID)
     }
   }, [hasUnsavedChanges, isSaving, handleSave])
 

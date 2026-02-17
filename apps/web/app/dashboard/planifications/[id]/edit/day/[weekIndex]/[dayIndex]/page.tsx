@@ -512,7 +512,13 @@ export function DayEditPageContent({
     return (
       <div className="w-full py-6">
         <Button variant="link" asChild className="mt-2">
-          <Link href={backHref}>
+          <Link
+            href={backHref}
+            onClick={() => {
+              toast.dismiss(toastId)
+              toast.dismiss(planificationToastId)
+            }}
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver
           </Link>
@@ -526,7 +532,13 @@ export function DayEditPageContent({
     <div className="w-full py-6">
       <div className="mb-6">
         <Button variant="ghost" size="sm" className="mb-4" asChild>
-          <Link href={backHref}>
+          <Link
+            href={backHref}
+            onClick={() => {
+              toast.dismiss(toastId)
+              toast.dismiss(planificationToastId)
+            }}
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver
           </Link>
