@@ -4,7 +4,6 @@ import { useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
 import { usePlanificationForm } from '@/contexts/planification-form-context'
 import { deepEqual } from '@/lib/utils'
-import BasicInfoSection from './basic-info-section'
 import WorkoutWeeksSection from './workout-weeks-section'
 
 const toastId = 'planification-unsaved-changes'
@@ -63,10 +62,6 @@ export default function PlanificationEditForm() {
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-      <BasicInfoSection
-        form={form as React.ComponentProps<typeof BasicInfoSection>['form']}
-      />
-
       <WorkoutWeeksSection
         form={form as React.ComponentProps<typeof WorkoutWeeksSection>['form']}
       />

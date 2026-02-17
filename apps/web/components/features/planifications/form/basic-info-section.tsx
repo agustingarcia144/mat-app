@@ -8,13 +8,14 @@ import { ChevronDown, ChevronUp, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Field,
   FieldLabel,
   FieldDescription,
   FieldError,
 } from '@/components/ui/field'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { cn } from '@/lib/utils'
 import {
   Collapsible,
   CollapsibleContent,
@@ -32,17 +33,85 @@ interface BasicInfoSectionProps {
   form: UseFormReturn<any>
   /** When false, the chevron icon is hidden. Default true. */
   showCollapsibleIcon?: boolean
+  /** When true, the Tipo (Planificación/Plantilla) field is disabled. Use for edit mode. */
+  isEditMode?: boolean
 }
 
 export default function BasicInfoSection({
   form,
   showCollapsibleIcon = true,
+  isEditMode = false,
 }: BasicInfoSectionProps) {
   const folders = useQuery(api.folders.getTree)
   const [folderPickerOpen, setFolderPickerOpen] = useState(false)
+  const isTemplate = form.watch('isTemplate')
 
   const formContent = (
     <div className="space-y-4 pt-4 px-2">
+            <Controller
+              name="isTemplate"
+              control={form.control}
+              render={({ field, fieldState }) => (
+                <Field data-invalid={fieldState.invalid} data-disabled={isEditMode}>
+                  <FieldLabel className="mb-2 block">Tipo</FieldLabel>
+                  <RadioGroup
+                    value={field.value ? 'plantilla' : 'planificacion'}
+                    onValueChange={(value) => field.onChange(value === 'plantilla')}
+                    disabled={isEditMode}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    <FieldLabel asChild>
+                      <label
+                        className={cn(
+                          'flex cursor-pointer items-start justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50',
+                          (!field.value && 'border-primary ring-1 ring-primary') || 'border-input',
+                          isEditMode && 'pointer-events-none cursor-not-allowed opacity-60'
+                        )}
+                      >
+                        <span className="flex-1 min-w-0">
+                          <span className="block font-medium">Planificación</span>
+                          <span className="block text-sm text-muted-foreground">
+                            Planificación de entrenamientos.
+                          </span>
+                        </span>
+                        <RadioGroupItem
+                          value="planificacion"
+                          id="isTemplate-planificacion"
+                          className="mt-0.5 shrink-0"
+                          aria-invalid={fieldState.invalid}
+                        />
+                      </label>
+                    </FieldLabel>
+                    <FieldLabel asChild>
+                      <label
+                        className={cn(
+                          'flex cursor-pointer items-start justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-muted/50',
+                          (field.value && 'border-primary ring-1 ring-primary') || 'border-input',
+                          isEditMode && 'pointer-events-none cursor-not-allowed opacity-60'
+                        )}
+                      >
+                        <span className="flex-1 min-w-0">
+                          <span className="block font-medium">Plantilla</span>
+                          <span className="block text-sm text-muted-foreground">
+                            Plantilla reutilizable.
+                          </span>
+                        </span>
+                        <RadioGroupItem
+                          value="plantilla"
+                          id="isTemplate-plantilla"
+                          className="mt-0.5 shrink-0"
+                          aria-invalid={fieldState.invalid}
+                        />
+                      </label>
+                    </FieldLabel>
+                  </RadioGroup>
+                  {fieldState.invalid && (
+                    <FieldError errors={[fieldState.error]} />
+                  )}
+                </Field>
+              )}
+            />
+
             <Controller
               name="name"
               control={form.control}
@@ -87,93 +156,68 @@ export default function BasicInfoSection({
               )}
             />
 
-            <Controller
-              name="folderId"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor={field.name}>Carpeta</FieldLabel>
-                  <div className="flex gap-2">
-                    <Input
-                      id={field.name}
-                      readOnly
-                      aria-invalid={fieldState.invalid}
-                      className="flex-1 min-w-0 bg-muted"
-                      value={
-                        field.value
-                          ? (folders?.find((f) => f._id === field.value)
-                              ?.path ?? field.value)
-                          : 'Sin carpeta'
-                      }
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="shrink-0"
-                      onClick={() => setFolderPickerOpen(true)}
-                      aria-label="Abrir selector de carpeta"
+            {!isTemplate && (
+              <Controller
+                name="folderId"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field data-invalid={fieldState.invalid}>
+                    <FieldLabel htmlFor={field.name}>Carpeta</FieldLabel>
+                    <div className="flex gap-2">
+                      <Input
+                        id={field.name}
+                        readOnly
+                        aria-invalid={fieldState.invalid}
+                        className="flex-1 min-w-0 bg-muted"
+                        value={
+                          field.value
+                            ? (folders?.find((f) => f._id === field.value)
+                                ?.path ?? field.value)
+                            : 'Sin carpeta'
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="shrink-0"
+                        onClick={() => setFolderPickerOpen(true)}
+                        aria-label="Abrir selector de carpeta"
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                        Seleccionar carpeta
+                      </Button>
+                    </div>
+                    <Dialog
+                      open={folderPickerOpen}
+                      onOpenChange={setFolderPickerOpen}
                     >
-                      <FolderOpen className="h-4 w-4" />
-                      Seleccionar carpeta
-                    </Button>
-                  </div>
-                  <Dialog
-                    open={folderPickerOpen}
-                    onOpenChange={setFolderPickerOpen}
-                  >
-                    <DialogContent className="max-w-sm">
-                      <DialogHeader>
-                        <DialogTitle>Seleccionar carpeta</DialogTitle>
-                      </DialogHeader>
-                      <div className="max-h-[60vh] overflow-y-auto py-2">
-                        <FolderTree
-                          folders={folders ?? []}
-                          selectedId={field.value ?? null}
-                          onSelect={(id) => {
-                            field.onChange(id ?? undefined)
-                            setFolderPickerOpen(false)
-                          }}
-                          showCreateDialog={false}
-                          setShowCreateDialog={() => {}}
-                          rootLabel="Sin carpeta"
-                          disableCreate
-                        />
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
-
-            <Controller
-              name="isTemplate"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field
-                  data-invalid={fieldState.invalid}
-                  orientation="horizontal"
-                >
-                  <Checkbox
-                    id={field.name}
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    aria-invalid={fieldState.invalid}
-                  />
-                  <FieldLabel
-                    htmlFor={field.name}
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    Marcar como plantilla reutilizable
-                  </FieldLabel>
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )}
-            />
+                      <DialogContent className="max-w-sm">
+                        <DialogHeader>
+                          <DialogTitle>Seleccionar carpeta</DialogTitle>
+                        </DialogHeader>
+                        <div className="max-h-[60vh] overflow-y-auto py-2">
+                          <FolderTree
+                            folders={folders ?? []}
+                            selectedId={field.value ?? null}
+                            onSelect={(id) => {
+                              field.onChange(id ?? undefined)
+                              setFolderPickerOpen(false)
+                            }}
+                            showCreateDialog={false}
+                            setShowCreateDialog={() => {}}
+                            rootLabel="Sin carpeta"
+                            disableCreate
+                          />
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                    {fieldState.invalid && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
+            )}
     </div>
   )
 
