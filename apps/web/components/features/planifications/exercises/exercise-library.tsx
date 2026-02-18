@@ -10,14 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -33,7 +25,15 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 
-import { Plus, Search, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, SlidersHorizontal } from 'lucide-react'
 
 import CreateExerciseDialog from './create-exercise-dialog'
 import VideoPlayer from './videoplayer'
@@ -42,8 +42,6 @@ import Image from 'next/image'
 import wolfImg from '@/assets/mat-wolf-looking.png'
 
 import { CATEGORIES, EQUIPMENT_OPTIONS, MUSCLE_GROUPS } from '@repo/core'
-
-type FilterType = 'none' | 'category' | 'muscle' | 'equipment'
 
 const normalize = (v?: string) => (v ?? '').toString().trim().toLowerCase()
 
@@ -55,9 +53,24 @@ export default function ExerciseLibrary({
   showActions = true,
 }: ExerciseLibraryProps) {
   const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState<FilterType>('none')
-  const [filterValue, setFilterValue] = useState('')
+  const [filterCategories, setFilterCategories] = useState<string[]>([])
+  const [filterMuscles, setFilterMuscles] = useState<string[]>([])
+  const [filterEquipment, setFilterEquipment] = useState<string[]>([])
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false)
+  const [sheetFilterCategories, setSheetFilterCategories] = useState<string[]>([])
+  const [sheetFilterMuscles, setSheetFilterMuscles] = useState<string[]>([])
+  const [sheetFilterEquipment, setSheetFilterEquipment] = useState<string[]>([])
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+
+  const toggleInArray = (
+    arr: string[],
+    value: string,
+    setter: (next: string[]) => void
+  ) => {
+    setter(
+      arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value]
+    )
+  }
 
   const [exerciseToEdit, setExerciseToEdit] = useState<Doc<'exercises'> | null>(
     null
@@ -72,9 +85,9 @@ export default function ExerciseLibrary({
   const filtered = useMemo(() => {
     const list = exercises ?? []
     const term = normalize(search)
-    const selected = normalize(filterValue)
-
-    const isAll = !selected || selected === 'all' || selected === 'todos'
+    const cats = filterCategories.map(normalize)
+    const muscles = filterMuscles.map(normalize)
+    const equip = filterEquipment.map(normalize)
 
     return list.filter((e) => {
       const matchesSearch =
@@ -86,32 +99,23 @@ export default function ExerciseLibrary({
         normalize(e.category).includes(term) ||
         normalize(e.equipment).includes(term)
 
-      let matchesFilter = true
+      const matchesCategory =
+        cats.length === 0 || cats.includes(normalize(e.category))
+      const matchesMuscle =
+        muscles.length === 0 ||
+        (Array.isArray(e.muscleGroups) &&
+          e.muscleGroups.some((m) => muscles.includes(normalize(m))))
+      const matchesEquipment =
+        equip.length === 0 || equip.includes(normalize(e.equipment))
 
-      if (filterType === 'category' && !isAll) {
-        matchesFilter = normalize(e.category) === selected
-      }
-
-      if (filterType === 'equipment' && !isAll) {
-        matchesFilter = normalize(e.equipment) === selected
-      }
-
-      if (filterType === 'muscle' && !isAll) {
-        matchesFilter =
-          Array.isArray(e.muscleGroups) &&
-          e.muscleGroups.some((m) => normalize(m) === selected)
-      }
-
-      return matchesSearch && matchesFilter
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesMuscle &&
+        matchesEquipment
+      )
     })
-  }, [exercises, search, filterType, filterValue])
-
-  const getOptions = () => {
-    if (filterType === 'category') return CATEGORIES
-    if (filterType === 'muscle') return MUSCLE_GROUPS
-    if (filterType === 'equipment') return EQUIPMENT_OPTIONS
-    return []
-  }
+  }, [exercises, search, filterCategories, filterMuscles, filterEquipment])
 
   return (
     <div className="space-y-4">
@@ -126,46 +130,44 @@ export default function ExerciseLibrary({
           />
         </div>
 
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-            Filtros
-          </span>
-
-          <Select
-            value={filterType}
-            onValueChange={(v) => {
-              setFilterType(v as FilterType)
-              setFilterValue('')
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSheetFilterCategories([...filterCategories])
+              setSheetFilterMuscles([...filterMuscles])
+              setSheetFilterEquipment([...filterEquipment])
+              setFiltersSheetOpen(true)
             }}
           >
-            <SelectTrigger className="w-full md:w-40">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Todos</SelectItem>
-              <SelectItem value="category">Categoría</SelectItem>
-              <SelectItem value="muscle">Músculo</SelectItem>
-              <SelectItem value="equipment">Equipo</SelectItem>
-            </SelectContent>
-          </Select>
+            <SlidersHorizontal className="h-4 w-4 mr-2" />
+            Filtros
+          </Button>
 
-          {filterType !== 'none' && (
-            <Select value={filterValue} onValueChange={setFilterValue}>
-              <SelectTrigger className="w-full md:w-56">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-
-                {getOptions().map((v) => (
-                  <SelectItem key={v} value={v}>
-                    {v}
-                  </SelectItem>
+          {(() => {
+            const allBadges = [
+              ...filterCategories.map((v) => ({ key: `cat-${v}`, label: 'Categoría', value: v })),
+              ...filterMuscles.map((v) => ({ key: `muscle-${v}`, label: 'Músculo', value: v })),
+              ...filterEquipment.map((v) => ({ key: `equip-${v}`, label: 'Equipo', value: v })),
+            ]
+            const visible = allBadges.slice(0, 3)
+            const remaining = allBadges.length - 3
+            return (
+              <>
+                {visible.map(({ key, label, value }) => (
+                  <Badge key={key} variant="secondary" className="rounded-full">
+                    {label}: {value}
+                  </Badge>
                 ))}
-              </SelectContent>
-            </Select>
-          )}
+                {remaining > 0 && (
+                  <Badge variant="secondary" className="rounded-full">
+                    +{remaining} más
+                  </Badge>
+                )}
+              </>
+            )
+          })()}
         </div>
 
         {showActions && (
@@ -182,13 +184,13 @@ export default function ExerciseLibrary({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
         {exercises === undefined ? (
-          Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="border rounded-lg p-4">
-              <Skeleton className="h-6 w-40 mb-2" />
-              <Skeleton className="h-4 w-full mb-2" />
-              <Skeleton className="h-5 w-20" />
+          Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="border rounded-lg p-3">
+              <Skeleton className="aspect-video rounded mb-3" />
+              <Skeleton className="h-5 w-3/4 mb-2" />
+              <Skeleton className="h-4 w-full" />
             </div>
           ))
         ) : filtered.length === 0 ? (
@@ -206,51 +208,46 @@ export default function ExerciseLibrary({
               {e.videoUrl ? (
                 <VideoPlayer videoUrl={e.videoUrl} title={e.name} />
               ) : (
-                <div className="aspect-video w-full relative bg-muted flex items-center justify-center">
+                <div className="aspect-video w-full relative bg-muted flex items-center justify-center min-h-0">
                   <div className="relative w-[90%] h-[90%]">
                     <Image
                       src={wolfImg}
-                      alt="WOLFI NO ENCUENTRA TU VIDEO"
+                      alt="Sin video"
                       fill
                       className="object-contain opacity-80"
                     />
                   </div>
-
                   <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                    <span className="text-xs text-white opacity-80">
-                      WOLFI NO ENCUENTRA TU VIDEO
+                    <span className="text-xs text-white opacity-80 text-center px-1">
+                      Sin video
                     </span>
                   </div>
                 </div>
               )}
 
               <div
-                className="p-4 cursor-pointer"
+                className="p-3 cursor-pointer min-w-0"
                 onClick={() => setExerciseToEdit(e)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold mb-2">{e.name}</h3>
-
                     {e.description && (
                       <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                         {e.description}
                       </p>
                     )}
-
                     <div className="flex items-center gap-2 flex-wrap">
                       {e.category && (
                         <Badge variant="secondary" className="text-xs">
                           {e.category}
                         </Badge>
                       )}
-
                       {e.equipment && (
                         <Badge variant="outline" className="text-xs">
                           {e.equipment}
                         </Badge>
                       )}
-
                       {Array.isArray(e.muscleGroups) &&
                         e.muscleGroups.map((m) => (
                           <Badge
@@ -263,7 +260,6 @@ export default function ExerciseLibrary({
                         ))}
                     </div>
                   </div>
-
                   {showActions && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -276,7 +272,6 @@ export default function ExerciseLibrary({
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
-
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           onClick={(ev) => {
@@ -287,7 +282,6 @@ export default function ExerciseLibrary({
                           <Pencil className="h-4 w-4 mr-2" />
                           Editar
                         </DropdownMenuItem>
-
                         <DropdownMenuItem
                           onClick={(ev) => {
                             ev.stopPropagation()
@@ -318,6 +312,150 @@ export default function ExerciseLibrary({
         }}
         exercise={exerciseToEdit}
       />
+
+      <Sheet open={filtersSheetOpen} onOpenChange={setFiltersSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Filtros</SheetTitle>
+          </SheetHeader>
+
+          <div className="mt-6 space-y-6">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-2">
+                Categoría
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant={
+                    sheetFilterCategories.length === 0 ? 'default' : 'outline'
+                  }
+                  className="rounded-full cursor-pointer"
+                  onClick={() => setSheetFilterCategories([])}
+                >
+                  Todos
+                </Badge>
+                {CATEGORIES.map((v) => (
+                  <Badge
+                    key={v}
+                    variant={
+                      sheetFilterCategories.includes(v) ? 'default' : 'outline'
+                    }
+                    className="rounded-full cursor-pointer"
+                    onClick={() =>
+                      toggleInArray(
+                        sheetFilterCategories,
+                        v,
+                        setSheetFilterCategories
+                      )
+                    }
+                  >
+                    {v}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-2">
+                Músculo
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant={
+                    sheetFilterMuscles.length === 0 ? 'default' : 'outline'
+                  }
+                  className="rounded-full cursor-pointer"
+                  onClick={() => setSheetFilterMuscles([])}
+                >
+                  Todos
+                </Badge>
+                {MUSCLE_GROUPS.map((v) => (
+                  <Badge
+                    key={v}
+                    variant={
+                      sheetFilterMuscles.includes(v) ? 'default' : 'outline'
+                    }
+                    className="rounded-full cursor-pointer"
+                    onClick={() =>
+                      toggleInArray(sheetFilterMuscles, v, setSheetFilterMuscles)
+                    }
+                  >
+                    {v}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-2">
+                Equipo
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant={
+                    sheetFilterEquipment.length === 0 ? 'default' : 'outline'
+                  }
+                  className="rounded-full cursor-pointer"
+                  onClick={() => setSheetFilterEquipment([])}
+                >
+                  Todos
+                </Badge>
+                {EQUIPMENT_OPTIONS.map((v) => (
+                  <Badge
+                    key={v}
+                    variant={
+                      sheetFilterEquipment.includes(v) ? 'default' : 'outline'
+                    }
+                    className="rounded-full cursor-pointer"
+                    onClick={() =>
+                      toggleInArray(
+                        sheetFilterEquipment,
+                        v,
+                        setSheetFilterEquipment
+                      )
+                    }
+                  >
+                    {v}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <SheetFooter className="mt-8 gap-2 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setFiltersSheetOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSheetFilterCategories([])
+                setSheetFilterMuscles([])
+                setSheetFilterEquipment([])
+                setFilterCategories([])
+                setFilterMuscles([])
+                setFilterEquipment([])
+                setFiltersSheetOpen(false)
+              }}
+            >
+              Limpiar filtros
+            </Button>
+            <Button
+              onClick={() => {
+                setFilterCategories([...sheetFilterCategories])
+                setFilterMuscles([...sheetFilterMuscles])
+                setFilterEquipment([...sheetFilterEquipment])
+                setFiltersSheetOpen(false)
+              }}
+            >
+              Aplicar filtros
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <Dialog
         open={!!exerciseToDelete}

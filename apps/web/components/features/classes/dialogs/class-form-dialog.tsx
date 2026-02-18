@@ -56,13 +56,13 @@ interface ClassFormDialogProps {
 }
 
 const DAYS_OF_WEEK = [
-  { value: 0, label: 'Domingo' },
   { value: 1, label: 'Lunes' },
   { value: 2, label: 'Martes' },
   { value: 3, label: 'Miércoles' },
   { value: 4, label: 'Jueves' },
   { value: 5, label: 'Viernes' },
   { value: 6, label: 'Sábado' },
+  { value: 0, label: 'Domingo' },
 ]
 
 // Combined frequency + interval for single select (value: "frequency_interval")
@@ -191,7 +191,7 @@ export default function ClassFormDialog({
   const toggleDayOfWeek = (day: number) => {
     const current = selectedDaysOfWeek || []
     const newDays = current.includes(day)
-      ? current.filter((d) => d !== day)
+      ? current.filter((d: number) => d !== day)
       : [...current, day].sort((a, b) => a - b)
     setValue('recurrencePattern.daysOfWeek', newDays)
   }
@@ -412,10 +412,7 @@ export default function ClassFormDialog({
                         </SelectTrigger>
                         <SelectContent>
                           {RECURRENCE_FREQUENCY_OPTIONS.map((opt) => (
-                            <SelectItem
-                              key={opt.value}
-                              value={opt.value}
-                            >
+                            <SelectItem key={opt.value} value={opt.value}>
                               {opt.label}
                             </SelectItem>
                           ))}
@@ -429,7 +426,7 @@ export default function ClassFormDialog({
                     {errors.recurrencePattern.frequency.message}
                   </FieldError>
                 )}
-                {(errors.recurrencePattern?.interval != null) && (
+                {errors.recurrencePattern?.interval != null && (
                   <FieldError>
                     {errors.recurrencePattern.interval.message}
                   </FieldError>
@@ -439,7 +436,7 @@ export default function ClassFormDialog({
               {frequency === 'weekly' && (
                 <Field>
                   <FieldLabel>Días de la semana</FieldLabel>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-2">
                     {DAYS_OF_WEEK.map((day) => (
                       <div
                         key={day.value}
