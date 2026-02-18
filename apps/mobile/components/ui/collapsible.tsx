@@ -20,7 +20,6 @@ export function Collapsible({
       <ThemedPressable
         style={styles.heading}
         onPress={() => setIsOpen((value) => !value)}
-        activeOpacity={0.8}
       >
         <IconSymbol
           name="chevron.right"

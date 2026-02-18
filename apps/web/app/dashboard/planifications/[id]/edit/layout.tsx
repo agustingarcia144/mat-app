@@ -42,6 +42,7 @@ function EditFormShell({
   })
 
   const updatePlanification = useMutation(api.planifications.update)
+  const createPlanificationRevision = useMutation(api.planifications.createRevision)
   const createWorkoutWeek = useMutation(api.workoutWeeks.create)
   const createWorkoutDay = useMutation(api.workoutDays.create)
   const createExerciseBlock = useMutation(api.exerciseBlocks.create)
@@ -182,23 +183,37 @@ function EditFormShell({
     async (data: PlanificationFormType) => {
       setIsSaving(true)
       try {
-        await updatePlanification({
-          id: planificationId as any,
-          name: data.name,
-          description: data.description || undefined,
-          folderId: data.folderId as any,
-          isTemplate: data.isTemplate,
-        })
+        const shouldCreateRevision = !!planification?.hasEverBeenAssigned
+        let targetRevisionId: string | undefined = undefined
 
-        const originalWeekIds = (fullWeeksData || []).map((w: any) => w.id)
-        for (const weekId of originalWeekIds) {
-          await removeWorkoutWeek({ id: weekId as any })
+        if (shouldCreateRevision) {
+          targetRevisionId = await createPlanificationRevision({
+            id: planificationId as any,
+            name: data.name,
+            description: data.description || undefined,
+            folderId: data.folderId as any,
+            isTemplate: data.isTemplate,
+          })
+        } else {
+          await updatePlanification({
+            id: planificationId as any,
+            name: data.name,
+            description: data.description || undefined,
+            folderId: data.folderId as any,
+            isTemplate: data.isTemplate,
+          })
+
+          const originalWeekIds = (fullWeeksData || []).map((w: any) => w.id)
+          for (const weekId of originalWeekIds) {
+            await removeWorkoutWeek({ id: weekId as any })
+          }
         }
 
         for (let i = 0; i < data.workoutWeeks.length; i++) {
           const week = data.workoutWeeks[i]
           const weekId = await createWorkoutWeek({
             planificationId: planificationId as any,
+            revisionId: targetRevisionId as any,
             name: week.name,
             order: i,
             notes: undefined,
@@ -209,6 +224,7 @@ function EditFormShell({
             const dayId = await createWorkoutDay({
               weekId,
               planificationId: planificationId as any,
+              revisionId: targetRevisionId as any,
               name: day.name,
               order: j,
               dayOfWeek: day.dayOfWeek,
@@ -298,10 +314,12 @@ function EditFormShell({
     },
     [
       planificationId,
+      planification,
       fullWeeksData,
       redirectAfterSave,
       setInitialFormValues,
       updatePlanification,
+      createPlanificationRevision,
       removeWorkoutWeek,
       createWorkoutWeek,
       createWorkoutDay,

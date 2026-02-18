@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { requireAuth } from './permissions'
+import { resolveRevisionIdForPlanification } from './planificationRevisionHelpers'
 
 /**
  * Create a new day exercise
@@ -20,6 +21,11 @@ export const create = mutation({
   handler: async (ctx, args) => {
     await requireAuth(ctx)
 
+    const workoutDay = await ctx.db.get(args.workoutDayId)
+    if (!workoutDay) {
+      throw new Error('Workout day not found')
+    }
+
     // If blockId is provided, verify it belongs to the workout day
     if (args.blockId) {
       const block = await ctx.db.get(args.blockId)
@@ -32,6 +38,7 @@ export const create = mutation({
 
     return await ctx.db.insert('dayExercises', {
       workoutDayId: args.workoutDayId,
+      revisionId: workoutDay.revisionId,
       exerciseId: args.exerciseId,
       blockId: args.blockId,
       order: args.order,
@@ -216,18 +223,39 @@ export const getByBlock = query({
 export const getByPlanification = query({
   args: {
     planificationId: v.id('planifications'),
+    revisionId: v.optional(v.id('planificationRevisions')),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    // Get all days for this planification
-    const workoutDays = await ctx.db
-      .query('workoutDays')
-      .withIndex('by_planification', (q) =>
-        q.eq('planificationId', args.planificationId)
-      )
-      .collect()
+    const revisionId = await resolveRevisionIdForPlanification(
+      ctx,
+      args.planificationId,
+      args.revisionId
+    )
+    // Get all days for this planification/revision
+    let workoutDays = revisionId
+      ? await ctx.db
+          .query('workoutDays')
+          .withIndex('by_planification_revision', (q) =>
+            q.eq('planificationId', args.planificationId).eq('revisionId', revisionId)
+          )
+          .collect()
+      : await ctx.db
+          .query('workoutDays')
+          .withIndex('by_planification', (q) =>
+            q.eq('planificationId', args.planificationId)
+          )
+          .collect()
+    if (revisionId && workoutDays.length === 0) {
+      workoutDays = await ctx.db
+        .query('workoutDays')
+        .withIndex('by_planification', (q) =>
+          q.eq('planificationId', args.planificationId)
+        )
+        .collect()
+    }
 
     const dayIds = workoutDays.map((d) => d._id)
 

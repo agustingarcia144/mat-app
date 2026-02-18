@@ -40,6 +40,7 @@ export const setLog = mutation({
     const doc = {
       sessionId: args.sessionId,
       dayExerciseId: args.dayExerciseId,
+      revisionId: session.revisionId,
       sets: args.sets,
       reps: args.reps,
       weight: args.weight,

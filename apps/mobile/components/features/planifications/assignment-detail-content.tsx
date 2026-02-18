@@ -35,6 +35,10 @@ export function AssignmentDetailContent() {
     const a = assignments?.find((a) => a._id === assignmentId)
     return a?.planificationId ?? null
   }, [assignments, assignmentId])
+  const revisionId = useMemo(() => {
+    const a = assignments?.find((a) => a._id === assignmentId)
+    return a?.revisionId ?? null
+  }, [assignments, assignmentId])
 
   const assignment = useMemo(
     () => assignments?.find((a) => a._id === assignmentId),
@@ -43,22 +47,22 @@ export function AssignmentDetailContent() {
 
   const weeks = useQuery(
     api.workoutWeeks.getByPlanification,
-    planificationId ? { planificationId } : 'skip'
+    planificationId ? { planificationId, revisionId: revisionId ?? undefined } : 'skip'
   )
 
   const days = useQuery(
     api.workoutDays.getByPlanification,
-    planificationId ? { planificationId } : 'skip'
+    planificationId ? { planificationId, revisionId: revisionId ?? undefined } : 'skip'
   )
 
   const dayExercises = useQuery(
     api.dayExercises.getByPlanification,
-    planificationId ? { planificationId } : 'skip'
+    planificationId ? { planificationId, revisionId: revisionId ?? undefined } : 'skip'
   )
 
   const blocks = useQuery(
     api.exerciseBlocks.getByPlanification,
-    planificationId ? { planificationId } : 'skip'
+    planificationId ? { planificationId, revisionId: revisionId ?? undefined } : 'skip'
   )
 
   const blocksByDayId = useMemo(() => {
@@ -168,6 +172,13 @@ export function AssignmentDetailContent() {
           dateRange={dateRange}
           description={planificationDescription ?? null}
           muted={muted}
+          statusLabel={
+            assignment.status === 'active'
+              ? null
+              : assignment.status === 'cancelled'
+                ? 'Historial (cancelada)'
+                : 'Historial (completada)'
+          }
         />
 
         {weeks.length === 0 ? (

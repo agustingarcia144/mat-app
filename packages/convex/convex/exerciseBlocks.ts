@@ -2,6 +2,7 @@ import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
 import { requireAuth } from './permissions'
+import { resolveRevisionIdForPlanification } from './planificationRevisionHelpers'
 
 /**
  * Create a new exercise block
@@ -17,9 +18,14 @@ export const create = mutation({
     await requireAuth(ctx)
 
     const now = Date.now()
+    const workoutDay = await ctx.db.get(args.workoutDayId)
+    if (!workoutDay) {
+      throw new Error('Workout day not found')
+    }
 
     return await ctx.db.insert('exerciseBlocks', {
       workoutDayId: args.workoutDayId,
+      revisionId: workoutDay.revisionId,
       name: args.name,
       order: args.order,
       notes: args.notes,
@@ -141,17 +147,38 @@ export const getByWorkoutDay = query({
 export const getByPlanification = query({
   args: {
     planificationId: v.id('planifications'),
+    revisionId: v.optional(v.id('planificationRevisions')),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    const workoutDays = await ctx.db
-      .query('workoutDays')
-      .withIndex('by_planification', (q) =>
-        q.eq('planificationId', args.planificationId)
-      )
-      .collect()
+    const revisionId = await resolveRevisionIdForPlanification(
+      ctx,
+      args.planificationId,
+      args.revisionId
+    )
+    let workoutDays = revisionId
+      ? await ctx.db
+          .query('workoutDays')
+          .withIndex('by_planification_revision', (q) =>
+            q.eq('planificationId', args.planificationId).eq('revisionId', revisionId)
+          )
+          .collect()
+      : await ctx.db
+          .query('workoutDays')
+          .withIndex('by_planification', (q) =>
+            q.eq('planificationId', args.planificationId)
+          )
+          .collect()
+    if (revisionId && workoutDays.length === 0) {
+      workoutDays = await ctx.db
+        .query('workoutDays')
+        .withIndex('by_planification', (q) =>
+          q.eq('planificationId', args.planificationId)
+        )
+        .collect()
+    }
 
     const blocks: Doc<'exerciseBlocks'>[] = []
     for (const day of workoutDays) {

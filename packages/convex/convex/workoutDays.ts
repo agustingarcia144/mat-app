@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { requireAuth } from './permissions'
+import { resolveRevisionIdForPlanification } from './planificationRevisionHelpers'
 
 /**
  * Create a new workout day
@@ -9,6 +10,7 @@ export const create = mutation({
   args: {
     weekId: v.id('workoutWeeks'),
     planificationId: v.id('planifications'),
+    revisionId: v.optional(v.id('planificationRevisions')),
     name: v.string(),
     order: v.number(),
     dayOfWeek: v.optional(v.number()), // 1 = Monday … 7 = Sunday (ISO)
@@ -18,10 +20,16 @@ export const create = mutation({
     await requireAuth(ctx)
 
     const now = Date.now()
+    const revisionId = await resolveRevisionIdForPlanification(
+      ctx,
+      args.planificationId,
+      args.revisionId
+    )
 
     return await ctx.db.insert('workoutDays', {
       weekId: args.weekId,
       planificationId: args.planificationId,
+      revisionId,
       name: args.name,
       order: args.order,
       dayOfWeek: args.dayOfWeek,
@@ -95,6 +103,18 @@ export const remove = mutation({
       throw new Error('Workout day not found')
     }
 
+    if (day.revisionId) {
+      const referencingAssignments = await ctx.db
+        .query('planificationAssignments')
+        .withIndex('by_planification_revision', (q) =>
+          q.eq('planificationId', day.planificationId).eq('revisionId', day.revisionId)
+        )
+        .first()
+      if (referencingAssignments) {
+        throw new Error('Cannot delete days from a revision with assignment history')
+      }
+    }
+
     // Delete all exercises in this day
     const exercises = await ctx.db
       .query('dayExercises')
@@ -115,16 +135,33 @@ export const remove = mutation({
 export const getByPlanification = query({
   args: {
     planificationId: v.id('planifications'),
+    revisionId: v.optional(v.id('planificationRevisions')),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
+    const revisionId = await resolveRevisionIdForPlanification(
+      ctx,
+      args.planificationId,
+      args.revisionId
+    )
+    if (revisionId) {
+      const revisionDays = await ctx.db
+        .query('workoutDays')
+        .withIndex('by_planification_revision', (q) =>
+          q.eq('planificationId', args.planificationId).eq('revisionId', revisionId)
+        )
+        .order('asc')
+        .collect()
+      if (revisionDays.length > 0) {
+        return revisionDays
+      }
+    }
+
     return await ctx.db
       .query('workoutDays')
-      .withIndex('by_planification', (q) =>
-        q.eq('planificationId', args.planificationId)
-      )
+      .withIndex('by_planification', (q) => q.eq('planificationId', args.planificationId))
       .order('asc')
       .collect()
   },
@@ -146,5 +183,19 @@ export const getByWeek = query({
       .withIndex('by_week', (q) => q.eq('weekId', args.weekId))
       .order('asc')
       .collect()
+  },
+})
+
+/**
+ * Get a workout day by id.
+ */
+export const getById = query({
+  args: {
+    id: v.id('workoutDays'),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+    return await ctx.db.get(args.id)
   },
 })

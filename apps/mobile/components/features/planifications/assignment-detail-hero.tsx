@@ -9,6 +9,7 @@ interface AssignmentDetailHeroProps {
   dateRange: string | null
   description: string | null
   muted: string
+  statusLabel?: string | null
 }
 
 export function AssignmentDetailHero({
@@ -17,6 +18,7 @@ export function AssignmentDetailHero({
   dateRange,
   description,
   muted,
+  statusLabel,
 }: AssignmentDetailHeroProps) {
   return (
     <View style={styles.hero}>
@@ -32,6 +34,11 @@ export function AssignmentDetailHero({
       {description ? (
         <ThemedText style={[styles.heroDescription, { color: muted }]}>
           {description}
+        </ThemedText>
+      ) : null}
+      {statusLabel ? (
+        <ThemedText style={[styles.heroDescription, { color: muted }]}>
+          {statusLabel}
         </ThemedText>
       ) : null}
     </View>

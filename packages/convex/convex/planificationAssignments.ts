@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { requireAuth, requireAdminOrTrainer } from './permissions'
+import { ensureCurrentRevisionForPlanification } from './planificationRevisionHelpers'
 
 /**
  * Assign a planification to a member
@@ -53,9 +54,15 @@ export const assign = mutation({
     }
 
     const now = Date.now()
+    const revisionId = await ensureCurrentRevisionForPlanification(
+      ctx,
+      args.planificationId,
+      identity.subject
+    )
 
-    return await ctx.db.insert('planificationAssignments', {
+    const assignmentId = await ctx.db.insert('planificationAssignments', {
       planificationId: args.planificationId,
+      revisionId,
       userId: args.userId,
       organizationId: membership.organizationId,
       assignedBy: identity.subject,
@@ -66,6 +73,13 @@ export const assign = mutation({
       createdAt: now,
       updatedAt: now,
     })
+
+    await ctx.db.patch(args.planificationId, {
+      hasEverBeenAssigned: true,
+      updatedAt: now,
+    })
+
+    return assignmentId
   },
 })
 

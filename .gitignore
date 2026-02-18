@@ -10,3 +10,4 @@ packages/convex/_generated/
 # Build and cache
 .turbo/
 node_modules
+*.tsbuildinfo

@@ -35,6 +35,13 @@ export const startSession = mutation({
     if (workoutDay.planificationId !== assignment.planificationId) {
       throw new Error('Workout day does not belong to this planification')
     }
+    if (
+      assignment.revisionId &&
+      workoutDay.revisionId &&
+      workoutDay.revisionId !== assignment.revisionId
+    ) {
+      throw new Error('Workout day does not belong to this assignment revision')
+    }
 
     const existing = await ctx.db
       .query('workoutDaySessions')
@@ -54,6 +61,7 @@ export const startSession = mutation({
     return await ctx.db.insert('workoutDaySessions', {
       assignmentId: args.assignmentId,
       planificationId: assignment.planificationId,
+      revisionId: assignment.revisionId,
       workoutDayId: args.workoutDayId,
       userId: identity.subject,
       organizationId: assignment.organizationId,
@@ -106,9 +114,36 @@ export const getMyWeekSessions = query({
       .withIndex('by_user_performedOn', (q) => q.eq('userId', identity.subject))
       .collect()
 
-    return sessions.filter(
+    const inRange = sessions.filter(
       (s) => s.performedOn >= args.startOn && s.performedOn <= args.endOn
     )
+
+    const assignmentIds = Array.from(new Set(inRange.map((s) => s.assignmentId)))
+    const assignments = await Promise.all(
+      assignmentIds.map((assignmentId) => ctx.db.get(assignmentId))
+    )
+    const assignmentById = new Map(
+      assignments
+        .filter(
+          (
+            assignment
+          ): assignment is NonNullable<typeof assignment> =>
+            !!assignment && assignment.userId === identity.subject
+        )
+        .map((assignment) => [assignment._id, assignment])
+    )
+
+    return inRange.filter((session) => {
+      const assignment = assignmentById.get(session.assignmentId)
+      if (!assignment) return false
+      const keepByStatus =
+        assignment.status === 'active' || session.status === 'completed'
+      if (!keepByStatus) return false
+      if (assignment.revisionId && session.revisionId) {
+        return assignment.revisionId === session.revisionId
+      }
+      return true
+    })
   },
 })
 
@@ -134,6 +169,7 @@ export const getById = query({
 export const getByAssignment = query({
   args: {
     assignmentId: v.id('planificationAssignments'),
+    activeOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
@@ -142,12 +178,58 @@ export const getByAssignment = query({
     const assignment = await ctx.db.get(args.assignmentId)
     if (!assignment) return []
     if (assignment.userId !== identity.subject) return []
+    if (args.activeOnly && assignment.status !== 'active') return []
 
-    return await ctx.db
+    const sessions = await ctx.db
       .query('workoutDaySessions')
       .withIndex('by_assignment', (q) =>
         q.eq('assignmentId', args.assignmentId)
       )
       .collect()
+
+    return sessions.filter((session) => {
+      if (assignment.revisionId && session.revisionId) {
+        return assignment.revisionId === session.revisionId
+      }
+      return true
+    })
+  },
+})
+
+/**
+ * Get history sessions grouped by assignment and revision (member only).
+ */
+export const getMyHistoryByAssignments = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const sessions = await ctx.db
+      .query('workoutDaySessions')
+      .withIndex('by_user_performedOn', (q) => q.eq('userId', identity.subject))
+      .collect()
+
+    const grouped = new Map<string, (typeof sessions)[number][]>()
+    for (const session of sessions) {
+      const key = `${session.assignmentId}:${session.revisionId ?? 'legacy'}`
+      const bucket = grouped.get(key) ?? []
+      bucket.push(session)
+      grouped.set(key, bucket)
+    }
+
+    const entries = await Promise.all(
+      Array.from(grouped.entries()).map(async ([key, bucket]) => {
+        const assignment = await ctx.db.get(bucket[0].assignmentId)
+        return {
+          key,
+          assignment,
+          revisionId: bucket[0].revisionId,
+          sessions: bucket.sort((a, b) => a.performedOn.localeCompare(b.performedOn)),
+        }
+      })
+    )
+
+    return entries
   },
 })

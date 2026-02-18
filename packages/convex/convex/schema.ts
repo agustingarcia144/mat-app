@@ -109,6 +109,8 @@ export default defineSchema({
     description: v.optional(v.string()),
     folderId: v.optional(v.id('folders')), // null for root level
     isTemplate: v.boolean(), // true if it's a reusable template
+    currentRevisionId: v.optional(v.id('planificationRevisions')),
+    hasEverBeenAssigned: v.optional(v.boolean()),
     createdBy: v.string(), // Clerk user ID
     // Timestamps
     createdAt: v.number(),
@@ -121,8 +123,23 @@ export default defineSchema({
     .index('by_organization_isTemplate', ['organizationId', 'isTemplate']),
 
   // Workout Weeks - Weeks within a planification
+  planificationRevisions: defineTable({
+    planificationId: v.id('planifications'),
+    revisionNumber: v.number(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    createdBy: v.string(),
+    supersedesRevisionId: v.optional(v.id('planificationRevisions')),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_planification', ['planificationId'])
+    .index('by_planification_revisionNumber', ['planificationId', 'revisionNumber']),
+
+  // Workout Weeks - Weeks within a planification
   workoutWeeks: defineTable({
     planificationId: v.id('planifications'),
+    revisionId: v.optional(v.id('planificationRevisions')),
     name: v.string(), // e.g., "Semana 1", "Semana 2"
     order: v.number(), // Display order
     notes: v.optional(v.string()),
@@ -131,12 +148,14 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_planification', ['planificationId'])
+    .index('by_planification_revision', ['planificationId', 'revisionId'])
     .index('by_planification_order', ['planificationId', 'order']),
 
   // Workout Days - Days within a workout week
   workoutDays: defineTable({
     weekId: v.id('workoutWeeks'),
     planificationId: v.id('planifications'), // Keep for easier queries
+    revisionId: v.optional(v.id('planificationRevisions')),
     name: v.string(), // Flexible: "Day 1", "Legs", "Upper Body", etc.
     order: v.number(), // Display order within the week
     // ISO weekday: 1 = Monday (Lunes) … 7 = Sunday (Domingo). Omit = not scheduled to a specific day.
@@ -148,12 +167,14 @@ export default defineSchema({
   })
     .index('by_week', ['weekId'])
     .index('by_planification', ['planificationId'])
+    .index('by_planification_revision', ['planificationId', 'revisionId'])
     .index('by_week_order', ['weekId', 'order'])
     .index('by_planification_order', ['planificationId', 'order']),
 
   // Exercise Blocks - Groups of exercises within a workout day
   exerciseBlocks: defineTable({
     workoutDayId: v.id('workoutDays'),
+    revisionId: v.optional(v.id('planificationRevisions')),
     name: v.string(), // e.g., "Warm-up", "Main", "Cool-down"
     order: v.number(), // Display order within the day
     notes: v.optional(v.string()),
@@ -162,11 +183,13 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_workout_day', ['workoutDayId'])
+    .index('by_revision', ['revisionId'])
     .index('by_workout_day_order', ['workoutDayId', 'order']),
 
   // Day Exercises - Exercises in a workout day
   dayExercises: defineTable({
     workoutDayId: v.id('workoutDays'),
+    revisionId: v.optional(v.id('planificationRevisions')),
     exerciseId: v.id('exercises'),
     blockId: v.optional(v.id('exerciseBlocks')), // Optional: exercise can belong to a block
     order: v.number(), // Display order within the block (or day if no block)
@@ -181,6 +204,7 @@ export default defineSchema({
   })
     .index('by_workout_day', ['workoutDayId'])
     .index('by_exercise', ['exerciseId'])
+    .index('by_revision', ['revisionId'])
     .index('by_workout_day_order', ['workoutDayId', 'order'])
     .index('by_block', ['blockId'])
     .index('by_block_order', ['blockId', 'order']),
@@ -188,6 +212,7 @@ export default defineSchema({
   // Planification Assignments - Assign planifications to members
   planificationAssignments: defineTable({
     planificationId: v.id('planifications'),
+    revisionId: v.optional(v.id('planificationRevisions')),
     userId: v.string(), // Clerk user ID of the member
     organizationId: v.id('organizations'),
     assignedBy: v.string(), // Clerk user ID of admin/trainer
@@ -204,6 +229,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_planification', ['planificationId'])
+    .index('by_planification_revision', ['planificationId', 'revisionId'])
     .index('by_user', ['userId'])
     .index('by_organization', ['organizationId'])
     .index('by_user_status', ['userId', 'status']),
@@ -212,6 +238,7 @@ export default defineSchema({
   workoutDaySessions: defineTable({
     assignmentId: v.id('planificationAssignments'),
     planificationId: v.id('planifications'),
+    revisionId: v.optional(v.id('planificationRevisions')),
     workoutDayId: v.id('workoutDays'),
     userId: v.string(), // Clerk user ID
     organizationId: v.id('organizations'),
@@ -226,7 +253,9 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_user_performedOn', ['userId', 'performedOn'])
+    .index('by_user_assignment_performedOn', ['userId', 'assignmentId', 'performedOn'])
     .index('by_assignment', ['assignmentId'])
+    .index('by_assignment_revision', ['assignmentId', 'revisionId'])
     .index('by_assignment_workoutDay_performedOn', [
       'assignmentId',
       'workoutDayId',
@@ -237,6 +266,7 @@ export default defineSchema({
   sessionExerciseLogs: defineTable({
     sessionId: v.id('workoutDaySessions'),
     dayExerciseId: v.id('dayExercises'),
+    revisionId: v.optional(v.id('planificationRevisions')),
     sets: v.number(),
     reps: v.string(),
     weight: v.optional(v.string()),
@@ -246,6 +276,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_session', ['sessionId'])
+    .index('by_revision', ['revisionId'])
     .index('by_session_dayExercise', ['sessionId', 'dayExerciseId']),
 
   // Classes - Class templates and configurations

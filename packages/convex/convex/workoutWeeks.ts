@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { requireAuth } from './permissions'
+import { resolveRevisionIdForPlanification } from './planificationRevisionHelpers'
 
 /**
  * Create a new workout week
@@ -8,6 +9,7 @@ import { requireAuth } from './permissions'
 export const create = mutation({
   args: {
     planificationId: v.id('planifications'),
+    revisionId: v.optional(v.id('planificationRevisions')),
     name: v.string(),
     order: v.number(),
     notes: v.optional(v.string()),
@@ -16,9 +18,15 @@ export const create = mutation({
     await requireAuth(ctx)
 
     const now = Date.now()
+    const revisionId = await resolveRevisionIdForPlanification(
+      ctx,
+      args.planificationId,
+      args.revisionId
+    )
 
     return await ctx.db.insert('workoutWeeks', {
       planificationId: args.planificationId,
+      revisionId,
       name: args.name,
       order: args.order,
       notes: args.notes,
@@ -90,6 +98,18 @@ export const remove = mutation({
       throw new Error('Workout week not found')
     }
 
+    if (week.revisionId) {
+      const referencingAssignments = await ctx.db
+        .query('planificationAssignments')
+        .withIndex('by_planification_revision', (q) =>
+          q.eq('planificationId', week.planificationId).eq('revisionId', week.revisionId)
+        )
+        .first()
+      if (referencingAssignments) {
+        throw new Error('Cannot delete weeks from a revision with assignment history')
+      }
+    }
+
     // Delete all days in this week
     const days = await ctx.db
       .query('workoutDays')
@@ -120,16 +140,33 @@ export const remove = mutation({
 export const getByPlanification = query({
   args: {
     planificationId: v.id('planifications'),
+    revisionId: v.optional(v.id('planificationRevisions')),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
+    const revisionId = await resolveRevisionIdForPlanification(
+      ctx,
+      args.planificationId,
+      args.revisionId
+    )
+    if (revisionId) {
+      const revisionWeeks = await ctx.db
+        .query('workoutWeeks')
+        .withIndex('by_planification_revision', (q) =>
+          q.eq('planificationId', args.planificationId).eq('revisionId', revisionId)
+        )
+        .order('asc')
+        .collect()
+      if (revisionWeeks.length > 0) {
+        return revisionWeeks
+      }
+    }
+
     return await ctx.db
       .query('workoutWeeks')
-      .withIndex('by_planification', (q) =>
-        q.eq('planificationId', args.planificationId)
-      )
+      .withIndex('by_planification', (q) => q.eq('planificationId', args.planificationId))
       .order('asc')
       .collect()
   },

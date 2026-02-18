@@ -71,15 +71,46 @@ export default function DashboardContent() {
   const workoutDays = useQuery(
     api.workoutDays.getByPlanification,
     activeAssignment?.planificationId
-      ? { planificationId: activeAssignment.planificationId }
+      ? {
+          planificationId: activeAssignment.planificationId,
+          revisionId: activeAssignment.revisionId,
+        }
       : 'skip'
   )
 
   const allExercises = useQuery(
     api.dayExercises.getByPlanification,
     activeAssignment?.planificationId
-      ? { planificationId: activeAssignment.planificationId }
+      ? {
+          planificationId: activeAssignment.planificationId,
+          revisionId: activeAssignment.revisionId,
+        }
       : 'skip'
+  )
+
+  const weekSessionsForActiveAssignment = useMemo(() => {
+    if (!weekSessions || !activeAssignment) return []
+    return weekSessions.filter((session) => {
+      if (session.assignmentId !== activeAssignment._id) return false
+      if (activeAssignment.revisionId && session.revisionId) {
+        return session.revisionId === activeAssignment.revisionId
+      }
+      return true
+    })
+  }, [weekSessions, activeAssignment])
+  const completedSessionsFromOtherAssignments = useMemo(() => {
+    if (!weekSessions || !activeAssignment) return []
+    return weekSessions.filter(
+      (session) =>
+        session.assignmentId !== activeAssignment._id && session.status === 'completed'
+    )
+  }, [weekSessions, activeAssignment])
+  const weekSessionsForDisplay = useMemo(
+    () => [
+      ...weekSessionsForActiveAssignment,
+      ...completedSessionsFromOtherAssignments,
+    ],
+    [weekSessionsForActiveAssignment, completedSessionsFromOtherAssignments]
   )
 
   const exercisesByDay = useMemo(() => {
@@ -157,21 +188,35 @@ export default function DashboardContent() {
   )
   const sessionForSelected = useMemo(
     () =>
-      weekSessions?.find(
+      weekSessionsForActiveAssignment.find(
         (s) =>
           s.performedOn === selectedYmd &&
           s.workoutDayId === scheduledWorkoutDay?._id
       ) ??
-      weekSessions?.find((s) => s.performedOn === selectedYmd) ??
+      weekSessionsForDisplay.find(
+        (s) =>
+          s.status === 'completed' &&
+          s.performedOn === selectedYmd &&
+          s.workoutDayId === scheduledWorkoutDay?._id
+      ) ??
+      weekSessionsForActiveAssignment.find((s) => s.performedOn === selectedYmd) ??
+      weekSessionsForDisplay.find(
+        (s) => s.status === 'completed' && s.performedOn === selectedYmd
+      ) ??
       null,
-    [weekSessions, selectedYmd, scheduledWorkoutDay?._id]
+    [weekSessionsForActiveAssignment, weekSessionsForDisplay, selectedYmd, scheduledWorkoutDay?._id]
   )
 
-  const blocksForSelectedDay = useQuery(
-    api.exerciseBlocks.getByWorkoutDay,
-    scheduledWorkoutDay?._id
-      ? { workoutDayId: scheduledWorkoutDay._id }
+  const historicalWorkoutDay = useQuery(
+    api.workoutDays.getById,
+    sessionForSelected && !scheduledWorkoutDay
+      ? { id: sessionForSelected.workoutDayId }
       : 'skip'
+  )
+  const workoutDayToDisplay = scheduledWorkoutDay ?? historicalWorkoutDay ?? null
+  const blocksForDisplayDay = useQuery(
+    api.exerciseBlocks.getByWorkoutDay,
+    workoutDayToDisplay?._id ? { workoutDayId: workoutDayToDisplay._id } : 'skip'
   )
 
   const { statusBadgeLabel, statusBadgeVariant } = useMemo(() => {
@@ -200,10 +245,10 @@ export default function DashboardContent() {
   }, [sessionForSelected])
 
   const handleOpenWorkout = () => {
-    if (!activeAssignment || !scheduledWorkoutDay) return
     if (sessionForSelected) {
       router.push(`/home/workout/${sessionForSelected._id}` as Href)
     } else {
+      if (!activeAssignment || !scheduledWorkoutDay) return
       router.push(
         `/home/workout/new?workoutDayId=${scheduledWorkoutDay._id}&performedOn=${selectedYmd}&assignmentId=${activeAssignment._id}` as Href
       )
@@ -262,7 +307,7 @@ export default function DashboardContent() {
                 selectedDate={selectedDate}
                 onDateSelect={setSelectedDate}
                 onWeekChange={handleWeekChange}
-                weekSessions={weekSessions}
+                weekSessions={weekSessionsForDisplay}
                 workoutDays={
                   workoutDays as {
                     dayOfWeek?: number
@@ -274,15 +319,15 @@ export default function DashboardContent() {
             </View>
 
             <ScrollView contentContainerStyle={styles.todaySection}>
-              {scheduledWorkoutDay && (
+              {workoutDayToDisplay && (
                 <ScheduledWorkoutCard
-                  name={scheduledWorkoutDay.name}
+                  name={workoutDayToDisplay.name}
                   isDark={isDark}
                   statusBadgeVariant={statusBadgeVariant}
                   statusBadgeLabel={statusBadgeLabel}
-                  blockCount={blocksForSelectedDay?.length ?? 0}
+                  blockCount={blocksForDisplayDay?.length ?? 0}
                   exerciseCount={
-                    exercisesByDay[scheduledWorkoutDay._id]?.length ?? 0
+                    exercisesByDay[workoutDayToDisplay._id]?.length ?? 0
                   }
                   onPress={handleOpenWorkout}
                 />
@@ -297,7 +342,8 @@ export default function DashboardContent() {
                 />
               )}
               {reservedClassesItems.length === 0 &&
-                scheduledWorkoutDay === null && <RestDayPlaceholder />}
+                workoutDayToDisplay === null &&
+                sessionForSelected === null && <RestDayPlaceholder />}
             </ScrollView>
           </>
         )}

@@ -21,6 +21,7 @@ import type * as organizationMemberships from "../organizationMemberships.js";
 import type * as organizations from "../organizations.js";
 import type * as permissions from "../permissions.js";
 import type * as planificationAssignments from "../planificationAssignments.js";
+import type * as planificationRevisionHelpers from "../planificationRevisionHelpers.js";
 import type * as planifications from "../planifications.js";
 import type * as seedExercises from "../seedExercises.js";
 import type * as sessionExerciseLogs from "../sessionExerciseLogs.js";
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   organizations: typeof organizations;
   permissions: typeof permissions;
   planificationAssignments: typeof planificationAssignments;
+  planificationRevisionHelpers: typeof planificationRevisionHelpers;
   planifications: typeof planifications;
   seedExercises: typeof seedExercises;
   sessionExerciseLogs: typeof sessionExerciseLogs;

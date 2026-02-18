@@ -1,6 +1,11 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { requireAuth, requireAdminOrTrainer } from './permissions'
+import {
+  ensureCurrentRevisionForPlanification,
+  getLatestRevisionForPlanification,
+  resolveRevisionIdForPlanification,
+} from './planificationRevisionHelpers'
 
 /**
  * Create a new planification
@@ -32,16 +37,35 @@ export const create = mutation({
     // Templates must not belong to any folder
     const folderId = args.isTemplate ? undefined : args.folderId
 
-    return await ctx.db.insert('planifications', {
+    const planificationId = await ctx.db.insert('planifications', {
       organizationId: membership.organizationId,
       name: args.name,
       description: args.description,
       folderId,
       isTemplate: args.isTemplate,
+      hasEverBeenAssigned: false,
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
     })
+
+    const revisionId = await ctx.db.insert('planificationRevisions', {
+      planificationId,
+      revisionNumber: 1,
+      name: args.name,
+      description: args.description,
+      createdBy: identity.subject,
+      supersedesRevisionId: undefined,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await ctx.db.patch(planificationId, {
+      currentRevisionId: revisionId,
+      updatedAt: now,
+    })
+
+    return planificationId
   },
 })
 
@@ -80,6 +104,66 @@ export const update = mutation({
 })
 
 /**
+ * Create a new immutable revision for a planification.
+ */
+export const createRevision = mutation({
+  args: {
+    id: v.id('planifications'),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    folderId: v.optional(v.id('folders')),
+    isTemplate: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx)
+
+    const planification = await ctx.db.get(args.id)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+
+    await requireAdminOrTrainer(ctx, planification.organizationId)
+
+    const now = Date.now()
+    const isTemplate = args.isTemplate ?? planification.isTemplate
+    const name = args.name ?? planification.name
+    const description =
+      args.description !== undefined ? args.description : planification.description
+    const folderId = isTemplate ? undefined : (args.folderId ?? planification.folderId)
+
+    const supersedesRevisionId = await ensureCurrentRevisionForPlanification(
+      ctx,
+      args.id,
+      identity.subject
+    )
+    const latestRevision = await getLatestRevisionForPlanification(ctx, args.id)
+    const revisionNumber = (latestRevision?.revisionNumber ?? 0) + 1
+
+    const revisionId = await ctx.db.insert('planificationRevisions', {
+      planificationId: args.id,
+      revisionNumber,
+      name,
+      description,
+      createdBy: identity.subject,
+      supersedesRevisionId,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await ctx.db.patch(args.id, {
+      name,
+      description,
+      folderId,
+      isTemplate,
+      currentRevisionId: revisionId,
+      updatedAt: now,
+    })
+
+    return revisionId
+  },
+})
+
+/**
  * Delete a planification and all related data
  */
 export const remove = mutation({
@@ -95,6 +179,16 @@ export const remove = mutation({
     }
 
     await requireAdminOrTrainer(ctx, planification.organizationId)
+
+    const hasAssignments = await ctx.db
+      .query('planificationAssignments')
+      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
+      .first()
+    if (hasAssignments) {
+      throw new Error(
+        'Cannot delete planification with assignment history. Archive it instead.'
+      )
+    }
 
     // Delete all workout weeks
     const workoutWeeks = await ctx.db
@@ -136,6 +230,14 @@ export const remove = mutation({
       await ctx.db.delete(assignment._id)
     }
 
+    const revisions = await ctx.db
+      .query('planificationRevisions')
+      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
+      .collect()
+    for (const revision of revisions) {
+      await ctx.db.delete(revision._id)
+    }
+
     // Delete the planification
     await ctx.db.delete(args.id)
   },
@@ -168,20 +270,48 @@ export const duplicate = mutation({
       description: original.description,
       folderId: original.folderId,
       isTemplate: original.isTemplate,
+      hasEverBeenAssigned: false,
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
     })
 
+    const revisionId = await ctx.db.insert('planificationRevisions', {
+      planificationId: newPlanificationId,
+      revisionNumber: 1,
+      name: args.name || `${original.name} (copia)`,
+      description: original.description,
+      createdBy: identity.subject,
+      supersedesRevisionId: undefined,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await ctx.db.patch(newPlanificationId, {
+      currentRevisionId: revisionId,
+      updatedAt: now,
+    })
+
+    const sourceRevisionId = await resolveRevisionIdForPlanification(ctx, args.id)
+
     // Duplicate workout weeks
-    const workoutWeeks = await ctx.db
+    let workoutWeeks = await ctx.db
       .query('workoutWeeks')
-      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
+      .withIndex('by_planification_revision', (q) =>
+        q.eq('planificationId', args.id).eq('revisionId', sourceRevisionId)
+      )
       .collect()
+    if (workoutWeeks.length === 0) {
+      workoutWeeks = await ctx.db
+        .query('workoutWeeks')
+        .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
+        .collect()
+    }
 
     for (const week of workoutWeeks) {
       const newWeekId = await ctx.db.insert('workoutWeeks', {
         planificationId: newPlanificationId,
+        revisionId,
         name: week.name,
         order: week.order,
         notes: week.notes,
@@ -199,6 +329,7 @@ export const duplicate = mutation({
         const newDayId = await ctx.db.insert('workoutDays', {
           weekId: newWeekId,
           planificationId: newPlanificationId,
+          revisionId,
           name: day.name,
           order: day.order,
           notes: day.notes,
@@ -215,6 +346,7 @@ export const duplicate = mutation({
         for (const exercise of dayExercises) {
           await ctx.db.insert('dayExercises', {
             workoutDayId: newDayId,
+            revisionId,
             exerciseId: exercise.exerciseId,
             order: exercise.order,
             sets: exercise.sets,
@@ -242,6 +374,24 @@ export const getById = query({
   },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.id)
+  },
+})
+
+export const getRevisions = query({
+  args: {
+    planificationId: v.id('planifications'),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    return await ctx.db
+      .query('planificationRevisions')
+      .withIndex('by_planification_revisionNumber', (q) =>
+        q.eq('planificationId', args.planificationId)
+      )
+      .order('desc')
+      .collect()
   },
 })
 
