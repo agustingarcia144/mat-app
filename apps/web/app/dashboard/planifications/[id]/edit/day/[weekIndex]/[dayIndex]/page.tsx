@@ -6,6 +6,14 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { DragDropProvider } from '@dnd-kit/react'
 import { usePlanificationForm } from '@/contexts/planification-form-context'
 import {
@@ -333,12 +341,14 @@ export function DayEditPageContent({
   weekIndex: number
   dayIndex: number
 }) {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const isNewDay = searchParams.get('new') === '1'
   const { planificationId, form, onSubmit, isSaving, setRedirectAfterSave } =
     usePlanificationForm()
   const toastId = 'day-unsaved-changes'
   const planificationToastId = 'planification-unsaved-changes'
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   // Snapshot of form state when we entered this page; used by Descartar to revert and for unsaved detection.
   const entrySnapshotRef = useRef<PlanificationForm | null>(null)
   const [entrySnapshot, setEntrySnapshot] = useState<PlanificationForm | null>(
@@ -552,20 +562,42 @@ export function DayEditPageContent({
 
   const backHref = `/dashboard/planifications/${planificationId}/edit`
 
+  const handleBackClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (hasUnsavedChanges) {
+      setConfirmDialogOpen(true)
+    } else {
+      toast.dismiss(toastId)
+      toast.dismiss(planificationToastId)
+      router.push(backHref)
+    }
+  }
+
+  const handleConfirmNavigation = () => {
+    // Revert form state to the snapshot before navigating
+    if (entrySnapshot) {
+      form.reset(entrySnapshot)
+    }
+    toast.dismiss(toastId)
+    toast.dismiss(planificationToastId)
+    setConfirmDialogOpen(false)
+    router.push(backHref)
+  }
+
   if (dayIndex < 0 || dayIndex >= fields.length) {
     return (
       <div className="w-full py-6">
-        <Button variant="link" asChild className="mt-2">
-          <Link
-            href={backHref}
-            onClick={() => {
-              toast.dismiss(toastId)
-              toast.dismiss(planificationToastId)
-            }}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
-          </Link>
+        <Button
+          variant="link"
+          className="mt-2"
+          onClick={() => {
+            toast.dismiss(toastId)
+            toast.dismiss(planificationToastId)
+            router.push(backHref)
+          }}
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Volver
         </Button>
         <p className="text-destructive text-center">Día no encontrado.</p>
       </div>
@@ -574,18 +606,38 @@ export function DayEditPageContent({
 
   return (
     <div className="w-full py-6">
-      <Button variant="ghost" size="sm" className="mb-4" asChild>
-        <Link
-          href={backHref}
-          onClick={() => {
-            toast.dismiss(toastId)
-            toast.dismiss(planificationToastId)
-          }}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Volver
-        </Link>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mb-4"
+        onClick={handleBackClick}
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Volver
       </Button>
+
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Descartar cambios?</DialogTitle>
+            <DialogDescription>
+              Tienes cambios sin guardar en este día. Si continúas, perderás
+              todos los cambios realizados y se restaurará el estado anterior.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmNavigation}>
+              Descartar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="w-full p-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
         <div className="mb-6 shrink-0">
           <h1 className="text-2xl font-bold">Editar día</h1>
