@@ -3,6 +3,8 @@ import { StyleSheet, useColorScheme } from 'react-native'
 import { PressableScale } from 'pressto'
 
 import { IconSymbol } from '@/components/ui/icon-symbol'
+import HeaderPlayPauseButton from '@/components/ui/header-play-pause-button'
+import HeaderCloseButton from '@/components/ui/header-close-button'
 
 const SIZE = 36
 
@@ -45,7 +47,24 @@ export default function PlanificationsLayout() {
           headerTransparent: true,
           title: '',
           headerLeft: () => <HeaderBackButton />,
+          headerRight: () => <HeaderPlayPauseButton />,
           headerShadowVisible: false,
+        }}
+      />
+      <Stack.Screen
+        name="[assignmentId]/[exerciseId]/video"
+        options={{
+          presentation: 'formSheet',
+          headerShown: true,
+          headerTransparent: true,
+          contentStyle: { backgroundColor: 'transparent' },
+          title: '',
+          headerRight: () => <HeaderCloseButton />,
+          headerLeft: () => null,
+          headerShadowVisible: false,
+          gestureEnabled: true,
+          sheetAllowedDetents: [0.7],
+          sheetGrabberVisible: true,
         }}
       />
     </Stack>

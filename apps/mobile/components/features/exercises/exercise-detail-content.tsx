@@ -1,31 +1,31 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useCallback } from 'react'
 import {
   View,
-  Text,
   StyleSheet,
   ActivityIndicator,
   Image,
   Linking,
-  Platform,
+  Pressable,
 } from 'react-native'
-import { PressableScale } from 'pressto'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from 'convex/react'
 import { api } from '@repo/convex'
-import { getVideoThumbnailUrl } from '@repo/core/utils'
+import {
+  getYoutubeVideoId,
+  getVideoThumbnailUrl,
+} from '@repo/core/utils'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
 import ParallaxScrollView from '@/components/ui/parallax-scroll-view'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { Colors } from '@/constants/theme'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
+import { useExerciseVideo } from '@/contexts/exercise-video-context'
 
 const HEADER_BG = { light: '#e5e5e5', dark: '#262626' }
 
 export default function ExerciseDetailContent() {
-  const { exerciseId, dayExerciseId } = useLocalSearchParams<{
+  const { assignmentId, exerciseId, dayExerciseId } = useLocalSearchParams<{
+    assignmentId?: string
     exerciseId: string
     dayExerciseId?: string
   }>()
@@ -43,14 +43,59 @@ export default function ExerciseDetailContent() {
     dayExerciseId ? { id: dayExerciseId as any } : 'skip'
   )
 
+  const youtubeVideoId = useMemo(() => {
+    if (!exercise?.videoUrl) return null
+    return getYoutubeVideoId(exercise.videoUrl)
+  }, [exercise?.videoUrl])
+
   const thumbnailUrl = useMemo(() => {
     if (!exercise?.videoUrl) return null
     return getVideoThumbnailUrl(exercise.videoUrl)
   }, [exercise?.videoUrl])
 
-  const openVideo = () => {
+  // Always use embed when we have a YouTube URL. Constants.isDevice can be false on some
+  // physical devices/builds, so we don't gate on simulator to avoid showing thumbnail on device.
+  const useEmbed = !!youtubeVideoId
+
+  const { setVideoControls } = useExerciseVideo()
+
+  const openVideo = useCallback(() => {
     if (exercise?.videoUrl) Linking.openURL(exercise.videoUrl)
-  }
+  }, [exercise?.videoUrl])
+
+  const openVideoSheet = useCallback(() => {
+    if (!youtubeVideoId) {
+      openVideo()
+      return
+    }
+
+    if (assignmentId) {
+      router.push({
+        pathname: '/(tabs)/planifications/[assignmentId]/[exerciseId]/video',
+        params: {
+          assignmentId,
+          exerciseId,
+          ...(dayExerciseId ? { dayExerciseId } : {}),
+        },
+      })
+      return
+    }
+
+    router.push({
+      pathname: '/(tabs)/home/exercise/video/[exerciseId]',
+      params: {
+        exerciseId,
+        ...(dayExerciseId ? { dayExerciseId } : {}),
+      },
+    })
+  }, [assignmentId, dayExerciseId, exerciseId, openVideo, router, youtubeVideoId])
+
+  useEffect(() => {
+    if (useEmbed) {
+      setVideoControls(openVideoSheet, false)
+    }
+    return () => setVideoControls(null, true)
+  }, [useEmbed, openVideoSheet, setVideoControls])
 
   const summaryParts = useMemo(() => {
     const parts: string[] = []
@@ -88,13 +133,13 @@ export default function ExerciseDetailContent() {
   const hasDayNotes = !!dayExerciseId && !!dayExercise?.notes?.trim()
 
   const headerImage = thumbnailUrl ? (
-    <PressableScale style={styles.headerImageWrap} onPress={openVideo}>
+    <Pressable style={styles.headerImageWrap} onPress={openVideoSheet}>
       <Image
         source={{ uri: thumbnailUrl }}
         style={styles.headerImage}
         resizeMode="cover"
       />
-    </PressableScale>
+    </Pressable>
   ) : (
     <View
       style={[
@@ -159,45 +204,6 @@ export default function ExerciseDetailContent() {
           </View>
         )}
       </ParallaxScrollView>
-
-      {hasVideo && (
-        <View
-          style={[
-            styles.stickyFooter,
-            {
-              paddingBottom: insets.bottom + 60,
-              backgroundColor: Colors[colorScheme ?? 'light'].background,
-              ...Platform.select({
-                ios: {
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.06,
-                  shadowRadius: 8,
-                },
-                android: { elevation: 6 },
-              }),
-            },
-          ]}
-        >
-          <ThemedPressable type="primary" onPress={openVideo}>
-            <View style={styles.footerButtonContent}>
-              <MaterialIcons
-                name="play-arrow"
-                size={22}
-                color={colorScheme === 'dark' ? '#000' : '#fff'}
-              />
-              <Text
-                style={[
-                  styles.primaryButtonText,
-                  { color: colorScheme === 'dark' ? '#000' : '#fff' },
-                ]}
-              >
-                Ver video
-              </Text>
-            </View>
-          </ThemedPressable>
-        </View>
-      )}
     </ThemedView>
   )
 }
@@ -213,6 +219,8 @@ const styles = StyleSheet.create({
   headerImageWrap: {
     width: '100%',
     height: '100%',
+    overflow: 'hidden',
+    backgroundColor: '#000',
   },
   headerPlaceholder: {
     justifyContent: 'center',
@@ -234,21 +242,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-  },
-  headerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    paddingBottom: 16,
-  },
-  headerCta: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 8,
+    backgroundColor: '#000',
   },
   title: {
     fontSize: 26,
@@ -283,14 +277,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     opacity: 0.9,
   },
-  stickyFooter: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
   notFound: {
     fontSize: 16,
     marginBottom: 12,
@@ -299,15 +285,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     opacity: 0.8,
     textDecorationLine: 'underline',
-  },
-  footerButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
 })

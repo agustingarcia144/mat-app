@@ -22,6 +22,7 @@ import { NoActivePlanificationPlaceholder } from '@/components/features/home/no-
 import { ReservedClassesForDay } from '@/components/features/home/reserved-classes-for-day'
 import { RestDayPlaceholder } from '@/components/features/home/rest-day-placeholder'
 import { ScheduledWorkoutCard } from '@/components/features/home/scheduled-workout-card'
+import { ScrollView } from 'react-native-gesture-handler'
 
 const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const }
 
@@ -272,7 +273,7 @@ export default function DashboardContent() {
               />
             </View>
 
-            <View style={styles.todaySection}>
+            <ScrollView contentContainerStyle={styles.todaySection}>
               {scheduledWorkoutDay && (
                 <ScheduledWorkoutCard
                   name={scheduledWorkoutDay.name}
@@ -297,7 +298,7 @@ export default function DashboardContent() {
               )}
               {reservedClassesItems.length === 0 &&
                 scheduledWorkoutDay === null && <RestDayPlaceholder />}
-            </View>
+            </ScrollView>
           </>
         )}
       </View>

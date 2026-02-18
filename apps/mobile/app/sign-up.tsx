@@ -42,6 +42,7 @@ function AuthenticatedRedirect() {
       }
     }
     handleRedirect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router])
 
   return <LoadingScreen />

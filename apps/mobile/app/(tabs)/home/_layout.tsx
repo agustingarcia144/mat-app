@@ -40,6 +40,22 @@ export default function InicioLayout() {
         }}
       />
       <Stack.Screen
+        name="exercise/video/[exerciseId]"
+        options={{
+          presentation: 'formSheet',
+          headerShown: true,
+          headerTransparent: false,
+          contentStyle: { backgroundColor: 'transparent' },
+          title: '',
+          headerRight: () => <HeaderCloseButton />,
+          headerLeft: () => null,
+          headerShadowVisible: false,
+          gestureEnabled: true,
+          sheetAllowedDetents: [0.7],
+          sheetGrabberVisible: true,
+        }}
+      />
+      <Stack.Screen
         name="schedule/[scheduleId]"
         options={{
           headerShown: true,
