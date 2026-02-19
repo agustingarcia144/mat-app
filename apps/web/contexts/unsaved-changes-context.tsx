@@ -560,15 +560,11 @@ export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
   }, [entryId, options?.isSaving, setEntrySaving])
 
   useEffect(() => {
-    if (options?.onSave !== undefined) {
-      setEntrySaveHandler(entryId, options.onSave)
-    }
+    setEntrySaveHandler(entryId, options?.onSave ?? null)
   }, [entryId, options?.onSave, setEntrySaveHandler])
 
   useEffect(() => {
-    if (options?.shouldBlockNavigation !== undefined) {
-      setEntryShouldBlockNavigation(entryId, options.shouldBlockNavigation)
-    }
+    setEntryShouldBlockNavigation(entryId, options?.shouldBlockNavigation)
   }, [entryId, options?.shouldBlockNavigation, setEntryShouldBlockNavigation])
 
   const markDirty = useCallback(() => {
