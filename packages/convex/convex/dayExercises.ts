@@ -1,6 +1,10 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth } from './permissions'
+import {
+  requireAuth,
+  requireAdminOrTrainer,
+  requireOrganizationMembership,
+} from './permissions'
 import { resolveRevisionIdForPlanification } from './planificationRevisionHelpers'
 
 /**
@@ -24,6 +28,19 @@ export const create = mutation({
     const workoutDay = await ctx.db.get(args.workoutDayId)
     if (!workoutDay) {
       throw new Error('Workout day not found')
+    }
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
+
+    const exercise = await ctx.db.get(args.exerciseId)
+    if (!exercise) {
+      throw new Error('Exercise not found')
+    }
+    if (exercise.organizationId !== planification.organizationId) {
+      throw new Error('Exercise does not belong to this organization')
     }
 
     // If blockId is provided, verify it belongs to the workout day
@@ -73,6 +90,15 @@ export const update = mutation({
     if (!dayExercise) {
       throw new Error('Day exercise not found')
     }
+    const workoutDay = await ctx.db.get(dayExercise.workoutDayId)
+    if (!workoutDay) {
+      throw new Error('Workout day not found')
+    }
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
 
     // If blockId is being updated, verify it belongs to the workout day
     if (args.blockId !== undefined && args.blockId !== null) {
@@ -108,6 +134,23 @@ export const reorder = mutation({
   handler: async (ctx, args) => {
     await requireAuth(ctx)
 
+    const workoutDay = await ctx.db.get(args.workoutDayId)
+    if (!workoutDay) {
+      throw new Error('Workout day not found')
+    }
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
+
+    for (const exerciseId of args.exerciseIds) {
+      const dayExercise = await ctx.db.get(exerciseId)
+      if (!dayExercise || dayExercise.workoutDayId !== args.workoutDayId) {
+        throw new Error('Invalid exercise order payload')
+      }
+    }
+
     // Update order for each exercise
     for (let i = 0; i < args.exerciseIds.length; i++) {
       await ctx.db.patch(args.exerciseIds[i], {
@@ -132,6 +175,15 @@ export const remove = mutation({
     if (!dayExercise) {
       throw new Error('Day exercise not found')
     }
+    const workoutDay = await ctx.db.get(dayExercise.workoutDayId)
+    if (!workoutDay) {
+      throw new Error('Workout day not found')
+    }
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
 
     await ctx.db.delete(args.id)
   },
@@ -147,7 +199,14 @@ export const getById = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return null
-    return await ctx.db.get(args.id)
+    const dayExercise = await ctx.db.get(args.id)
+    if (!dayExercise) return null
+    const workoutDay = await ctx.db.get(dayExercise.workoutDayId)
+    if (!workoutDay) return null
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) return null
+    await requireOrganizationMembership(ctx, planification.organizationId)
+    return dayExercise
   },
 })
 
@@ -161,6 +220,12 @@ export const getByWorkoutDay = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
+
+    const workoutDay = await ctx.db.get(args.workoutDayId)
+    if (!workoutDay) return []
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) return []
+    await requireOrganizationMembership(ctx, planification.organizationId)
 
     const dayExercises = await ctx.db
       .query('dayExercises')
@@ -196,6 +261,14 @@ export const getByBlock = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
+    const block = await ctx.db.get(args.blockId)
+    if (!block) return []
+    const workoutDay = await ctx.db.get(block.workoutDayId)
+    if (!workoutDay) return []
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) return []
+    await requireOrganizationMembership(ctx, planification.organizationId)
+
     const dayExercises = await ctx.db
       .query('dayExercises')
       .withIndex('by_block', (q) => q.eq('blockId', args.blockId))
@@ -228,6 +301,10 @@ export const getByPlanification = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
+
+    const planification = await ctx.db.get(args.planificationId)
+    if (!planification) return []
+    await requireOrganizationMembership(ctx, planification.organizationId)
 
     const revisionId = await resolveRevisionIdForPlanification(
       ctx,

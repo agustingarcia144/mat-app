@@ -1,6 +1,10 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth, requireAdminOrTrainer } from './permissions'
+import {
+  requireAuth,
+  requireAdminOrTrainer,
+  requireCurrentOrganizationMembership,
+} from './permissions'
 
 /**
  * Create a single class schedule
@@ -212,12 +216,9 @@ export const getByOrganizationAndDateRange = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     // Get schedules in the date range
@@ -252,12 +253,9 @@ export const getUpcoming = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     const now = Date.now()
@@ -326,11 +324,9 @@ export const getAllByOrganization = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     return await ctx.db

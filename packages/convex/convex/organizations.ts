@@ -76,9 +76,15 @@ export const deleteFromClerk = internalMutation({
       .first();
 
     if (existing) {
+      const memberships = await ctx.db
+        .query("organizationMemberships")
+        .withIndex("by_organization", (q) => q.eq("organizationId", existing._id))
+        .collect();
+      for (const membership of memberships) {
+        await ctx.db.delete(membership._id);
+      }
+
       // Delete the organization
-      // Note: You may want to also delete or update related memberships
-      // For now, we'll just delete the org - you can add cascade logic if needed
       await ctx.db.delete(existing._id);
     }
   },

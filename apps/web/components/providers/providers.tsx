@@ -5,7 +5,11 @@ import { ThemeProvider } from './theme-provider'
 
 function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
+      afterSignOutUrl="/"
+    >
         <ConvexClientProvider>
           <ThemeProvider
             attribute="class"

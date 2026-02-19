@@ -8,7 +8,7 @@ The webhook implementation syncs the following data from Clerk to Convex:
 
 - **Users**: App-specific user data (birthday, etc.)
 - **Organizations**: Gym data (name, slug, address, phone, email, logo)
-- **Organization Memberships**: User-gym relationships with roles (owner, trainer, member)
+- **Organization Memberships**: User-gym relationships with roles (admin, trainer, member)
 
 ## Prerequisites
 
@@ -116,7 +116,7 @@ A single unified endpoint handles all Clerk events:
 - `organizationId` ← References Convex organization (found by Clerk org ID)
 - `userId` ← Clerk user ID
 - `role` ← Mapped from Clerk role:
-  - `org:admin` → `owner`
+  - `org:admin` → `admin`
   - Roles containing "trainer", "instructor", or "teacher" → `trainer`
   - Default → `member`
 - `status` ← Always `active` (can be customized)
@@ -127,11 +127,11 @@ A single unified endpoint handles all Clerk events:
 
 Clerk roles are mapped to our system as follows:
 
-- **Owner**: `org:admin` or any role containing "admin"
+- **Admin**: `org:admin` or any role containing "admin"
 - **Trainer**: Any role containing "trainer", "instructor", or "teacher"
 - **Member**: Default for all other roles
 
-**Note**: A user can have multiple roles in the same organization (e.g., owner + member, trainer + member). Each role creates a separate membership record.
+**Note**: The sync keeps one effective role per user per organization, aligned to Clerk membership updates.
 
 ## Troubleshooting
 

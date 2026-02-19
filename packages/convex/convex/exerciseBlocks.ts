@@ -1,7 +1,11 @@
 import { mutation, query } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { v } from 'convex/values'
-import { requireAuth } from './permissions'
+import {
+  requireAuth,
+  requireAdminOrTrainer,
+  requireOrganizationMembership,
+} from './permissions'
 import { resolveRevisionIdForPlanification } from './planificationRevisionHelpers'
 
 /**
@@ -22,6 +26,11 @@ export const create = mutation({
     if (!workoutDay) {
       throw new Error('Workout day not found')
     }
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
 
     return await ctx.db.insert('exerciseBlocks', {
       workoutDayId: args.workoutDayId,
@@ -51,6 +60,15 @@ export const update = mutation({
     if (!block) {
       throw new Error('Exercise block not found')
     }
+    const workoutDay = await ctx.db.get(block.workoutDayId)
+    if (!workoutDay) {
+      throw new Error('Workout day not found')
+    }
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
 
     const { id, ...updates } = args
 
@@ -71,6 +89,16 @@ export const reorder = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx)
+
+    const workoutDay = await ctx.db.get(args.workoutDayId)
+    if (!workoutDay) {
+      throw new Error('Workout day not found')
+    }
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
 
     // Verify all blocks belong to the workout day
     for (const blockId of args.blockIds) {
@@ -105,6 +133,15 @@ export const remove = mutation({
     if (!block) {
       throw new Error('Exercise block not found')
     }
+    const workoutDay = await ctx.db.get(block.workoutDayId)
+    if (!workoutDay) {
+      throw new Error('Workout day not found')
+    }
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
 
     // Check if block has any exercises
     const exercises = await ctx.db
@@ -133,6 +170,12 @@ export const getByWorkoutDay = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
+    const workoutDay = await ctx.db.get(args.workoutDayId)
+    if (!workoutDay) return []
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) return []
+    await requireOrganizationMembership(ctx, planification.organizationId)
+
     return await ctx.db
       .query('exerciseBlocks')
       .withIndex('by_workout_day', (q) => q.eq('workoutDayId', args.workoutDayId))
@@ -152,6 +195,10 @@ export const getByPlanification = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
+
+    const planification = await ctx.db.get(args.planificationId)
+    if (!planification) return []
+    await requireOrganizationMembership(ctx, planification.organizationId)
 
     const revisionId = await resolveRevisionIdForPlanification(
       ctx,
@@ -203,6 +250,19 @@ export const getById = query({
     id: v.id('exerciseBlocks'),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id)
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const block = await ctx.db.get(args.id)
+    if (!block) return null
+
+    const workoutDay = await ctx.db.get(block.workoutDayId)
+    if (!workoutDay) return null
+
+    const planification = await ctx.db.get(workoutDay.planificationId)
+    if (!planification) return null
+
+    await requireOrganizationMembership(ctx, planification.organizationId)
+    return block
   },
 })

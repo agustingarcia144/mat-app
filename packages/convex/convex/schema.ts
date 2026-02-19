@@ -19,6 +19,9 @@ export default defineSchema({
     phone: v.optional(v.string()),
     // Onboarding tracking
     onboardingCompleted: v.optional(v.boolean()),
+    // Selected org context for multi-org users.
+    // Stored as Clerk organization ID (externalId in organizations table).
+    activeOrganizationExternalId: v.optional(v.string()),
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -44,10 +47,11 @@ export default defineSchema({
     .index('by_externalId', ['externalId'])
     .index('by_slug', ['slug']),
 
-  // Organization memberships - links users to gyms with roles
-  // Note: A user can have multiple memberships in the same org with different roles
-  // (e.g., admin + member, trainer + member)
+  // Organization memberships - links users to gyms with roles.
+  // One active role per user/org is enforced by webhook sync semantics.
   organizationMemberships: defineTable({
+    // Clerk organization membership ID (optional for backwards compatibility).
+    externalMembershipId: v.optional(v.string()),
     organizationId: v.id('organizations'),
     // Clerk user ID (not a reference to users table to allow flexibility)
     userId: v.string(),
@@ -63,10 +67,31 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index('by_externalMembershipId', ['externalMembershipId'])
     .index('by_organization', ['organizationId'])
     .index('by_user', ['userId'])
     .index('by_organization_user', ['organizationId', 'userId'])
     .index('by_organization_role', ['organizationId', 'role']),
+
+  // Clerk webhook processing ledger for idempotency, replay defense, and auditing.
+  webhookEvents: defineTable({
+    svixId: v.string(),
+    svixTimestamp: v.number(),
+    eventType: v.string(),
+    objectId: v.optional(v.string()),
+    status: v.union(
+      v.literal('processing'),
+      v.literal('processed'),
+      v.literal('failed')
+    ),
+    attempts: v.number(),
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+  })
+    .index('by_svixId', ['svixId'])
+    .index('by_status', ['status'])
+    .index('by_eventType', ['eventType']),
 
   // Exercises - Exercise library per organization
   exercises: defineTable({

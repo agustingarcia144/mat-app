@@ -1,6 +1,10 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth, requireAdminOrTrainer } from './permissions'
+import {
+  requireAuth,
+  requireAdminOrTrainer,
+  requireOrganizationMembership,
+} from './permissions'
 import { ensureCurrentRevisionForPlanification } from './planificationRevisionHelpers'
 
 /**
@@ -25,17 +29,18 @@ export const assign = mutation({
       throw new Error('No se pueden asignar plantillas a miembros')
     }
 
-    // Get user's organization
-    const membership = await ctx.db
+    await requireAdminOrTrainer(ctx, planification.organizationId)
+
+    const targetMembership = await ctx.db
       .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
+      .withIndex('by_organization_user', (q) =>
+        q.eq('organizationId', planification.organizationId).eq('userId', args.userId)
+      )
+      .filter((q) => q.eq(q.field('status'), 'active'))
       .first()
-
-    if (!membership) {
-      throw new Error('User is not a member of any organization')
+    if (!targetMembership) {
+      throw new Error('Target user is not an active member of this organization')
     }
-
-    await requireAdminOrTrainer(ctx, membership.organizationId)
 
     // Check if already assigned
     const existing = await ctx.db
@@ -64,7 +69,7 @@ export const assign = mutation({
       planificationId: args.planificationId,
       revisionId,
       userId: args.userId,
-      organizationId: membership.organizationId,
+      organizationId: planification.organizationId,
       assignedBy: identity.subject,
       status: 'active',
       startDate: args.startDate,
@@ -152,9 +157,39 @@ export const getByUser = query({
       .withIndex('by_user', (q) => q.eq('userId', args.userId))
       .collect()
 
+    const effectiveAssignments =
+      args.userId === identity.subject
+        ? assignments
+        : await Promise.all(
+            assignments.map(async (assignment) => {
+              const callerMembership = await ctx.db
+                .query('organizationMemberships')
+                .withIndex('by_organization_user', (q) =>
+                  q
+                    .eq('organizationId', assignment.organizationId)
+                    .eq('userId', identity.subject)
+                )
+                .filter((q) => q.eq(q.field('status'), 'active'))
+                .first()
+
+              if (
+                !callerMembership ||
+                (callerMembership.role !== 'admin' &&
+                  callerMembership.role !== 'trainer')
+              ) {
+                return null
+              }
+              return assignment
+            })
+          ).then((items) =>
+            items.filter(
+              (item): item is (typeof assignments)[number] => item !== null
+            )
+          )
+
     // Fetch planification details and weeks count
     const withDetails = await Promise.all(
-      assignments.map(async (assignment) => {
+      effectiveAssignments.map(async (assignment) => {
         const planification = await ctx.db.get(assignment.planificationId)
         const weeks = await ctx.db
           .query('workoutWeeks')
@@ -184,6 +219,10 @@ export const getByPlanification = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
+
+    const planification = await ctx.db.get(args.planificationId)
+    if (!planification) return []
+    await requireOrganizationMembership(ctx, planification.organizationId)
 
     const allAssignments = await ctx.db
       .query('planificationAssignments')
@@ -222,6 +261,8 @@ export const getByOrganization = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
+
+    await requireAdminOrTrainer(ctx, args.organizationId)
 
     return await ctx.db
       .query('planificationAssignments')

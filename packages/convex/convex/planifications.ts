@@ -1,6 +1,11 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth, requireAdminOrTrainer } from './permissions'
+import {
+  requireAuth,
+  requireAdminOrTrainer,
+  requireCurrentOrganizationMembership,
+  requireOrganizationMembership,
+} from './permissions'
 import {
   ensureCurrentRevisionForPlanification,
   getLatestRevisionForPlanification,
@@ -20,15 +25,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
-    if (!membership) {
-      throw new Error('User is not a member of any organization')
-    }
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     await requireAdminOrTrainer(ctx, membership.organizationId)
 
@@ -373,7 +370,16 @@ export const getById = query({
     id: v.id('planifications'),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id)
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const planification = await ctx.db.get(args.id)
+    if (!planification) {
+      return null
+    }
+
+    await requireOrganizationMembership(ctx, planification.organizationId)
+    return planification
   },
 })
 
@@ -384,6 +390,11 @@ export const getRevisions = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
+
+    const planification = await ctx.db.get(args.planificationId)
+    if (!planification) return []
+
+    await requireOrganizationMembership(ctx, planification.organizationId)
 
     return await ctx.db
       .query('planificationRevisions')
@@ -404,12 +415,9 @@ export const getByOrganization = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     return await ctx.db
@@ -433,12 +441,9 @@ export const getByFolder = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     // Root level (Todas): return only non-template planifications
@@ -474,11 +479,9 @@ export const getTemplates = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     const templates = await ctx.db
