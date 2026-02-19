@@ -1,6 +1,11 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth, requireAdminOrTrainer } from './permissions'
+import {
+  requireAuth,
+  requireAdminOrTrainer,
+  requireCurrentOrganizationMembership,
+  requireOrganizationMembership,
+} from './permissions'
 
 /**
  * Create a new exercise
@@ -17,15 +22,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
-    if (!membership) {
-      throw new Error('User is not a member of any organization')
-    }
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     await requireAdminOrTrainer(ctx, membership.organizationId)
 
@@ -120,12 +117,9 @@ export const getByOrganization = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     const exercises = await ctx.db
@@ -152,11 +146,9 @@ export const search = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     let exercises = await ctx.db
@@ -196,11 +188,9 @@ export const listFacets = query({
     if (!identity)
       return { categories: [] as string[], equipment: [] as string[] }
 
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership)
       return { categories: [] as string[], equipment: [] as string[] }
 
@@ -235,6 +225,13 @@ export const getById = query({
     id: v.id('exercises'),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id)
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const exercise = await ctx.db.get(args.id)
+    if (!exercise) return null
+
+    await requireOrganizationMembership(ctx, exercise.organizationId)
+    return exercise
   },
 })

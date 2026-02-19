@@ -7,6 +7,8 @@ import {
   FlatList,
 } from 'react-native'
 import { useOrganizationList } from '@clerk/clerk-expo'
+import { useMutation } from 'convex/react'
+import { api } from '@repo/convex'
 import { useRouter } from 'expo-router'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
@@ -22,6 +24,9 @@ export default function SelectOrganizationScreen() {
     userMemberships: true,
   })
   const router = useRouter()
+  const setActiveOrganization = useMutation(
+    api.organizationMemberships.setActiveOrganization
+  )
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
 
@@ -32,13 +37,16 @@ export default function SelectOrganizationScreen() {
       setLoading(true)
       try {
         await setActive?.({ organization: orgId } as any)
+        await setActiveOrganization({
+          organizationExternalId: orgId,
+        })
         router.replace('/(tabs)/home')
       } catch (err) {
         console.error('Error setting active organization:', err)
         setLoading(false)
       }
     },
-    [router, setActive]
+    [router, setActive, setActiveOrganization]
   )
 
   useEffect(() => {

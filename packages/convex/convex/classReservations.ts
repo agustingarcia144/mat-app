@@ -1,6 +1,10 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth, requireAdminOrTrainer } from './permissions'
+import {
+  requireAuth,
+  requireAdminOrTrainer,
+  requireOrganizationMembership,
+} from './permissions'
 
 /**
  * Reserve a spot in a class
@@ -17,6 +21,8 @@ export const reserve = mutation({
     if (!schedule) {
       throw new Error('Schedule not found')
     }
+
+    await requireOrganizationMembership(ctx, schedule.organizationId)
 
     // Check if schedule is cancelled
     if (schedule.status === 'cancelled') {

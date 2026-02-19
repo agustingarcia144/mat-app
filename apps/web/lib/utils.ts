@@ -5,6 +5,12 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function normalizeString(value: unknown, maxLength: number) {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim()
+  return normalized.length === 0 ? '' : normalized.slice(0, maxLength)
+}
+
 /** Deep equality for plain objects/arrays (form data). Used for unsaved-changes detection. */
 export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true

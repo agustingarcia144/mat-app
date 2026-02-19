@@ -2,7 +2,11 @@ import { mutation, query } from './_generated/server'
 import type { MutationCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { v } from 'convex/values'
-import { requireAuth, requireAdminOrTrainer } from './permissions'
+import {
+  requireAuth,
+  requireAdminOrTrainer,
+  requireCurrentOrganizationMembership,
+} from './permissions'
 
 /**
  * Compute folder path for breadcrumbs
@@ -57,15 +61,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
-    if (!membership) {
-      throw new Error('User is not a member of any organization')
-    }
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     await requireAdminOrTrainer(ctx, membership.organizationId)
 
@@ -251,12 +247,9 @@ export const getTree = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     return await ctx.db
@@ -278,11 +271,9 @@ export const getDeletableFolderIds = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     const folders = await ctx.db
@@ -323,12 +314,9 @@ export const getByParent = query({
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
-      .first()
-
+    const membership = await requireCurrentOrganizationMembership(ctx).catch(
+      () => null
+    )
     if (!membership) return []
 
     return await ctx.db

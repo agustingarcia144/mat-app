@@ -1,9 +1,31 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
 
 const isProtectedRoute = createRouteMatcher(['/dashboard(.*)'])
+const isOrgSelectionRoute = createRouteMatcher(['/select-organization(.*)'])
 
 export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) await auth.protect()
+  const { userId, orgId } = await auth()
+
+  if (isProtectedRoute(req)) {
+    if (!userId) {
+      await auth.protect()
+      return
+    }
+    if (!orgId) {
+      return NextResponse.redirect(new URL('/select-organization', req.url))
+    }
+  }
+
+  if (isOrgSelectionRoute(req)) {
+    if (!userId) {
+      await auth.protect()
+      return
+    }
+    if (orgId) {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+  }
 })
 
 export const config = {

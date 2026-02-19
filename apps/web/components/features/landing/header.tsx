@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import React from 'react'
 import { cn } from '@/lib/utils'
 import { Authenticated, Unauthenticated } from 'convex/react'
-import { SignInButton, SignUpButton, UserButton } from '@clerk/nextjs'
+import { SignInButton } from '@clerk/nextjs'
 
 const menuItems = [
     { name: 'Features', href: '#link' },
@@ -89,17 +89,14 @@ export const HeroHeader = () => {
                                                 <span>Login</span>
                                         </Button>
                                     </SignInButton>
-                                    <SignUpButton mode="modal">
-                                        <Button
-                                            asChild
-                                            size="sm"
-                                            className={cn(isScrolled && 'lg:hidden')}>
-                                                <span>Sign Up</span>
-                                        </Button>
-                                    </SignUpButton>
+                                    <Button asChild size="sm" className={cn(isScrolled && 'lg:hidden')}>
+                                        <Link href="/sign-up">
+                                            <span>Tengo invitación</span>
+                                        </Link>
+                                    </Button>
                                 </Unauthenticated>
                                 <Authenticated>
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center">
                                         <Button
                                             asChild
                                             size="sm"
@@ -108,7 +105,6 @@ export const HeroHeader = () => {
                                                     <span>Dashboard</span>
                                                 </Link>
                                         </Button>
-                                        <UserButton />
                                     </div>
                                 </Authenticated>
                             </div>

@@ -1,6 +1,10 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth } from './permissions'
+import {
+  requireAuth,
+  requireAdminOrTrainer,
+  requireOrganizationMembership,
+} from './permissions'
 import { resolveRevisionIdForPlanification } from './planificationRevisionHelpers'
 
 /**
@@ -16,6 +20,12 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx)
+
+    const planification = await ctx.db.get(args.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
 
     const now = Date.now()
     const revisionId = await resolveRevisionIdForPlanification(
@@ -52,6 +62,11 @@ export const update = mutation({
     if (!week) {
       throw new Error('Workout week not found')
     }
+    const planification = await ctx.db.get(week.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
 
     const { id, ...updates } = args
 
@@ -72,6 +87,19 @@ export const reorder = mutation({
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx)
+
+    const planification = await ctx.db.get(args.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
+
+    for (const weekId of args.weekIds) {
+      const week = await ctx.db.get(weekId)
+      if (!week || week.planificationId !== args.planificationId) {
+        throw new Error('Invalid week order payload')
+      }
+    }
 
     // Update order for each week
     for (let i = 0; i < args.weekIds.length; i++) {
@@ -97,6 +125,11 @@ export const remove = mutation({
     if (!week) {
       throw new Error('Workout week not found')
     }
+    const planification = await ctx.db.get(week.planificationId)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+    await requireAdminOrTrainer(ctx, planification.organizationId)
 
     if (week.revisionId) {
       const referencingAssignments = await ctx.db
@@ -145,6 +178,10 @@ export const getByPlanification = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) return []
+
+    const planification = await ctx.db.get(args.planificationId)
+    if (!planification) return []
+    await requireOrganizationMembership(ctx, planification.organizationId)
 
     const revisionId = await resolveRevisionIdForPlanification(
       ctx,

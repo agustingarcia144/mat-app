@@ -1,5 +1,6 @@
-import { internalMutation, query } from './_generated/server'
+import { internalMutation, mutation, query } from './_generated/server'
 import { v } from 'convex/values'
+import { requireAuth, requireCurrentOrganizationMembership } from './permissions'
 
 /**
  * Upsert an organization membership from Clerk webhook data
@@ -23,6 +24,8 @@ export const upsertFromClerk = internalMutation({
       clerkMembership.user_id ||
       clerkMembership.user?.id ||
       clerkMembership.public_user_data?.id
+    const clerkMembershipId =
+      clerkMembership.id || clerkMembership.membership_id || undefined
 
     if (!clerkOrgId || !clerkUserId) {
       console.error('Missing IDs in webhook data:', {
@@ -52,7 +55,8 @@ export const upsertFromClerk = internalMutation({
 
     // Map Clerk role to our role system
     // Clerk roles: "org:admin", "org:member", or custom roles
-    // We map: "org:admin" -> "owner", custom roles -> check, default -> "member"
+    // We map: "org:admin" -> "admin", custom trainer-like roles -> "trainer",
+    // default -> "member".
     let role: 'admin' | 'trainer' | 'member' = 'member'
     const clerkRole = clerkMembership.role || ''
 
@@ -71,14 +75,21 @@ export const upsertFromClerk = internalMutation({
       role = 'member'
     }
 
-    // Check if membership already exists with this specific role
-    // Note: A user can have multiple memberships in the same org with different roles
-    const existing = await ctx.db
+    const existingByMembershipId = clerkMembershipId
+      ? await ctx.db
+          .query('organizationMemberships')
+          .withIndex('by_externalMembershipId', (q) =>
+            q.eq('externalMembershipId', clerkMembershipId)
+          )
+          .first()
+      : null
+    const existingByOrgUser = await ctx.db
       .query('organizationMemberships')
       .withIndex('by_organization_user', (q) =>
         q.eq('organizationId', organization._id).eq('userId', clerkUserId)
       )
       .first()
+    const existing = existingByMembershipId ?? existingByOrgUser
 
     const now = Date.now()
     const createdAt = clerkMembership.created_at
@@ -88,11 +99,11 @@ export const upsertFromClerk = internalMutation({
       ? new Date(clerkMembership.updated_at).getTime()
       : now
 
-    // Determine status - Clerk doesn't have explicit status, so we'll use active by default
-    // You can customize this based on your needs
-    const status: 'active' | 'inactive' = 'active'
+    const status: 'active' | 'inactive' =
+      clerkMembership?.status === 'inactive' ? 'inactive' : 'active'
 
     const membershipData = {
+      externalMembershipId: clerkMembershipId,
       organizationId: organization._id,
       userId: clerkUserId,
       role,
@@ -119,14 +130,32 @@ export const upsertFromClerk = internalMutation({
  */
 export const deleteFromClerk = internalMutation({
   args: {
-    clerkOrgId: v.string(),
-    clerkUserId: v.string(),
+    clerkOrgId: v.optional(v.string()),
+    clerkUserId: v.optional(v.string()),
+    clerkMembershipId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.clerkMembershipId) {
+      const membership = await ctx.db
+        .query('organizationMemberships')
+        .withIndex('by_externalMembershipId', (q) =>
+          q.eq('externalMembershipId', args.clerkMembershipId)
+        )
+        .first()
+      if (membership) {
+        await ctx.db.delete(membership._id)
+      }
+      return
+    }
+
+    if (!args.clerkOrgId || !args.clerkUserId) {
+      return
+    }
+
     // Find the organization
     const organization = await ctx.db
       .query('organizations')
-      .withIndex('by_externalId', (q) => q.eq('externalId', args.clerkOrgId))
+      .withIndex('by_externalId', (q) => q.eq('externalId', args.clerkOrgId!))
       .first()
 
     if (!organization) {
@@ -138,7 +167,7 @@ export const deleteFromClerk = internalMutation({
     const memberships = await ctx.db
       .query('organizationMemberships')
       .withIndex('by_organization_user', (q) =>
-        q.eq('organizationId', organization._id).eq('userId', args.clerkUserId)
+        q.eq('organizationId', organization._id).eq('userId', args.clerkUserId!)
       )
       .collect()
 
@@ -155,27 +184,8 @@ export const deleteFromClerk = internalMutation({
  */
 export const getOrganizationMemberships = query({
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error('Not authenticated')
-    }
-
-    const userId = identity.subject
-
-    // Get the current user's memberships to find their organization
-    const userMemberships = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
-      .collect()
-
-    if (userMemberships.length === 0) {
-      return []
-    }
-
-    // Use the first organization the user belongs to
-    // TODO: In the future, you might want to pass organizationId as a parameter
-    // or get it from Clerk's organization context
-    const organizationId = userMemberships[0].organizationId
+    const currentMembership = await requireCurrentOrganizationMembership(ctx)
+    const organizationId = currentMembership.organizationId
 
     // Get all memberships for this organization
     const allMemberships = await ctx.db
@@ -214,5 +224,109 @@ export const getOrganizationMemberships = query({
     )
 
     return membershipsWithUsers
+  },
+})
+
+export const getCurrentMembership = query({
+  args: {},
+  handler: async (ctx) => {
+    try {
+      return await requireCurrentOrganizationMembership(ctx)
+    } catch {
+      return null
+    }
+  },
+})
+
+export const getMyOrganizations = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const memberships = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
+      .filter((q) => q.eq(q.field('status'), 'active'))
+      .collect()
+
+    const orgs = await Promise.all(
+      memberships.map(async (membership) => {
+        const organization = await ctx.db.get(membership.organizationId)
+        return {
+          organizationId: membership.organizationId,
+          organizationExternalId: organization?.externalId,
+          organizationName: organization?.name,
+          organizationSlug: organization?.slug,
+          role: membership.role,
+          status: membership.status,
+        }
+      })
+    )
+
+    return orgs.sort((a, b) =>
+      (a.organizationName ?? '').localeCompare(b.organizationName ?? '')
+    )
+  },
+})
+
+export const setActiveOrganization = mutation({
+  args: {
+    organizationExternalId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx)
+
+    const organization = await ctx.db
+      .query('organizations')
+      .withIndex('by_externalId', (q) =>
+        q.eq('externalId', args.organizationExternalId)
+      )
+      .first()
+    if (!organization) {
+      throw new Error('Organization not found')
+    }
+
+    const membership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_organization_user', (q) =>
+        q.eq('organizationId', organization._id).eq('userId', identity.subject)
+      )
+      .filter((q) => q.eq(q.field('status'), 'active'))
+      .first()
+
+    if (!membership) {
+      throw new Error('Access denied: not a member of this organization')
+    }
+
+    const now = Date.now()
+    const existingUser = await ctx.db
+      .query('users')
+      .withIndex('by_externalId', (q) => q.eq('externalId', identity.subject))
+      .first()
+
+    if (existingUser) {
+      await ctx.db.patch(existingUser._id, {
+        activeOrganizationExternalId: args.organizationExternalId,
+        updatedAt: now,
+      })
+      return true
+    }
+
+    await ctx.db.insert('users', {
+      externalId: identity.subject,
+      firstName: identity.givenName || undefined,
+      lastName: identity.familyName || undefined,
+      fullName: identity.name || undefined,
+      email: identity.email || undefined,
+      imageUrl: identity.pictureUrl || undefined,
+      username: identity.nickname || undefined,
+      onboardingCompleted: false,
+      activeOrganizationExternalId: args.organizationExternalId,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    return true
   },
 })

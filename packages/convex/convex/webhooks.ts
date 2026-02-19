@@ -2,6 +2,20 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Webhook } from "svix";
 
+const MAX_WEBHOOK_AGE_MS = 10 * 60 * 1000;
+const unsafeInternal = internal as any;
+
+function extractObjectId(data: any): string | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  return (
+    data.id ||
+    data.organization_id ||
+    data.user_id ||
+    data.public_user_data?.user_id ||
+    data.object?.id
+  );
+}
+
 /**
  * Unified Clerk webhook handler
  * Handles all Clerk events: users, organizations, and organization memberships
@@ -21,6 +35,24 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
 
   if (!svixId || !svixTimestamp || !svixSignature) {
     return new Response("Missing svix headers", { status: 400 });
+  }
+
+  const parsedTimestampSeconds = Number(svixTimestamp);
+  if (!Number.isFinite(parsedTimestampSeconds)) {
+    return new Response("Invalid svix timestamp", { status: 400 });
+  }
+
+  // Fast idempotency check before any heavy processing.
+  const existingEvent = await ctx.runQuery(unsafeInternal.webhookEvents.getBySvixId, {
+    svixId,
+  });
+  if (existingEvent?.status === "processed") {
+    return new Response(null, { status: 200 });
+  }
+
+  const eventAgeMs = Math.abs(Date.now() - parsedTimestampSeconds * 1000);
+  if (eventAgeMs > MAX_WEBHOOK_AGE_MS) {
+    return new Response("Stale webhook timestamp", { status: 400 });
   }
 
   // Get the body
@@ -43,6 +75,21 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
 
   // Handle the event
   const eventType = evt.type;
+  const objectId = extractObjectId(evt.data);
+
+  const processingState = await ctx.runMutation(
+    unsafeInternal.webhookEvents.beginProcessing,
+    {
+      svixId,
+      svixTimestamp: parsedTimestampSeconds * 1000,
+      eventType,
+      objectId,
+    }
+  );
+
+  if (processingState.alreadyProcessed) {
+    return new Response(null, { status: 200 });
+  }
 
   try {
     switch (eventType) {
@@ -94,17 +141,16 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
         break;
 
       case "organizationMembership.deleted": {
+        const clerkMembershipId = evt.data.id;
         const clerkOrgId = evt.data.organization_id;
         const clerkUserId =
           evt.data.public_user_data?.user_id || evt.data.user_id;
-        if (clerkOrgId && clerkUserId) {
-          await ctx.runMutation(
-            internal.organizationMemberships.deleteFromClerk,
-            {
-              clerkOrgId,
-              clerkUserId,
-            }
-          );
+        if (clerkMembershipId || (clerkOrgId && clerkUserId)) {
+          await ctx.runMutation(internal.organizationMemberships.deleteFromClerk, {
+            clerkMembershipId,
+            clerkOrgId,
+            clerkUserId,
+          });
         }
         break;
       }
@@ -113,9 +159,18 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
         console.log("Ignored Clerk webhook event:", eventType);
     }
 
+    await ctx.runMutation(unsafeInternal.webhookEvents.markProcessed, {
+      svixId,
+    });
+
     return new Response(null, { status: 200 });
   } catch (error) {
     console.error("Error processing webhook:", error);
+    await ctx.runMutation(unsafeInternal.webhookEvents.markFailed, {
+      svixId,
+      error:
+        error instanceof Error ? error.message : "Unknown webhook processing error",
+    });
     return new Response("Error processing webhook", { status: 500 });
   }
 });
