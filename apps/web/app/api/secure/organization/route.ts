@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { callClerkApi } from '@/lib/server/clerk-rest'
 import { isOrgAdminRole } from '@/lib/security/roles'
+import { normalizeString } from '@/lib/utils'
 
 type OrganizationPayload = {
   name?: string
@@ -20,12 +21,6 @@ type ClerkOrganization = {
   image_url?: string
   logo_url?: string
   public_metadata?: Record<string, unknown>
-}
-
-function normalizeString(value: unknown, maxLength: number) {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim()
-  return normalized.length === 0 ? '' : normalized.slice(0, maxLength)
 }
 
 export async function PATCH(request: Request) {

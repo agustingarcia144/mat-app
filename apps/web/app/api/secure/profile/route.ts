@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { callClerkApi } from '@/lib/server/clerk-rest'
+import { normalizeString } from '@/lib/utils'
 
 type ProfilePayload = {
   firstName?: string
@@ -23,12 +24,6 @@ type ClerkUser = {
   primary_email_address_id?: string | null
   image_url?: string | null
   public_metadata?: Record<string, unknown>
-}
-
-function normalizeString(value: unknown, maxLength: number) {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim()
-  return normalized.length === 0 ? '' : normalized.slice(0, maxLength)
 }
 
 function isValidUsername(value: string) {
