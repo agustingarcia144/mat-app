@@ -6,15 +6,18 @@ import {
 } from '@/components/ui/sidebar'
 import { usePathname, useRouter } from 'next/navigation'
 import { DASHBOARD_NAV_ITEMS } from '@/lib/dashboard-nav'
+import { useUnsavedNavigationGuard } from '@/contexts/unsaved-changes-context'
 
 export default function ContentNavItems() {
   const pathname = usePathname()
   const router = useRouter()
+  const { requestNavigation } = useUnsavedNavigationGuard()
   const [optimisticPath, setOptimisticPath] = useOptimistic(pathname)
   const [, startTransition] = useTransition()
 
   const handleNavigation = (url: string) => {
     const dashboardUrl = `/dashboard${url}`
+    if (!requestNavigation(dashboardUrl)) return
     startTransition(() => {
       setOptimisticPath(dashboardUrl)
       router.push(dashboardUrl)

@@ -149,19 +149,25 @@ function EditFormShell({
     },
   })
   const { isDirty } = useFormState({ control: form.control })
-  const editFlowPath = useMemo(
+  const editFlowBasePath = useMemo(
     () => `/dashboard/planifications/${planificationId}/edit`,
     [planificationId]
   )
-  const shouldBlockOutsideEditFlow = useCallback(
-    (targetPath: string) => !targetPath.startsWith(editFlowPath),
-    [editFlowPath]
+  const shouldBlockNavigationOutsideEditFlow = useCallback(
+    (targetPath: string) => {
+      return !(
+        targetPath === editFlowBasePath ||
+        targetPath.startsWith(`${editFlowBasePath}/`) ||
+        targetPath.startsWith(`${editFlowBasePath}?`)
+      )
+    },
+    [editFlowBasePath]
   )
   const { setSaveHandler: setUnsavedSaveHandler, allowNextNavigation } =
     useUnsavedChanges({
       dirty: isDirty,
       isSaving,
-      shouldBlockNavigation: shouldBlockOutsideEditFlow,
+      shouldBlockNavigation: shouldBlockNavigationOutsideEditFlow,
     })
 
   useEffect(() => {

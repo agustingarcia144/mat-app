@@ -10,6 +10,7 @@ import {
   LibraryExerciseNamesProvider,
   useLibraryExerciseNames,
 } from '@/contexts/library-exercise-names-context'
+import { useUnsavedNavigationGuard } from '@/contexts/unsaved-changes-context'
 import { useFieldArray, Controller } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import DayBlocksContent, {
@@ -299,6 +300,7 @@ export function DayEditPageContent({
   dayIndex: number
 }) {
   const router = useRouter()
+  const { requestNavigation } = useUnsavedNavigationGuard()
   const { planificationId, form, setRedirectAfterSave } = usePlanificationForm()
   const day = form.watch(`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`)
 
@@ -439,6 +441,7 @@ export function DayEditPageContent({
   const backHref = `/dashboard/planifications/${planificationId}/edit`
 
   const handleBackClick = () => {
+    if (!requestNavigation(backHref)) return
     router.push(backHref)
   }
 
@@ -448,7 +451,7 @@ export function DayEditPageContent({
         <Button
           variant="link"
           className="mt-2"
-          onClick={() => router.push(backHref)}
+          onClick={handleBackClick}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Volver

@@ -9,6 +9,7 @@ import { ArrowLeft, Pencil } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import PlanificationEditForm from '@/components/features/planifications/form/planification-edit-form'
 import EditPlanificationDialog from '@/components/features/planifications/dialogs/edit-planification-dialog'
+import { useUnsavedNavigationGuard } from '@/contexts/unsaved-changes-context'
 
 export default function EditPlanificationPage({
   params,
@@ -17,6 +18,7 @@ export default function EditPlanificationPage({
 }) {
   const { id } = use(params)
   const router = useRouter()
+  const { requestNavigation } = useUnsavedNavigationGuard()
   const [editDialogOpen, setEditDialogOpen] = useState(false)
 
   const planification = useQuery(api.planifications.getById, {
@@ -24,7 +26,9 @@ export default function EditPlanificationPage({
   })
 
   const handleBackClick = () => {
-    router.push(`/dashboard/planifications/${id}`)
+    const targetPath = `/dashboard/planifications/${id}`
+    if (!requestNavigation(targetPath)) return
+    router.push(targetPath)
   }
 
   // Radix (e.g. DropdownMenu) can leave body with pointer-events: none when

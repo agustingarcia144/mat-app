@@ -56,6 +56,7 @@ type UnsavedChangesContextValue = {
     entryId: string,
     shouldBlockNavigation: ShouldBlockNavigation | undefined
   ) => void
+  requestNavigation: (targetPath: string, replace?: boolean) => boolean
   allowNextNavigation: (targetPath?: string) => void
 }
 
@@ -433,6 +434,21 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     })
   }, [activeDirtyEntry, isDirty])
 
+  const requestNavigation = useCallback(
+    (targetPath: string, replace = false) => {
+      const parsed = toRelativePath(targetPath)
+      if (shouldBlockTransition(parsed.fullPath, parsed.routePath)) {
+        queueBlockedNavigation({
+          href: parsed.fullPath,
+          replace,
+        })
+        return false
+      }
+      return true
+    },
+    [queueBlockedNavigation, shouldBlockTransition]
+  )
+
   const handleCancelNavigation = useCallback(() => {
     setIsConfirmDialogOpen(false)
     pendingNavigationRef.current = null
@@ -463,6 +479,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       setEntrySaving,
       setEntrySaveHandler,
       setEntryShouldBlockNavigation,
+      requestNavigation,
       allowNextNavigation,
     }),
     [
@@ -474,6 +491,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       setEntrySaving,
       setEntrySaveHandler,
       setEntryShouldBlockNavigation,
+      requestNavigation,
       allowNextNavigation,
     ]
   )
@@ -521,6 +539,19 @@ type UseUnsavedChangesOptions = {
   shouldBlockNavigation?: ShouldBlockNavigation
 }
 
+export function useUnsavedNavigationGuard() {
+  const context = useContext(UnsavedChangesContext)
+  if (!context) {
+    throw new Error(
+      'useUnsavedNavigationGuard must be used inside UnsavedChangesProvider'
+    )
+  }
+  return {
+    requestNavigation: context.requestNavigation,
+    allowNextNavigation: context.allowNextNavigation,
+  }
+}
+
 export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
   const context = useContext(UnsavedChangesContext)
   if (!context) {
@@ -535,6 +566,7 @@ export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
     setEntrySaving,
     setEntrySaveHandler,
     setEntryShouldBlockNavigation,
+    requestNavigation,
     allowNextNavigation,
   } = context
 
@@ -612,6 +644,7 @@ export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
     setSaving,
     setSaveHandler,
     setShouldBlockNavigation,
+    requestNavigation,
     allowNextNavigation,
   }
 }
