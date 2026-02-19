@@ -1,4 +1,4 @@
-import { mutation, query } from './_generated/server'
+import { internalMutation, mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import {
   requireAuth,
@@ -201,6 +201,66 @@ export const checkIn = mutation({
     }
 
     const now = Date.now()
+    const schedule = await ctx.db.get(reservation.scheduleId)
+    if (!schedule) {
+      throw new Error('Schedule not found')
+    }
+    const checkInOpensAt = schedule.startTime - 20 * 60 * 1000
+
+    if (now < checkInOpensAt) {
+      throw new Error('Check-in opens 20 minutes before class starts')
+    }
+
+    await ctx.db.patch(args.id, {
+      status: 'attended',
+      checkedInAt: now,
+      updatedAt: now,
+    })
+  },
+})
+
+/**
+ * Self check-in for members.
+ * Allowed from 20 minutes before class start until 6 hours after class end.
+ */
+export const checkInSelf = mutation({
+  args: {
+    id: v.id('classReservations'),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx)
+
+    const reservation = await ctx.db.get(args.id)
+    if (!reservation) {
+      throw new Error('Reservation not found')
+    }
+
+    await requireOrganizationMembership(ctx, reservation.organizationId)
+
+    if (reservation.userId !== identity.subject) {
+      throw new Error('You can only check in your own reservations')
+    }
+
+    if (reservation.status !== 'confirmed') {
+      throw new Error('Can only check in confirmed reservations')
+    }
+
+    const schedule = await ctx.db.get(reservation.scheduleId)
+    if (!schedule) {
+      throw new Error('Schedule not found')
+    }
+
+    const now = Date.now()
+    const checkInOpensAt = schedule.startTime - 20 * 60 * 1000
+    const checkInClosesAt = schedule.endTime + 6 * 60 * 60 * 1000
+
+    if (now < checkInOpensAt) {
+      throw new Error('Check-in opens 20 minutes before class starts')
+    }
+
+    if (now > checkInClosesAt) {
+      throw new Error('Check-in is no longer available for this class')
+    }
 
     await ctx.db.patch(args.id, {
       status: 'attended',
@@ -414,6 +474,91 @@ export const getUpcomingByUser = query({
 })
 
 /**
+ * Get reservations in the check-in window for the Proximas list.
+ * Returns non-cancelled reservations where:
+ *   now >= schedule.startTime - 20min AND now <= schedule.endTime + 6h
+ * so we can show the correct badge (Reservado / Asististe / No show) as soon as the window opens.
+ */
+export const getReservationsInCheckInWindow = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+    const now = Date.now()
+    const opensBeforeMs = 20 * 60 * 1000
+    const closesAfterMs = 6 * 60 * 60 * 1000
+
+    const reservations = await ctx.db
+      .query('classReservations')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+
+    const relevant = reservations.filter((r) => r.status !== 'cancelled')
+
+    const enriched = await Promise.all(
+      relevant.map(async (reservation) => {
+        const schedule = await ctx.db.get(reservation.scheduleId)
+        const classTemplate = await ctx.db.get(reservation.classId)
+        return {
+          ...reservation,
+          schedule,
+          class: classTemplate,
+        }
+      })
+    )
+
+    return enriched
+      .filter(
+        (r) =>
+          r.schedule &&
+          r.schedule.startTime - opensBeforeMs <= now &&
+          now <= r.schedule.endTime + closesAfterMs
+      )
+      .sort((a, b) => (a.schedule?.startTime ?? 0) - (b.schedule?.startTime ?? 0))
+  },
+})
+
+/**
+ * Get past reservations for a user.
+ * Includes non-cancelled reservations with schedule/class populated.
+ */
+export const getPastByUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const userId = identity.subject
+    const now = Date.now()
+
+    const reservations = await ctx.db
+      .query('classReservations')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .collect()
+
+    const relevant = reservations.filter((r) => r.status !== 'cancelled')
+
+    const enriched = await Promise.all(
+      relevant.map(async (reservation) => {
+        const schedule = await ctx.db.get(reservation.scheduleId)
+        const classTemplate = await ctx.db.get(reservation.classId)
+        return {
+          ...reservation,
+          schedule,
+          class: classTemplate,
+        }
+      })
+    )
+
+    return enriched
+      .filter((r) => r.schedule && r.schedule.startTime < now)
+      .sort((a, b) => (b.schedule?.startTime ?? 0) - (a.schedule?.startTime ?? 0))
+  },
+})
+
+/**
  * Get user's reservations for a specific day (by start/end of day timestamps).
  * Returns non-cancelled reservations with schedule and class populated, sorted by start time.
  */
@@ -493,5 +638,54 @@ export const getByUserForDateRange = query({
         r.schedule.startTime >= args.startOfRange &&
         r.schedule.startTime <= args.endOfRange
     )
+  },
+})
+
+/**
+ * Internal: mark overdue confirmed reservations as no-show.
+ * A reservation is overdue when now > schedule.endTime + 6h.
+ */
+export const autoMarkNoShows = internalMutation({
+  args: {
+    scheduleLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now()
+    const cutoff = now - 6 * 60 * 60 * 1000
+    const scheduleLimit = args.scheduleLimit ?? 100
+
+    const candidateSchedules = await ctx.db
+      .query('classSchedules')
+      .withIndex('by_start_time', (q) => q.lte('startTime', cutoff))
+      .collect()
+
+    const expiredSchedules = candidateSchedules
+      .filter((schedule) => schedule.endTime <= cutoff)
+      .slice(0, scheduleLimit)
+
+    let updatedReservations = 0
+
+    for (const schedule of expiredSchedules) {
+      const confirmedReservations = await ctx.db
+        .query('classReservations')
+        .withIndex('by_schedule_status', (q) =>
+          q.eq('scheduleId', schedule._id).eq('status', 'confirmed')
+        )
+        .collect()
+
+      for (const reservation of confirmedReservations) {
+        await ctx.db.patch(reservation._id, {
+          status: 'no_show',
+          updatedAt: now,
+        })
+        updatedReservations += 1
+      }
+    }
+
+    return {
+      processedSchedules: expiredSchedules.length,
+      updatedReservations,
+      cutoff,
+    }
   },
 })

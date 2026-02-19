@@ -9,6 +9,7 @@ export type {
   ListRowReservation,
   BookingState,
   CancellationState,
+  CheckInState,
 } from './classes-list-row'
 export { ClassesEmptyState } from './classes-empty-state'
 export { ClassesEmptyStateCard } from './classes-empty-state-card'

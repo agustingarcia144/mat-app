@@ -34,6 +34,7 @@ export interface ListRowClass {
 /** Reservation shape for cancellation (needs schedule + class for window) */
 export interface ListRowReservation {
   _id: string
+  status: 'confirmed' | 'cancelled' | 'attended' | 'no_show'
   schedule: ListRowSchedule
   class: ListRowClass & { cancellationWindowHours?: number }
 }
@@ -68,6 +69,11 @@ export interface CancellationState {
   helperText: string
 }
 
+export interface CheckInState {
+  canCheckIn: boolean
+  helperText: string
+}
+
 /** Spacing scale: 4, 8, 12, 16, 20, 24. Card uses 16 padding, 12 gaps. */
 const SPACING = {
   xs: 4,
@@ -89,10 +95,14 @@ interface ClassesListRowProps {
     classTemplate: ListRowClass
   }) => BookingState
   getCancellationState: (reservation: ListRowReservation) => CancellationState
+  getCheckInState: (reservation: ListRowReservation) => CheckInState
   onReserve: (scheduleId: string) => void
   onCancel: (reservationId: string) => void
+  onCheckIn: (reservationId: string) => void
   /** Navigate to class details; card tap triggers this, button does not. */
   onPressCard?: (scheduleId: string) => void
+  hideReservationActions?: boolean
+  busyCheckInReservationId?: string | null
 }
 
 export function ClassesListRow({
@@ -103,9 +113,13 @@ export function ClassesListRow({
   busyReservationId,
   getBookingState,
   getCancellationState,
+  getCheckInState,
   onReserve,
   onCancel,
+  onCheckIn,
   onPressCard,
+  hideReservationActions = false,
+  busyCheckInReservationId = null,
 }: ClassesListRowProps) {
   const { date, item } = row
   const schedule = item.schedule
@@ -117,9 +131,14 @@ export function ClassesListRow({
   const cancelState = isReservation
     ? getCancellationState(item.reservation as ListRowReservation)
     : null
+  const checkInState = isReservation
+    ? getCheckInState(item.reservation as ListRowReservation)
+    : null
   const isReserving = !isReservation && busyScheduleId === schedule._id
   const isCancelling =
     isReservation && busyReservationId === item.reservation._id
+  const isCheckingIn =
+    isReservation && busyCheckInReservationId === item.reservation._id
 
   const dividerColor = isDark ? 'rgba(255,255,255,0.08)' : '#e4e4e7'
   const cardBg = isDark ? '#141414' : '#ffffff'
@@ -142,6 +161,12 @@ export function ClassesListRow({
     if (item.type !== 'reservation') return
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
     onCancel(item.reservation._id)
+  }
+
+  const handleCheckInPress = () => {
+    if (item.type !== 'reservation') return
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    onCheckIn(item.reservation._id)
   }
 
   const timeLabel = `${format(new Date(schedule.startTime), 'HH:mm', { locale: es })} – ${format(new Date(schedule.endTime), 'HH:mm', { locale: es })}`
@@ -183,26 +208,94 @@ export function ClassesListRow({
             >
               {classTemplate.name}
             </Text>
-            <View style={styles.metaRow}>
+            <View style={styles.metaBlock}>
               <Text style={[styles.time, { color: timeColor }]}>
                 {timeLabel}
               </Text>
-              {isReservation ? (
-                <ReservationBadge isDark={isDark} />
-              ) : booking?.canReserve ? (
-                <OccupancyBadge
-                  spotsLeft={schedule.capacity - schedule.currentReservations}
-                  isDark={isDark}
-                />
-              ) : (
-                <UnavailableBadge isDark={isDark} showIcon={false} />
-              )}
+              <View style={styles.badgeRow}>
+                {isReservation ? (
+                  <ReservationBadge
+                    isDark={isDark}
+                    status={
+                      (item.reservation.status ?? 'confirmed') as
+                        | 'confirmed'
+                        | 'attended'
+                        | 'no_show'
+                    }
+                  />
+                ) : booking?.canReserve ? (
+                  <OccupancyBadge
+                    spotsLeft={schedule.capacity - schedule.currentReservations}
+                    isDark={isDark}
+                  />
+                ) : (
+                  <UnavailableBadge isDark={isDark} showIcon={false} />
+                )}
+              </View>
             </View>
           </View>
         </View>
       </Pressable>
       <View style={styles.action}>
-        {isReservation ? (
+        {isReservation &&
+        hideReservationActions &&
+        !checkInState?.canCheckIn ? null : isReservation &&
+          checkInState?.canCheckIn ? (
+          <ThemedPressable
+            type="primary"
+            style={styles.quickButton}
+            disabled={isCheckingIn}
+            onPress={handleCheckInPress}
+          >
+            {isCheckingIn ? (
+              <ActivityIndicator
+                size="small"
+                color={colorScheme === 'dark' ? '#000' : '#fff'}
+              />
+            ) : (
+              <Text
+                style={[
+                  styles.quickButtonText,
+                  { color: colorScheme === 'dark' ? '#000' : '#fff' },
+                ]}
+              >
+                Confirmar
+              </Text>
+            )}
+          </ThemedPressable>
+        ) : isReservation &&
+          (item.reservation.status === 'attended' ||
+            item.reservation.status === 'no_show') ? (
+          <View
+            style={[
+              styles.statusIcon,
+              {
+                backgroundColor:
+                  item.reservation.status === 'attended'
+                    ? isDark
+                      ? '#16a34a'
+                      : '#22c55e'
+                    : isDark
+                      ? 'rgba(239,68,68,0.3)'
+                      : '#fee2e2',
+              },
+            ]}
+          >
+            <IconSymbol
+              name={
+                item.reservation.status === 'attended' ? 'checkmark' : 'xmark'
+              }
+              size={16}
+              color={
+                item.reservation.status === 'attended'
+                  ? '#fff'
+                  : isDark
+                    ? '#fca5a5'
+                    : '#b91c1c'
+              }
+            />
+          </View>
+        ) : isReservation ? (
           <ThemedPressable
             type="secondary"
             lightColor="#f87171"
@@ -333,11 +426,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 2,
   },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    flexWrap: 'wrap',
+  metaBlock: {
+    flexDirection: 'column',
+    gap: SPACING.xs,
+  },
+  badgeRow: {
+    alignSelf: 'flex-start',
   },
   time: {
     fontSize: 15,

@@ -3,13 +3,19 @@ import { ClassesEmptyStateCard } from './classes-empty-state-card'
 
 interface ClassesEmptyStateProps {
   paddingBottom: number
+  title?: string
+  subtext?: string
 }
 
-export function ClassesEmptyState({ paddingBottom }: ClassesEmptyStateProps) {
+export function ClassesEmptyState({
+  paddingBottom,
+  title = 'No tienes reservas',
+  subtext = 'Reservá tu lugar en las próximas clases',
+}: ClassesEmptyStateProps) {
   return (
     <ClassesEmptyStateCard
-      title="No tienes reservas"
-      subtext="Reservá tu lugar en las próximas clases"
+      title={title}
+      subtext={subtext}
       paddingBottom={paddingBottom}
     />
   )

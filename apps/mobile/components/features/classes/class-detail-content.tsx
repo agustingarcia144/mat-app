@@ -40,21 +40,21 @@ export default function ClassDetailContent() {
     scheduleId ? { id: scheduleId as any } : 'skip'
   )
   const myUpcoming = useQuery(api.classReservations.getUpcomingByUser, {})
+  const myPast = useQuery(api.classReservations.getPastByUser, {})
   const reserve = useMutation(api.classReservations.reserve)
   const cancelReservation = useMutation(api.classReservations.cancel)
+  const checkInSelf = useMutation(api.classReservations.checkInSelf)
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const isReserved = useMemo(() => {
-    if (!scheduleId || !myUpcoming) return false
-    return myUpcoming.some((r) => r.schedule?._id === scheduleId)
-  }, [scheduleId, myUpcoming])
-
   const reservation = useMemo(() => {
-    if (!scheduleId || !myUpcoming) return null
-    return myUpcoming.find((r) => r.schedule?._id === scheduleId) ?? null
-  }, [scheduleId, myUpcoming])
+    if (!scheduleId || !myUpcoming || !myPast) return null
+    const allReservations = [...myUpcoming, ...myPast]
+    return allReservations.find((r) => r.schedule?._id === scheduleId) ?? null
+  }, [scheduleId, myUpcoming, myPast])
+
+  const isReserved = useMemo(() => Boolean(reservation), [reservation])
 
   const canReserve = useMemo(() => {
     if (!scheduleWithDetails || isReserved) return false
@@ -72,6 +72,7 @@ export default function ClassDetailContent() {
 
   const canCancel = useMemo(() => {
     if (!reservation?.schedule || !reservation?.class) return false
+    if (reservation.status !== 'confirmed') return false
     const schedule = reservation.schedule
     const classTemplate = reservation.class
     const now = Date.now()
@@ -79,6 +80,16 @@ export default function ClassDetailContent() {
       (classTemplate.cancellationWindowHours ?? 0) * 60 * 60 * 1000
     const latestCancellationTime = schedule.startTime - cancellationWindowMs
     return now <= latestCancellationTime
+  }, [reservation])
+
+  const canCheckIn = useMemo(() => {
+    if (!reservation?.schedule) return false
+    if (reservation.status !== 'confirmed') return false
+
+    const now = Date.now()
+    const checkInOpensAt = reservation.schedule.startTime - 20 * 60 * 1000
+    const checkInClosesAt = reservation.schedule.endTime + 6 * 60 * 60 * 1000
+    return now >= checkInOpensAt && now <= checkInClosesAt
   }, [reservation])
 
   const handleReserve = useCallback(() => {
@@ -126,6 +137,28 @@ export default function ClassDetailContent() {
     ])
   }, [reservation?._id, cancelReservation])
 
+  const handleCheckIn = useCallback(() => {
+    if (!reservation?._id) return
+    setError('')
+    Alert.alert('Confirmar asistencia', '¿Querés confirmar tu asistencia?', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Sí, confirmar',
+        onPress: async () => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+          setBusy(true)
+          try {
+            await checkInSelf({ id: reservation._id as any })
+          } catch (e: any) {
+            setError(e?.message ?? 'No se pudo confirmar la asistencia')
+          } finally {
+            setBusy(false)
+          }
+        },
+      },
+    ])
+  }, [reservation?._id, checkInSelf])
+
   const addToCalendar = useCallback(() => {
     if (!scheduleWithDetails) return
     const { startTime, endTime } = scheduleWithDetails
@@ -154,7 +187,7 @@ export default function ClassDetailContent() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
   }, [scheduleWithDetails])
 
-  if (scheduleWithDetails === undefined) {
+  if (scheduleWithDetails === undefined || myUpcoming === undefined || myPast === undefined) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
@@ -208,7 +241,15 @@ export default function ClassDetailContent() {
           <Text style={[styles.heroDate, { color: muted }]}>{dateLabel}</Text>
           <View style={styles.heroBadgeWrap}>
             {isReserved ? (
-              <ReservationBadge isDark={isDark} />
+              <ReservationBadge
+                isDark={isDark}
+                status={
+                  (reservation?.status ?? 'confirmed') as
+                    | 'confirmed'
+                    | 'attended'
+                    | 'no_show'
+                }
+              />
             ) : canReserve ? (
               <OccupancyBadge spotsLeft={spotsLeft} isDark={isDark} />
             ) : (
@@ -308,7 +349,30 @@ export default function ClassDetailContent() {
           },
         ]}
       >
-        {isReserved ? (
+        {isReserved && canCheckIn ? (
+          <ThemedPressable
+            type="primary"
+            style={styles.ctaPrimary}
+            onPress={handleCheckIn}
+            disabled={busy}
+          >
+            {busy ? (
+              <ActivityIndicator
+                size="small"
+                color={colorScheme === 'dark' ? '#000' : '#fff'}
+              />
+            ) : (
+              <Text
+                style={[
+                  styles.ctaPrimaryText,
+                  { color: colorScheme === 'dark' ? '#000' : '#fff' },
+                ]}
+              >
+                Confirmar asistencia
+              </Text>
+            )}
+          </ThemedPressable>
+        ) : isReserved && reservation?.status === 'confirmed' ? (
           <ThemedPressable
             type="destructive"
             lightColor="#f87171"
