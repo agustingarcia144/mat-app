@@ -3,12 +3,13 @@ import { InfiniteSlider } from '@/components/ui/infinite-slider'
 import { ProgressiveBlur } from '@/components/ui/progressive-blur'
 
 export const LogoCloud = () => {
+    const year = new Date().getFullYear()
     return (
         <section className="bg-background pb-16 md:pb-32">
             <div className="group relative m-auto max-w-6xl px-6">
                 <div className="flex flex-col items-center md:flex-row">
                     <div className="inline md:max-w-44 md:border-r md:pr-6">
-                        <p className="text-end text-sm">Powering the best teams</p>
+                        <p className="text-end text-sm">Para entrenadores y gimnasios</p>
                     </div>
                     <div className="relative py-6 md:w-[calc(100%-11rem)]">
                         <InfiniteSlider
@@ -113,6 +114,11 @@ export const LogoCloud = () => {
                         />
                     </div>
                 </div>
+                <footer className="mt-8 border-t border-border/50 pt-6 text-center">
+                    <p className="text-muted-foreground text-sm">
+                        © {year} Mat. Todos los derechos reservados.
+                    </p>
+                </footer>
             </div>
         </section>
     )
