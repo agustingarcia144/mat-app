@@ -4,13 +4,14 @@ import { use, useMemo, useEffect, useRef, useState, useCallback } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/convex/_generated/api'
-import { useForm } from 'react-hook-form'
+import { useForm, useFormState } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   planificationFormSchema,
   PlanificationForm as PlanificationFormType,
 } from '@repo/core/schemas'
 import { PlanificationFormProvider } from '@/contexts/planification-form-context'
+import { useUnsavedChanges } from '@/contexts/unsaved-changes-context'
 import BlocksLoader from '@/components/features/planifications/form/blocks-loader'
 import { SIN_BLOQUE_ID } from '@/components/features/planifications/form/day-blocks-content'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -93,8 +94,6 @@ function EditFormShell({
   const [blocksByDay, setBlocksByDay] = useState<Map<string, any[]>>(new Map())
   const blocksLoadedRef = useRef(false)
   const hasInitialized = useRef(false)
-  const [initialFormValues, setInitialFormValues] =
-    useState<PlanificationFormType | null>(null)
 
   const dayIds = useMemo(
     () =>
@@ -149,6 +148,21 @@ function EditFormShell({
       ],
     },
   })
+  const { isDirty } = useFormState({ control: form.control })
+  const editFlowPath = useMemo(
+    () => `/dashboard/planifications/${planificationId}/edit`,
+    [planificationId]
+  )
+  const shouldBlockOutsideEditFlow = useCallback(
+    (targetPath: string) => !targetPath.startsWith(editFlowPath),
+    [editFlowPath]
+  )
+  const { setSaveHandler: setUnsavedSaveHandler, allowNextNavigation } =
+    useUnsavedChanges({
+      dirty: isDirty,
+      isSaving,
+      shouldBlockNavigation: shouldBlockOutsideEditFlow,
+    })
 
   useEffect(() => {
     if (!planification || hasInitialized.current) return
@@ -174,9 +188,6 @@ function EditFormShell({
             ],
     }
     form.reset(serverValues, { keepDefaultValues: false })
-    // Sync initial snapshot so consumers can detect unsaved changes (deepEqual vs current values).
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- run once after reset; no alternative without ref-read-during-render
-    setInitialFormValues(serverValues)
   }, [planification, fullWeeksDataWithBlocks, form, dayIds.length])
 
   const onSubmit = useCallback(
@@ -300,12 +311,13 @@ function EditFormShell({
         }
 
         setIsSaving(false)
-        setInitialFormValues(data)
-        if (redirectAfterSave === 'edit') {
-          router.push(`/dashboard/planifications/${planificationId}/edit`)
-        } else {
-          router.push(`/dashboard/planifications/${planificationId}`)
-        }
+        form.reset(data, { keepDefaultValues: false })
+        const nextPath =
+          redirectAfterSave === 'edit'
+            ? `/dashboard/planifications/${planificationId}/edit`
+            : `/dashboard/planifications/${planificationId}`
+        allowNextNavigation(nextPath)
+        router.push(nextPath)
       } catch (error) {
         console.error('Failed to update planification:', error)
         setIsSaving(false)
@@ -316,8 +328,8 @@ function EditFormShell({
       planificationId,
       planification,
       fullWeeksData,
+      form,
       redirectAfterSave,
-      setInitialFormValues,
       updatePlanification,
       createPlanificationRevision,
       removeWorkoutWeek,
@@ -325,9 +337,22 @@ function EditFormShell({
       createWorkoutDay,
       createExerciseBlock,
       createDayExercise,
+      allowNextNavigation,
       router,
     ]
   )
+
+  const handleSaveFromToast = useCallback(
+    () => form.handleSubmit(onSubmit)(),
+    [form, onSubmit]
+  )
+
+  useEffect(() => {
+    setUnsavedSaveHandler(handleSaveFromToast)
+    return () => {
+      setUnsavedSaveHandler(null)
+    }
+  }, [handleSaveFromToast, setUnsavedSaveHandler])
 
   const isLoading =
     planification === undefined ||
@@ -364,9 +389,6 @@ function EditFormShell({
         onSubmit={onSubmit}
         isSaving={isSaving}
         setRedirectAfterSave={setRedirectAfterSave}
-        initialFormValues={initialFormValues}
-        setInitialFormValues={setInitialFormValues}
-        isNewPlanification={(fullWeeksData || []).length === 0}
       >
         {children}
       </PlanificationFormProvider>

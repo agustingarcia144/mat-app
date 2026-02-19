@@ -28,8 +28,7 @@ export default function EditPlanificationDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { form: contextForm, planificationId, setInitialFormValues } =
-    usePlanificationForm()
+  const { form: contextForm, planificationId } = usePlanificationForm()
   const updatePlanification = useMutation(api.planifications.update)
 
   const form = useForm<PlanificationBasicInfo>({
@@ -74,11 +73,12 @@ export default function EditPlanificationDialog({
         folderId: data.folderId as any,
         isTemplate: data.isTemplate,
       })
-      contextForm.setValue('name', data.name)
-      contextForm.setValue('description', data.description ?? '')
-      contextForm.setValue('folderId', data.folderId)
-      contextForm.setValue('isTemplate', data.isTemplate)
-      setInitialFormValues(contextForm.getValues())
+      contextForm.resetField('name', { defaultValue: data.name })
+      contextForm.resetField('description', {
+        defaultValue: data.description ?? '',
+      })
+      contextForm.resetField('folderId', { defaultValue: data.folderId as any })
+      contextForm.resetField('isTemplate', { defaultValue: data.isTemplate })
       onOpenChange(false)
       toast.success('Información básica actualizada')
     } catch (error) {
