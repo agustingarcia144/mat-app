@@ -1,19 +1,9 @@
 'use client'
 
-import { use, useCallback, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { use, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Loader2, Plus } from 'lucide-react'
-import { toast } from 'sonner'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { ArrowLeft, Plus } from 'lucide-react'
 import { DragDropProvider } from '@dnd-kit/react'
 import { usePlanificationForm } from '@/contexts/planification-form-context'
 import {
@@ -39,39 +29,6 @@ import {
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
 import type { PlanificationForm } from '@repo/core/schemas'
-
-type DayForCompare = PlanificationForm['workoutWeeks'][0]['workoutDays'][0]
-
-/** Normalize a day for comparison: ignore temp ids, treat "Sin bloque" consistently (empty blocks vs only Sin bloque = same). */
-function normalizedDaySignature(day: DayForCompare | null | undefined): string {
-  if (!day) return JSON.stringify({ name: '', blocks: [], exercises: [] })
-  const userBlocks = (day.blocks ?? []).filter((b) => b.id !== SIN_BLOQUE_ID)
-  const blocksKey = userBlocks
-    .sort((a, b) => a.order - b.order)
-    .map((b) => ({ name: b.name, order: b.order, notes: b.notes ?? '' }))
-  const exercisesKey = (day.exercises ?? []).map((e) => ({
-    exerciseId: e.exerciseId,
-    blockId: e.blockId ?? SIN_BLOQUE_ID,
-    sets: e.sets,
-    reps: e.reps,
-    weight: e.weight ?? '',
-    timeSeconds: e.timeSeconds,
-    notes: e.notes ?? '',
-  }))
-  return JSON.stringify({
-    name: day.name ?? '',
-    dayOfWeek: day.dayOfWeek,
-    blocks: blocksKey,
-    exercises: exercisesKey,
-  })
-}
-
-function normalizedDayEqual(
-  a: DayForCompare | null | undefined,
-  b: DayForCompare | null | undefined
-): boolean {
-  return normalizedDaySignature(a) === normalizedDaySignature(b)
-}
 
 function DayEditDndContent({
   form,
@@ -342,95 +299,14 @@ export function DayEditPageContent({
   dayIndex: number
 }) {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const isNewDay = searchParams.get('new') === '1'
-  const { planificationId, form, onSubmit, isSaving, setRedirectAfterSave } =
-    usePlanificationForm()
-  const toastId = 'day-unsaved-changes'
-  const planificationToastId = 'planification-unsaved-changes'
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
-  // Snapshot of form state when we entered this page; used by Descartar to revert and for unsaved detection.
-  const entrySnapshotRef = useRef<PlanificationForm | null>(null)
-  const [entrySnapshot, setEntrySnapshot] = useState<PlanificationForm | null>(
-    null
-  )
-
-  useEffect(() => {
-    if (entrySnapshotRef.current === null) {
-      const snapshot = JSON.parse(
-        JSON.stringify(form.getValues())
-      ) as PlanificationForm
-      entrySnapshotRef.current = snapshot
-      // One-time snapshot for unsaved detection; state needed so we don't read ref during render.
-      // eslint-disable-next-line -- run-once snapshot after mount
-      setEntrySnapshot(snapshot)
-    }
-  }, [form])
-
-  const initialDay =
-    entrySnapshot?.workoutWeeks?.[weekIndex]?.workoutDays?.[dayIndex]
-  // Only watch this day so we re-render when its data changes; persist happens on toast "Guardar cambios".
+  const { planificationId, form, setRedirectAfterSave } = usePlanificationForm()
   const day = form.watch(`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`)
-  const hasUnsavedChanges = isNewDay
-    ? true
-    : entrySnapshot === null
-      ? false
-      : !normalizedDayEqual(initialDay, day)
-
-  const handleSave = useCallback(
-    () =>
-      form.handleSubmit(async (data) => {
-        await onSubmit(data)
-        toast.dismiss(toastId)
-      })(),
-    [form, onSubmit]
-  )
-
-  // Show toast only when there are unsaved changes; dismiss when user reverts or after save.
-  // Dismiss the other page's toast so only one toast is visible when switching between edit and day edit.
-  useEffect(() => {
-    if (hasUnsavedChanges) {
-      toast.dismiss(planificationToastId)
-      toast.message('Tienes cambios sin guardar', {
-        id: toastId,
-        position: 'bottom-center',
-        duration: Infinity,
-        dismissible: false,
-        action: (
-          <Button
-            size="sm"
-            disabled={isSaving}
-            onClick={() => {
-              if (!isSaving) handleSave()
-            }}
-            className="h-8"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Guardando
-              </>
-            ) : (
-              'Guardar cambios'
-            )}
-          </Button>
-        ),
-      })
-    } else {
-      toast.dismiss(toastId)
-    }
-  }, [hasUnsavedChanges, isSaving, handleSave])
-
-  // Dismiss toast only when leaving the page (e.g. sidebar navigation), not when effect deps change.
-  useEffect(() => {
-    return () => {
-      toast.dismiss(toastId)
-    }
-  }, [])
 
   useEffect(() => {
     setRedirectAfterSave('edit')
-    return () => setRedirectAfterSave('view')
+    return () => {
+      setRedirectAfterSave('view')
+    }
   }, [setRedirectAfterSave])
 
   const { fields } = useFieldArray({
@@ -562,25 +438,7 @@ export function DayEditPageContent({
 
   const backHref = `/dashboard/planifications/${planificationId}/edit`
 
-  const handleBackClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    if (hasUnsavedChanges) {
-      setConfirmDialogOpen(true)
-    } else {
-      toast.dismiss(toastId)
-      toast.dismiss(planificationToastId)
-      router.push(backHref)
-    }
-  }
-
-  const handleConfirmNavigation = () => {
-    // Revert form state to the snapshot before navigating
-    if (entrySnapshot) {
-      form.reset(entrySnapshot)
-    }
-    toast.dismiss(toastId)
-    toast.dismiss(planificationToastId)
-    setConfirmDialogOpen(false)
+  const handleBackClick = () => {
     router.push(backHref)
   }
 
@@ -590,11 +448,7 @@ export function DayEditPageContent({
         <Button
           variant="link"
           className="mt-2"
-          onClick={() => {
-            toast.dismiss(toastId)
-            toast.dismiss(planificationToastId)
-            router.push(backHref)
-          }}
+          onClick={() => router.push(backHref)}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Volver
@@ -615,29 +469,6 @@ export function DayEditPageContent({
         <ArrowLeft className="h-4 w-4 mr-2" />
         Volver
       </Button>
-
-      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>¿Descartar cambios?</DialogTitle>
-            <DialogDescription>
-              Tienes cambios sin guardar en este día. Si continúas, perderás
-              todos los cambios realizados y se restaurará el estado anterior.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConfirmDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button variant="destructive" onClick={handleConfirmNavigation}>
-              Descartar cambios
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
       <div className="w-full p-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
         <div className="mb-6 shrink-0">
           <h1 className="text-2xl font-bold">Editar día</h1>
