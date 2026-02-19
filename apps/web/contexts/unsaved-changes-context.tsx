@@ -11,7 +11,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -102,8 +102,6 @@ function getFullPathFromLocation() {
 export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const serializedSearchParams = searchParams.toString()
   const entrySequenceRef = useRef(0)
   const bypassGuardCountRef = useRef(0)
   const bypassTargetRoutePathRef = useRef<string | null>(null)
@@ -283,7 +281,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
     currentFullPathRef.current = getFullPathFromLocation()
     bypassGuardCountRef.current = 0
     bypassTargetRoutePathRef.current = null
-  }, [pathname, serializedSearchParams])
+  }, [pathname])
 
   useEffect(() => {
     const handleDocumentClickCapture = (event: MouseEvent) => {
