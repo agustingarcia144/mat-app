@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -522,11 +523,6 @@ type UseUnsavedChangesOptions = {
   shouldBlockNavigation?: ShouldBlockNavigation
 }
 
-const useUnsavedChangesId = (() => {
-  let nextId = 0
-  return () => `unsaved-entry-${++nextId}`
-})()
-
 export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
   const context = useContext(UnsavedChangesContext)
   if (!context) {
@@ -544,11 +540,7 @@ export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
     allowNextNavigation,
   } = context
 
-  const entryIdRef = useRef<string>('')
-  if (!entryIdRef.current) {
-    entryIdRef.current = useUnsavedChangesId()
-  }
-  const entryId = entryIdRef.current
+  const entryId = useId()
 
   useEffect(() => {
     registerEntry(entryId)
