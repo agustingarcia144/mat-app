@@ -1,5 +1,7 @@
 "use client"
+"use no memo"
 
+import Image from "next/image"
 import {
   ColumnDef,
   flexRender,
@@ -8,6 +10,13 @@ import {
 } from "@tanstack/react-table"
 
 import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import {
   Table,
   TableBody,
   TableCell,
@@ -15,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import matWolfLooking from "@/assets/mat-wolf-looking.png"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -25,6 +35,8 @@ export function DataTable<TData, TValue>({
   columns,
   data,
 }: DataTableProps<TData, TValue>) {
+  // useReactTable returns unstable refs; component is opted out via "use no memo"
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table API incompatible with React Compiler memoization
   const table = useReactTable({
     data,
     columns,
@@ -68,8 +80,22 @@ export function DataTable<TData, TValue>({
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                No hay resultados.
+              <TableCell colSpan={columns.length} className="p-0">
+                <Empty className="h-32 border-0 rounded-none">
+                  <EmptyHeader>
+                    <EmptyMedia>
+                      <Image
+                        src={matWolfLooking}
+                        alt=""
+                        className="h-14 w-14 object-contain"
+                      />
+                    </EmptyMedia>
+                    <EmptyTitle>No hay resultados</EmptyTitle>
+                    <EmptyDescription>
+                      No se encontraron registros para mostrar.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               </TableCell>
             </TableRow>
           )}

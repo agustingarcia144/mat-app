@@ -8,6 +8,13 @@ import { getVideoThumbnailUrl } from '@repo/core/utils'
 import Image from 'next/image'
 import ExerciseVideoDialog from '@/components/features/planifications/exercises/exercise-video-dialog'
 import matWolfFallback from '@/assets/mat-wolf-looking.png'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 
 function formatTimeSeconds(seconds: number): string {
   const mins = Math.floor(seconds / 60)
@@ -82,9 +89,22 @@ export default function WorkoutDayCard({ day }: { day: any }) {
           ))}
         </div>
       ) : dayExercises.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No hay ejercicios en este día
-        </p>
+        <Empty className="py-6">
+          <EmptyHeader>
+            <EmptyMedia>
+              <Image
+                src={matWolfFallback}
+                alt=""
+                className="h-14 w-14 object-contain"
+              />
+            </EmptyMedia>
+            <EmptyTitle>No hay ejercicios</EmptyTitle>
+            <EmptyDescription>
+              No hay ejercicios en este día. Arrastra ejercicios desde la
+              biblioteca.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="space-y-4">
           {/* Exercises grouped by blocks */}

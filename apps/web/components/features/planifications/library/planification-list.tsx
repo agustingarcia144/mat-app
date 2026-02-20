@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, Calendar, MoreVertical } from 'lucide-react'
@@ -12,7 +13,15 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { formatDate } from 'date-fns'
+import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import DuplicatePlanificationDialog from '../dialogs/duplicate-planification-dialog'
 import DeletePlanificationDialog from '../dialogs/delete-planification-dialog'
 
@@ -162,15 +171,21 @@ export default function PlanificationList({
 
   if (planifications.length === 0) {
     return (
-      <div className="h-full w-full flex items-center justify-center">
-        <div className="text-center">
-          <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <h3 className="font-medium mb-1">No hay planificaciones</h3>
-          <p className="text-sm text-muted-foreground">
+      <Empty className="h-full w-full">
+        <EmptyHeader>
+          <EmptyMedia>
+            <Image
+              src={matWolfLooking}
+              alt=""
+              className="h-20 w-20 object-contain"
+            />
+          </EmptyMedia>
+          <EmptyTitle>No hay planificaciones</EmptyTitle>
+          <EmptyDescription>
             Crea tu primera planificación para comenzar
-          </p>
-        </div>
-      </div>
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   }
 

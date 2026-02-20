@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -11,8 +12,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import {
   Select,
   SelectContent,
@@ -247,11 +256,23 @@ export default function ScheduleDetailDialog({
                 </h3>
 
                 {filteredReservations.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    {statusFilter === 'all'
-                      ? 'No hay reservas para esta clase'
-                      : 'No hay reservas con este estado'}
-                  </p>
+                  <Empty className="py-8">
+                    <EmptyHeader>
+                      <EmptyMedia>
+                        <Image
+                          src={matWolfLooking}
+                          alt=""
+                          className="h-16 w-16 object-contain"
+                        />
+                      </EmptyMedia>
+                      <EmptyTitle>No hay reservas</EmptyTitle>
+                      <EmptyDescription>
+                        {statusFilter === 'all'
+                          ? 'No hay reservas para esta clase'
+                          : 'No hay reservas con este estado'}
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 ) : (
                   <div className="space-y-2">
                     {filteredReservations.map((reservation) => (

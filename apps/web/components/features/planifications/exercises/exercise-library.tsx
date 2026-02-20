@@ -40,6 +40,13 @@ import VideoPlayer from './videoplayer'
 
 import Image from 'next/image'
 import wolfImg from '@/assets/mat-wolf-looking.png'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 
 import { CATEGORIES, EQUIPMENT_OPTIONS, MUSCLE_GROUPS } from '@repo/core'
 
@@ -194,11 +201,21 @@ export default function ExerciseLibrary({
             </div>
           ))
         ) : filtered.length === 0 ? (
-          <div className="col-span-full text-center py-12 border rounded-lg border-dashed">
-            <p className="text-muted-foreground">
-              No se encontraron ejercicios
-            </p>
-          </div>
+          <Empty className="col-span-full py-12 border rounded-lg border-dashed">
+            <EmptyHeader>
+              <EmptyMedia>
+                <Image
+                  src={wolfImg}
+                  alt=""
+                  className="h-20 w-20 object-contain"
+                />
+              </EmptyMedia>
+              <EmptyTitle>No se encontraron ejercicios</EmptyTitle>
+              <EmptyDescription>
+                Prueba con otros filtros o crea un nuevo ejercicio.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           filtered.map((e) => (
             <div

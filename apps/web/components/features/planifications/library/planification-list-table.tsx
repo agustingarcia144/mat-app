@@ -1,10 +1,19 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileText, Calendar, MoreVertical } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
+import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -182,15 +191,21 @@ export default function PlanificationListTable({
 
   if (planifications.length === 0) {
     return (
-      <div className="h-full w-full flex items-center justify-center rounded-md border">
-        <div className="text-center py-12 px-6">
-          <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <h3 className="font-medium mb-1">No hay planificaciones</h3>
-          <p className="text-sm text-muted-foreground">
+      <Empty className="h-full w-full rounded-md border">
+        <EmptyHeader>
+          <EmptyMedia>
+            <Image
+              src={matWolfLooking}
+              alt=""
+              className="h-20 w-20 object-contain"
+            />
+          </EmptyMedia>
+          <EmptyTitle>No hay planificaciones</EmptyTitle>
+          <EmptyDescription>
             Crea tu primera planificación para comenzar
-          </p>
-        </div>
-      </div>
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
   }
 

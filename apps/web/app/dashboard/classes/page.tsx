@@ -1,9 +1,18 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useMemo } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import {
   Select,
   SelectContent,
@@ -13,6 +22,7 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
+import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import ClassFormDialog from '@/components/features/classes/dialogs/class-form-dialog'
 import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule-detail-dialog'
 import WeeklyTimeline from '@/components/features/classes/calendar/weekly-timeline'
@@ -225,12 +235,25 @@ export default function ClassesPage() {
               <p className="text-muted-foreground">Cargando clases...</p>
             </div>
           ) : classes.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No hay clases creadas</p>
-              <Button onClick={handleNewClass} className="mt-4">
-                Crear primera clase
-              </Button>
-            </div>
+            <Empty className="py-12">
+              <EmptyHeader>
+                <EmptyMedia>
+                  <Image
+                    src={matWolfLooking}
+                    alt=""
+                    className="h-20 w-20 object-contain"
+                  />
+                </EmptyMedia>
+                <EmptyTitle>No hay clases creadas</EmptyTitle>
+                <EmptyDescription>
+                  Crea tu primera clase para comenzar a gestionar horarios y
+                  reservas.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button onClick={handleNewClass}>Crear primera clase</Button>
+              </EmptyContent>
+            </Empty>
           ) : (
             <ClassList onEditClass={handleEditClass} />
           )}

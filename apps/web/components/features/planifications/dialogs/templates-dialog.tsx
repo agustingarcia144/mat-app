@@ -1,15 +1,23 @@
 'use client'
 
+import Image from 'next/image'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { FileText } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import PlanificationListTable from '@/components/features/planifications/library/planification-list-table'
+import matWolfLooking from '@/assets/mat-wolf-looking.png'
 
 export default function TemplatesDialog({
   open,
@@ -30,16 +38,24 @@ export default function TemplatesDialog({
           {templates === undefined ? (
             <PlanificationListTable planifications={[]} isLoading />
           ) : templates.length === 0 ? (
-            <div className="py-12 flex flex-col items-center justify-center text-center">
-              <FileText className="h-12 w-12 text-muted-foreground mb-3" />
-              <h3 className="font-medium mb-1">No hay plantillas</h3>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Las plantillas son planificaciones reutilizables que no
-                pertenecen a ninguna carpeta y no se asignan a miembros. Crea
-                una desde &quot;Nueva planificación&quot; marcando la opción
-                plantilla.
-              </p>
-            </div>
+            <Empty className="py-12">
+              <EmptyHeader>
+                <EmptyMedia>
+                  <Image
+                    src={matWolfLooking}
+                    alt=""
+                    className="h-20 w-20 object-contain"
+                  />
+                </EmptyMedia>
+                <EmptyTitle>No hay plantillas</EmptyTitle>
+                <EmptyDescription>
+                  Las plantillas son planificaciones reutilizables que no
+                  pertenecen a ninguna carpeta y no se asignan a miembros. Crea
+                  una desde &quot;Nueva planificación&quot; marcando la opción
+                  plantilla.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <PlanificationListTable
               planifications={templates}

@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -14,9 +15,17 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Calendar, User, UserMinus } from 'lucide-react'
+import { Calendar, UserMinus } from 'lucide-react'
+import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import { toast } from 'sonner'
 import StatusBadge from '../../../shared/badges/status-badge'
 
@@ -61,10 +70,22 @@ export default function AssignedMembersDialog({
 
         <div className="flex-1 overflow-y-auto">
           {assignments.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <User className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No hay miembros asignados a esta planificación</p>
-            </div>
+            <Empty className="py-12">
+              <EmptyHeader>
+                <EmptyMedia>
+                  <Image
+                    src={matWolfLooking}
+                    alt=""
+                    className="h-20 w-20 object-contain"
+                  />
+                </EmptyMedia>
+                <EmptyTitle>No hay miembros asignados</EmptyTitle>
+                <EmptyDescription>
+                  No hay miembros asignados a esta planificación. Asígnalos
+                  desde el menú de la planificación.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <div className="space-y-3">
               {assignments.map((assignment) => {

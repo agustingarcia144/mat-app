@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -8,8 +9,16 @@ import { Badge } from '@/components/ui/badge'
 import { Check, Search } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import { useLibraryExerciseNames } from '@/contexts/library-exercise-names-context'
 import LibraryExerciseCard from '@/components/features/planifications/exercises/library-exercise-card'
+import matWolfLooking from '@/assets/mat-wolf-looking.png'
 
 interface ExerciseSelectorProps {
   /** Optional: called when user clicks an exercise (e.g. add to day). Drag-and-drop is the primary way to add. */
@@ -126,14 +135,23 @@ export default function ExerciseSelector({
               </div>
             ))
           ) : exercises.length === 0 ? (
-            <div className="col-span-full text-center py-8 text-muted-foreground">
-              <p>No se encontraron ejercicios</p>
-              <p className="text-sm mt-1">
-                {searchTerm
-                  ? 'Intenta con otro término'
-                  : 'Crea ejercicios en la biblioteca'}
-              </p>
-            </div>
+            <Empty className="col-span-full py-8">
+              <EmptyHeader>
+                <EmptyMedia>
+                  <Image
+                    src={matWolfLooking}
+                    alt=""
+                    className="h-20 w-20 object-contain"
+                  />
+                </EmptyMedia>
+                <EmptyTitle>No se encontraron ejercicios</EmptyTitle>
+                <EmptyDescription>
+                  {searchTerm
+                    ? 'Intenta con otro término'
+                    : 'Crea ejercicios en la biblioteca'}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             exercises.map((exercise) => (
               <div

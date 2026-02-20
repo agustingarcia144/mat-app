@@ -1,10 +1,18 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { UseFormReturn, useFieldArray, Controller } from 'react-hook-form'
 import { Plus, ChevronDown, ChevronUp, Trash2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import WeekCalendarRow from '@/components/features/planifications/form/week-calendar-row'
 import { Field, FieldError } from '@/components/ui/field'
 import { usePlanificationFormOptional } from '@/contexts/planification-form-context'
@@ -14,6 +22,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import matWolfLooking from '@/assets/mat-wolf-looking.png'
 
 interface WorkoutWeeksSectionProps {
   form: UseFormReturn<PlanificationForm>
@@ -81,12 +90,21 @@ export default function WorkoutWeeksSection({
       </div>
 
       {fields.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No hay semanas agregadas</p>
-          <p className="text-sm">
-            Haz clic en &quot;Agregar semana&quot; para comenzar
-          </p>
-        </div>
+        <Empty className="py-8">
+          <EmptyHeader>
+            <EmptyMedia>
+              <Image
+                src={matWolfLooking}
+                alt=""
+                className="h-16 w-16 object-contain"
+              />
+            </EmptyMedia>
+            <EmptyTitle>No hay semanas agregadas</EmptyTitle>
+            <EmptyDescription>
+              Haz clic en &quot;Agregar semana&quot; para comenzar
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="space-y-4">
           {fields.map((field, weekIndex) => {

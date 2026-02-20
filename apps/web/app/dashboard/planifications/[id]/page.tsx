@@ -1,10 +1,18 @@
 'use client'
 
+import Image from 'next/image'
 import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +36,7 @@ import {
   AvatarGroupCount,
   AvatarImage,
 } from '@/components/ui/avatar'
+import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import {
   Tooltip,
   TooltipContent,
@@ -252,11 +261,22 @@ export default function PlanificationViewPage({
 
         <div className="space-y-6">
           {workoutWeeks.length === 0 ? (
-            <div className="text-center py-12 border rounded-lg border-dashed">
-              <p className="text-muted-foreground">
-                Esta planificación no tiene semanas de entrenamiento
-              </p>
-            </div>
+            <Empty className="py-12 border rounded-lg border-dashed">
+              <EmptyHeader>
+                <EmptyMedia>
+                  <Image
+                    src={matWolfLooking}
+                    alt=""
+                    className="h-20 w-20 object-contain"
+                  />
+                </EmptyMedia>
+                <EmptyTitle>Sin semanas de entrenamiento</EmptyTitle>
+                <EmptyDescription>
+                  Esta planificación no tiene semanas de entrenamiento. Edita la
+                  planificación para agregar semanas y días.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             workoutWeeks.map((week) => (
               <WorkoutWeekCard key={week._id} week={week} />
