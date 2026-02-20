@@ -1,55 +1,105 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
-import type { Member } from '@repo/core/types'
-import RoleBadge from '../../../shared/badges/role-badge'
-import StatusBadge from '../../../shared/badges/status-badge'
-import AvatarColumn from './avatar-column'
-import { formatDate } from 'date-fns'
+import { Eye } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { useState } from 'react'
+import MemberDetailDialog from '@/components/features/members/table/member-detail-dialog'
+import type { Member } from '@repo/core'
 
-export const columns: ColumnDef<Member>[] = [
-  {
-    accessorKey: 'imageUrl',
-    header: '',
-    cell: ({ row }) => {
-      const member = row.original
-      return <AvatarColumn member={member} />
-    },
+
+const nameColumn: ColumnDef<Member> = {
+  accessorKey: 'name',
+  header: () => (
+    <div className="pl-1">Nombre</div>
+  ),
+  cell: ({ row }) => {
+    const member = row.original
+    const [open, setOpen] = useState(false)
+
+    const initials =
+      member.fullName
+        ?.split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2) ||
+      member.email?.[0]?.toUpperCase() ||
+      '?'
+
+    return (
+      <>
+        <div className="flex items-center gap-3">
+
+          
+          <Avatar className="h-8 w-8">
+            {member.imageUrl && (
+              <AvatarImage src={member.imageUrl} />
+            )}
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+
+        
+          <Button
+            size="sm"
+            variant="ghost"
+            className="flex items-center gap-1 px-2"
+            onClick={() => setOpen(true)}
+          >
+            <Eye className="h-4 w-4" />
+            <span className="text-xs">Ver</span>
+          </Button>
+
+          
+          <span className="font-medium">
+            {member.name}
+          </span>
+        </div>
+
+        <MemberDetailDialog
+          member={member}
+          open={open}
+          onClose={() => setOpen(false)}
+        />
+      </>
+    )
   },
-  {
-    accessorKey: 'name',
-    header: 'Nombre',
-  },
+}
+
+
+export const getColumns = (): ColumnDef<Member>[] => [
+  nameColumn,
+
   {
     accessorKey: 'email',
     header: 'Email',
   },
+
   {
-    accessorKey: 'role',
-    header: 'Rol',
-    cell: ({ row }) => {
-      const member = row.original
-      return <RoleBadge role={member.role} />
-    },
+  accessorKey: 'status',
+  header: 'Estado',
+  cell: ({ row }) => {
+    const status = row.original.status?.toLowerCase()
+    const isActive = status === 'active'
+
+    return (
+      <Badge
+        className={
+          isActive
+            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+            : 'bg-red-500/20 text-red-400 border border-red-500/30'
+        }
+      >
+        {isActive ? 'Activo' : 'Inactivo'}
+      </Badge>
+    )
   },
-  {
-    accessorKey: 'status',
-    header: 'Estado',
-    cell: ({ row }) => {
-      const member = row.original
-      return <StatusBadge status={member.status} />
-    },
-  },
+},
+
   {
     accessorKey: 'createdAt',
     header: 'Creado el',
-    cell: ({ row }) => {
-      const member = row.original
-      return (
-        <span className="text-sm text-muted-foreground">
-          {formatDate(member.createdAt, 'dd/MM/yyyy')}
-        </span>
-      )
-    },
   },
 ]
