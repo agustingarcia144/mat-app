@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { UseFormReturn, useFieldArray, Controller } from 'react-hook-form'
 import { Plus, ChevronDown, ChevronUp, Trash2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
 import { Input } from '@/components/ui/input'
 import {
   Empty,
@@ -83,10 +84,15 @@ export default function WorkoutWeeksSection({
     <div className="rounded-lg border p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Semanas de entrenamiento</h2>
-        <Button type="button" onClick={addWeek} size="sm" variant="outline">
-          <Plus className="h-4 w-4 mr-2" />
-          Agregar semana
-        </Button>
+        <ResponsiveActionButton
+          type='button'
+          onClick={addWeek}
+          variant='outline'
+          mobileSize='sm'
+          icon={<Plus className='h-4 w-4' aria-hidden />}
+          label='Agregar semana'
+          tooltip='Agregar semana'
+        />
       </div>
 
       {fields.length === 0 ? (

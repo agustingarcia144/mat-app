@@ -3,6 +3,7 @@
 import { use, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
 import { ArrowLeft, Plus } from 'lucide-react'
 import { DragDropProvider } from '@dnd-kit/react'
 import { usePlanificationForm } from '@/contexts/planification-form-context'
@@ -245,16 +246,16 @@ function DayEditDndContent({
                     </Field>
                   )}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                <ResponsiveActionButton
+                  type='button'
+                  variant='outline'
+                  mobileSize='sm'
                   onClick={onAddBlock}
-                  className="h-9 shrink-0 text-xs"
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Agregar bloque
-                </Button>
+                  icon={<Plus className='h-3.5 w-3.5' aria-hidden />}
+                  label='Agregar bloque'
+                  tooltip='Agregar bloque'
+                  className='shrink-0 text-xs'
+                />
               </div>
 
               <DayBlocksContent
@@ -450,11 +451,12 @@ export function DayEditPageContent({
       <div className="w-full py-6">
         <Button
           variant="link"
-          className="mt-2"
+          className="mt-2 gap-0 px-2 md:gap-2 md:px-3"
           onClick={handleBackClick}
+          aria-label="Volver"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Volver
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          <span className='sr-only md:not-sr-only'>Volver</span>
         </Button>
         <p className="text-destructive text-center">Día no encontrado.</p>
       </div>
@@ -466,13 +468,14 @@ export function DayEditPageContent({
       <Button
         variant="ghost"
         size="sm"
-        className="mb-4"
+        className="mb-4 gap-0 px-2 md:gap-2 md:px-3"
         onClick={handleBackClick}
+        aria-label="Volver"
       >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Volver
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        <span className='sr-only md:not-sr-only'>Volver</span>
       </Button>
-      <div className="w-full p-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
+      <div className="w-full p-3 md:p-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
         <div className="mb-6 shrink-0">
           <h1 className="text-2xl font-bold">Editar día</h1>
           <p className="text-muted-foreground mt-1 text-sm">

@@ -101,18 +101,24 @@ export default function PlanificationViewPage({
 
   return (
     <div className="w-full py-6">
-      <Button variant="ghost" size="sm" className="mb-4" asChild>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="mb-4 gap-0 px-2 md:gap-2 md:px-3"
+        aria-label="Volver a planificaciones"
+        asChild
+      >
         <Link href="/dashboard/planifications">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Volver a planificaciones
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          <span className='sr-only md:not-sr-only'>Volver a planificaciones</span>
         </Link>
       </Button>
-      <div className="container mx-auto py-6 max-w-5xl">
+      <div className="container mx-auto max-w-5xl px-3 py-6 md:px-0">
         <div className="mb-6">
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl font-bold">{planification.name}</h1>
+              <div className="mb-2 flex items-center gap-3">
+                <h1 className="text-2xl font-bold md:text-3xl">{planification.name}</h1>
                 {planification.isTemplate && (
                   <Badge variant="secondary">Plantilla</Badge>
                 )}
@@ -127,7 +133,7 @@ export default function PlanificationViewPage({
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
               {!planification.isTemplate &&
                 assignments &&
                 assignments.length > 0 && (

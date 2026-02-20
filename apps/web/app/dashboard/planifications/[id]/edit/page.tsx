@@ -5,6 +5,7 @@ import { useQuery } from 'convex/react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
+import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
 import { ArrowLeft, Pencil } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import PlanificationEditForm from '@/components/features/planifications/form/planification-edit-form'
@@ -64,26 +65,26 @@ export default function EditPlanificationPage({
       <Button
         variant="ghost"
         size="sm"
-        className="mb-4"
+        className="mb-4 gap-0 px-2 md:gap-2 md:px-3"
         onClick={handleBackClick}
+        aria-label="Volver"
       >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Volver
+        <ArrowLeft className="h-4 w-4" aria-hidden />
+        <span className='sr-only md:not-sr-only'>Volver</span>
       </Button>
-      <div className="w-full p-6">
+      <div className="w-full p-3 md:p-6">
         <div className="mb-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <h1 className="text-2xl font-bold md:text-3xl">
               Editar planificación - {planification.name}
             </h1>
-            <Button
+            <ResponsiveActionButton
               type="button"
               onClick={() => setEditDialogOpen(true)}
-              aria-label="Editar información básica"
-            >
-              <Pencil className="h-4 w-4 mr-2" />
-              Editar información básica
-            </Button>
+              icon={<Pencil className='h-4 w-4' aria-hidden />}
+              label='Editar información básica'
+              tooltip='Editar información básica'
+            />
           </div>
         </div>
 

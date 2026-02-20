@@ -3,7 +3,15 @@
 import { useState, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { UseFormReturn, useFieldArray, useWatch } from 'react-hook-form'
-import { Plus, Trash2, Copy, Pencil, GripVertical, MoreVertical } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  Copy,
+  Pencil,
+  GripVertical,
+  MoreVertical,
+  ChevronDown,
+} from 'lucide-react'
 import {
   DragDropProvider,
   useDraggable,
@@ -24,6 +32,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 const DAY_CARD_PREFIX = 'day-card-'
 const WEEKDAY_DROP_PREFIX = 'weekday-drop-'
@@ -267,6 +277,7 @@ export default function WeekCalendarRow({
   weekIndex,
   planificationId,
 }: WeekCalendarRowProps) {
+  const isMobile = useIsMobile()
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: `workoutWeeks.${weekIndex}.workoutDays`,
@@ -293,6 +304,9 @@ export default function WeekCalendarRow({
 
   const [expandedDayIds, setExpandedDayIds] = useState<Set<string>>(new Set())
   const [exercisesVisibleDayIds, setExercisesVisibleDayIds] = useState<Set<string>>(new Set())
+  const [expandedWeekdays, setExpandedWeekdays] = useState<Set<number>>(
+    new Set(DAY_NAMES.map((day) => day.value))
+  )
   const nextIdRef = useRef(0)
 
   const addDay = (dayOfWeek: number) => {
@@ -509,124 +523,184 @@ export default function WeekCalendarRow({
   }
 
   const isSummaryMode = !!planificationId
+  const toggleWeekdayExpanded = (dayOfWeek: number) => {
+    const next = new Set(expandedWeekdays)
+    if (next.has(dayOfWeek)) next.delete(dayOfWeek)
+    else next.add(dayOfWeek)
+    setExpandedWeekdays(next)
+  }
+
+  const renderAddDayButton = (dayOfWeek: number) => {
+    if (isSummaryMode) {
+      return (
+        <Button variant='ghost' size='icon' className='h-7 w-7' asChild>
+          <Link
+            href={`/dashboard/planifications/${planificationId}/edit/day/new?weekIndex=${weekIndex}&dayOfWeek=${dayOfWeek}`}
+          >
+            <Plus className='h-3.5 w-3.5 text-muted-foreground' />
+          </Link>
+        </Button>
+      )
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon'
+            className='h-7 w-7'
+            onClick={() => addDay(dayOfWeek)}
+          >
+            <Plus className='h-3.5 w-3.5 text-muted-foreground' />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Agregar día</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  const renderDayCards = (dayIndices: number[]) =>
+    dayIndices.map((dayIndex) => {
+      const field = fields[dayIndex]
+      if (!field) return null
+
+      const day = form.watch(`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`)
+      const blockCount = day?.blocks?.length ?? 0
+      const exerciseCount = day?.exercises?.length ?? 0
+      const isExpanded = expandedDayIds.has(field.id)
+      const exercisesVisible = exercisesVisibleDayIds.has(field.id)
+
+      const expandedContent =
+        !isSummaryMode && isExpanded ? (
+          <div className='mt-2 border-t pt-2 max-h-[320px] overflow-y-auto overflow-x-hidden rounded-md pr-1 -mr-1'>
+            <DayBlocksContent
+              form={form}
+              weekIndex={weekIndex}
+              dayIndex={dayIndex}
+              day={day ?? { exercises: [] }}
+              onAddBlock={() => addBlockToDay(dayIndex)}
+              onRemoveBlock={(blockIndex) =>
+                removeBlockFromDay(dayIndex, blockIndex)
+              }
+              onAddExercise={(ex, blockId) =>
+                addExerciseToDay(dayIndex, ex, blockId)
+              }
+              onRemoveExercise={(exerciseIndex) =>
+                removeExercise(dayIndex, exerciseIndex)
+              }
+            />
+          </div>
+        ) : null
+
+      return (
+        <DraggableDayCard
+          key={field.id}
+          weekIndex={weekIndex}
+          dayIndex={dayIndex}
+          withHandle
+        >
+          <DayCardContent
+            day={day}
+            blockCount={blockCount}
+            exerciseCount={exerciseCount}
+            isSummaryMode={isSummaryMode}
+            planificationId={planificationId}
+            weekIndex={weekIndex}
+            dayIndex={dayIndex}
+            fieldId={field.id}
+            isExpanded={isExpanded}
+            exercisesVisible={exercisesVisible}
+            onToggleExpand={toggleDayExpanded}
+            onCopyDay={copyDay}
+            onRemove={remove}
+            onToggleExercisesVisible={toggleExercisesVisible}
+            expandedContent={expandedContent}
+          />
+        </DraggableDayCard>
+      )
+    })
 
   return (
     <DragDropProvider onDragEnd={onDragEndCallback}>
       <DragEndMonitor onDragEnd={onDragEndCallback}>
-      <div className="overflow-x-auto">
-        <div className="grid grid-cols-7 min-w-[560px] gap-2">
-          {DAY_NAMES.map(({ value: dow, label }) => {
-            const dayIndices = daysByWeekday.get(dow) ?? []
-            return (
-              <div
-                key={dow}
-                className="border rounded-lg p-2 bg-muted/20 min-h-[100px] flex flex-col"
-              >
-                <div className="flex items-center justify-between mb-2 shrink-0">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {label}
-                  </span>
-                  {isSummaryMode ? (
-                    <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                      <Link
-                        href={`/dashboard/planifications/${planificationId}/edit/day/new?weekIndex=${weekIndex}&dayOfWeek=${dow}`}
+        {isMobile ? (
+          <div className='space-y-2'>
+            {DAY_NAMES.map(({ value: dow, label }) => {
+              const dayIndices = daysByWeekday.get(dow) ?? []
+              const isExpanded = expandedWeekdays.has(dow)
+
+              return (
+                <Collapsible key={dow} open={isExpanded}>
+                  <div className='rounded-lg border bg-muted/20'>
+                    <div className='flex items-center justify-between gap-2 p-2'>
+                      <button
+                        type='button'
+                        onClick={() => toggleWeekdayExpanded(dow)}
+                        className='flex min-w-0 flex-1 items-center gap-2 text-left'
+                        aria-expanded={isExpanded}
                       >
-                        <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => addDay(dow)}
-                        >
-                          <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Agregar día</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-                <div className="relative flex-1 min-h-[60px] flex flex-col">
-                  <WeekdayDropZone
-                    weekIndex={weekIndex}
-                    dow={dow}
-                    className="absolute inset-0 rounded-lg z-0"
-                  />
-                  <div className="relative z-10 space-y-2 flex-1 pointer-events-none">
-                    <div className="pointer-events-auto">
-                {dayIndices.map((dayIndex) => {
-                  const field = fields[dayIndex]
-                  if (!field) return null
-                  const day = form.watch(
-                    `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`
-                  )
-                  const blockCount = day?.blocks?.length ?? 0
-                  const exerciseCount = day?.exercises?.length ?? 0
-                  const isExpanded = expandedDayIds.has(field.id)
-                  const exercisesVisible = exercisesVisibleDayIds.has(field.id)
-
-                  const expandedContent =
-                    !isSummaryMode && isExpanded ? (
-                      <div className="mt-2 pt-2 border-t max-h-[320px] overflow-y-auto overflow-x-hidden rounded-md pr-1 -mr-1">
-                        <DayBlocksContent
-                          form={form}
-                          weekIndex={weekIndex}
-                          dayIndex={dayIndex}
-                          day={day ?? { exercises: [] }}
-                          onAddBlock={() => addBlockToDay(dayIndex)}
-                          onRemoveBlock={(blockIndex) =>
-                            removeBlockFromDay(dayIndex, blockIndex)
-                          }
-                          onAddExercise={(ex, blockId) =>
-                            addExerciseToDay(dayIndex, ex, blockId)
-                          }
-                          onRemoveExercise={(exerciseIndex) =>
-                            removeExercise(dayIndex, exerciseIndex)
-                          }
+                        <ChevronDown
+                          className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`}
                         />
-                      </div>
-                    ) : null
-
-                  return (
-                    <DraggableDayCard
-                      key={field.id}
-                      weekIndex={weekIndex}
-                      dayIndex={dayIndex}
-                      withHandle
-                    >
-                      <DayCardContent
-                        day={day}
-                        blockCount={blockCount}
-                        exerciseCount={exerciseCount}
-                        isSummaryMode={isSummaryMode}
-                        planificationId={planificationId}
+                        <span className='truncate text-sm font-medium text-muted-foreground'>
+                          {label}
+                        </span>
+                        <span className='text-xs text-muted-foreground/80'>
+                          {dayIndices.length}
+                        </span>
+                      </button>
+                      {renderAddDayButton(dow)}
+                    </div>
+                    <CollapsibleContent className='px-2 pb-2'>
+                      <WeekdayDropZone
                         weekIndex={weekIndex}
-                        dayIndex={dayIndex}
-                        fieldId={field.id}
-                        isExpanded={isExpanded}
-                        exercisesVisible={exercisesVisible}
-                        onToggleExpand={toggleDayExpanded}
-                        onCopyDay={copyDay}
-                        onRemove={remove}
-                        onToggleExercisesVisible={toggleExercisesVisible}
-                        expandedContent={expandedContent}
+                        dow={dow}
+                        className='rounded-lg p-1'
+                      >
+                        <div className='space-y-2'>{renderDayCards(dayIndices)}</div>
+                      </WeekdayDropZone>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+              )
+            })}
+          </div>
+        ) : (
+          <div className='overflow-x-auto'>
+            <div className='grid min-w-[560px] grid-cols-7 gap-2'>
+              {DAY_NAMES.map(({ value: dow, label }) => {
+                const dayIndices = daysByWeekday.get(dow) ?? []
+                return (
+                  <div
+                    key={dow}
+                    className='flex min-h-[100px] flex-col rounded-lg border bg-muted/20 p-2'
+                  >
+                    <div className='mb-2 flex shrink-0 items-center justify-between'>
+                      <span className='text-sm font-medium text-muted-foreground'>
+                        {label}
+                      </span>
+                      {renderAddDayButton(dow)}
+                    </div>
+                    <div className='relative flex min-h-[60px] flex-1 flex-col'>
+                      <WeekdayDropZone
+                        weekIndex={weekIndex}
+                        dow={dow}
+                        className='absolute inset-0 z-0 rounded-lg'
                       />
-                    </DraggableDayCard>
-                  )
-                })}
+                      <div className='relative z-10 flex-1 space-y-2 pointer-events-none'>
+                        <div className='pointer-events-auto'>
+                          {renderDayCards(dayIndices)}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </DragEndMonitor>
     </DragDropProvider>
   )

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
 import { Plus } from 'lucide-react'
 import {
   Sheet,
@@ -30,10 +30,14 @@ export default function ExerciseSelectorSheet({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full">
-          <Plus className="h-4 w-4 mr-2" />
-          Agregar ejercicio
-        </Button>
+        <ResponsiveActionButton
+          variant='outline'
+          mobileSize='sm'
+          className='w-full md:w-auto'
+          icon={<Plus className='h-4 w-4' aria-hidden />}
+          label='Agregar ejercicio'
+          tooltip='Agregar ejercicio'
+        />
       </SheetTrigger>
       <SheetContent side="right" className="w-full sm:max-w-lg">
         <SheetHeader>
