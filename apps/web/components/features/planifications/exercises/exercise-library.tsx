@@ -6,6 +6,7 @@ import { api } from '@/convex/_generated/api'
 import type { Doc } from '@/convex/_generated/dataModel'
 
 import { Button } from '@/components/ui/button'
+import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -138,19 +139,19 @@ export default function ExerciseLibrary({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button
+          <ResponsiveActionButton
             variant="outline"
-            size="sm"
+            mobileSize='sm'
             onClick={() => {
               setSheetFilterCategories([...filterCategories])
               setSheetFilterMuscles([...filterMuscles])
               setSheetFilterEquipment([...filterEquipment])
               setFiltersSheetOpen(true)
             }}
-          >
-            <SlidersHorizontal className="h-4 w-4 mr-2" />
-            Filtros
-          </Button>
+            icon={<SlidersHorizontal className='h-4 w-4' aria-hidden />}
+            label='Filtros'
+            tooltip='Filtros'
+          />
 
           {(() => {
             const allBadges = [
@@ -178,16 +179,16 @@ export default function ExerciseLibrary({
         </div>
 
         {showActions && (
-          <Button
+          <ResponsiveActionButton
             className="md:ml-auto"
             onClick={() => {
               setExerciseToEdit(null)
               setShowCreateDialog(true)
             }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo ejercicio
-          </Button>
+            icon={<Plus className='h-4 w-4' aria-hidden />}
+            label='Nuevo ejercicio'
+            tooltip='Nuevo ejercicio'
+          />
         )}
       </div>
 

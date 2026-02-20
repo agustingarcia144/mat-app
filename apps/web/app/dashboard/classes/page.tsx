@@ -5,6 +5,7 @@ import { useState, useMemo } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
+import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
 import {
   Empty,
   EmptyContent,
@@ -20,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import ClassFormDialog from '@/components/features/classes/dialogs/class-form-dialog'
@@ -31,6 +32,7 @@ import { Plus, Calendar, List, ChevronLeft, ChevronRight } from 'lucide-react'
 import { startOfWeek, endOfWeek, addDays, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { type Id } from '@/convex/_generated/dataModel'
+import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
 
 export default function ClassesPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
@@ -99,48 +101,60 @@ export default function ClassesPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <DashboardPageContainer className='space-y-4 py-4 md:space-y-6 md:py-6'>
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div>
-          <h1 className="text-3xl font-bold">Clases</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className='text-2xl font-bold md:text-3xl'>Clases</h1>
+          <p className='mt-1 text-sm text-muted-foreground md:text-base'>
             Gestiona las clases y horarios de tu gimnasio
           </p>
         </div>
-        <Button onClick={handleNewClass}>
-          <Plus className="mr-2 h-4 w-4" />
-          Nueva Clase
-        </Button>
+        <ResponsiveActionButton
+          onClick={handleNewClass}
+          icon={<Plus className='h-4 w-4' aria-hidden />}
+          label='Nueva Clase'
+          tooltip='Nueva Clase'
+        />
       </div>
 
       {/* View toggle and filters */}
-      <div className="flex items-center justify-between">
+      <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
         <Tabs
           value={selectedView}
           onValueChange={(v) => setSelectedView(v as 'calendar' | 'list')}
         >
           <TabsList>
-            <TabsTrigger value="calendar" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              Calendario
+            <TabsTrigger
+              value='calendar'
+              className='gap-0 md:gap-2'
+              aria-label='Vista calendario'
+            >
+              <Calendar className='h-4 w-4' />
+              <span className='sr-only md:not-sr-only'>Calendario</span>
             </TabsTrigger>
-            <TabsTrigger value="list" className="gap-2">
-              <List className="h-4 w-4" />
-              Lista
+            <TabsTrigger
+              value='list'
+              className='gap-0 md:gap-2'
+              aria-label='Vista lista'
+            >
+              <List className='h-4 w-4' />
+              <span className='sr-only md:not-sr-only'>Lista</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {selectedView === 'calendar' && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Filtrar por:</span>
+          <div className='flex items-center gap-2'>
+            <span className='hidden text-sm text-muted-foreground sm:inline'>
+              Filtrar por:
+            </span>
             <Select value={classFilter} onValueChange={setClassFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Todas las clases" />
+              <SelectTrigger className='w-full sm:w-[220px]'>
+                <SelectValue placeholder='Todas las clases' />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas las clases</SelectItem>
+                <SelectItem value='all'>Todas las clases</SelectItem>
                 {classes?.map((classItem) => (
                   <SelectItem key={classItem._id} value={classItem._id}>
                     {classItem.name}
@@ -154,31 +168,31 @@ export default function ClassesPage() {
 
       {/* Content */}
       {selectedView === 'calendar' ? (
-        <div className="border rounded-lg p-4 space-y-4">
+        <div className='space-y-4 rounded-lg border p-3 md:p-4'>
           {/* Week navigation – always visible so users can move between weeks even when empty */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+            <div className='flex items-center gap-2'>
               <Button
-                variant="outline"
-                size="icon"
+                variant='outline'
+                size='icon'
                 onClick={goToPreviousWeek}
-                aria-label="Semana anterior"
+                aria-label='Semana anterior'
               >
-                <ChevronLeft className="h-4 w-4" aria-hidden />
+                <ChevronLeft className='h-4 w-4' aria-hidden />
               </Button>
-              <Button variant="outline" onClick={goToToday}>
+              <Button variant='outline' onClick={goToToday}>
                 Hoy
               </Button>
               <Button
-                variant="outline"
-                size="icon"
+                variant='outline'
+                size='icon'
                 onClick={goToNextWeek}
-                aria-label="Semana siguiente"
+                aria-label='Semana siguiente'
               >
-                <ChevronRight className="h-4 w-4" aria-hidden />
+                <ChevronRight className='h-4 w-4' aria-hidden />
               </Button>
             </div>
-            <h2 className="text-lg font-semibold">
+            <h2 className='text-base font-semibold md:text-lg'>
               {format(weekStart, 'd', { locale: es })} -{' '}
               {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", {
                 locale: es,
@@ -187,16 +201,16 @@ export default function ClassesPage() {
           </div>
 
           {schedules === undefined ? (
-            <div className="border rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <div className="min-w-[800px]">
+            <div className='overflow-hidden rounded-lg border'>
+              <div className='overflow-x-auto'>
+                <div className='min-w-[800px]'>
                   {/* Day headers */}
-                  <div className="grid grid-cols-8 bg-muted">
-                    <Skeleton className="h-14 rounded-none border-r border-b border-border" />
+                  <div className='grid grid-cols-8 bg-muted'>
+                    <Skeleton className='h-14 rounded-none border-r border-b border-border' />
                     {Array.from({ length: 7 }).map((_, i) => (
                       <Skeleton
                         key={i}
-                        className="h-14 rounded-none border-r border-b border-border"
+                        className='h-14 rounded-none border-r border-b border-border'
                       />
                     ))}
                   </div>
@@ -204,13 +218,13 @@ export default function ClassesPage() {
                   {Array.from({ length: 12 }).map((_, rowIndex) => (
                     <div
                       key={rowIndex}
-                      className="grid grid-cols-8 border-b border-border last:border-b-0"
+                      className='grid grid-cols-8 border-b border-border last:border-b-0'
                     >
-                      <Skeleton className="h-[60px] rounded-none border-r border-border" />
+                      <Skeleton className='h-[60px] rounded-none border-r border-border' />
                       {Array.from({ length: 7 }).map((_, colIndex) => (
                         <Skeleton
                           key={colIndex}
-                          className="h-[60px] rounded-none border-r border-border"
+                          className='h-[60px] rounded-none border-r border-border'
                         />
                       ))}
                     </div>
@@ -229,19 +243,19 @@ export default function ClassesPage() {
           )}
         </div>
       ) : (
-        <div className="border rounded-lg p-4">
+        <div className='rounded-lg border p-3 md:p-4'>
           {classes === undefined ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">Cargando clases...</p>
+            <div className='py-12 text-center'>
+              <p className='text-muted-foreground'>Cargando clases...</p>
             </div>
           ) : classes.length === 0 ? (
-            <Empty className="py-12">
+            <Empty className='py-12'>
               <EmptyHeader>
                 <EmptyMedia>
                   <Image
                     src={matWolfLooking}
-                    alt=""
-                    className="h-20 w-20 object-contain"
+                    alt=''
+                    className='h-20 w-20 object-contain'
                   />
                 </EmptyMedia>
                 <EmptyTitle>No hay clases creadas</EmptyTitle>
@@ -277,6 +291,6 @@ export default function ClassesPage() {
           scheduleId={selectedScheduleId}
         />
       )}
-    </div>
+    </DashboardPageContainer>
   )
 }
