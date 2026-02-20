@@ -15,7 +15,8 @@ export type Member = {
   username?: string
   role: string
   status: string
-  createdAt: string
+  createdAt:  Date | string
+  birthDate?: Date | string | number
 }
 
 /**
@@ -34,6 +35,7 @@ export type MembershipData = {
   email?: string
   imageUrl?: string
   username?: string
+  birthDate?: number | string | Date
 }
 
 /**
