@@ -22,31 +22,23 @@ export default function MembersPage() {
 
   const members = mapMembershipsToMembers(memberships || [])
 
-
   const onlyMembers = members.filter(
-    (m) =>
-      normalize(m.role) === 'member' ||
-      normalize(m.role) === 'miembro'
+    (m) => normalize(m.role) === 'member' || normalize(m.role) === 'miembro'
   )
-console.log('JOINED AT RAW 👉', memberships?.[0]?.joinedAt)
-console.log('JOINED AT MAPPED 👉', members?.[0]?.joinedAt)
 
   const [search, setSearch] = useState('')
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
 
-  const columns = useMemo(
-    () => getColumns(),
-    []
-  )
+  const columns = useMemo(() => getColumns(), [])
 
   const filteredMembers = useMemo(() => {
     const searchValue = normalize(search)
 
     return onlyMembers.filter((m: Member): boolean => {
       return (
-      !searchValue ||
-      normalize(m.name).includes(searchValue) ||
-      normalize(m.email).includes(searchValue)
+        !searchValue ||
+        normalize(m.name).includes(searchValue) ||
+        normalize(m.email).includes(searchValue)
       )
     })
   }, [onlyMembers, search])
@@ -62,14 +54,14 @@ console.log('JOINED AT MAPPED 👉', members?.[0]?.joinedAt)
   return (
     <div className="container mx-auto py-10 space-y-4">
       <div className="relative w-full md:max-w-xs">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 
-      <Input
-        placeholder="Buscar por nombre o email..."
-         value={search}
-        onChange={(e) => setSearch(e.target.value)}
-         className="pl-10 h-10"
-       />
+        <Input
+          placeholder="Buscar por nombre o email..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-10 h-10"
+        />
       </div>
 
       <DataTable columns={columns} data={filteredMembers} />

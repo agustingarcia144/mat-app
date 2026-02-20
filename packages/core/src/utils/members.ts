@@ -26,7 +26,8 @@ export function mapMembershipToMember(membership: MembershipData): Member {
     role: membership.role,
     status: membership.status,
     createdAt: new Date(membership.createdAt).toLocaleDateString(),
-    birthDate: membership.birthDate,
+    birthDate: new Date(membership.birthDate as number).toLocaleDateString(),
+    joinedAt: new Date(membership.joinedAt as number).toLocaleDateString(),
   }
 }
 

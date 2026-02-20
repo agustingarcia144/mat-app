@@ -47,11 +47,7 @@ function safeDate(value: any): Date | null {
    COMPONENT
 ========================= */
 
-export default function MemberDetailDialog({
-  member,
-  open,
-  onClose,
-}: Props) {
+export default function MemberDetailDialog({ member, open, onClose }: Props) {
   const router = useRouter()
 
   const assignments = useQuery(
@@ -61,9 +57,7 @@ export default function MemberDetailDialog({
 
   if (!member) return null
 
-  const assignment = assignments?.find(
-    (a) => a.status === 'active'
-  )
+  const assignment = assignments?.find((a) => a.status === 'active')
 
   const initials =
     member.fullName
@@ -77,9 +71,7 @@ export default function MemberDetailDialog({
 
   const handleViewPlan = () => {
     if (!assignment?.planification?._id) return
-    router.push(
-      `/dashboard/planifications/${assignment.planification._id}`
-    )
+    router.push(`/dashboard/planifications/${assignment.planification._id}`)
   }
 
   const handleAssign = () => {
@@ -98,10 +90,7 @@ export default function MemberDetailDialog({
     const now = new Date()
 
     const diffDays = (from: Date, to: Date) =>
-      Math.ceil(
-        (to.getTime() - from.getTime()) /
-          (1000 * 60 * 60 * 24)
-      )
+      Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))
 
     if (!start || !end) {
       return {
@@ -115,8 +104,7 @@ export default function MemberDetailDialog({
     const daysLeft = Math.max(daysLeftRaw, 0)
 
     const daysExpiredRaw = diffDays(end, now)
-    const daysExpired =
-      end <= now ? Math.max(daysExpiredRaw, 0) : null
+    const daysExpired = end <= now ? Math.max(daysExpiredRaw, 0) : null
 
     if (end <= now) {
       return {
@@ -149,8 +137,7 @@ export default function MemberDetailDialog({
     }
   })()
 
-  const showAssignButton =
-    !assignment || planStatus?.status === 'expired'
+  const showAssignButton = !assignment || planStatus?.status === 'expired'
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -160,25 +147,18 @@ export default function MemberDetailDialog({
         </DialogHeader>
 
         <div className="space-y-6">
-
           {/* PERFIL */}
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16">
-              {member.imageUrl && (
-                <AvatarImage src={member.imageUrl} />
-              )}
+              {member.imageUrl && <AvatarImage src={member.imageUrl} />}
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
 
             <div className="flex-1">
-              <p className="text-xl font-semibold">
-                {member.name}
-              </p>
+              <p className="text-xl font-semibold">{member.name}</p>
 
               {member.email && (
-                <p className="text-sm text-muted-foreground">
-                  {member.email}
-                </p>
+                <p className="text-sm text-muted-foreground">{member.email}</p>
               )}
 
               {member.username && (
@@ -190,16 +170,12 @@ export default function MemberDetailDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
-
             <div>
-              <p className="text-muted-foreground">
-                Estado
-              </p>
+              <p className="text-muted-foreground">Estado</p>
 
               {(() => {
                 const status = member.status?.toLowerCase()
-                const isActive =
-                  status === 'active' || status === 'activo'
+                const isActive = status === 'active' || status === 'activo'
 
                 return (
                   <Badge
@@ -216,16 +192,18 @@ export default function MemberDetailDialog({
             </div>
 
             <div>
-              <p className="text-muted-foreground">
-                Miembro desde
+              <p className="text-muted-foreground">Miembro desde</p>
+              <p>
+                {safeDate(member.joinedAt)
+                  ? format(safeDate(member.joinedAt)!, 'd MMM yyyy', {
+                      locale: es,
+                    })
+                  : '-'}
               </p>
-              <p>{member.createdAt || '-'}</p>
             </div>
 
             <div className="col-span-2">
-              <p className="text-muted-foreground">
-                Fecha de nacimiento
-              </p>
+              <p className="text-muted-foreground">Fecha de nacimiento</p>
 
               <p>
                 {(() => {
@@ -233,8 +211,7 @@ export default function MemberDetailDialog({
                   if (!date) return '-'
 
                   const today = new Date()
-                  let age =
-                    today.getFullYear() - date.getFullYear()
+                  let age = today.getFullYear() - date.getFullYear()
 
                   const hasHadBirthdayThisYear =
                     today.getMonth() > date.getMonth() ||
@@ -251,16 +228,12 @@ export default function MemberDetailDialog({
                 })()}
               </p>
             </div>
-
           </div>
 
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Planificación
-            </p>
+            <p className="text-sm text-muted-foreground">Planificación</p>
 
             <div className="space-y-3 border rounded-lg p-4">
-
               <div className="flex items-center justify-between">
                 <div>
                   {assignment ? (
@@ -268,9 +241,7 @@ export default function MemberDetailDialog({
                       {assignment.planification?.name}
                     </p>
                   ) : (
-                    <Badge variant="secondary">
-                      Sin planificación
-                    </Badge>
+                    <Badge variant="secondary">Sin planificación</Badge>
                   )}
                 </div>
 
@@ -303,12 +274,9 @@ export default function MemberDetailDialog({
               {assignment && planStatus && (
                 <>
                   <div className="flex flex-wrap gap-2">
-
                     {planStatus.status === 'expired' && (
                       <>
-                        <Badge variant="destructive">
-                          Vencida
-                        </Badge>
+                        <Badge variant="destructive">Vencida</Badge>
 
                         {planStatus.daysExpired !== null && (
                           <Badge variant="secondary">
@@ -321,9 +289,7 @@ export default function MemberDetailDialog({
 
                     {planStatus.status === 'active' && (
                       <>
-                        <Badge className="bg-green-600">
-                          Activa
-                        </Badge>
+                        <Badge className="bg-green-600">Activa</Badge>
 
                         {planStatus.daysLeft !== null && (
                           <Badge variant="secondary">
@@ -342,9 +308,7 @@ export default function MemberDetailDialog({
                     )}
 
                     {planStatus.status === 'not_started' && (
-                      <Badge variant="secondary">
-                        No iniciada
-                      </Badge>
+                      <Badge variant="secondary">No iniciada</Badge>
                     )}
                   </div>
 
@@ -353,11 +317,9 @@ export default function MemberDetailDialog({
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         Inicio:{' '}
-                        {format(
-                          safeDate(assignment.startDate)!,
-                          'dd/MM/yyyy',
-                          { locale: es }
-                        )}
+                        {format(safeDate(assignment.startDate)!, 'dd/MM/yyyy', {
+                          locale: es,
+                        })}
                       </div>
                     )}
 
@@ -365,11 +327,9 @@ export default function MemberDetailDialog({
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         Fin:{' '}
-                        {format(
-                          safeDate(assignment.endDate)!,
-                          'dd/MM/yyyy',
-                          { locale: es }
-                        )}
+                        {format(safeDate(assignment.endDate)!, 'dd/MM/yyyy', {
+                          locale: es,
+                        })}
                       </div>
                     )}
                   </div>
@@ -377,7 +337,6 @@ export default function MemberDetailDialog({
               )}
             </div>
           </div>
-
         </div>
       </DialogContent>
     </Dialog>

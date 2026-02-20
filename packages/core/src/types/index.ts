@@ -15,8 +15,9 @@ export type Member = {
   username?: string
   role: string
   status: string
-  createdAt:  Date | string
+  createdAt: Date | string | number
   birthDate?: Date | string | number
+  joinedAt?: Date | string | number
 }
 
 /**
