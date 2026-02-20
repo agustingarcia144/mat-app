@@ -12,6 +12,7 @@ import YoutubePlayer from 'react-native-youtube-iframe'
 import { api } from '@repo/convex'
 import { getYoutubeVideoId } from '@repo/core/utils'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ThemedText } from '@/components/ui/themed-text'
 import { ThemedView } from '@/components/ui/themed-view'
 
@@ -69,10 +70,15 @@ export default function ExerciseVideoSheetContent() {
   if (!exercise || !youtubeVideoId) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
-        <ThemedText style={styles.emptyTitle}>Video no disponible</ThemedText>
-        <ThemedText style={styles.emptyAction} onPress={openVideo}>
-          Abrir en YouTube
-        </ThemedText>
+        <EmptyState
+          title="Video no disponible"
+          description="Podés abrirlo en YouTube"
+          imageSize={100}
+        >
+          <ThemedText style={styles.emptyAction} onPress={openVideo}>
+            Abrir en YouTube
+          </ThemedText>
+        </EmptyState>
       </ThemedView>
     )
   }

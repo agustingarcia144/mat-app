@@ -11,6 +11,7 @@ import { useMutation } from 'convex/react'
 import { api } from '@repo/convex'
 import { useRouter } from 'expo-router'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -81,14 +82,10 @@ export default function SelectOrganizationScreen() {
           { backgroundColor: isDark ? '#000' : '#fff' },
         ]}
       >
-        <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
-          No se encontraron organizaciones
-        </Text>
-        <Text
-          style={[styles.subtitle, { color: isDark ? '#a1a1aa' : '#71717a' }]}
-        >
-          Necesitas ser invitado a una organización
-        </Text>
+        <EmptyState
+          title="No se encontraron organizaciones"
+          description="Necesitas ser invitado a una organización"
+        />
       </View>
     )
   }

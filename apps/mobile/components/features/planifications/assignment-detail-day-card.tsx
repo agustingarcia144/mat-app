@@ -1,10 +1,12 @@
 import React from 'react'
-import { View, Text } from 'react-native'
+import { View, Text, Image } from 'react-native'
 import { ThemedText } from '@/components/ui/themed-text'
 import { WEEKDAY_ES } from './constants'
 import { AssignmentDetailExerciseRow } from './assignment-detail-exercise-row'
 import { assignmentDetailStyles as styles } from './assignment-detail-styles'
 import type { WorkoutDay, ExerciseBlock, DayExerciseWithDetails } from './types'
+
+const matWolfLooking = require('@/assets/images/mat-wolf-looking.png')
 
 interface AssignmentDetailDayCardProps {
   day: WorkoutDay
@@ -68,9 +70,17 @@ export function AssignmentDetailDayCard({
         </Text>
       ) : null}
       {exercises.length === 0 ? (
-        <Text style={[styles.noExercises, { color: muted }]}>
-          Sin ejercicios
-        </Text>
+        <View style={styles.emptyDay}>
+          <Image
+            source={matWolfLooking}
+            style={styles.emptyDayImage}
+            resizeMode="contain"
+            accessibilityLabel=""
+          />
+          <Text style={[styles.noExercises, { color: muted }]}>
+            Sin ejercicios
+          </Text>
+        </View>
       ) : (
         <View style={styles.exerciseGroups}>
           {dayBlocks.map((block) => {

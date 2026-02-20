@@ -17,6 +17,7 @@ export const assignmentDetailStyles = StyleSheet.create({
   },
   hero: {
     marginBottom: SPACING.xxl,
+    alignItems: 'center',
   },
   heroTitle: {
     fontSize: 28,
@@ -80,6 +81,15 @@ export const assignmentDetailStyles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
     marginBottom: SPACING.md,
+  },
+  emptyDay: {
+    alignItems: 'center',
+    paddingVertical: SPACING.lg,
+  },
+  emptyDayImage: {
+    width: 72,
+    height: 72,
+    marginBottom: SPACING.sm,
   },
   noExercises: {
     fontSize: 14,
@@ -157,6 +167,12 @@ export const assignmentDetailStyles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: 'rgba(128,128,128,0.3)',
+    alignItems: 'center',
+  },
+  emptyImage: {
+    width: 100,
+    height: 100,
+    marginBottom: SPACING.md,
   },
   emptyText: {
     fontSize: 15,

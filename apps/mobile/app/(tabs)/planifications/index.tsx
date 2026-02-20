@@ -15,6 +15,7 @@ import { api } from '@repo/convex'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
@@ -103,12 +104,10 @@ function PlanificationsContent() {
 
         {assignments.length === 0 ? (
           <View style={[styles.empty, styles.centered]}>
-            <ThemedText style={styles.emptyText}>
-              No tienes planificaciones asignadas
-            </ThemedText>
-            <ThemedText style={styles.emptySubtext}>
-              Contacta a tu entrenador para que te asigne una rutina
-            </ThemedText>
+            <EmptyState
+              title="No tienes planificaciones asignadas"
+              description="Contacta a tu entrenador para que te asigne una rutina"
+            />
           </View>
         ) : (
           <>

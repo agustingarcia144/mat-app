@@ -1,6 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { ThemedText } from '@/components/ui/themed-text'
+import { EmptyState } from '@/components/ui/empty-state'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
 
 export interface NoActivePlanificationPlaceholderProps {
@@ -14,26 +14,26 @@ export function NoActivePlanificationPlaceholder({
 }: NoActivePlanificationPlaceholderProps) {
   return (
     <View style={[styles.placeholder, styles.centered]}>
-      <ThemedText style={styles.emptyText}>
-        No tienes una planificación activa
-      </ThemedText>
-      <ThemedText style={styles.emptySubtext}>
-        Ve a Planificaciones para ver tus rutinas
-      </ThemedText>
-      <ThemedPressable
-        type="primary"
-        onPress={onPress}
-        style={{ paddingHorizontal: 12 }}
+      <EmptyState
+        title="No tienes una planificación activa"
+        description="Ve a Planificaciones para ver tus rutinas"
+        imageSize={100}
       >
-        <Text
-          style={[
-            styles.primaryButtonText,
-            { color: isDark ? '#000' : '#fff' },
-          ]}
+        <ThemedPressable
+          type="primary"
+          onPress={onPress}
+          style={{ paddingHorizontal: 12 }}
         >
-          Ver planificaciones
-        </Text>
-      </ThemedPressable>
+          <Text
+            style={[
+              styles.primaryButtonText,
+              { color: isDark ? '#000' : '#fff' },
+            ]}
+          >
+            Ver planificaciones
+          </Text>
+        </ThemedPressable>
+      </EmptyState>
     </View>
   )
 }
@@ -46,17 +46,6 @@ const styles = StyleSheet.create({
   centered: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 17,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    marginTop: 8,
-    opacity: 0.8,
-    textAlign: 'center',
   },
   primaryButtonText: {
     fontSize: 16,

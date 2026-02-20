@@ -1,6 +1,8 @@
 import React from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, Image, StyleSheet } from 'react-native'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+
+const matWolfLooking = require('@/assets/images/mat-wolf-looking.png')
 
 interface ClassesEmptyStateCardProps {
   title?: string
@@ -26,6 +28,12 @@ export function ClassesEmptyStateCard({
         },
       ]}
     >
+      <Image
+        source={matWolfLooking}
+        style={styles.image}
+        resizeMode="contain"
+        accessibilityLabel=""
+      />
       <Text style={[styles.title, { color: isDark ? '#fafafa' : '#18181b' }]}>
         {title}
       </Text>
@@ -46,6 +54,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 100,
+  },
+  image: {
+    width: 100,
+    height: 100,
+    marginBottom: 12,
   },
   title: {
     fontSize: 16,

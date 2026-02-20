@@ -1,8 +1,10 @@
 import React from 'react'
-import { View } from 'react-native'
+import { View, Image } from 'react-native'
 import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
 import { assignmentDetailStyles as styles } from './assignment-detail-styles'
+
+const matWolfLooking = require('@/assets/images/mat-wolf-looking.png')
 
 interface AssignmentDetailNotFoundProps {
   paddingTop: number
@@ -14,6 +16,12 @@ export function AssignmentDetailNotFound({
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.content, styles.hero, { paddingTop }]}>
+        <Image
+          source={matWolfLooking}
+          style={styles.emptyImage}
+          resizeMode="contain"
+          accessibilityLabel=""
+        />
         <ThemedText type="title" style={styles.heroTitle}>
           No encontrada
         </ThemedText>
@@ -36,6 +44,12 @@ export function AssignmentDetailEmptyCard({
 }: AssignmentDetailEmptyCardProps) {
   return (
     <View style={styles.emptyCard}>
+      <Image
+        source={matWolfLooking}
+        style={styles.emptyImage}
+        resizeMode="contain"
+        accessibilityLabel=""
+      />
       <ThemedText style={[styles.emptyText, { color: muted }]}>
         {message}
       </ThemedText>
