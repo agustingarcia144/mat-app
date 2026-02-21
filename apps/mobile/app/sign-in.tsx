@@ -41,6 +41,8 @@ function AuthenticatedRedirect() {
   return <LoadingScreen />
 }
 
+type SecondFactorStrategy = 'email_code' | 'totp' | 'backup_code'
+
 function SignInForm() {
   const { signIn, setActive, isLoaded } = useSignIn()
   const { startSSOFlow } = useSSO()
@@ -54,6 +56,11 @@ function SignInForm() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showOtpScreen, setShowOtpScreen] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [secondFactorStrategy, setSecondFactorStrategy] =
+    useState<SecondFactorStrategy | null>(null)
 
   const handlePostAuth = async () => {
     try {
@@ -66,7 +73,7 @@ function SignInForm() {
   }
 
   const onSignIn = async () => {
-    if (!isLoaded) return
+    if (!isLoaded || !signIn) return
 
     setLoading(true)
     setError('')
@@ -80,11 +87,84 @@ function SignInForm() {
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId })
         await handlePostAuth()
+        return
       }
+
+      if (result.status === 'needs_second_factor') {
+        const factors = result.supportedSecondFactors ?? []
+        const emailFactor = factors.find(
+          (f: { strategy: string }) => f.strategy === 'email_code'
+        ) as { strategy: 'email_code'; emailAddressId: string } | undefined
+        const totpFactor = factors.find(
+          (f: { strategy: string }) => f.strategy === 'totp'
+        )
+        const backupFactor = factors.find(
+          (f: { strategy: string }) => f.strategy === 'backup_code'
+        )
+
+        if (emailFactor) {
+          await signIn.prepareSecondFactor({
+            strategy: 'email_code',
+            emailAddressId: emailFactor.emailAddressId,
+          })
+          setSecondFactorStrategy('email_code')
+        } else if (totpFactor) {
+          setSecondFactorStrategy('totp')
+        } else if (backupFactor) {
+          setSecondFactorStrategy('backup_code')
+        } else {
+          setError('Verificación en dos pasos no configurada para esta cuenta.')
+          setLoading(false)
+          return
+        }
+        setShowOtpScreen(true)
+        setLoading(false)
+        return
+      }
+
+      setError('Completá los pasos requeridos para iniciar sesión.')
     } catch (err: any) {
       setError(err.errors?.[0]?.message || 'Error al iniciar sesión')
+    } finally {
       setLoading(false)
     }
+  }
+
+  const onOtpSubmit = async () => {
+    if (!isLoaded || !signIn || !secondFactorStrategy || !otpCode.trim()) return
+
+    setOtpLoading(true)
+    setError('')
+
+    try {
+      const code = otpCode.trim()
+      const result =
+        secondFactorStrategy === 'email_code'
+          ? await signIn.attemptSecondFactor({ strategy: 'email_code', code })
+          : await signIn.attemptSecondFactor({
+              strategy:
+                secondFactorStrategy === 'totp' ? 'totp' : 'backup_code',
+              code,
+            })
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId })
+        await handlePostAuth()
+      } else {
+        setError('Código inválido o vencido. Revisá e intentá de nuevo.')
+      }
+    } catch (err: any) {
+      setError(err.errors?.[0]?.message || 'Error al verificar el código')
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
+  const onBackFromOtp = () => {
+    setShowOtpScreen(false)
+    setOtpCode('')
+    setSecondFactorStrategy(null)
+    setError('')
   }
 
   const onGoogleSignIn = async () => {
@@ -103,6 +183,103 @@ function SignInForm() {
       setError(err.errors?.[0]?.message || 'Error al iniciar sesión con Google')
       setLoading(false)
     }
+  }
+
+  if (showOtpScreen && secondFactorStrategy) {
+    const otpTitle =
+      secondFactorStrategy === 'email_code'
+        ? 'Código de verificación'
+        : secondFactorStrategy === 'totp'
+          ? 'Código del autenticador'
+          : 'Código de respaldo'
+    const otpSubtitle =
+      secondFactorStrategy === 'email_code'
+        ? 'Revisá tu correo e ingresá el código que te enviamos.'
+        : secondFactorStrategy === 'totp'
+          ? 'Ingresá el código de tu aplicación de autenticación.'
+          : 'Ingresá uno de tus códigos de respaldo.'
+
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[
+          styles.container,
+          { backgroundColor: isDark ? '#000' : '#fff' },
+        ]}
+      >
+        <View style={styles.content}>
+          <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
+            {otpTitle}
+          </Text>
+          <Text
+            style={[
+              styles.subtitle,
+              { color: isDark ? '#a1a1aa' : '#71717a' },
+            ]}
+          >
+            {otpSubtitle}
+          </Text>
+
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.form}>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                  color: isDark ? '#fff' : '#000',
+                  borderColor: isDark ? '#27272a' : '#e4e4e7',
+                },
+              ]}
+              placeholder="Código"
+              placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+              value={otpCode}
+              onChangeText={setOtpCode}
+              autoCapitalize="none"
+              autoComplete="one-time-code"
+              keyboardType="number-pad"
+              maxLength={8}
+              editable={!otpLoading}
+            />
+
+            <ThemedPressable
+              type="primary"
+              lightColor="#000"
+              darkColor="#fff"
+              style={[styles.button, otpLoading && styles.buttonDisabled]}
+              onPress={onOtpSubmit}
+              disabled={otpLoading || !otpCode.trim()}
+            >
+              {otpLoading ? (
+                <ActivityIndicator color={isDark ? '#000' : '#fff'} />
+              ) : (
+                <Text
+                  style={[
+                    styles.buttonText,
+                    { color: isDark ? '#000' : '#fff' },
+                  ]}
+                >
+                  Verificar
+                </Text>
+              )}
+            </ThemedPressable>
+
+            <ThemedPressable onPress={onBackFromOtp}>
+              <Text
+                style={[styles.link, { color: isDark ? '#fff' : '#000' }]}
+              >
+                Volver a inicio de sesión
+              </Text>
+            </ThemedPressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    )
   }
 
   return (
