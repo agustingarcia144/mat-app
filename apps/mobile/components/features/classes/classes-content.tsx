@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   StyleSheet,
   ActivityIndicator,
@@ -6,7 +6,13 @@ import {
   Pressable,
   View,
   Text,
+  type LayoutChangeEvent,
 } from 'react-native'
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import type { Href } from 'expo-router'
@@ -20,6 +26,7 @@ import { ThemedView } from '@/components/ui/themed-view'
 import {
   ClassesListHeader,
   ClassesListRow,
+  ClassesNextUpcomingCard,
   ClassesEmptyState,
   type NextUpcomingItem,
   type ClassRowData,
@@ -30,6 +37,117 @@ import {
   type ListRowClass,
   type ListRowReservation,
 } from '@/components/features/classes'
+
+const TAB_PADDING = 4
+const TAB_GAP = 4
+
+type TabId = 'upcoming' | 'past'
+
+function AnimatedClassesTabs({
+  activeTab,
+  onTabChange,
+  isDark,
+}: {
+  activeTab: TabId
+  onTabChange: (tab: TabId) => void
+  isDark: boolean
+}) {
+  const containerWidth = useSharedValue(0)
+  const activeIndex = useSharedValue(activeTab === 'upcoming' ? 0 : 1)
+
+  useEffect(() => {
+    activeIndex.value = withSpring(activeTab === 'upcoming' ? 0 : 1, {
+      damping: 42,
+      stiffness: 260,
+    })
+  }, [activeTab, activeIndex])
+
+  const onLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const w = e.nativeEvent.layout.width
+      containerWidth.value = w
+    },
+    [containerWidth]
+  )
+
+  const pillAnimatedStyle = useAnimatedStyle(() => {
+    'worklet'
+    const width = containerWidth.value
+    if (width <= 0) return { opacity: 0 }
+    const pillWidth = (width - TAB_PADDING * 2 - TAB_GAP) / 2
+    const translateX = activeIndex.value * (pillWidth + TAB_GAP)
+    return {
+      width: pillWidth,
+      transform: [{ translateX }],
+      opacity: 1,
+    }
+  }, [])
+
+  return (
+    <View
+      onLayout={onLayout}
+      style={[
+        styles.tabs,
+        {
+          backgroundColor: isDark ? '#171717' : '#f4f4f5',
+          borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+        },
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.tabPill,
+          {
+            backgroundColor: isDark ? '#27272a' : '#ffffff',
+          },
+          pillAnimatedStyle,
+        ]}
+        pointerEvents="none"
+      />
+      <Pressable
+        onPress={() => onTabChange('upcoming')}
+        style={styles.tabButton}
+      >
+        <Text
+          style={[
+            styles.tabText,
+            {
+              color:
+                activeTab === 'upcoming'
+                  ? isDark
+                    ? '#fafafa'
+                    : '#18181b'
+                  : isDark
+                    ? '#a1a1aa'
+                    : '#71717a',
+            },
+          ]}
+        >
+          Proximas
+        </Text>
+      </Pressable>
+      <Pressable onPress={() => onTabChange('past')} style={styles.tabButton}>
+        <Text
+          style={[
+            styles.tabText,
+            {
+              color:
+                activeTab === 'past'
+                  ? isDark
+                    ? '#fafafa'
+                    : '#18181b'
+                  : isDark
+                    ? '#a1a1aa'
+                    : '#71717a',
+            },
+          ]}
+        >
+          Pasadas
+        </Text>
+      </Pressable>
+    </View>
+  )
+}
 
 export default function ClassesContent() {
   const insets = useSafeAreaInsets()
@@ -439,78 +557,19 @@ export default function ClassesContent() {
           insetsTop={insets.top}
           error={error}
           isDark={isDark}
-          nextUpcoming={activeTab === 'upcoming' ? nextUpcoming : null}
-          onPressCard={handlePressCard}
-          showCard={activeTab === 'upcoming'}
         />
-        <View
-          style={[
-            styles.tabs,
-            {
-              backgroundColor: isDark ? '#171717' : '#f4f4f5',
-              borderColor: isDark
-                ? 'rgba(255,255,255,0.1)'
-                : 'rgba(0,0,0,0.08)',
-            },
-          ]}
-        >
-          <Pressable
-            onPress={() => setActiveTab('upcoming')}
-            style={[
-              styles.tabButton,
-              activeTab === 'upcoming' && [
-                styles.tabButtonActive,
-                { backgroundColor: isDark ? '#27272a' : '#ffffff' },
-              ],
-            ]}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                {
-                  color:
-                    activeTab === 'upcoming'
-                      ? isDark
-                        ? '#fafafa'
-                        : '#18181b'
-                      : isDark
-                        ? '#a1a1aa'
-                        : '#71717a',
-                },
-              ]}
-            >
-              Proximas
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => setActiveTab('past')}
-            style={[
-              styles.tabButton,
-              activeTab === 'past' && [
-                styles.tabButtonActive,
-                { backgroundColor: isDark ? '#27272a' : '#ffffff' },
-              ],
-            ]}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                {
-                  color:
-                    activeTab === 'past'
-                      ? isDark
-                        ? '#fafafa'
-                        : '#18181b'
-                      : isDark
-                        ? '#a1a1aa'
-                        : '#71717a',
-                },
-              ]}
-            >
-              Pasadas
-            </Text>
-          </Pressable>
-        </View>
+        <AnimatedClassesTabs
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isDark={isDark}
+        />
+        {activeTab === 'upcoming' && (
+          <ClassesNextUpcomingCard
+            nextUpcoming={nextUpcoming}
+            isDark={isDark}
+            onPressCard={handlePressCard}
+          />
+        )}
       </View>
     ),
     [insets.top, error, isDark, nextUpcoming, handlePressCard, activeTab]
@@ -620,27 +679,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabs: {
-    marginHorizontal: 24,
+    marginHorizontal: 12,
     marginBottom: 16,
-    borderRadius: 12,
+    borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
-    padding: 4,
+    padding: TAB_PADDING,
     flexDirection: 'row',
-    gap: 4,
+    gap: TAB_GAP,
   },
-  tabButton: {
-    flex: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabButtonActive: {
+  tabPill: {
+    position: 'absolute',
+    left: TAB_PADDING,
+    top: TAB_PADDING,
+    bottom: TAB_PADDING,
+    borderRadius: 16,
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
+  },
+  tabButton: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
   tabText: {
     fontSize: 14,

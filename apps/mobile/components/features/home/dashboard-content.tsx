@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Image,
   useWindowDimensions,
+  ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useUser } from '@clerk/clerk-expo'
@@ -255,6 +256,15 @@ export default function DashboardContent() {
     }
   }
 
+  const todaySectionLoading =
+    workoutDays === undefined ||
+    weekSessions === undefined ||
+    reservationsForDay === undefined ||
+    (sessionForSelected != null &&
+      scheduledWorkoutDay == null &&
+      historicalWorkoutDay === undefined) ||
+    (workoutDayToDisplay != null && blocksForDisplayDay === undefined)
+
   return (
     <ThemedView style={styles.container}>
       <View style={[styles.content, { paddingTop: insets.top + 24 }]}>
@@ -319,31 +329,50 @@ export default function DashboardContent() {
             </View>
 
             <ScrollView contentContainerStyle={styles.todaySection}>
-              {workoutDayToDisplay && (
-                <ScheduledWorkoutCard
-                  name={workoutDayToDisplay.name}
-                  isDark={isDark}
-                  statusBadgeVariant={statusBadgeVariant}
-                  statusBadgeLabel={statusBadgeLabel}
-                  blockCount={blocksForDisplayDay?.length ?? 0}
-                  exerciseCount={
-                    exercisesByDay[workoutDayToDisplay._id]?.length ?? 0
-                  }
-                  onPress={handleOpenWorkout}
-                />
+              {todaySectionLoading ? (
+                <View style={[styles.todaySectionLoading, styles.centered]}>
+                  <ActivityIndicator
+                    size="large"
+                    color={isDark ? '#a1a1aa' : '#71717a'}
+                  />
+                  <Text
+                    style={[
+                      styles.todaySectionLoadingText,
+                      { color: isDark ? '#71717a' : '#a1a1aa' },
+                    ]}
+                  >
+                    Cargando...
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  {workoutDayToDisplay && (
+                    <ScheduledWorkoutCard
+                      name={workoutDayToDisplay.name}
+                      isDark={isDark}
+                      statusBadgeVariant={statusBadgeVariant}
+                      statusBadgeLabel={statusBadgeLabel}
+                      blockCount={blocksForDisplayDay?.length ?? 0}
+                      exerciseCount={
+                        exercisesByDay[workoutDayToDisplay._id]?.length ?? 0
+                      }
+                      onPress={handleOpenWorkout}
+                    />
+                  )}
+                  {reservedClassesItems.length > 0 && (
+                    <ReservedClassesForDay
+                      reservations={reservedClassesItems}
+                      isDark={isDark}
+                      onPressSchedule={(scheduleId) =>
+                        router.push(`/home/schedule/${scheduleId}` as Href)
+                      }
+                    />
+                  )}
+                  {reservedClassesItems.length === 0 &&
+                    workoutDayToDisplay === null &&
+                    sessionForSelected === null && <RestDayPlaceholder />}
+                </>
               )}
-              {reservedClassesItems.length > 0 && (
-                <ReservedClassesForDay
-                  reservations={reservedClassesItems}
-                  isDark={isDark}
-                  onPressSchedule={(scheduleId) =>
-                    router.push(`/home/schedule/${scheduleId}` as Href)
-                  }
-                />
-              )}
-              {reservedClassesItems.length === 0 &&
-                workoutDayToDisplay === null &&
-                sessionForSelected === null && <RestDayPlaceholder />}
             </ScrollView>
           </>
         )}
@@ -399,6 +428,14 @@ const styles = StyleSheet.create({
   todaySection: {
     flex: 1,
     marginBottom: 20,
+  },
+  todaySectionLoading: {
+    minHeight: 160,
+    paddingVertical: 32,
+  },
+  todaySectionLoadingText: {
+    marginTop: 12,
+    fontSize: 14,
   },
   todayTitle: {
     fontSize: 14,

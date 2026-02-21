@@ -24,19 +24,12 @@ interface ClassesListHeaderProps {
   insetsTop: number
   error: string
   isDark: boolean
-  nextUpcoming: NextUpcomingItem | null
-  /** Navigate to class details; same as list row card tap. */
-  onPressCard?: (scheduleId: string) => void
-  showCard?: boolean
 }
 
 export function ClassesListHeader({
   insetsTop,
   error,
   isDark,
-  nextUpcoming,
-  showCard = true,
-  onPressCard,
 }: ClassesListHeaderProps) {
   return (
     <View
@@ -79,83 +72,97 @@ export function ClassesListHeader({
           </Text>
         </View>
       ) : null}
-
-      {showCard &&
-        (nextUpcoming?.type === 'reservation' &&
-        nextUpcoming?.schedule &&
-        nextUpcoming?.class ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.highlightCard,
-              {
-                backgroundColor: isDark ? 'rgba(234,88,12,0.15)' : '#ffedd5',
-                borderWidth: StyleSheet.hairlineWidth,
-                borderColor: isDark ? 'rgba(234,88,12,0.35)' : '#fed7aa',
-              },
-              pressed && styles.highlightCardPressed,
-            ]}
-            onPress={() => {
-              if (nextUpcoming.schedule._id && onPressCard) {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                onPressCard(nextUpcoming.schedule._id)
-              }
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={`Ver detalles de ${nextUpcoming.class.name}`}
-          >
-            <View style={styles.highlightCardInner}>
-              <ClassIcon className={nextUpcoming.class.name} isDark={isDark} />
-              <View style={styles.highlightCardContent}>
-                <Text
-                  style={[
-                    styles.highlightCardLabel,
-                    {
-                      color: isDark ? '#fdba74' : '#c2410c',
-                    },
-                  ]}
-                >
-                  Tu próxima reserva ·{' '}
-                  {format(new Date(nextUpcoming.schedule.startTime), 'd MMM', {
-                    locale: es,
-                  })}
-                </Text>
-                <Text
-                  style={[
-                    styles.highlightCardTitle,
-                    { color: isDark ? '#fafafa' : '#18181b' },
-                  ]}
-                >
-                  {nextUpcoming.class.name}
-                </Text>
-                <Text
-                  style={[
-                    styles.highlightCardMeta,
-                    {
-                      color: isDark ? '#a1a1aa' : '#71717a',
-                    },
-                  ]}
-                >
-                  {format(new Date(nextUpcoming.schedule.startTime), 'HH:mm', {
-                    locale: es,
-                  })}
-                  –
-                  {format(new Date(nextUpcoming.schedule.endTime), 'HH:mm', {
-                    locale: es,
-                  })}
-                </Text>
-              </View>
-              <IconSymbol
-                name="chevron.right"
-                size={20}
-                color={isDark ? '#fdba74' : '#ea580c'}
-              />
-            </View>
-          </Pressable>
-        ) : (
-          <ClassesEmptyStateCard />
-        ))}
     </View>
   )
+}
+
+export interface ClassesNextUpcomingCardProps {
+  nextUpcoming: NextUpcomingItem | null
+  isDark: boolean
+  onPressCard?: (scheduleId: string) => void
+}
+
+export function ClassesNextUpcomingCard({
+  nextUpcoming,
+  isDark,
+  onPressCard,
+}: ClassesNextUpcomingCardProps) {
+  if (
+    nextUpcoming?.type === 'reservation' &&
+    nextUpcoming?.schedule &&
+    nextUpcoming?.class
+  ) {
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.highlightCard,
+          {
+            backgroundColor: isDark ? 'rgba(234,88,12,0.15)' : '#ffedd5',
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: isDark ? 'rgba(234,88,12,0.35)' : '#fed7aa',
+          },
+          pressed && styles.highlightCardPressed,
+        ]}
+        onPress={() => {
+          if (nextUpcoming.schedule._id && onPressCard) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+            onPressCard(nextUpcoming.schedule._id)
+          }
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={`Ver detalles de ${nextUpcoming.class.name}`}
+      >
+        <View style={styles.highlightCardInner}>
+          <ClassIcon className={nextUpcoming.class.name} isDark={isDark} />
+          <View style={styles.highlightCardContent}>
+            <Text
+              style={[
+                styles.highlightCardLabel,
+                {
+                  color: isDark ? '#fdba74' : '#c2410c',
+                },
+              ]}
+            >
+              Tu próxima reserva ·{' '}
+              {format(new Date(nextUpcoming.schedule.startTime), 'd MMM', {
+                locale: es,
+              })}
+            </Text>
+            <Text
+              style={[
+                styles.highlightCardTitle,
+                { color: isDark ? '#fafafa' : '#18181b' },
+              ]}
+            >
+              {nextUpcoming.class.name}
+            </Text>
+            <Text
+              style={[
+                styles.highlightCardMeta,
+                {
+                  color: isDark ? '#a1a1aa' : '#71717a',
+                },
+              ]}
+            >
+              {format(new Date(nextUpcoming.schedule.startTime), 'HH:mm', {
+                locale: es,
+              })}
+              –
+              {format(new Date(nextUpcoming.schedule.endTime), 'HH:mm', {
+                locale: es,
+              })}
+            </Text>
+          </View>
+          <IconSymbol
+            name="chevron.right"
+            size={20}
+            color={isDark ? '#fdba74' : '#ea580c'}
+          />
+        </View>
+      </Pressable>
+    )
+  }
+  return <ClassesEmptyStateCard />
 }
 
 const styles = StyleSheet.create({

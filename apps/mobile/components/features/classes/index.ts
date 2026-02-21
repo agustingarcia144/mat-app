@@ -1,5 +1,8 @@
 export { ClassIcon } from './class-icon'
-export { ClassesListHeader } from './classes-list-header'
+export {
+  ClassesListHeader,
+  ClassesNextUpcomingCard,
+} from './classes-list-header'
 export type { NextUpcomingItem } from './classes-list-header'
 export { ClassesListRow } from './classes-list-row'
 export type {
