@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import React from 'react'
 import { cn } from '@/lib/utils'
 import { Authenticated, Unauthenticated } from 'convex/react'
-import { SignInButton } from '@clerk/nextjs'
+import { SignInDialog } from '@/components/features/auth/sign-in-dialog'
 
 const menuItems = [
   { name: 'Funcionalidades', href: '#link' },
@@ -18,6 +18,7 @@ const menuItems = [
 export const HeroHeader = () => {
   const [menuState, setMenuState] = React.useState(false)
   const [isScrolled, setIsScrolled] = React.useState(false)
+  const [signInOpen, setSignInOpen] = React.useState(false)
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -91,16 +92,15 @@ export const HeroHeader = () => {
               </div>
               <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
                 <Unauthenticated>
-                  <SignInButton mode="modal">
-                    <Button
-                      asChild
-                      variant="outline"
-                      size="sm"
-                      className={cn(isScrolled && 'lg:hidden')}
-                    >
-                      <span>Iniciar sesión</span>
-                    </Button>
-                  </SignInButton>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(isScrolled && 'lg:hidden')}
+                    onClick={() => setSignInOpen(true)}
+                  >
+                    <span>Iniciar sesión</span>
+                  </Button>
+                  <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
                   <Button
                     asChild
                     size="sm"

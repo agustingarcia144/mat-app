@@ -39,7 +39,10 @@ export default function HeaderNavItems() {
     () => isOrgAdminRole(membership?.role),
     [membership?.role]
   )
-  const memberships = useMemo(() => userMemberships?.data ?? [], [userMemberships])
+  const memberships = useMemo(
+    () => userMemberships?.data ?? [],
+    [userMemberships]
+  )
 
   const switchOrganization = async (organizationId: string) => {
     if (!organizationId || organizationId === organization?.id) return
@@ -117,7 +120,7 @@ export default function HeaderNavItems() {
                       {item.organization.name}
                     </span>
                     <span className="ml-auto text-xs text-muted-foreground">
-                      {isSwitching ? 'Cambiando...' : item.role}
+                      {isSwitching ? 'Cambiando...' : ''}
                     </span>
                     {isActive && <Check className="size-4" />}
                   </DropdownMenuItem>

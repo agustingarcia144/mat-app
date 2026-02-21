@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import { useOrganization } from '@clerk/nextjs'
 import { toast } from 'sonner'
 import {
@@ -23,7 +24,6 @@ type Props = {
 
 type FormState = {
   name: string
-  logoUrl: string
   address: string
   phone: string
   email: string
@@ -31,7 +31,6 @@ type FormState = {
 
 const EMPTY_STATE: FormState = {
   name: '',
-  logoUrl: '',
   address: '',
   phone: '',
   email: '',
@@ -40,6 +39,7 @@ const EMPTY_STATE: FormState = {
 export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
   const { organization, membership, isLoaded } = useOrganization()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY_STATE)
 
   const canEdit = useMemo(
@@ -55,11 +55,11 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
     >
     setForm({
       name: organization.name ?? '',
-      logoUrl: typeof metadata.logoUrl === 'string' ? metadata.logoUrl : '',
       address: typeof metadata.address === 'string' ? metadata.address : '',
       phone: typeof metadata.phone === 'string' ? metadata.phone : '',
       email: typeof metadata.email === 'string' ? metadata.email : '',
     })
+    setLogoFile(null)
   }, [open, organization])
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -71,6 +71,11 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
 
     setIsSubmitting(true)
     try {
+      if (logoFile && organization) {
+        await organization.setLogo({ file: logoFile })
+        await organization.reload()
+      }
+
       const response = await fetch('/api/secure/organization', {
         method: 'PATCH',
         headers: {
@@ -79,7 +84,6 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
         body: JSON.stringify({
           name: form.name,
           metadata: {
-            logoUrl: form.logoUrl,
             address: form.address,
             phone: form.phone,
             email: form.email,
@@ -135,19 +139,34 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="organization-logo-url">Logo URL (metadata)</Label>
+            <Label htmlFor="organization-logo">Logo</Label>
+            {organization?.imageUrl && (
+              <div className="relative h-12 w-12 overflow-hidden rounded-md border bg-muted">
+                <Image
+                  src={organization.imageUrl}
+                  alt="Logo actual"
+                  width={48}
+                  height={48}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            )}
             <Input
-              id="organization-logo-url"
-              value={form.logoUrl}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  logoUrl: event.target.value,
-                }))
-              }
+              id="organization-logo"
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                setLogoFile(file ?? null)
+              }}
               disabled={!canEdit || isSubmitting}
-              maxLength={500}
+              className="cursor-pointer"
             />
+            {logoFile && (
+              <p className="text-muted-foreground text-sm">
+                Nuevo archivo: {logoFile.name}
+              </p>
+            )}
           </div>
 
           <div className="grid gap-2">
