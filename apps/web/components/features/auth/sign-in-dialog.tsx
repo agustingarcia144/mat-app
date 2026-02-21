@@ -3,7 +3,6 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { OAuthStrategy } from '@clerk/types'
 import { useSignIn } from '@clerk/nextjs'
 import { toast } from 'sonner'
 import {
@@ -33,7 +32,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
   const [isOAuthLoading, setIsOAuthLoading] = React.useState(false)
 
   const signInWith = React.useCallback(
-    (strategy: OAuthStrategy) => {
+    (strategy: 'oauth_google') => {
       if (!signIn || !isLoaded) return
       setIsOAuthLoading(true)
       signIn
@@ -44,7 +43,9 @@ export function SignInDialog({ open, onOpenChange }: Props) {
         })
         .catch((err) => {
           setIsOAuthLoading(false)
-          toast.error(err?.errors?.[0]?.longMessage ?? 'Error al iniciar sesión')
+          toast.error(
+            err?.errors?.[0]?.longMessage ?? 'Error al iniciar sesión'
+          )
         })
     },
     [signIn, isLoaded]
@@ -129,7 +130,9 @@ export function SignInDialog({ open, onOpenChange }: Props) {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">o</span>
+              <span className="bg-background px-2 text-muted-foreground">
+                o
+              </span>
             </div>
           </div>
 
