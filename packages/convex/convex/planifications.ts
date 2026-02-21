@@ -412,13 +412,8 @@ export const getRevisions = query({
 export const getByOrganization = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     return await ctx.db
       .query('planifications')
@@ -438,13 +433,8 @@ export const getByFolder = query({
     folderId: v.optional(v.id('folders')),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     // Root level (Todas): return only non-template planifications
     if (args.folderId === undefined) {
@@ -476,13 +466,8 @@ export const getByFolder = query({
 export const getTemplates = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     const templates = await ctx.db
       .query('planifications')

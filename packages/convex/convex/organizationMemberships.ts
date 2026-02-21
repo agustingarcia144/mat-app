@@ -193,6 +193,7 @@ export const getOrganizationMemberships = query({
       .withIndex('by_organization', (q) =>
         q.eq('organizationId', organizationId)
       )
+      .filter((q) => q.eq(q.field('status'), 'active'))
       .collect()
 
     // Fetch user data for each membership

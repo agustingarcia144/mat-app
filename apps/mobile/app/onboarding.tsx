@@ -53,8 +53,7 @@ function OnboardingContent() {
         phone: phone || undefined,
       })
 
-      // Navigate to tabs after completing onboarding
-      router.replace('/(tabs)/home')
+      router.replace('/')
     } catch (err: any) {
       setError(err.message || 'Error al guardar la información')
     } finally {
@@ -67,7 +66,7 @@ function OnboardingContent() {
     try {
       // Mark onboarding as completed even if skipped
       await completeOnboarding({})
-      router.replace('/(tabs)/home')
+      router.replace('/')
     } catch (err: any) {
       setError(err.message || 'Error al omitir')
     } finally {
@@ -184,7 +183,7 @@ function OnboardingContent() {
                     borderColor: isDark ? '#27272a' : '#e4e4e7',
                   },
                 ]}
-                placeholder="+1 (555) 123-4567"
+                placeholder="+54 11 1234-5678"
                 placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
                 value={phone}
                 onChangeText={setPhone}

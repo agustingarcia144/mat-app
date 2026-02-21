@@ -1,4 +1,4 @@
-import { mutation } from './_generated/server'
+import { internalMutation } from './_generated/server'
 import { v } from 'convex/values'
 import type { Id } from './_generated/dataModel'
 
@@ -7,7 +7,7 @@ import type { Id } from './_generated/dataModel'
  * This migration should be run once to migrate existing planifications
  * to the new week-based structure.
  */
-export const migrateWorkoutDaysToWeeks = mutation({
+export const migrateWorkoutDaysToWeeks = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now()
@@ -66,7 +66,7 @@ export const migrateWorkoutDaysToWeeks = mutation({
 /**
  * Migration: Backfill planification revisions and revision references.
  */
-export const backfillPlanificationRevisions = mutation({
+export const backfillPlanificationRevisions = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now()

@@ -15,6 +15,10 @@ function RootLayoutNav() {
     api.users.getCurrentUser,
     isAuthenticated ? {} : 'skip'
   )
+  const currentMembership = useQuery(
+    api.organizationMemberships.getCurrentMembership,
+    isAuthenticated ? {} : 'skip'
+  )
   const segments = useSegments()
   const router = useRouter()
   const colorScheme = useColorScheme()
@@ -25,29 +29,70 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === '(tabs)'
     const inModal = segments[0] === 'profile'
     const inOnboarding = segments[0] === 'onboarding'
+    const inOrgSelection = segments[0] === 'select-organization'
+    const inAuthPage =
+      segments[0] === undefined ||
+      segments[0] === 'sign-in' ||
+      segments[0] === 'sign-up'
 
     if (!isAuthenticated) {
-      if (inAuthGroup) {
+      if (inAuthGroup || inModal || inOnboarding || inOrgSelection) {
         router.replace('/')
       }
       return
     }
 
-    // Authenticated: wait for Convex user to decide where to send
-    if (convexUser === undefined) return
+    if (
+      convexUser === undefined ||
+      currentMembership === undefined
+    ) {
+      return
+    }
 
-    if (inOnboarding) return
+    const hasActiveOrganization = currentMembership != null
 
-    if (!inAuthGroup && !inModal) {
-      const needsOnboarding =
-        convexUser == null || !convexUser.onboardingCompleted
+    // Authenticated users must always have an active org before they can access app content.
+    if (!hasActiveOrganization) {
+      if (!inOrgSelection) {
+        router.replace('/select-organization')
+      }
+      return
+    }
+
+    const needsOnboarding = convexUser == null || !convexUser.onboardingCompleted
+
+    if (inOrgSelection) {
       if (needsOnboarding) {
         router.replace('/onboarding')
       } else {
         router.replace('/(tabs)/home')
       }
+      return
     }
-  }, [isAuthenticated, isLoading, convexUser, segments, router])
+
+    if (needsOnboarding) {
+      if (!inOnboarding) {
+        router.replace('/onboarding')
+      }
+      return
+    }
+
+    if (inOnboarding || inAuthPage) {
+      router.replace('/(tabs)/home')
+      return
+    }
+
+    if (!inAuthGroup && !inModal) {
+      router.replace('/(tabs)/home')
+    }
+  }, [
+    isAuthenticated,
+    isLoading,
+    convexUser,
+    currentMembership,
+    segments,
+    router,
+  ])
 
   const backgroundColor = Colors[colorScheme ?? 'light'].background
   const headerTintColor = Colors[colorScheme ?? 'light'].text

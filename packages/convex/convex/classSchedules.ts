@@ -4,6 +4,7 @@ import {
   requireAuth,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
+  requireOrganizationMembership,
 } from './permissions'
 
 /**
@@ -135,29 +136,14 @@ export const getById = query({
     id: v.id('classSchedules'),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error('Not authenticated')
-    }
+    await requireAuth(ctx)
 
     const schedule = await ctx.db.get(args.id)
     if (!schedule) {
       return null
     }
 
-    // Check if user is a member of the schedule's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_organization_user', (q) =>
-        q
-          .eq('organizationId', schedule.organizationId)
-          .eq('userId', identity.subject)
-      )
-      .first()
-
-    if (!membership) {
-      throw new Error('Access denied')
-    }
+    await requireOrganizationMembership(ctx, schedule.organizationId)
 
     return schedule
   },
@@ -171,10 +157,7 @@ export const getByClass = query({
     classId: v.id('classes'),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error('Not authenticated')
-    }
+    await requireAuth(ctx)
 
     // Get the class to check organization
     const classTemplate = await ctx.db.get(args.classId)
@@ -182,19 +165,7 @@ export const getByClass = query({
       throw new Error('Class not found')
     }
 
-    // Check if user is a member of the class's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_organization_user', (q) =>
-        q
-          .eq('organizationId', classTemplate.organizationId)
-          .eq('userId', identity.subject)
-      )
-      .first()
-
-    if (!membership) {
-      throw new Error('Access denied')
-    }
+    await requireOrganizationMembership(ctx, classTemplate.organizationId)
 
     return await ctx.db
       .query('classSchedules')
@@ -213,13 +184,7 @@ export const getByOrganizationAndDateRange = query({
     classId: v.optional(v.id('classes')), // Filter by specific class
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     // Get schedules in the date range
     const schedules = await ctx.db
@@ -250,13 +215,7 @@ export const getUpcoming = query({
     classId: v.optional(v.id('classes')),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     const now = Date.now()
     const limit = args.limit ?? 10
@@ -284,27 +243,12 @@ export const getScheduleWithDetails = query({
     id: v.id('classSchedules'),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error('Not authenticated')
-    }
+    await requireAuth(ctx)
 
     const schedule = await ctx.db.get(args.id)
     if (!schedule) return null
 
-    // Check if user is a member of the schedule's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_organization_user', (q) =>
-        q
-          .eq('organizationId', schedule.organizationId)
-          .eq('userId', identity.subject)
-      )
-      .first()
-
-    if (!membership) {
-      throw new Error('Access denied')
-    }
+    await requireOrganizationMembership(ctx, schedule.organizationId)
 
     const classTemplate = await ctx.db.get(schedule.classId)
     
@@ -321,13 +265,7 @@ export const getScheduleWithDetails = query({
 export const getAllByOrganization = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     return await ctx.db
       .query('classSchedules')

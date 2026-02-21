@@ -5,6 +5,7 @@ import {
   requireAuth,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
+  requireOrganizationMembership,
 } from './permissions'
 
 /** Schedule document for insert (status is literal for type compatibility) */
@@ -176,29 +177,14 @@ export const getById = query({
     id: v.id('classes'),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error('Not authenticated')
-    }
+    await requireAuth(ctx)
 
     const classTemplate = await ctx.db.get(args.id)
     if (!classTemplate) {
       return null
     }
 
-    // Check if user is a member of the class's organization
-    const membership = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_organization_user', (q) =>
-        q
-          .eq('organizationId', classTemplate.organizationId)
-          .eq('userId', identity.subject)
-      )
-      .first()
-
-    if (!membership) {
-      throw new Error('Access denied')
-    }
+    await requireOrganizationMembership(ctx, classTemplate.organizationId)
 
     return classTemplate
   },
@@ -212,13 +198,7 @@ export const getByOrganization = query({
     activeOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     if (args.activeOnly) {
       return await ctx.db

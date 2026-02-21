@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
+import { useAppReset } from '@/components/providers/providers'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -30,30 +31,47 @@ export default function SelectOrganizationScreen() {
   )
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
+  const { resetApp } = useAppReset()
 
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [lastSelectedOrgId, setLastSelectedOrgId] = useState<string | null>(null)
+  const hasAttemptedAutoSelect = useRef(false)
 
   const handleSelectOrg = useCallback(
     async (orgId: string) => {
+      if (!orgId) {
+        setError('No se pudo identificar la organización seleccionada.')
+        return
+      }
+
       setLoading(true)
+      setError(null)
+      setLastSelectedOrgId(orgId)
       try {
         await setActive?.({ organization: orgId } as any)
         await setActiveOrganization({
           organizationExternalId: orgId,
         })
-        router.replace('/(tabs)/home')
+        resetApp()
+        router.replace('/')
       } catch (err) {
         console.error('Error setting active organization:', err)
+        setError(
+          'No pudimos cambiar de organización. Revisa tu conexión e intenta nuevamente.'
+        )
+      } finally {
         setLoading(false)
       }
     },
-    [router, setActive, setActiveOrganization]
+    [resetApp, router, setActive, setActiveOrganization]
   )
 
   useEffect(() => {
-    if (isLoaded && userMemberships) {
+    if (isLoaded && userMemberships && !hasAttemptedAutoSelect.current) {
       // If user has only one organization, auto-select it
       if (userMemberships.data.length === 1) {
+        hasAttemptedAutoSelect.current = true
         handleSelectOrg(userMemberships.data[0].organization.id)
       }
     }
@@ -103,6 +121,22 @@ export default function SelectOrganizationScreen() {
         >
           Elige a qué organización acceder
         </Text>
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+            {lastSelectedOrgId ? (
+              <ThemedPressable
+                type="secondary"
+                lightColor="#e4e4e7"
+                darkColor="#27272a"
+                style={styles.retryButton}
+                onPress={() => handleSelectOrg(lastSelectedOrgId)}
+              >
+                <Text style={{ color: isDark ? '#fff' : '#000' }}>Reintentar</Text>
+              </ThemedPressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <FlatList
           data={userMemberships.data}
@@ -173,6 +207,24 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     marginBottom: 32,
+  },
+  errorContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    padding: 12,
+    marginBottom: 16,
+    gap: 10,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 14,
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   list: {
     gap: 12,

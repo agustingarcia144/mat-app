@@ -3,6 +3,21 @@ import type { Doc, Id } from './_generated/dataModel'
 
 type Ctx = QueryCtx | MutationCtx
 type AppRole = 'admin' | 'trainer' | 'member'
+export type OrgErrorCode =
+  | 'NOT_AUTHENTICATED'
+  | 'ORG_REQUIRED'
+  | 'ORG_FORBIDDEN'
+  | 'ORG_NOT_SYNCED'
+
+export class OrgAccessError extends Error {
+  code: OrgErrorCode
+
+  constructor(code: OrgErrorCode, message: string) {
+    super(message)
+    this.name = 'OrgAccessError'
+    this.code = code
+  }
+}
 
 function extractActiveOrganizationExternalId(identity: Record<string, unknown>) {
   const candidate =
@@ -50,7 +65,10 @@ export async function requireOrganizationMembership(
     .first()
 
   if (!membership) {
-    throw new Error('Access denied: organization membership required')
+    throw new OrgAccessError(
+      'ORG_FORBIDDEN',
+      'Access denied: organization membership required'
+    )
   }
 
   return membership
@@ -75,7 +93,10 @@ export async function requireCurrentOrganizationMembership(
     .collect()
 
   if (memberships.length === 0) {
-    throw new Error('User is not an active member of any organization')
+    throw new OrgAccessError(
+      'ORG_FORBIDDEN',
+      'User is not an active member of any organization'
+    )
   }
 
   const identityExternalOrgId = extractActiveOrganizationExternalId(
@@ -97,12 +118,15 @@ export async function requireCurrentOrganizationMembership(
       .first()
 
     if (!selectedOrg) {
-      throw new Error('Selected organization is not synced in Convex')
+      throw new OrgAccessError(
+        'ORG_NOT_SYNCED',
+        'Selected organization is not synced in Convex'
+      )
     }
 
     const membership = memberships.find((m) => m.organizationId === selectedOrg._id)
     if (!membership) {
-      throw new Error('Access denied for selected organization')
+      throw new OrgAccessError('ORG_FORBIDDEN', 'Access denied for selected organization')
     }
     return membership
   }
@@ -111,7 +135,8 @@ export async function requireCurrentOrganizationMembership(
     return memberships[0]
   }
 
-  throw new Error(
+  throw new OrgAccessError(
+    'ORG_REQUIRED',
     'Multiple organizations detected. Select an active organization first.'
   )
 }
@@ -167,9 +192,19 @@ export async function requireAdmin(ctx: Ctx, organizationId: Id<'organizations'>
 export async function requireAuth(ctx: Ctx) {
   const identity = await ctx.auth.getUserIdentity()
   if (!identity) {
-    throw new Error('Not authenticated')
+    throw new OrgAccessError('NOT_AUTHENTICATED', 'Not authenticated')
   }
   return identity
+}
+
+export async function requireActiveOrgContext(ctx: Ctx) {
+  const identity = await requireAuth(ctx)
+  const membership = await requireCurrentOrganizationMembership(ctx)
+  return {
+    identity,
+    membership,
+    organizationId: membership.organizationId,
+  }
 }
 
 /**

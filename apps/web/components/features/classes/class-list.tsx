@@ -22,11 +22,11 @@ import {
 import { toast } from 'sonner'
 
 interface ClassListProps {
+  classes: ClassRow[]
   onEditClass: (classId: Id<'classes'>) => void
 }
 
-export default function ClassList({ onEditClass }: ClassListProps) {
-  const classes = useQuery(api.classes.getByOrganization, {})
+export default function ClassList({ classes, onEditClass }: ClassListProps) {
   const removeClass = useMutation(api.classes.remove)
   const updateClass = useMutation(api.classes.update)
   const memberships = useQuery(
@@ -124,10 +124,6 @@ export default function ClassList({ onEditClass }: ClassListProps) {
       handleDeleteClick,
     ]
   )
-
-  if (!classes) {
-    return <div>Cargando...</div>
-  }
 
   return (
     <div>

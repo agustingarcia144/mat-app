@@ -75,13 +75,7 @@ function LandingContent() {
 }
 
 function AuthenticatedRedirect() {
-  const router = useRouter()
-
-  React.useEffect(() => {
-    router.replace('/(tabs)/home')
-  }, [router])
-
-  return null
+  return <LoadingScreen />
 }
 
 export default function LandingScreen() {

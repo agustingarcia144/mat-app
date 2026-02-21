@@ -2,21 +2,35 @@ import React from 'react'
 import { View, Text, StyleSheet, ScrollView, Image } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useUser, useClerk } from '@clerk/clerk-expo'
-import { Authenticated, AuthLoading } from 'convex/react'
+import { useAuth, useUser, useClerk, useOrganizationList } from '@clerk/clerk-expo'
+import { Authenticated, AuthLoading, useMutation } from 'convex/react'
+import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedText } from '@/components/ui/themed-text'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
 import { Colors } from '@/constants/theme'
 import LoadingScreen from '@/components/shared/screens/loading-screen'
+import { useAppReset } from '@/components/providers/providers'
 
 function ProfileContent() {
   const router = useRouter()
   const { user } = useUser()
+  const { orgId: activeOrgId } = useAuth()
   const { signOut } = useClerk()
+  const { userMemberships, setActive, isLoaded } = useOrganizationList(
+    {
+      userMemberships: true,
+    }
+  )
+  const setActiveOrganization = useMutation(
+    api.organizationMemberships.setActiveOrganization
+  )
+  const { resetApp } = useAppReset()
   const insets = useSafeAreaInsets()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
+  const [switchingOrgId, setSwitchingOrgId] = React.useState<string | null>(null)
+  const [orgError, setOrgError] = React.useState<string | null>(null)
 
   const primaryEmail =
     user?.emailAddresses?.[0]?.emailAddress ??
@@ -26,9 +40,34 @@ function ProfileContent() {
     primaryEmail ||
     'Usuario'
   const imageUrl = user?.imageUrl
+  const memberships = userMemberships?.data ?? []
+  const hasMultipleOrganizations = memberships.length > 1
 
   const buttonBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'
   const backgroundColor = Colors[colorScheme ?? 'light'].background
+
+  const handleOrganizationSwitch = React.useCallback(
+    async (selectedOrgId: string) => {
+      if (!selectedOrgId || selectedOrgId === activeOrgId) return
+
+      setOrgError(null)
+      setSwitchingOrgId(selectedOrgId)
+      try {
+        await setActive?.({ organization: selectedOrgId } as never)
+        await setActiveOrganization({ organizationExternalId: selectedOrgId })
+        resetApp()
+        router.replace('/')
+      } catch (error) {
+        console.error('Failed to switch organization', error)
+        setOrgError(
+          'No se pudo cambiar de organización. Verifica tu conexión e intenta nuevamente.'
+        )
+      } finally {
+        setSwitchingOrgId(null)
+      }
+    },
+    [activeOrgId, resetApp, router, setActive, setActiveOrganization]
+  )
 
   return (
     <View style={[styles.container, { backgroundColor }]}>
@@ -79,6 +118,40 @@ function ProfileContent() {
         </ThemedText>
         {primaryEmail ? (
           <ThemedText style={styles.subtitle}>{primaryEmail}</ThemedText>
+        ) : null}
+
+        {isLoaded && hasMultipleOrganizations ? (
+          <View style={styles.orgSection}>
+            <Text style={[styles.orgSectionTitle, { color: isDark ? '#fff' : '#000' }]}>
+              Cambiar organización
+            </Text>
+            {orgError ? <Text style={styles.orgErrorText}>{orgError}</Text> : null}
+            {memberships.map((membership) => {
+              const membershipOrgId = membership.organization?.id ?? ''
+              const isCurrent = membershipOrgId === activeOrgId
+              const isSwitching = switchingOrgId === membershipOrgId
+
+              return (
+                <ThemedPressable
+                  key={membershipOrgId}
+                  type="secondary"
+                  lightColor={buttonBg}
+                  darkColor={buttonBg}
+                  style={styles.orgButton}
+                  onPress={() => handleOrganizationSwitch(membershipOrgId)}
+                  disabled={!membershipOrgId || isCurrent || !!switchingOrgId}
+                >
+                  <Text
+                    style={[styles.orgButtonText, { color: isDark ? '#fff' : '#000' }]}
+                  >
+                    {membership.organization?.name}
+                    {isCurrent ? ' (actual)' : ''}
+                    {isSwitching ? '...' : ''}
+                  </Text>
+                </ThemedPressable>
+              )
+            })}
+          </View>
         ) : null}
 
         <ThemedPressable
@@ -163,6 +236,29 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     textAlign: 'center',
     marginBottom: 24,
+  },
+  orgSection: {
+    width: '100%',
+    marginTop: 24,
+    gap: 10,
+  },
+  orgSectionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  orgErrorText: {
+    color: '#ef4444',
+    fontSize: 13,
+  },
+  orgButton: {
+    height: 44,
+    borderRadius: 9999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  orgButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   button: {
     height: 48,

@@ -24,26 +24,19 @@ import AntDesign from '@expo/vector-icons/AntDesign'
 import LoadingScreen from '@/components/shared/screens/loading-screen'
 
 function AuthenticatedRedirect() {
-  const router = useRouter()
   const getOrCreateUser = useMutation(api.users.getOrCreateCurrentUser)
 
   useEffect(() => {
     const handleRedirect = async () => {
       try {
-        const user = await getOrCreateUser()
-        if (user && !user.onboardingCompleted) {
-          router.replace('/onboarding')
-        } else {
-          router.replace('/(tabs)/home')
-        }
+        await getOrCreateUser()
       } catch (err) {
         console.error('Failed to get/create user:', err)
-        router.replace('/(tabs)/home')
       }
     }
     handleRedirect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router])
+  }, [])
 
   return <LoadingScreen />
 }
@@ -64,18 +57,11 @@ function SignInForm() {
 
   const handlePostAuth = async () => {
     try {
-      // Create/get user in Convex and check onboarding status
-      const user = await getOrCreateUser()
-
-      if (user && !user.onboardingCompleted) {
-        router.replace('/onboarding')
-      } else {
-        router.replace('/(tabs)/home')
-      }
+      await getOrCreateUser()
     } catch (err) {
       console.error('Failed to get/create user:', err)
-      // Fallback to tabs if there's an error
-      router.replace('/(tabs)/home')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -93,8 +79,7 @@ function SignInForm() {
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId })
-        // Wait a bit for Clerk session to be fully set
-        setTimeout(handlePostAuth, 500)
+        await handlePostAuth()
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || 'Error al iniciar sesión')
@@ -112,8 +97,7 @@ function SignInForm() {
 
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId })
-        // Wait a bit for Clerk session to be fully set
-        setTimeout(handlePostAuth, 500)
+        await handlePostAuth()
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || 'Error al iniciar sesión con Google')

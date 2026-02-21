@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import {
+  requireActiveOrgContext,
   requireAuth,
   requireAdminOrTrainer,
   requireOrganizationMembership,
@@ -149,43 +150,19 @@ export const getByUser = query({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+
+    if (args.userId !== identity.subject) {
+      await requireAdminOrTrainer(ctx, organizationId)
+    }
 
     const assignments = await ctx.db
       .query('planificationAssignments')
       .withIndex('by_user', (q) => q.eq('userId', args.userId))
       .collect()
-
-    const effectiveAssignments =
-      args.userId === identity.subject
-        ? assignments
-        : await Promise.all(
-            assignments.map(async (assignment) => {
-              const callerMembership = await ctx.db
-                .query('organizationMemberships')
-                .withIndex('by_organization_user', (q) =>
-                  q
-                    .eq('organizationId', assignment.organizationId)
-                    .eq('userId', identity.subject)
-                )
-                .filter((q) => q.eq(q.field('status'), 'active'))
-                .first()
-
-              if (
-                !callerMembership ||
-                (callerMembership.role !== 'admin' &&
-                  callerMembership.role !== 'trainer')
-              ) {
-                return null
-              }
-              return assignment
-            })
-          ).then((items) =>
-            items.filter(
-              (item): item is (typeof assignments)[number] => item !== null
-            )
-          )
+    const effectiveAssignments = assignments.filter(
+      (assignment) => assignment.organizationId === organizationId
+    )
 
     // Fetch planification details and weeks count
     const withDetails = await Promise.all(

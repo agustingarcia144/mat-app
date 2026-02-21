@@ -50,6 +50,18 @@ async function wouldCreateCircularReference(
   return false
 }
 
+async function requireFolderInOrganization(
+  ctx: MutationCtx,
+  folderId: Id<'folders'>,
+  organizationId: Id<'organizations'>
+) {
+  const folder = await ctx.db.get(folderId)
+  if (!folder || folder.organizationId !== organizationId) {
+    throw new Error('Invalid parent folder for this organization')
+  }
+  return folder
+}
+
 /**
  * Create a new folder
  */
@@ -64,6 +76,10 @@ export const create = mutation({
     const membership = await requireCurrentOrganizationMembership(ctx)
 
     await requireAdminOrTrainer(ctx, membership.organizationId)
+
+    if (args.parentId) {
+      await requireFolderInOrganization(ctx, args.parentId, membership.organizationId)
+    }
 
     const now = Date.now()
 
@@ -127,7 +143,7 @@ export const update = mutation({
     })
 
     // Update paths for all descendants
-    await updateDescendantPaths(ctx, args.id)
+    await updateDescendantPaths(ctx, args.id, folder.organizationId)
   },
 })
 
@@ -136,11 +152,14 @@ export const update = mutation({
  */
 async function updateDescendantPaths(
   ctx: MutationCtx,
-  folderId: Id<'folders'>
+  folderId: Id<'folders'>,
+  organizationId: Id<'organizations'>
 ) {
   const children = await ctx.db
     .query('folders')
-    .withIndex('by_parent', (q) => q.eq('parentId', folderId))
+    .withIndex('by_organization_parent', (q) =>
+      q.eq('organizationId', organizationId).eq('parentId', folderId)
+    )
     .collect()
 
   for (const child of children) {
@@ -150,7 +169,7 @@ async function updateDescendantPaths(
       updatedAt: Date.now(),
     })
     // Recursively update children
-    await updateDescendantPaths(ctx, child._id)
+    await updateDescendantPaths(ctx, child._id, organizationId)
   }
 }
 
@@ -171,6 +190,10 @@ export const move = mutation({
     }
 
     await requireAdminOrTrainer(ctx, folder.organizationId)
+
+    if (args.newParentId) {
+      await requireFolderInOrganization(ctx, args.newParentId, folder.organizationId)
+    }
 
     // Check for circular reference
     const wouldBeCircular = await wouldCreateCircularReference(
@@ -193,7 +216,7 @@ export const move = mutation({
     })
 
     // Update paths for all descendants
-    await updateDescendantPaths(ctx, args.id)
+    await updateDescendantPaths(ctx, args.id, folder.organizationId)
   },
 })
 
@@ -217,7 +240,9 @@ export const remove = mutation({
     // Check for child folders
     const hasChildren = await ctx.db
       .query('folders')
-      .withIndex('by_parent', (q) => q.eq('parentId', args.id))
+      .withIndex('by_organization_parent', (q) =>
+        q.eq('organizationId', folder.organizationId).eq('parentId', args.id)
+      )
       .first()
 
     if (hasChildren) {
@@ -244,13 +269,8 @@ export const remove = mutation({
 export const getTree = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     return await ctx.db
       .query('folders')
@@ -268,13 +288,8 @@ export const getTree = query({
 export const getDeletableFolderIds = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     const folders = await ctx.db
       .query('folders')
@@ -287,7 +302,9 @@ export const getDeletableFolderIds = query({
     for (const folder of folders) {
       const hasChildren = await ctx.db
         .query('folders')
-        .withIndex('by_parent', (q) => q.eq('parentId', folder._id))
+        .withIndex('by_organization_parent', (q) =>
+          q.eq('organizationId', membership.organizationId).eq('parentId', folder._id)
+        )
         .first()
       if (hasChildren) continue
 
@@ -311,13 +328,8 @@ export const getByParent = query({
     parentId: v.optional(v.id('folders')),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     return await ctx.db
       .query('folders')

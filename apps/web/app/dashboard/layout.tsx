@@ -1,11 +1,21 @@
+import { auth } from '@clerk/nextjs/server'
+import { redirect } from 'next/navigation'
 import DashboardProviders from '@/components/providers/dashboard-providers'
 import HeaderSection from '@/components/features/dashboard/header/header-section'
 import { AppSidebar } from '@/components/features/dashboard/sidebar/app-sidebar'
 import { SidebarInset } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { UnsavedChangesProvider } from '@/contexts/unsaved-changes-context'
+import { isOrgStaffRole, isWebStaffGuardEnabled } from '@/lib/security/roles'
 
-function DashboardLayout({ children }: { children: React.ReactNode }) {
+async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { userId, orgId, orgRole } = await auth()
+  if (!userId) redirect('/sign-in')
+  if (!orgId) redirect('/select-organization')
+  if (isWebStaffGuardEnabled() && !isOrgStaffRole(orgRole)) {
+    redirect('/access-denied')
+  }
+
   return (
     <DashboardProviders>
       <UnsavedChangesProvider>

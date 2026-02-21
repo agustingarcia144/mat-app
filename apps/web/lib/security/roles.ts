@@ -8,3 +8,7 @@ export function isOrgStaffRole(role: string | null | undefined) {
   const normalized = role.toLowerCase()
   return normalized.includes('admin') || normalized.includes('trainer')
 }
+
+export function isWebStaffGuardEnabled() {
+  return process.env.ENABLE_STAFF_WEB_GUARD !== 'false'
+}

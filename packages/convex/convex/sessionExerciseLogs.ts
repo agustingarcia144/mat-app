@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth } from './permissions'
+import { requireActiveOrgContext, requireAuth } from './permissions'
 
 /**
  * Set or update log for one exercise in a session (member only; own session).
@@ -16,11 +16,15 @@ export const setLog = mutation({
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
+    const { organizationId } = await requireActiveOrgContext(ctx)
 
     const session = await ctx.db.get(args.sessionId)
     if (!session) throw new Error('Session not found')
     if (session.userId !== identity.subject) {
       throw new Error('Unauthorized: not your session')
+    }
+    if (session.organizationId !== organizationId) {
+      throw new Error('Access denied: session is outside the active organization')
     }
 
     const dayExercise = await ctx.db.get(args.dayExerciseId)
@@ -67,12 +71,12 @@ export const getBySession = query({
     sessionId: v.id('workoutDaySessions'),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
     const session = await ctx.db.get(args.sessionId)
     if (!session) return []
     if (session.userId !== identity.subject) return []
+    if (session.organizationId !== organizationId) return []
 
     const logs = await ctx.db
       .query('sessionExerciseLogs')

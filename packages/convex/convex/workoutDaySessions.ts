@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth } from './permissions'
+import { requireActiveOrgContext, requireAuth } from './permissions'
 
 const sessionStatus = v.union(
   v.literal('started'),
@@ -19,12 +19,15 @@ export const startSession = mutation({
     performedOn: v.string(), // YYYY-MM-DD
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
     const assignment = await ctx.db.get(args.assignmentId)
     if (!assignment) throw new Error('Assignment not found')
     if (assignment.userId !== identity.subject) {
       throw new Error('Unauthorized: not your assignment')
+    }
+    if (assignment.organizationId !== organizationId) {
+      throw new Error('Access denied: assignment is outside the active organization')
     }
     if (assignment.status !== 'active') {
       throw new Error('Assignment is not active')
@@ -82,12 +85,15 @@ export const setStatus = mutation({
     status: sessionStatus,
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
     const session = await ctx.db.get(args.id)
     if (!session) throw new Error('Session not found')
     if (session.userId !== identity.subject) {
       throw new Error('Unauthorized: not your session')
+    }
+    if (session.organizationId !== organizationId) {
+      throw new Error('Access denied: session is outside the active organization')
     }
 
     await ctx.db.patch(args.id, {
@@ -106,8 +112,7 @@ export const getMyWeekSessions = query({
     endOn: v.string(), // YYYY-MM-DD
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
     const sessions = await ctx.db
       .query('workoutDaySessions')
@@ -115,7 +120,10 @@ export const getMyWeekSessions = query({
       .collect()
 
     const inRange = sessions.filter(
-      (s) => s.performedOn >= args.startOn && s.performedOn <= args.endOn
+      (s) =>
+        s.organizationId === organizationId &&
+        s.performedOn >= args.startOn &&
+        s.performedOn <= args.endOn
     )
 
     const assignmentIds = Array.from(new Set(inRange.map((s) => s.assignmentId)))
@@ -153,12 +161,12 @@ export const getMyWeekSessions = query({
 export const getById = query({
   args: { id: v.id('workoutDaySessions') },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return null
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
     const session = await ctx.db.get(args.id)
     if (!session) return null
     if (session.userId !== identity.subject) return null
+    if (session.organizationId !== organizationId) return null
     return session
   },
 })
@@ -172,12 +180,12 @@ export const getByAssignment = query({
     activeOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
     const assignment = await ctx.db.get(args.assignmentId)
     if (!assignment) return []
     if (assignment.userId !== identity.subject) return []
+    if (assignment.organizationId !== organizationId) return []
     if (args.activeOnly && assignment.status !== 'active') return []
 
     const sessions = await ctx.db
@@ -202,16 +210,18 @@ export const getByAssignment = query({
 export const getMyHistoryByAssignments = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
     const sessions = await ctx.db
       .query('workoutDaySessions')
       .withIndex('by_user_performedOn', (q) => q.eq('userId', identity.subject))
       .collect()
+    const scopedSessions = sessions.filter(
+      (session) => session.organizationId === organizationId
+    )
 
     const grouped = new Map<string, (typeof sessions)[number][]>()
-    for (const session of sessions) {
+    for (const session of scopedSessions) {
       const key = `${session.assignmentId}:${session.revisionId ?? 'legacy'}`
       const bucket = grouped.get(key) ?? []
       bucket.push(session)

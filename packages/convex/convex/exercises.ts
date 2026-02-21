@@ -114,13 +114,8 @@ export const remove = mutation({
 export const getByOrganization = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     const exercises = await ctx.db
       .query('exercises')
@@ -143,13 +138,8 @@ export const search = query({
     equipment: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership) return []
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     let exercises = await ctx.db
       .query('exercises')
@@ -184,15 +174,8 @@ export const search = query({
 export const listFacets = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity)
-      return { categories: [] as string[], equipment: [] as string[] }
-
-    const membership = await requireCurrentOrganizationMembership(ctx).catch(
-      () => null
-    )
-    if (!membership)
-      return { categories: [] as string[], equipment: [] as string[] }
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
 
     const exercises = await ctx.db
       .query('exercises')

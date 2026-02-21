@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useState, useMemo } from 'react'
 import { useQuery } from 'convex/react'
+import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
@@ -35,6 +36,8 @@ import { type Id } from '@/convex/_generated/dataModel'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
 
 export default function ClassesPage() {
+  const { isLoaded: authLoaded, userId, orgId } = useAuth()
+  const canQueryOrgData = authLoaded && Boolean(userId) && Boolean(orgId)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedView, setSelectedView] = useState<'calendar' | 'list'>(
     'calendar'
@@ -49,7 +52,10 @@ export default function ClassesPage() {
   >()
   const [classFilter, setClassFilter] = useState<string>('all')
 
-  const classes = useQuery(api.classes.getByOrganization, { activeOnly: false })
+  const classes = useQuery(
+    api.classes.getByOrganization,
+    canQueryOrgData ? { activeOnly: false } : 'skip'
+  )
 
   // Get schedules for the current week
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
@@ -59,11 +65,17 @@ export default function ClassesPage() {
   const goToNextWeek = () => setCurrentDate((d) => addDays(d, 7))
   const goToToday = () => setCurrentDate(new Date())
 
-  const schedules = useQuery(api.classSchedules.getByOrganizationAndDateRange, {
-    startDate: weekStart.getTime(),
-    endDate: weekEnd.getTime(),
-    classId: classFilter === 'all' ? undefined : (classFilter as Id<'classes'>),
-  })
+  const schedules = useQuery(
+    api.classSchedules.getByOrganizationAndDateRange,
+    canQueryOrgData
+      ? {
+          startDate: weekStart.getTime(),
+          endDate: weekEnd.getTime(),
+          classId:
+            classFilter === 'all' ? undefined : (classFilter as Id<'classes'>),
+        }
+      : 'skip'
+  )
 
   // Enrich schedules with class data
   const enrichedSchedules = useMemo(() => {
@@ -269,7 +281,7 @@ export default function ClassesPage() {
               </EmptyContent>
             </Empty>
           ) : (
-            <ClassList onEditClass={handleEditClass} />
+            <ClassList classes={classes} onEditClass={handleEditClass} />
           )}
         </div>
       )}

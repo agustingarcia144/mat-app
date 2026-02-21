@@ -24,26 +24,19 @@ import { ThemedPressable } from '@/components/ui/themed-pressable'
 import LoadingScreen from '@/components/shared/screens/loading-screen'
 
 function AuthenticatedRedirect() {
-  const router = useRouter()
   const getOrCreateUser = useMutation(api.users.getOrCreateCurrentUser)
 
   useEffect(() => {
     const handleRedirect = async () => {
       try {
-        const user = await getOrCreateUser()
-        if (user && !user.onboardingCompleted) {
-          router.replace('/onboarding')
-        } else {
-          router.replace('/(tabs)/home')
-        }
+        await getOrCreateUser()
       } catch (err) {
         console.error('Failed to get/create user:', err)
-        router.replace('/onboarding')
       }
     }
     handleRedirect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router])
+  }, [])
 
   return <LoadingScreen />
 }
@@ -92,14 +85,11 @@ function SignUpForm() {
 
   const handlePostAuth = async () => {
     try {
-      // Create user in Convex (first time user, so onboarding not completed)
       await getOrCreateUser()
-      // Always go to onboarding for new sign ups
-      router.replace('/onboarding')
     } catch (err) {
       console.error('Failed to create user:', err)
-      // Fallback to onboarding even if there's an error
-      router.replace('/onboarding')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -116,8 +106,7 @@ function SignUpForm() {
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId })
-        // Wait a bit for Clerk session to be fully set
-        setTimeout(handlePostAuth, 500)
+        await handlePostAuth()
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || 'Error al verificar el correo')
@@ -135,8 +124,7 @@ function SignUpForm() {
 
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId })
-        // Wait a bit for Clerk session to be fully set
-        setTimeout(handlePostAuth, 500)
+        await handlePostAuth()
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || 'Error al registrarse con Google')

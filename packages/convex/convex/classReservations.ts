@@ -1,6 +1,7 @@
 import { internalMutation, mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import {
+  requireActiveOrgContext,
   requireAuth,
   requireAdminOrTrainer,
   requireOrganizationMembership,
@@ -306,35 +307,13 @@ export const getBySchedule = query({
     scheduleId: v.id('classSchedules'),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error('Not authenticated')
-    }
-
     // Get the schedule to check organization
     const schedule = await ctx.db.get(args.scheduleId)
     if (!schedule) {
       throw new Error('Schedule not found')
     }
 
-    // Check if user is authorized (admin/trainer or member of org)
-    await requireAdminOrTrainer(ctx, schedule.organizationId).catch(
-      async () => {
-        // If not admin/trainer, verify user is a member of the organization
-        const membership = await ctx.db
-          .query('organizationMemberships')
-          .withIndex('by_organization_user', (q) =>
-            q
-              .eq('organizationId', schedule.organizationId)
-              .eq('userId', identity.subject)
-          )
-          .first()
-
-        if (!membership) {
-          throw new Error('Access denied')
-        }
-      }
-    )
+    await requireOrganizationMembership(ctx, schedule.organizationId)
 
     return await ctx.db
       .query('classReservations')
@@ -418,16 +397,14 @@ export const getByScheduleWithUsers = query({
 export const getByUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
-    // Always use the authenticated user's ID
-    const userId = identity.subject
-
-    return await ctx.db
+    const reservations = await ctx.db
       .query('classReservations')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
       .collect()
+
+    return reservations.filter((reservation) => reservation.organizationId === organizationId)
   },
 })
 
@@ -437,27 +414,26 @@ export const getByUser = query({
 export const getUpcomingByUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    // Always use the authenticated user's ID
-    const userId = identity.subject
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
     const now = Date.now()
 
     // Get user's confirmed reservations
     const reservations = await ctx.db
       .query('classReservations')
       .withIndex('by_user_status', (q) =>
-        q.eq('userId', userId).eq('status', 'confirmed')
+        q.eq('userId', identity.subject).eq('status', 'confirmed')
       )
       .collect()
+    const scopedReservations = reservations.filter(
+      (reservation) => reservation.organizationId === organizationId
+    )
 
     // Enrich with schedule data and filter to upcoming
     const upcomingReservations = await Promise.all(
-      reservations.map(async (reservation) => {
+      scopedReservations.map(async (reservation) => {
         const schedule = await ctx.db.get(reservation.scheduleId)
         const classTemplate = await ctx.db.get(reservation.classId)
-        
+
         return {
           ...reservation,
           schedule,
@@ -482,20 +458,19 @@ export const getUpcomingByUser = query({
 export const getReservationsInCheckInWindow = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const userId = identity.subject
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
     const now = Date.now()
     const opensBeforeMs = 20 * 60 * 1000
     const closesAfterMs = 6 * 60 * 60 * 1000
 
     const reservations = await ctx.db
       .query('classReservations')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
       .collect()
 
-    const relevant = reservations.filter((r) => r.status !== 'cancelled')
+    const relevant = reservations.filter(
+      (r) => r.status !== 'cancelled' && r.organizationId === organizationId
+    )
 
     const enriched = await Promise.all(
       relevant.map(async (reservation) => {
@@ -527,18 +502,17 @@ export const getReservationsInCheckInWindow = query({
 export const getPastByUser = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const userId = identity.subject
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
     const now = Date.now()
 
     const reservations = await ctx.db
       .query('classReservations')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
       .collect()
 
-    const relevant = reservations.filter((r) => r.status !== 'cancelled')
+    const relevant = reservations.filter(
+      (r) => r.status !== 'cancelled' && r.organizationId === organizationId
+    )
 
     const enriched = await Promise.all(
       relevant.map(async (reservation) => {
@@ -568,17 +542,16 @@ export const getByUserForDate = query({
     endOfDay: v.number(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const userId = identity.subject
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
     const reservations = await ctx.db
       .query('classReservations')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
       .collect()
 
-    const nonCancelled = reservations.filter((r) => r.status !== 'cancelled')
+    const nonCancelled = reservations.filter(
+      (r) => r.status !== 'cancelled' && r.organizationId === organizationId
+    )
 
     const enriched = await Promise.all(
       nonCancelled.map(async (reservation) => {
@@ -613,17 +586,16 @@ export const getByUserForDateRange = query({
     endOfRange: v.number(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
-
-    const userId = identity.subject
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
 
     const reservations = await ctx.db
       .query('classReservations')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
       .collect()
 
-    const nonCancelled = reservations.filter((r) => r.status !== 'cancelled')
+    const nonCancelled = reservations.filter(
+      (r) => r.status !== 'cancelled' && r.organizationId === organizationId
+    )
 
     const withSchedule = await Promise.all(
       nonCancelled.map(async (reservation) => {

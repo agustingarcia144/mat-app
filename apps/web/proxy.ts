@@ -1,11 +1,12 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
+import { isOrgStaffRole, isWebStaffGuardEnabled } from '@/lib/security/roles'
 
 const isProtectedRoute = createRouteMatcher(['/dashboard(.*)'])
 const isOrgSelectionRoute = createRouteMatcher(['/select-organization(.*)'])
 
 export default clerkMiddleware(async (auth, req) => {
-  const { userId, orgId } = await auth()
+  const { userId, orgId, orgRole } = await auth()
 
   if (isProtectedRoute(req)) {
     if (!userId) {
@@ -14,6 +15,9 @@ export default clerkMiddleware(async (auth, req) => {
     }
     if (!orgId) {
       return NextResponse.redirect(new URL('/select-organization', req.url))
+    }
+    if (isWebStaffGuardEnabled() && !isOrgStaffRole(orgRole)) {
+      return NextResponse.redirect(new URL('/access-denied', req.url))
     }
   }
 
