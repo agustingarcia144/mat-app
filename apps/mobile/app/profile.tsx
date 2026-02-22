@@ -2,7 +2,12 @@ import React from 'react'
 import { View, Text, StyleSheet, ScrollView, Image } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useAuth, useUser, useClerk, useOrganizationList } from '@clerk/clerk-expo'
+import {
+  useAuth,
+  useUser,
+  useClerk,
+  useOrganizationList,
+} from '@clerk/clerk-expo'
 import { Authenticated, AuthLoading, useMutation } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
@@ -17,11 +22,9 @@ function ProfileContent() {
   const { user } = useUser()
   const { orgId: activeOrgId } = useAuth()
   const { signOut } = useClerk()
-  const { userMemberships, setActive, isLoaded } = useOrganizationList(
-    {
-      userMemberships: true,
-    }
-  )
+  const { userMemberships, setActive, isLoaded } = useOrganizationList({
+    userMemberships: true,
+  })
   const setActiveOrganization = useMutation(
     api.organizationMemberships.setActiveOrganization
   )
@@ -29,7 +32,9 @@ function ProfileContent() {
   const insets = useSafeAreaInsets()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
-  const [switchingOrgId, setSwitchingOrgId] = React.useState<string | null>(null)
+  const [switchingOrgId, setSwitchingOrgId] = React.useState<string | null>(
+    null
+  )
   const [orgError, setOrgError] = React.useState<string | null>(null)
 
   const primaryEmail =
@@ -122,10 +127,17 @@ function ProfileContent() {
 
         {isLoaded && hasMultipleOrganizations ? (
           <View style={styles.orgSection}>
-            <Text style={[styles.orgSectionTitle, { color: isDark ? '#fff' : '#000' }]}>
+            <Text
+              style={[
+                styles.orgSectionTitle,
+                { color: isDark ? '#fff' : '#000' },
+              ]}
+            >
               Cambiar organización
             </Text>
-            {orgError ? <Text style={styles.orgErrorText}>{orgError}</Text> : null}
+            {orgError ? (
+              <Text style={styles.orgErrorText}>{orgError}</Text>
+            ) : null}
             {memberships.map((membership) => {
               const membershipOrgId = membership.organization?.id ?? ''
               const isCurrent = membershipOrgId === activeOrgId
@@ -142,7 +154,10 @@ function ProfileContent() {
                   disabled={!membershipOrgId || isCurrent || !!switchingOrgId}
                 >
                   <Text
-                    style={[styles.orgButtonText, { color: isDark ? '#fff' : '#000' }]}
+                    style={[
+                      styles.orgButtonText,
+                      { color: isDark ? '#fff' : '#000' },
+                    ]}
                   >
                     {membership.organization?.name}
                     {isCurrent ? ' (actual)' : ''}
@@ -158,15 +173,13 @@ function ProfileContent() {
           type="secondary"
           lightColor={buttonBg}
           darkColor={buttonBg}
-          style={[styles.button, { marginTop: 32 }]}
+          style={[styles.button, { marginTop: 32, backgroundColor: '#ef4444' }]}
           onPress={async () => {
             router.back()
             await signOut()
           }}
         >
-          <Text
-            style={[styles.buttonText, { color: isDark ? '#fff' : '#000' }]}
-          >
+          <Text style={[styles.buttonText, { color: '#fff' }]}>
             Cerrar sesión
           </Text>
         </ThemedPressable>

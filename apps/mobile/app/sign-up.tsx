@@ -48,8 +48,6 @@ function SignUpForm() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
 
-  const getOrCreateUser = useMutation(api.users.getOrCreateCurrentUser)
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -83,16 +81,6 @@ function SignUpForm() {
     }
   }
 
-  const handlePostAuth = async () => {
-    try {
-      await getOrCreateUser()
-    } catch (err) {
-      console.error('Failed to create user:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const onVerify = async () => {
     if (!isLoaded) return
 
@@ -106,7 +94,6 @@ function SignUpForm() {
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId })
-        await handlePostAuth()
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || 'Error al verificar el correo')
@@ -124,10 +111,10 @@ function SignUpForm() {
 
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId })
-        await handlePostAuth()
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || 'Error al registrarse con Google')
+    } finally {
       setLoading(false)
     }
   }
