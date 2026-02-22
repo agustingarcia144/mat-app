@@ -136,6 +136,8 @@ export default defineSchema({
     isTemplate: v.boolean(), // true if it's a reusable template
     currentRevisionId: v.optional(v.id('planificationRevisions')),
     hasEverBeenAssigned: v.optional(v.boolean()),
+    isArchived: v.optional(v.boolean()),
+    archivedAt: v.optional(v.number()),
     createdBy: v.string(), // Clerk user ID
     // Timestamps
     createdAt: v.number(),

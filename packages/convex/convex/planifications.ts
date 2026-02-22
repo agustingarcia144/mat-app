@@ -241,6 +241,70 @@ export const remove = mutation({
 })
 
 /**
+ * Archive a planification. Hides it from trainer lists but preserves all
+ * assignment and session data so members keep access to their workout history.
+ */
+export const archive = mutation({
+  args: {
+    id: v.id('planifications'),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx)
+
+    const planification = await ctx.db.get(args.id)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+
+    await requireAdminOrTrainer(ctx, planification.organizationId)
+
+    const now = Date.now()
+    await ctx.db.patch(args.id, {
+      isArchived: true,
+      archivedAt: now,
+      updatedAt: now,
+    })
+
+    // Cancel any active assignments so nobody is currently assigned to an archived plan
+    const assignments = await ctx.db
+      .query('planificationAssignments')
+      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
+      .collect()
+    for (const assignment of assignments) {
+      if (assignment.status === 'active') {
+        await ctx.db.patch(assignment._id, { status: 'cancelled', updatedAt: now })
+      }
+    }
+  },
+})
+
+/**
+ * Unarchive a planification so it appears again in trainer lists.
+ */
+export const unarchive = mutation({
+  args: {
+    id: v.id('planifications'),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx)
+
+    const planification = await ctx.db.get(args.id)
+    if (!planification) {
+      throw new Error('Planification not found')
+    }
+
+    await requireAdminOrTrainer(ctx, planification.organizationId)
+
+    const now = Date.now()
+    await ctx.db.patch(args.id, {
+      isArchived: false,
+      archivedAt: undefined,
+      updatedAt: now,
+    })
+  },
+})
+
+/**
  * Duplicate a planification
  */
 export const duplicate = mutation({
@@ -420,6 +484,7 @@ export const getByOrganization = query({
       .withIndex('by_organization', (q) =>
         q.eq('organizationId', membership.organizationId)
       )
+      .filter((q) => q.neq(q.field('isArchived'), true))
       .collect()
   },
 })
@@ -445,6 +510,7 @@ export const getByFolder = query({
             .eq('organizationId', membership.organizationId)
             .eq('isTemplate', false)
         )
+        .filter((q) => q.neq(q.field('isArchived'), true))
         .collect()
     }
 
@@ -455,6 +521,7 @@ export const getByFolder = query({
           .eq('organizationId', membership.organizationId)
           .eq('folderId', args.folderId)
       )
+      .filter((q) => q.neq(q.field('isArchived'), true))
       .collect()
   },
 })
@@ -476,6 +543,7 @@ export const getTemplates = query({
           .eq('organizationId', membership.organizationId)
           .eq('isTemplate', true)
       )
+      .filter((q) => q.neq(q.field('isArchived'), true))
       .collect()
 
     // Sort by updatedAt descending (most recently updated first)

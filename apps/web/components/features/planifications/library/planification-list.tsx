@@ -30,6 +30,7 @@ export interface PlanificationData {
   name: string
   description?: string
   isTemplate: boolean
+  hasEverBeenAssigned?: boolean
   createdBy: string
   createdAt: number
   updatedAt: number

@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { api } from '@/convex/_generated/api'
+import { Id } from '@/convex/_generated/dataModel'
 import { useMutation } from 'convex/react'
 import { PlanificationData } from '../library/planification-list'
 import { toast } from 'sonner'
@@ -26,13 +27,19 @@ function DeletePlanificationDialog({
 }) {
   const [isDeleting, setIsDeleting] = useState(false)
   const removePlanification = useMutation(api.planifications.remove)
+  const archivePlanification = useMutation(api.planifications.archive)
 
-  const handleDeleteConfirm = async () => {
+  const hasAssignmentHistory = planification.hasEverBeenAssigned === true
+  const planificationId = planification._id as Id<'planifications'>
+
+  const handleConfirm = async () => {
     setIsDeleting(true)
     try {
-      await removePlanification({
-        id: planification._id as any,
-      })
+      if (hasAssignmentHistory) {
+        await archivePlanification({ id: planificationId })
+      } else {
+        await removePlanification({ id: planificationId })
+      }
       onOpenChange(false)
       onSuccess?.()
     } catch (error) {
@@ -63,7 +70,7 @@ function DeletePlanificationDialog({
           </Button>
           <Button
             variant="destructive"
-            onClick={handleDeleteConfirm}
+            onClick={handleConfirm}
             disabled={isDeleting}
           >
             {isDeleting ? 'Eliminando...' : 'Eliminar'}
