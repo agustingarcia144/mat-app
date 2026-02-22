@@ -1,5 +1,6 @@
 import { internalMutation, mutation, query } from './_generated/server'
 import { v } from 'convex/values'
+import { requireCurrentOrganizationMembership } from './permissions'
 
 /**
  * Upsert a user from Clerk webhook data
@@ -168,7 +169,8 @@ export const getCurrentUser = query({
 })
 
 /**
- * Complete user onboarding with additional information
+ * Complete onboarding step 1 (birthday, phone). Does not set onboardingCompleted;
+ * user is sent to onboarding-2 next.
  */
 export const completeOnboarding = mutation({
   args: {
@@ -196,9 +198,58 @@ export const completeOnboarding = mutation({
     await ctx.db.patch(user._id, {
       birthday: args.birthday,
       phone: args.phone,
-      onboardingCompleted: true,
+      onboardingStep1Completed: true,
       updatedAt: Date.now(),
     })
+
+    return await ctx.db.get(user._id)
+  },
+})
+
+/**
+ * Complete onboarding step 2 (height, weight, membership description) and mark onboarding done.
+ */
+export const completeOnboarding2 = mutation({
+  args: {
+    height: v.optional(v.number()),
+    weight: v.optional(v.number()),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+
+    if (!identity) {
+      throw new Error('Not authenticated')
+    }
+
+    const clerkUserId = identity.subject
+    const now = Date.now()
+
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_externalId', (q) => q.eq('externalId', clerkUserId))
+      .first()
+
+    if (!user) {
+      throw new Error('User not found')
+    }
+
+    await ctx.db.patch(user._id, {
+      height: args.height,
+      weight: args.weight,
+      onboardingCompleted: true,
+      updatedAt: now,
+    })
+
+    try {
+      const membership = await requireCurrentOrganizationMembership(ctx)
+      await ctx.db.patch(membership._id, {
+        description: args.description,
+        updatedAt: now,
+      })
+    } catch {
+      // No active org or membership — skip membership description
+    }
 
     return await ctx.db.get(user._id)
   },

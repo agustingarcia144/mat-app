@@ -1,7 +1,7 @@
 {
-  "name": "Mat App",
-  "short_name": "Mat App",
-  "description": "Mat App - Progressive Web App",
+  "name": "Mat",
+  "short_name": "Mat",
+  "description": "Mat - Progressive Web App",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

@@ -17,7 +17,10 @@ export default defineSchema({
     // App-specific fields not stored in Clerk
     birthday: v.optional(v.string()),
     phone: v.optional(v.string()),
+    height: v.optional(v.number()), // cm
+    weight: v.optional(v.number()), // kg
     // Onboarding tracking
+    onboardingStep1Completed: v.optional(v.boolean()),
     onboardingCompleted: v.optional(v.boolean()),
     // Selected org context for multi-org users.
     // Stored as Clerk organization ID (externalId in organizations table).
@@ -55,6 +58,7 @@ export default defineSchema({
     organizationId: v.id('organizations'),
     // Clerk user ID (not a reference to users table to allow flexibility)
     userId: v.string(),
+    description: v.optional(v.string()),
     role: v.union(
       v.literal('admin'),
       v.literal('trainer'),

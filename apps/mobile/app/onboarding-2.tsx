@@ -10,52 +10,44 @@ import {
   ScrollView,
   Image,
 } from 'react-native'
-import { PressableScale } from 'pressto'
-import DateTimePicker from '@react-native-community/datetimepicker'
+import { Picker } from '@react-native-picker/picker'
 import { useRouter } from 'expo-router'
 import { useMutation, Authenticated } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
 
-function OnboardingContent() {
+const HEIGHT_CM = Array.from({ length: 151 }, (_, i) => 100 + i) // 100–250 cm
+const WEIGHT_KG = Array.from({ length: 171 }, (_, i) => 30 + i) // 30–200 kg
+
+function Onboarding2Content() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
 
-  const completeOnboarding = useMutation(api.users.completeOnboarding)
+  const completeOnboarding2 = useMutation(api.users.completeOnboarding2)
 
-  const [birthday, setBirthday] = useState('')
-  const [birthdayDate, setBirthdayDate] = useState<Date | null>(null)
-  const [showDatePicker, setShowDatePicker] = useState(false)
-  const [phone, setPhone] = useState('')
+  const [heightCm, setHeightCm] = useState<number | null>(null)
+  const [weightKg, setWeightKg] = useState<number | null>(null)
+  const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  const displayBirthday =
-    birthday || (birthdayDate ? birthdayDate.toISOString().slice(0, 10) : '')
-
-  const onBirthdayChange = (_event: unknown, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios')
-    if (selectedDate) {
-      setBirthdayDate(selectedDate)
-      setBirthday(selectedDate.toISOString().slice(0, 10))
-    }
-  }
 
   const handleSubmit = async () => {
     setLoading(true)
     setError('')
 
     try {
-      await completeOnboarding({
-        birthday: birthday || undefined,
-        phone: phone || undefined,
+      await completeOnboarding2({
+        height: heightCm ?? HEIGHT_CM[50],
+        weight: weightKg ?? WEIGHT_KG[40],
+        description: description.trim() || undefined,
       })
-
-      router.replace('/onboarding-2')
-    } catch (err: any) {
-      setError(err.message || 'Error al guardar la información')
+      router.replace('/')
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : 'Error al guardar la información'
+      )
     } finally {
       setLoading(false)
     }
@@ -63,11 +55,12 @@ function OnboardingContent() {
 
   const handleSkip = async () => {
     setLoading(true)
+    setError('')
     try {
-      await completeOnboarding({})
-      router.replace('/onboarding-2')
-    } catch (err: any) {
-      setError(err.message || 'Error al omitir')
+      await completeOnboarding2({})
+      router.replace('/')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al omitir')
     } finally {
       setLoading(false)
     }
@@ -84,18 +77,18 @@ function OnboardingContent() {
       >
         <View style={styles.content}>
           <Image
-            source={require('@/assets/images/mat-wolf-notes.png')}
+            source={require('@/assets/images/mat-wolf-measure.png')}
             style={styles.logo}
             resizeMode="contain"
             accessibilityLabel="Mat wolf mascot"
           />
           <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
-            Completa tu perfil
+            Un poco más sobre vos
           </Text>
           <Text
             style={[styles.subtitle, { color: isDark ? '#a1a1aa' : '#71717a' }]}
           >
-            Ayúdanos a personalizar tu experiencia
+            Altura, peso y descripción (opcional)
           </Text>
 
           {error ? (
@@ -107,86 +100,94 @@ function OnboardingContent() {
           <View style={styles.form}>
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
-                Fecha de nacimiento (opcional)
+                Altura (cm)
               </Text>
-              <PressableScale
+              <View
                 style={[
-                  styles.input,
-                  styles.dateInput,
+                  styles.pickerWrap,
                   {
                     backgroundColor: isDark ? '#18181b' : '#f4f4f5',
                     borderColor: isDark ? '#27272a' : '#e4e4e7',
                   },
                 ]}
-                onPress={() => !loading && setShowDatePicker(true)}
-                enabled={!loading}
               >
-                <Text
+                <Picker
+                  selectedValue={heightCm ?? HEIGHT_CM[50]}
+                  onValueChange={(v) => setHeightCm(v as number)}
                   style={[
-                    styles.dateInputText,
-                    {
-                      color: displayBirthday
-                        ? isDark
-                          ? '#fff'
-                          : '#000'
-                        : isDark
-                          ? '#71717a'
-                          : '#a1a1aa',
-                    },
+                    styles.picker,
+                    { color: isDark ? '#fff' : '#000' },
                   ]}
+                  enabled={!loading}
+                  prompt="Altura (cm)"
                 >
-                  {displayBirthday || 'YYYY-MM-DD'}
-                </Text>
-              </PressableScale>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={birthdayDate ?? new Date(2000, 0, 1)}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onBirthdayChange}
-                  maximumDate={new Date()}
-                  minimumDate={new Date(1900, 0, 1)}
-                  locale="es-ES"
-                  style={
-                    Platform.OS === 'android' ? styles.androidPicker : undefined
-                  }
-                />
-              )}
-              {Platform.OS === 'ios' && showDatePicker && (
-                <ThemedPressable
-                  onPress={() => setShowDatePicker(false)}
-                  style={styles.datePickerDone}
-                >
-                  <Text
-                    style={[
-                      styles.datePickerDoneText,
-                      { color: isDark ? '#fff' : '#000' },
-                    ]}
-                  >
-                    Listo
-                  </Text>
-                </ThemedPressable>
-              )}
+                  {HEIGHT_CM.map((cm) => (
+                    <Picker.Item
+                      key={cm}
+                      label={`${cm} cm`}
+                      value={cm}
+                      color={isDark ? '#fff' : '#000'}
+                    />
+                  ))}
+                </Picker>
+              </View>
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
-                Teléfono (opcional)
+                Peso (kg)
+              </Text>
+              <View
+                style={[
+                  styles.pickerWrap,
+                  {
+                    backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                    borderColor: isDark ? '#27272a' : '#e4e4e7',
+                  },
+                ]}
+              >
+                <Picker
+                  selectedValue={weightKg ?? WEIGHT_KG[40]}
+                  onValueChange={(v) => setWeightKg(v as number)}
+                  style={[
+                    styles.picker,
+                    { color: isDark ? '#fff' : '#000' },
+                  ]}
+                  enabled={!loading}
+                  prompt="Peso (kg)"
+                >
+                  {WEIGHT_KG.map((kg) => (
+                    <Picker.Item
+                      key={kg}
+                      label={`${kg} kg`}
+                      value={kg}
+                      color={isDark ? '#fff' : '#000'}
+                    />
+                  ))}
+                </Picker>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
+                Descripción (opcional)
               </Text>
               <TextInput
                 style={[
                   styles.input,
+                  styles.textArea,
                   {
                     backgroundColor: isDark ? '#18181b' : '#f4f4f5',
                     color: isDark ? '#fff' : '#000',
                     borderColor: isDark ? '#27272a' : '#e4e4e7',
                   },
                 ]}
-                placeholder="+54 11 1234-5678"
+                placeholder="Objetivos, notas para tu entrenador..."
                 placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="phone-pad"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={3}
                 editable={!loading}
               />
             </View>
@@ -234,10 +235,10 @@ function OnboardingContent() {
   )
 }
 
-export default function OnboardingScreen() {
+export default function Onboarding2Screen() {
   return (
     <Authenticated>
-      <OnboardingContent />
+      <Onboarding2Content />
     </Authenticated>
   )
 }
@@ -291,27 +292,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   input: {
-    height: 48,
     borderRadius: 9999,
     borderWidth: 1,
     paddingHorizontal: 16,
     fontSize: 16,
   },
-  dateInput: {
+  textArea: {
+    minHeight: 88,
+    paddingTop: 12,
+    textAlignVertical: 'top',
+  },
+  pickerWrap: {
+    height: 48,
+    borderRadius: 9999,
+    borderWidth: 1,
+    overflow: 'hidden',
     justifyContent: 'center',
   },
-  dateInputText: {
-    fontSize: 16,
-  },
-  androidPicker: {
-    marginTop: 8,
-  },
-  datePickerDone: {
-    marginTop: 12,
-  },
-  datePickerDoneText: {
-    fontSize: 16,
-    fontWeight: '600',
+  picker: {
+    height: 48,
   },
   button: {
     height: 48,

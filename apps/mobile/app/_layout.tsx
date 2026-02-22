@@ -28,7 +28,8 @@ function RootLayoutNav() {
 
     const inAuthGroup = segments[0] === '(tabs)'
     const inModal = segments[0] === 'profile'
-    const inOnboarding = segments[0] === 'onboarding'
+    const inOnboarding =
+      segments[0] === 'onboarding' || segments[0] === 'onboarding-2'
     const inOrgSelection = segments[0] === 'select-organization'
     const inAuthPage =
       segments[0] === undefined ||
@@ -72,7 +73,9 @@ function RootLayoutNav() {
 
     if (needsOnboarding) {
       if (!inOnboarding) {
-        router.replace('/onboarding')
+        const goToStep2 =
+          convexUser?.onboardingStep1Completed === true
+        router.replace(goToStep2 ? '/onboarding-2' : '/onboarding')
       }
       return
     }
@@ -104,6 +107,7 @@ function RootLayoutNav() {
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
         <Stack.Screen name="onboarding" />
+        <Stack.Screen name="onboarding-2" />
         <Stack.Screen name="select-organization" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
