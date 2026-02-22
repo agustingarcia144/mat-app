@@ -8,8 +8,8 @@
     "convex:dev": "pnpm --filter convex dev",
     "convex:deploy": "pnpm --filter convex deploy",
     "convex:codegen": "pnpm --filter convex codegen",
-    "android": "expo run:android",
-    "ios": "expo run:ios"
+    "android": "pnpm --filter mobile run android",
+    "ios": "pnpm --filter mobile run ios"
   },
   "devDependencies": {
     "prettier": "^3.1.1",
