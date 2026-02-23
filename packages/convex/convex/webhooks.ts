@@ -141,10 +141,15 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
         break;
 
       case "organizationMembership.deleted": {
-        const clerkMembershipId = evt.data.id;
-        const clerkOrgId = evt.data.organization_id;
+        const data = evt.data as Record<string, unknown>;
+        const clerkMembershipId = data.id as string | undefined;
+        const clerkOrgId =
+          (data.organization_id as string | undefined) ||
+          (data.organization as { id?: string } | undefined)?.id;
         const clerkUserId =
-          evt.data.public_user_data?.user_id || evt.data.user_id;
+          (data.public_user_data as { user_id?: string } | undefined)?.user_id ||
+          (data.publicUserData as { userId?: string } | undefined)?.userId ||
+          (data.user_id as string | undefined);
         if (clerkMembershipId || (clerkOrgId && clerkUserId)) {
           await ctx.runMutation(internal.organizationMemberships.deleteFromClerk, {
             clerkMembershipId,

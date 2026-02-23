@@ -126,7 +126,9 @@ export const upsertFromClerk = internalMutation({
 })
 
 /**
- * Delete an organization membership from Clerk webhook data
+ * Delete an organization membership from Clerk webhook data.
+ * Tries lookup by externalMembershipId first; if not found (e.g. never stored),
+ * falls back to deleting by (orgId, userId) so the membership is always removed.
  */
 export const deleteFromClerk = internalMutation({
   args: {
@@ -145,35 +147,28 @@ export const deleteFromClerk = internalMutation({
       if (membership) {
         await ctx.db.delete(membership._id)
       }
-      return
     }
 
-    if (!args.clerkOrgId || !args.clerkUserId) {
-      return
-    }
+    if (args.clerkOrgId && args.clerkUserId) {
+      const organization = await ctx.db
+        .query('organizations')
+        .withIndex('by_externalId', (q) => q.eq('externalId', args.clerkOrgId!))
+        .first()
 
-    // Find the organization
-    const organization = await ctx.db
-      .query('organizations')
-      .withIndex('by_externalId', (q) => q.eq('externalId', args.clerkOrgId!))
-      .first()
+      if (organization) {
+        const memberships = await ctx.db
+          .query('organizationMemberships')
+          .withIndex('by_organization_user', (q) =>
+            q
+              .eq('organizationId', organization._id)
+              .eq('userId', args.clerkUserId!)
+          )
+          .collect()
 
-    if (!organization) {
-      return // Organization doesn't exist, nothing to delete
-    }
-
-    // Find all memberships for this user in this org
-    // (user might have multiple roles)
-    const memberships = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_organization_user', (q) =>
-        q.eq('organizationId', organization._id).eq('userId', args.clerkUserId!)
-      )
-      .collect()
-
-    // Delete all memberships
-    for (const membership of memberships) {
-      await ctx.db.delete(membership._id)
+        for (const membership of memberships) {
+          await ctx.db.delete(membership._id)
+        }
+      }
     }
   },
 })

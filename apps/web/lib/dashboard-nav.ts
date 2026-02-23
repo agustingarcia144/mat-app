@@ -1,5 +1,12 @@
 import type { LucideIcon } from 'lucide-react'
-import { HomeIcon, UsersIcon, Dumbbell, ListChecks, CalendarDays } from 'lucide-react'
+import {
+  HomeIcon,
+  UsersIcon,
+  Dumbbell,
+  ListChecks,
+  CalendarDays,
+  UserCog,
+} from 'lucide-react'
 
 export const DASHBOARD_NAV_ITEMS = [
   {
@@ -27,10 +34,17 @@ export const DASHBOARD_NAV_ITEMS = [
     icon: CalendarDays,
     url: '/classes',
   },
+  {
+    label: 'Usuarios',
+    icon: UserCog,
+    url: '/usuarios',
+    adminOnly: true,
+  },
 ] as const satisfies readonly {
   label: string
   icon: LucideIcon
   url: string
+  adminOnly?: boolean
 }[]
 
 export type DashboardNavItem = (typeof DASHBOARD_NAV_ITEMS)[number]
