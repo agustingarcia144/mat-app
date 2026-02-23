@@ -3,7 +3,6 @@ import Providers from '@/components/providers/providers'
 
 export const metadata = {
   manifest: '/manifest.json',
-  themeColor: '#000000',
   // iOS: home screen icon (Safari uses this when “Add to Home Screen”)
   icons: {
     apple: [
@@ -12,6 +11,10 @@ export const metadata = {
       { url: '/icons/ios/167.png', sizes: '167x167', type: 'image/png' },
     ],
   },
+}
+
+export const viewport = {
+  themeColor: '#000000',
 }
 
 export default function RootLayout({
