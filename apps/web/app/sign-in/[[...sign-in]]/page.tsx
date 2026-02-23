@@ -1,9 +1,16 @@
-import { SignIn } from '@clerk/nextjs'
+import { SignInPageContent } from '@/components/features/auth/sign-in-page-content'
 
-export default function SignInPage() {
+type Props = {
+  searchParams: Promise<{ redirect_url?: string }>
+}
+
+export default async function SignInPage({ searchParams }: Props) {
+  const params = await searchParams
+  const redirectUrl = params.redirect_url ?? null
+
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <SignIn forceRedirectUrl="/dashboard" signUpUrl="/sign-up" />
+      <SignInPageContent redirectUrlFromQuery={redirectUrl} />
     </div>
   )
 }
