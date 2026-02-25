@@ -185,7 +185,7 @@ export default function WeeklyTimeline({
                 <div className='space-y-2 p-3'>
                   {daySchedules.length === 0 ? (
                     <p className='text-sm text-muted-foreground'>
-                      Sin clases programadas
+                      Sin turnos
                     </p>
                   ) : (
                     daySchedules.map((schedule) => {

@@ -148,7 +148,7 @@ export function getClassListColumns({
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onGenerateSchedules(classItem)}>
                 <CalendarPlus className="mr-2 h-4 w-4" />
-                Generar Horarios
+                Generar turnos
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onEditClass(classItem._id)}>
                 <Pencil className="mr-2 h-4 w-4" />

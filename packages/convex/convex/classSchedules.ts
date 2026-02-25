@@ -88,7 +88,8 @@ export const update = mutation({
 })
 
 /**
- * Cancel a specific class occurrence
+ * Cancel a specific class occurrence (and all its reservations).
+ * Use when the turno has reservations — keeps history with status 'cancelled'.
  */
 export const cancel = mutation({
   args: {
@@ -125,6 +126,48 @@ export const cancel = mutation({
       status: 'cancelled',
       updatedAt: now,
     })
+  },
+})
+
+/**
+ * Remove (delete) a schedule. Only allowed when it has no reservations.
+ * Use for empty turnos so they disappear from the calendar instead of staying as cancelled.
+ * For turnos with reservations, use cancel() instead.
+ */
+export const remove = mutation({
+  args: {
+    id: v.id('classSchedules'),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx)
+
+    const schedule = await ctx.db.get(args.id)
+    if (!schedule) {
+      throw new Error('Schedule not found')
+    }
+
+    await requireAdminOrTrainer(ctx, schedule.organizationId)
+
+    if (schedule.currentReservations > 0) {
+      throw new Error(
+        'No se puede eliminar un turno con reservas. Cancelalo primero.'
+      )
+    }
+
+    // Optional: only allow delete for scheduled (not already cancelled)
+    // So we don't accidentally delete history. Allow delete of empty scheduled slots.
+    const reservations = await ctx.db
+      .query('classReservations')
+      .withIndex('by_schedule', (q) => q.eq('scheduleId', args.id))
+      .collect()
+
+    if (reservations.length > 0) {
+      throw new Error(
+        'No se puede eliminar un turno con reservas. Cancelalo primero.'
+      )
+    }
+
+    await ctx.db.delete(args.id)
   },
 })
 

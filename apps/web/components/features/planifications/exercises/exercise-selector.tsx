@@ -5,8 +5,9 @@ import { useState, useEffect } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Check, Search } from 'lucide-react'
+import { Check, Plus, Search } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -18,6 +19,7 @@ import {
 } from '@/components/ui/empty'
 import { useLibraryExerciseNames } from '@/contexts/library-exercise-names-context'
 import LibraryExerciseCard from '@/components/features/planifications/exercises/library-exercise-card'
+import CreateExerciseDialog from '@/components/features/planifications/exercises/create-exercise-dialog'
 import matWolfLooking from '@/assets/mat-wolf-looking.png'
 
 interface ExerciseSelectorProps {
@@ -35,6 +37,7 @@ export default function ExerciseSelector({
   const [selectedEquipment, setSelectedEquipment] = useState<string | null>(
     null
   )
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const libraryNames = useLibraryExerciseNames()
 
   const { categories, equipment } = useQuery(api.exercises.listFacets) ?? {
@@ -61,15 +64,32 @@ export default function ExerciseSelector({
     <div
       className={`flex flex-col flex-1 min-h-0 overflow-hidden ${className ?? ''}`}
     >
-      <div className="relative mb-4 shrink-0">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar ejercicios..."
-          className="pl-9"
-        />
+      <div className="flex flex-col gap-3 mb-4 shrink-0 lg:flex-row lg:items-center">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar ejercicios..."
+            className="pl-9"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => setCreateDialogOpen(true)}
+          className="shrink-0"
+          aria-label="Nuevo ejercicio"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
+
+      <p className="text-xs text-muted-foreground mb-3 shrink-0">
+        Arrastra un ejercicio a un bloque o a &quot;Sin bloque&quot; para
+        añadirlo al día.
+      </p>
 
       <div className="space-y-2 mb-3 shrink-0">
         <div>
@@ -120,11 +140,6 @@ export default function ExerciseSelector({
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground mb-3 shrink-0">
-        Arrastra un ejercicio a un bloque o a &quot;Sin bloque&quot; para
-        añadirlo al día.
-      </p>
-
       <ScrollArea className="flex-1 min-h-0">
         <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 pb-2">
           {exercises === undefined ? (
@@ -167,6 +182,11 @@ export default function ExerciseSelector({
           )}
         </div>
       </ScrollArea>
+
+      <CreateExerciseDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+      />
     </div>
   )
 }

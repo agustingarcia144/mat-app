@@ -125,7 +125,8 @@ export const update = mutation({
 })
 
 /**
- * Delete a class and all future schedules
+ * Delete a class and all future schedules.
+ * Fails if any future schedule has reservations — cancel or remove those turnos first.
  */
 export const remove = mutation({
   args: {
@@ -143,28 +144,32 @@ export const remove = mutation({
 
     const now = Date.now()
 
-    // Delete all future schedules
     const futureSchedules = await ctx.db
       .query('classSchedules')
       .withIndex('by_class', (q) => q.eq('classId', args.id))
       .filter((q) => q.gte(q.field('startTime'), now))
       .collect()
 
+    const withReservations = futureSchedules.filter(
+      (s) => s.currentReservations > 0
+    )
+    if (withReservations.length > 0) {
+      throw new Error(
+        'No se puede eliminar la clase: tiene turnos con reservas. Cancelá o eliminá esos turnos primero.'
+      )
+    }
+
     for (const schedule of futureSchedules) {
-      // Delete all reservations for this schedule
       const reservations = await ctx.db
         .query('classReservations')
         .withIndex('by_schedule', (q) => q.eq('scheduleId', schedule._id))
         .collect()
-
       for (const reservation of reservations) {
         await ctx.db.delete(reservation._id)
       }
-
       await ctx.db.delete(schedule._id)
     }
 
-    // Delete the class template
     await ctx.db.delete(args.id)
   },
 })
@@ -375,6 +380,107 @@ export const generateSchedules = mutation({
     }
 
     // Batch insert all schedules
+    for (const schedule of schedules) {
+      await ctx.db.insert('classSchedules', schedule)
+    }
+
+    return { count: schedules.length }
+  },
+})
+
+const MAX_SLOTS_PER_GENERATION = 400
+
+/**
+ * Generate schedule instances from a per-day time window (e.g. 8am–8pm every hour).
+ * No recurrence on the class is required; all params come from the dialog.
+ * Capped at MAX_SLOTS_PER_GENERATION to avoid timeouts.
+ */
+export const generateSchedulesFromTimeWindow = mutation({
+  args: {
+    classId: v.id('classes'),
+    startDate: v.number(), // Start of first day (midnight timestamp)
+    endDate: v.number(), // End of last day (e.g. 23:59:59.999 timestamp)
+    timeWindowStartMinutes: v.number(), // 0–1439, e.g. 480 = 8:00
+    timeWindowEndMinutes: v.number(), // 0–1439, e.g. 1200 = 20:00
+    slotIntervalMinutes: v.number(), // e.g. 60 or 30
+    durationMinutes: v.number(),
+    daysOfWeek: v.optional(v.array(v.number())), // 0–6, empty = all days
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx)
+
+    const classTemplate = await ctx.db.get(args.classId)
+    if (!classTemplate) {
+      throw new Error('Class not found')
+    }
+
+    await requireAdminOrTrainer(ctx, classTemplate.organizationId)
+
+    // Count slots upfront to reject before building (avoids timeout and large alloc)
+    const dayMs = 24 * 60 * 60 * 1000
+    let dayCount = 0
+    let currentCount = args.startDate
+    while (currentCount <= args.endDate) {
+      const d = new Date(currentCount)
+      const dayOfWeek = d.getDay()
+      const includeDay =
+        !args.daysOfWeek ||
+        args.daysOfWeek.length === 0 ||
+        args.daysOfWeek.includes(dayOfWeek)
+      if (includeDay) dayCount++
+      currentCount += dayMs
+    }
+    const slotsPerDay = Math.floor(
+      (args.timeWindowEndMinutes - args.timeWindowStartMinutes) /
+        args.slotIntervalMinutes
+    )
+    const totalSlots = dayCount * slotsPerDay
+    if (totalSlots > MAX_SLOTS_PER_GENERATION) {
+      throw new Error(
+        `Máximo ${MAX_SLOTS_PER_GENERATION} turnos por vez (se generarían ${totalSlots}). Reducí el rango de fechas o los días y generá de nuevo.`
+      )
+    }
+
+    const schedules: ClassScheduleInsert[] = []
+    const now = Date.now()
+    let current = args.startDate
+
+    while (current <= args.endDate) {
+      const d = new Date(current)
+      const dayOfWeek = d.getDay()
+
+      const includeDay =
+        !args.daysOfWeek ||
+        args.daysOfWeek.length === 0 ||
+        args.daysOfWeek.includes(dayOfWeek)
+
+      if (includeDay) {
+        const baseMs = current
+
+        for (
+          let mins = args.timeWindowStartMinutes;
+          mins < args.timeWindowEndMinutes;
+          mins += args.slotIntervalMinutes
+        ) {
+          const startTime = baseMs + mins * 60 * 1000
+          const endTime = startTime + args.durationMinutes * 60 * 1000
+          schedules.push({
+            classId: args.classId,
+            organizationId: classTemplate.organizationId,
+            startTime,
+            endTime,
+            capacity: classTemplate.capacity,
+            currentReservations: 0,
+            status: 'scheduled',
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
+      }
+
+      current += dayMs
+    }
+
     for (const schedule of schedules) {
       await ctx.db.insert('classSchedules', schedule)
     }

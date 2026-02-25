@@ -22,7 +22,7 @@ export const dayExerciseSchema = z.object({
   blockId: z.string().optional(),
   blockName: z.string().optional(), // For form convenience
   sets: z.number().min(1, 'Debe tener al menos 1 serie').int(),
-  reps: z.string().min(1, 'Las repeticiones son requeridas'),
+  reps: z.string().optional(),
   weight: z.string().optional(),
   /** Time in seconds (always stored in seconds; UI may display/input in minutes) */
   timeSeconds: z.number().int().min(0).optional(),
@@ -126,7 +126,8 @@ export const classSchema = z
       return true
     },
     {
-      message: 'El patrón de recurrencia es requerido cuando la clase es recurrente',
+      message:
+        'El patrón de recurrencia es requerido cuando la clase es recurrente',
       path: ['recurrencePattern'],
     }
   )
@@ -139,13 +140,10 @@ export const scheduleSchema = z
     capacity: z.number().optional(), // Override class capacity
     notes: z.string().optional(),
   })
-  .refine(
-    (data) => data.endTime > data.startTime,
-    {
-      message: 'La hora de fin debe ser posterior a la hora de inicio',
-      path: ['endTime'],
-    }
-  )
+  .refine((data) => data.endTime > data.startTime, {
+    message: 'La hora de fin debe ser posterior a la hora de inicio',
+    path: ['endTime'],
+  })
 
 export const reservationSchema = z.object({
   scheduleId: z.string(),
@@ -164,6 +162,39 @@ export const scheduleFormSchema = z.object({
   endDate: z.date().optional(), // Optional end date for generation (from Generate Schedules dialog)
 })
 
+const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+/** Form schema for "Generar turnos" dialog - time window mode (e.g. 8am–8pm every hour) */
+export const generateTurnosTimeWindowSchema = z
+  .object({
+    rangeStartDate: z.date(),
+    rangeEndDate: z.date(),
+    timeWindowStart: z.string().regex(timeRegex, 'Formato inválido (HH:mm)'),
+    timeWindowEnd: z.string().regex(timeRegex, 'Formato inválido (HH:mm)'),
+    slotIntervalMinutes: z.coerce
+      .number()
+      .int()
+      .min(15, 'Mínimo 15 minutos')
+      .max(120, 'Máximo 2 horas'),
+    durationMinutes: z.coerce
+      .number()
+      .min(15, 'Mínimo 15 minutos')
+      .max(480, 'Máximo 8 horas'),
+    daysOfWeek: z.array(z.number().int().min(0).max(6)).optional(),
+  })
+  .refine((data) => data.rangeEndDate >= data.rangeStartDate, {
+    message: 'La fecha fin debe ser igual o posterior a la fecha inicio',
+    path: ['rangeEndDate'],
+  })
+  .refine(
+    (data) => {
+      const [sh, sm] = data.timeWindowStart.split(':').map(Number)
+      const [eh, em] = data.timeWindowEnd.split(':').map(Number)
+      const startMins = sh * 60 + sm
+      const endMins = eh * 60 + em
+      return endMins > startMins
+    },
+    { message: 'La hora fin debe ser posterior a la hora inicio', path: ['timeWindowEnd'] }
+  )
 
 // Type exports
 export type PlanificationBasicInfo = z.infer<
@@ -181,8 +212,12 @@ export type ClassForm = z.infer<typeof classSchema>
 export type Schedule = z.infer<typeof scheduleSchema>
 export type ReservationForm = z.infer<typeof reservationSchema>
 export type ScheduleForm = z.infer<typeof scheduleFormSchema>
+export type GenerateTurnosTimeWindowForm = z.infer<
+  typeof generateTurnosTimeWindowSchema
+>
 
 // Keep scheduleFormSchema in bundle (referenced by type only otherwise)
 void scheduleFormSchema
+void generateTurnosTimeWindowSchema
 
 export { z }

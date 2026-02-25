@@ -106,6 +106,7 @@ export default defineSchema({
     muscleGroups: v.array(v.string()), // e.g., ["chest", "triceps"]
     equipment: v.optional(v.string()), // Barbell, Dumbbell, Machine, Bodyweight, etc.
     videoUrl: v.optional(v.string()),
+    isStandard: v.optional(v.boolean()), // true = platform default, users cannot edit or remove
     createdBy: v.string(), // Clerk user ID
     // Timestamps
     createdAt: v.number(),
@@ -165,7 +166,10 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_planification', ['planificationId'])
-    .index('by_planification_revisionNumber', ['planificationId', 'revisionNumber']),
+    .index('by_planification_revisionNumber', [
+      'planificationId',
+      'revisionNumber',
+    ]),
 
   // Workout Weeks - Weeks within a planification
   workoutWeeks: defineTable({
@@ -225,7 +229,7 @@ export default defineSchema({
     blockId: v.optional(v.id('exerciseBlocks')), // Optional: exercise can belong to a block
     order: v.number(), // Display order within the block (or day if no block)
     sets: v.number(),
-    reps: v.string(), // Can be "10", "10-12", "AMRAP", etc.
+    reps: v.optional(v.string()), // Can be "10", "10-12", "AMRAP", etc.
     weight: v.optional(v.string()), // e.g., "50kg", "BW", "25lb"
     timeSeconds: v.optional(v.number()), // Time in seconds (e.g. plank duration)
     notes: v.optional(v.string()),
@@ -284,7 +288,11 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_user_performedOn', ['userId', 'performedOn'])
-    .index('by_user_assignment_performedOn', ['userId', 'assignmentId', 'performedOn'])
+    .index('by_user_assignment_performedOn', [
+      'userId',
+      'assignmentId',
+      'performedOn',
+    ])
     .index('by_assignment', ['assignmentId'])
     .index('by_assignment_revision', ['assignmentId', 'revisionId'])
     .index('by_assignment_workoutDay_performedOn', [
@@ -299,7 +307,7 @@ export default defineSchema({
     dayExerciseId: v.id('dayExercises'),
     revisionId: v.optional(v.id('planificationRevisions')),
     sets: v.number(),
-    reps: v.string(),
+    reps: v.optional(v.string()),
     weight: v.optional(v.string()),
     order: v.number(),
     // Timestamps

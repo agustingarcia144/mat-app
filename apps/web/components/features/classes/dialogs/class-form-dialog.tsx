@@ -30,13 +30,6 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Field,
   FieldLabel,
   FieldDescription,
@@ -54,32 +47,6 @@ interface ClassFormDialogProps {
   classId?: Id<'classes'>
   onSuccess?: () => void
 }
-
-const DAYS_OF_WEEK = [
-  { value: 1, label: 'Lunes' },
-  { value: 2, label: 'Martes' },
-  { value: 3, label: 'Miércoles' },
-  { value: 4, label: 'Jueves' },
-  { value: 5, label: 'Viernes' },
-  { value: 6, label: 'Sábado' },
-  { value: 0, label: 'Domingo' },
-]
-
-// Combined frequency + interval for single select (value: "frequency_interval")
-const RECURRENCE_FREQUENCY_OPTIONS = [
-  { value: 'hourly_1', label: 'Cada hora' },
-  { value: 'hourly_2', label: 'Cada 2 horas' },
-  { value: 'hourly_3', label: 'Cada 3 horas' },
-  { value: 'daily_1', label: 'Diaria' },
-  { value: 'daily_2', label: 'Cada 2 días' },
-  { value: 'daily_3', label: 'Cada 3 días' },
-  { value: 'weekly_1', label: 'Semanal' },
-  { value: 'weekly_2', label: 'Cada 2 semanas' },
-  { value: 'weekly_3', label: 'Cada 3 semanas' },
-  { value: 'monthly_1', label: 'Mensual' },
-  { value: 'monthly_2', label: 'Cada 2 meses' },
-  { value: 'monthly_3', label: 'Cada 3 meses' },
-] as const
 
 export default function ClassFormDialog({
   open,
@@ -124,10 +91,6 @@ export default function ClassFormDialog({
     reset,
     formState: { errors },
   } = form
-
-  const isRecurring = watch('isRecurring')
-  const frequency = watch('recurrencePattern.frequency')
-  const selectedDaysOfWeek = watch('recurrencePattern.daysOfWeek') || []
 
   // Load existing class data
   useEffect(() => {
@@ -186,14 +149,6 @@ export default function ClassFormDialog({
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  const toggleDayOfWeek = (day: number) => {
-    const current = selectedDaysOfWeek || []
-    const newDays = current.includes(day)
-      ? current.filter((d: number) => d !== day)
-      : [...current, day].sort((a, b) => a - b)
-    setValue('recurrencePattern.daysOfWeek', newDays)
   }
 
   return (
@@ -357,108 +312,6 @@ export default function ClassFormDialog({
               <FieldError>{errors.cancellationWindowHours.message}</FieldError>
             )}
           </Field>
-
-          {/* Is Recurring */}
-          <Field>
-            <div className="flex items-center space-x-2">
-              <Controller
-                name="isRecurring"
-                control={control}
-                render={({ field }) => (
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                )}
-              />
-              <FieldLabel className="mt-0!">Clase recurrente</FieldLabel>
-            </div>
-            <FieldDescription>
-              Marcar si esta clase se repite periódicamente
-            </FieldDescription>
-          </Field>
-
-          {/* Recurrence Pattern */}
-          {isRecurring && (
-            <div className="space-y-4 border-l-2 pl-4">
-              <Field>
-                <FieldLabel>Frecuencia</FieldLabel>
-                <Controller
-                  name="recurrencePattern.frequency"
-                  control={control}
-                  render={({ field: freqField }) => {
-                    const interval = watch('recurrencePattern.interval') ?? 1
-                    const clamped = Math.min(Math.max(interval, 1), 3)
-                    const combinedValue = `${freqField.value ?? 'daily'}_${clamped}`
-                    const selectValue = RECURRENCE_FREQUENCY_OPTIONS.some(
-                      (o) => o.value === combinedValue
-                    )
-                      ? combinedValue
-                      : `${freqField.value ?? 'daily'}_1`
-                    return (
-                      <Select
-                        value={selectValue}
-                        onValueChange={(value) => {
-                          const [freq, intervalStr] = value.split('_')
-                          freqField.onChange(freq)
-                          setValue(
-                            'recurrencePattern.interval',
-                            parseInt(intervalStr ?? '1', 10)
-                          )
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar frecuencia" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {RECURRENCE_FREQUENCY_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )
-                  }}
-                />
-                {errors.recurrencePattern?.frequency && (
-                  <FieldError>
-                    {errors.recurrencePattern.frequency.message}
-                  </FieldError>
-                )}
-                {errors.recurrencePattern?.interval != null && (
-                  <FieldError>
-                    {errors.recurrencePattern.interval.message}
-                  </FieldError>
-                )}
-              </Field>
-
-              {frequency === 'weekly' && (
-                <Field>
-                  <FieldLabel>Días de la semana</FieldLabel>
-                  <div className="flex flex-col gap-2">
-                    {DAYS_OF_WEEK.map((day) => (
-                      <div
-                        key={day.value}
-                        className="flex items-center space-x-2"
-                      >
-                        <Checkbox
-                          checked={selectedDaysOfWeek.includes(day.value)}
-                          onCheckedChange={() => toggleDayOfWeek(day.value)}
-                        />
-                        <span className="text-sm">{day.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                  {errors.recurrencePattern?.daysOfWeek && (
-                    <FieldError>
-                      {errors.recurrencePattern.daysOfWeek.message}
-                    </FieldError>
-                  )}
-                </Field>
-              )}
-            </div>
-          )}
 
           {/* Is Active */}
           <Field>

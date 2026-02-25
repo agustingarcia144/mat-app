@@ -247,14 +247,14 @@ function DayEditDndContent({
                   )}
                 />
                 <ResponsiveActionButton
-                  type='button'
-                  variant='outline'
-                  mobileSize='sm'
+                  type="button"
+                  variant="outline"
+                  mobileSize="sm"
                   onClick={onAddBlock}
-                  icon={<Plus className='h-3.5 w-3.5' aria-hidden />}
-                  label='Agregar bloque'
-                  tooltip='Agregar bloque'
-                  className='shrink-0 text-xs'
+                  icon={<Plus className="h-3.5 w-3.5" aria-hidden />}
+                  label="Agregar bloque"
+                  tooltip="Agregar bloque"
+                  className="shrink-0 text-xs"
                 />
               </div>
 
@@ -456,7 +456,7 @@ export function DayEditPageContent({
           aria-label="Volver"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          <span className='sr-only md:not-sr-only'>Volver</span>
+          <span className="sr-only md:not-sr-only">Volver</span>
         </Button>
         <p className="text-destructive text-center">Día no encontrado.</p>
       </div>
@@ -465,25 +465,19 @@ export function DayEditPageContent({
 
   return (
     <div className="w-full py-6">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="mb-4 gap-0 px-2 md:gap-2 md:px-3"
-        onClick={handleBackClick}
-        aria-label="Volver"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden />
-        <span className='sr-only md:not-sr-only'>Volver</span>
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-0 px-2 md:gap-2 md:px-3"
+          onClick={handleBackClick}
+          aria-label="Volver"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          <span className="sr-only md:not-sr-only">Volver</span>
+        </Button>
+      </div>
       <div className="w-full p-3 md:p-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
-        <div className="mb-6 shrink-0">
-          <h1 className="text-2xl font-bold">Editar día</h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Los cambios se guardan al hacer clic en &quot;Guardar cambios&quot;
-            en la planificación.
-          </p>
-        </div>
-
         <div className="flex-1 min-h-0 flex flex-col">
           <LibraryExerciseNamesProvider>
             <DayEditDndContent

@@ -173,6 +173,7 @@ export const seedInitialExercises = internalMutation({
       await ctx.db.insert('exercises', {
         organizationId: args.organizationId,
         ...exercise,
+        isStandard: true,
         createdBy: args.createdBy,
         createdAt: now,
         updatedAt: now,

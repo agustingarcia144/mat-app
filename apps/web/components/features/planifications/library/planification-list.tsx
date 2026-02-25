@@ -2,6 +2,8 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { useQuery } from 'convex/react'
+import { api } from '@/convex/_generated/api'
 import { useRouter } from 'next/navigation'
 import { FileText, Calendar, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -24,6 +26,8 @@ import { formatDate } from 'date-fns'
 import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import DuplicatePlanificationDialog from '../dialogs/duplicate-planification-dialog'
 import DeletePlanificationDialog from '../dialogs/delete-planification-dialog'
+import AssignDialog from '../assignments/assign-dialog'
+import AssignedMembersDialog from '../assignments/assigned-members-dialog'
 
 export interface PlanificationData {
   _id: string
@@ -49,6 +53,16 @@ function PlanificationCard({
   const router = useRouter()
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+   const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
+     useState(false)
+
+   const assignments = useQuery(
+     api.planificationAssignments.getByPlanification,
+     {
+       planificationId: planification._id as any,
+     }
+   )
 
   return (
     <>
@@ -75,6 +89,26 @@ function PlanificationCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {!planification.isTemplate && (
+                <>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setAssignedMembersDialogOpen(true)
+                    }}
+                  >
+                    Ver Asignados
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setAssignDialogOpen(true)
+                    }}
+                  >
+                    Asignar
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation()
@@ -138,6 +172,21 @@ function PlanificationCard({
         onOpenChange={setDeleteDialogOpen}
         planification={planification}
       />
+      {!planification.isTemplate && (
+        <>
+          <AssignDialog
+            open={assignDialogOpen}
+            onOpenChange={setAssignDialogOpen}
+            planificationId={planification._id}
+          />
+          <AssignedMembersDialog
+            open={assignedMembersDialogOpen}
+            onOpenChange={setAssignedMembersDialogOpen}
+            assignments={assignments || []}
+            planificationName={planification.name}
+          />
+        </>
+      )}
     </>
   )
 }

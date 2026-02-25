@@ -245,11 +245,18 @@ export default function ExerciseLibrary({
 
               <div
                 className="p-3 cursor-pointer min-w-0"
-                onClick={() => setExerciseToEdit(e)}
+                onClick={() => !e.isStandard && setExerciseToEdit(e)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold mb-2">{e.name}</h3>
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <h3 className="font-semibold">{e.name}</h3>
+                      {e.isStandard && (
+                        <Badge variant="secondary" className="text-xs">
+                          Estándar
+                        </Badge>
+                      )}
+                    </div>
                     {e.description && (
                       <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
                         {e.description}
@@ -291,25 +298,34 @@ export default function ExerciseLibrary({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={(ev) => {
-                            ev.stopPropagation()
-                            setExerciseToEdit(e)
-                          }}
-                        >
-                          <Pencil className="h-4 w-4 mr-2" />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(ev) => {
-                            ev.stopPropagation()
-                            setExerciseToDelete(e)
-                          }}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Eliminar
-                        </DropdownMenuItem>
+                        {!e.isStandard && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={(ev) => {
+                                ev.stopPropagation()
+                                setExerciseToEdit(e)
+                              }}
+                            >
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(ev) => {
+                                ev.stopPropagation()
+                                setExerciseToDelete(e)
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        {e.isStandard && (
+                          <DropdownMenuItem disabled>
+                            Ejercicio estándar (no editable)
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
@@ -497,11 +513,13 @@ export default function ExerciseLibrary({
               variant="destructive"
               onClick={async () => {
                 if (!exerciseToDelete) return
+                if (exerciseToDelete.isStandard) return
                 await removeExercise({
                   id: exerciseToDelete._id,
                 })
                 setExerciseToDelete(null)
               }}
+              disabled={exerciseToDelete?.isStandard}
             >
               Eliminar
             </Button>

@@ -123,7 +123,13 @@ export default function ExerciseFormCard({
     if (Number.isNaN(setsNum) || setsNum < 1) {
       errors.sets = 'Debe tener al menos 1 serie'
     }
-    if (!repsTrimmed) {
+    const mins = Math.max(0, Math.floor(Number(localTimeMinutes?.trim()) || 0))
+    const secs = Math.max(
+      0,
+      Math.min(59, Math.floor(Number(localTimeSeconds?.trim()) || 0))
+    )
+    const hasTime = mins > 0 || secs > 0
+    if (!repsTrimmed && !hasTime) {
       errors.reps = 'Las repeticiones son requeridas'
     }
     if (Object.keys(errors).length > 0) {
@@ -135,13 +141,8 @@ export default function ExerciseFormCard({
     form.setValue(`${basePath}.weight` as any, localWeight?.trim() ?? '', {
       shouldDirty: true,
     })
-    const mins = Math.max(0, Math.floor(Number(localTimeMinutes?.trim()) || 0))
-    const secs = Math.max(
-      0,
-      Math.min(59, Math.floor(Number(localTimeSeconds?.trim()) || 0))
-    )
     const timeSecondsToSave =
-      mins > 0 || secs > 0 ? mins * 60 + secs : undefined
+      hasTime ? mins * 60 + secs : undefined
     form.setValue(`${basePath}.timeSeconds` as any, timeSecondsToSave, {
       shouldDirty: true,
     })
