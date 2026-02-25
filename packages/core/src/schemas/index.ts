@@ -22,7 +22,7 @@ export const dayExerciseSchema = z.object({
   blockId: z.string().optional(),
   blockName: z.string().optional(), // For form convenience
   sets: z.number().min(1, 'Debe tener al menos 1 serie').int(),
-  reps: z.string().min(1, 'Las repeticiones son requeridas'),
+  reps: z.string().optional(),
   weight: z.string().optional(),
   /** Time in seconds (always stored in seconds; UI may display/input in minutes) */
   timeSeconds: z.number().int().min(0).optional(),
@@ -126,7 +126,8 @@ export const classSchema = z
       return true
     },
     {
-      message: 'El patrón de recurrencia es requerido cuando la clase es recurrente',
+      message:
+        'El patrón de recurrencia es requerido cuando la clase es recurrente',
       path: ['recurrencePattern'],
     }
   )
@@ -139,13 +140,10 @@ export const scheduleSchema = z
     capacity: z.number().optional(), // Override class capacity
     notes: z.string().optional(),
   })
-  .refine(
-    (data) => data.endTime > data.startTime,
-    {
-      message: 'La hora de fin debe ser posterior a la hora de inicio',
-      path: ['endTime'],
-    }
-  )
+  .refine((data) => data.endTime > data.startTime, {
+    message: 'La hora de fin debe ser posterior a la hora de inicio',
+    path: ['endTime'],
+  })
 
 export const reservationSchema = z.object({
   scheduleId: z.string(),
@@ -163,7 +161,6 @@ export const scheduleFormSchema = z.object({
     .max(480, 'Máximo 8 horas'),
   endDate: z.date().optional(), // Optional end date for generation (from Generate Schedules dialog)
 })
-
 
 // Type exports
 export type PlanificationBasicInfo = z.infer<

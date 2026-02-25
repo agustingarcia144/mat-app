@@ -168,7 +168,7 @@ export default function WorkoutDayCard({ day }: { day: any }) {
                             <span className="font-medium">{ex.reps}</span>
                             {ex.weight && (
                               <>
-                                <span className="text-muted-foreground">@</span>
+                                <span className="text-muted-foreground">x</span>
                                 <span className="font-medium">{ex.weight}</span>
                               </>
                             )}

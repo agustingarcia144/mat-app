@@ -23,6 +23,12 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -31,7 +37,16 @@ import {
 } from '@/components/ui/select'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { CheckCircle2, XCircle, AlertCircle, Clock } from 'lucide-react'
+import {
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Clock,
+  MoreHorizontal,
+  Eye,
+  Users,
+} from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { type Id } from '@/convex/_generated/dataModel'
 import ClassStatusBadge from '@/components/shared/badges/class-status-badge'
 import { toast } from 'sonner'
@@ -40,6 +55,197 @@ interface ScheduleDetailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   scheduleId: Id<'classSchedules'>
+}
+
+function safeDate(value: unknown): Date | null {
+  if (value == null) return null
+  if (typeof value === 'string' && value.includes('/')) {
+    const parts = value.split('/')
+    if (parts.length === 3) {
+      const [day, month, year] = parts
+      const parsed = new Date(`${year}-${month}-${day}`)
+      return isNaN(parsed.getTime()) ? null : parsed
+    }
+  }
+  const d = new Date(value as number | string)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function getPlanStatus(assignment: {
+  startDate?: number | string | null
+  endDate?: number | string | null
+}) {
+  const start = safeDate(assignment.startDate)
+  const end = safeDate(assignment.endDate)
+  const now = new Date()
+  const diffDays = (from: Date, to: Date) =>
+    Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))
+  if (!start || !end)
+    return { status: 'not_started' as const, daysLeft: null, daysExpired: null }
+  const daysLeftRaw = diffDays(now, end)
+  const daysLeft = Math.max(daysLeftRaw, 0)
+  const daysExpiredRaw = diffDays(end, now)
+  const daysExpired = end <= now ? Math.max(daysExpiredRaw, 0) : null
+  if (end <= now)
+    return { status: 'expired' as const, daysLeft: 0, daysExpired }
+  if (start > now)
+    return { status: 'not_started' as const, daysLeft, daysExpired: null }
+  if (daysLeft <= 5)
+    return { status: 'expiring_soon' as const, daysLeft, daysExpired: null }
+  return { status: 'active' as const, daysLeft, daysExpired: null }
+}
+
+type ReservationWithUser = {
+  _id: Id<'classReservations'>
+  userId: string
+  status: string
+  notes?: string | null
+  checkedInAt?: number | null
+  user: {
+    firstName?: string | null
+    lastName?: string | null
+    fullName?: string | null
+    email?: string | null
+    imageUrl?: string | null
+  } | null
+}
+
+function ReservationRow({
+  reservation,
+  getStatusBadge,
+  isPastClass,
+  actionLoading,
+  handleCheckIn,
+  handleMarkNoShow,
+}: {
+  reservation: ReservationWithUser
+  getStatusBadge: (status: string) => React.ReactNode
+  isPastClass: boolean
+  actionLoading: string | null
+  handleCheckIn: (id: Id<'classReservations'>) => void
+  handleMarkNoShow: (id: Id<'classReservations'>) => void
+}) {
+  const router = useRouter()
+  const assignments = useQuery(
+    api.planificationAssignments.getByUser,
+    reservation.userId ? { userId: reservation.userId } : 'skip'
+  )
+  const assignment = assignments?.find((a) => a.status === 'active')
+  const planStatus = assignment ? getPlanStatus(assignment) : null
+  const showAssign = !assignment || planStatus?.status === 'expired'
+
+  const handleViewPlan = () => {
+    if (assignment?.planification?._id)
+      router.push(`/dashboard/planifications/${assignment.planification._id}`)
+  }
+  const handleAssign = () => router.push('/dashboard/planifications')
+
+  const planBadge =
+    assignment && planStatus ? (
+      planStatus.status === 'expired' ? (
+        <Badge variant="destructive" className="text-xs">
+          Vencida
+        </Badge>
+      ) : planStatus.status === 'active' && planStatus.daysLeft != null ? (
+        <Badge className="bg-green-600 text-xs">
+          {planStatus.daysLeft}d rest.
+        </Badge>
+      ) : planStatus.status === 'expiring_soon' ? (
+        <Badge className="bg-yellow-500 text-black text-xs">Próx. vencer</Badge>
+      ) : planStatus.status === 'not_started' ? (
+        <Badge variant="secondary" className="text-xs">
+          No iniciada
+        </Badge>
+      ) : null
+    ) : null
+
+  return (
+    <div className="flex items-center justify-between gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <Avatar className="shrink-0">
+          <AvatarImage src={reservation.user?.imageUrl ?? undefined} />
+          <AvatarFallback>
+            {reservation.user?.firstName?.[0]}
+            {reservation.user?.lastName?.[0]}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium truncate">
+            {reservation.user?.fullName || 'Usuario'}
+          </p>
+          {reservation.notes && (
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+              {reservation.notes}
+            </p>
+          )}
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span className="text-xs text-muted-foreground">
+              {assignment?.planification?.name
+                ? `Planificación: ${assignment.planification.name}`
+                : 'Sin planificación'}
+            </span>
+            {planBadge}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {assignment && (
+                  <DropdownMenuItem onClick={handleViewPlan}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Ver planificación
+                  </DropdownMenuItem>
+                )}
+                {showAssign && (
+                  <DropdownMenuItem onClick={handleAssign}>
+                    <Users className="h-4 w-4 mr-2" />
+                    Asignar planificación
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {getStatusBadge(reservation.status)}
+
+        {reservation.status === 'confirmed' && isPastClass && (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleCheckIn(reservation._id)}
+              disabled={actionLoading === reservation._id}
+            >
+              Registrar asistencia
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleMarkNoShow(reservation._id)}
+              disabled={actionLoading === reservation._id}
+            >
+              Marcar ausente
+            </Button>
+          </div>
+        )}
+
+        {reservation.checkedInAt && (
+          <p className="text-xs text-muted-foreground">
+            {format(new Date(reservation.checkedInAt), 'HH:mm', { locale: es })}
+          </p>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export default function ScheduleDetailDialog({
@@ -276,73 +482,15 @@ export default function ScheduleDetailDialog({
                 ) : (
                   <div className="space-y-2">
                     {filteredReservations.map((reservation) => (
-                      <div
+                      <ReservationRow
                         key={reservation._id}
-                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarImage src={reservation.user?.imageUrl} />
-                            <AvatarFallback>
-                              {reservation.user?.firstName?.[0]}
-                              {reservation.user?.lastName?.[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">
-                              {reservation.user?.fullName || 'Usuario'}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {reservation.user?.email}
-                            </p>
-                            {reservation.notes && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {reservation.notes}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {getStatusBadge(reservation.status)}
-
-                          {reservation.status === 'confirmed' &&
-                            isPastClass && (
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleCheckIn(reservation._id)}
-                                  disabled={actionLoading === reservation._id}
-                                >
-                                  Registrar asistencia
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    handleMarkNoShow(reservation._id)
-                                  }
-                                  disabled={actionLoading === reservation._id}
-                                >
-                                  Marcar ausente
-                                </Button>
-                              </div>
-                            )}
-
-                          {reservation.checkedInAt && (
-                            <p className="text-xs text-muted-foreground">
-                              {format(
-                                new Date(reservation.checkedInAt),
-                                'HH:mm',
-                                {
-                                  locale: es,
-                                }
-                              )}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                        reservation={reservation}
+                        getStatusBadge={getStatusBadge}
+                        isPastClass={isPastClass}
+                        actionLoading={actionLoading}
+                        handleCheckIn={handleCheckIn}
+                        handleMarkNoShow={handleMarkNoShow}
+                      />
                     ))}
                   </div>
                 )}

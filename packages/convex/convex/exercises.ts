@@ -36,6 +36,7 @@ export const create = mutation({
       muscleGroups: args.muscleGroups,
       equipment: args.equipment,
       videoUrl: args.videoUrl,
+      isStandard: false,
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
@@ -66,6 +67,10 @@ export const update = mutation({
 
     await requireAdminOrTrainer(ctx, exercise.organizationId)
 
+    if (exercise.isStandard) {
+      throw new Error('No se puede editar un ejercicio estándar')
+    }
+
     const { id, ...updates } = args
 
     await ctx.db.patch(id, {
@@ -91,6 +96,10 @@ export const remove = mutation({
     }
 
     await requireAdminOrTrainer(ctx, exercise.organizationId)
+
+    if (exercise.isStandard) {
+      throw new Error('No se puede eliminar un ejercicio estándar')
+    }
 
     // Check if exercise is used in any day exercises
     const usedInDays = await ctx.db

@@ -68,17 +68,9 @@ const DAYS_OF_WEEK = [
 // Combined frequency + interval for single select (value: "frequency_interval")
 const RECURRENCE_FREQUENCY_OPTIONS = [
   { value: 'hourly_1', label: 'Cada hora' },
-  { value: 'hourly_2', label: 'Cada 2 horas' },
-  { value: 'hourly_3', label: 'Cada 3 horas' },
   { value: 'daily_1', label: 'Diaria' },
-  { value: 'daily_2', label: 'Cada 2 días' },
-  { value: 'daily_3', label: 'Cada 3 días' },
   { value: 'weekly_1', label: 'Semanal' },
-  { value: 'weekly_2', label: 'Cada 2 semanas' },
-  { value: 'weekly_3', label: 'Cada 3 semanas' },
   { value: 'monthly_1', label: 'Mensual' },
-  { value: 'monthly_2', label: 'Cada 2 meses' },
-  { value: 'monthly_3', label: 'Cada 3 meses' },
 ] as const
 
 export default function ClassFormDialog({

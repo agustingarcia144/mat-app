@@ -22,7 +22,7 @@ export function NoActivePlanificationPlaceholder({
         <ThemedPressable
           type="primary"
           onPress={onPress}
-          style={{ paddingHorizontal: 12 }}
+          style={{ paddingHorizontal: 24 }}
         >
           <Text
             style={[

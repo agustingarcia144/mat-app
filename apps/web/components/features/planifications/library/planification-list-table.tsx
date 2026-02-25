@@ -2,6 +2,8 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { useQuery } from 'convex/react'
+import { api } from '@/convex/_generated/api'
 import { useRouter } from 'next/navigation'
 import { FileText, Calendar, MoreVertical } from 'lucide-react'
 import Link from 'next/link'
@@ -33,6 +35,8 @@ import {
 import { formatDate } from 'date-fns'
 import DuplicatePlanificationDialog from '../dialogs/duplicate-planification-dialog'
 import DeletePlanificationDialog from '../dialogs/delete-planification-dialog'
+import AssignDialog from '../assignments/assign-dialog'
+import AssignedMembersDialog from '../assignments/assigned-members-dialog'
 import type { PlanificationData } from './planification-list'
 
 interface PlanificationListTableProps {
@@ -48,6 +52,16 @@ function PlanificationTableRow({
   const router = useRouter()
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
+    useState(false)
+
+  const assignments = useQuery(
+    api.planificationAssignments.getByPlanification,
+    {
+      planificationId: planification._id as any,
+    }
+  )
 
   return (
     <>
@@ -93,6 +107,26 @@ function PlanificationTableRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+            {!planification.isTemplate && (
+              <>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setAssignedMembersDialogOpen(true)
+                  }}
+                >
+                  Ver Asignados
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setAssignDialogOpen(true)
+                  }}
+                >
+                  Asignar
+                </DropdownMenuItem>
+              </>
+            )}
               <DropdownMenuItem asChild>
                 <Link
                   href={`/dashboard/planifications/${planification._id}/edit`}
@@ -134,6 +168,21 @@ function PlanificationTableRow({
         onOpenChange={setDeleteDialogOpen}
         planification={planification}
       />
+      {!planification.isTemplate && (
+        <>
+          <AssignDialog
+            open={assignDialogOpen}
+            onOpenChange={setAssignDialogOpen}
+            planificationId={planification._id}
+          />
+          <AssignedMembersDialog
+            open={assignedMembersDialogOpen}
+            onOpenChange={setAssignedMembersDialogOpen}
+            assignments={assignments || []}
+            planificationName={planification.name}
+          />
+        </>
+      )}
     </>
   )
 }

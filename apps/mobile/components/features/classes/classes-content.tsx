@@ -631,12 +631,13 @@ export default function ClassesContent() {
   const listEmpty = useMemo(
     () =>
       activeTab === 'upcoming' ? (
-        <ClassesEmptyState paddingBottom={insets.bottom + 40} />
+        // Upcoming empty state is already shown by ClassesNextUpcomingCard in the header
+        <View style={{ paddingBottom: insets.bottom + 40 }} />
       ) : (
         <ClassesEmptyState
           paddingBottom={insets.bottom + 40}
           title="No tienes clases pasadas"
-          subtext="Aquí verás tus reservas pasadas (asistidas, no-show o pendientes)"
+          subtext="Aquí verás tus clases pasadas"
         />
       ),
     [insets.bottom, activeTab]

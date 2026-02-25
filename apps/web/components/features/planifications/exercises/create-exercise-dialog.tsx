@@ -54,6 +54,8 @@ export default function CreateExerciseDialog({
   const updateExercise = useMutation(api.exercises.update)
 
   const isEditing = !!exercise
+  const isStandardExercise =
+    isEditing && exercise && 'isStandard' in exercise && !!exercise.isStandard
 
   const form = useForm<Exercise>({
     resolver: zodResolver(exerciseSchema),
@@ -92,6 +94,7 @@ export default function CreateExerciseDialog({
   }, [open, exercise, form])
 
   const onSubmit = async (data: Exercise) => {
+    if (isStandardExercise) return
     try {
       if (isEditing) {
         await updateExercise({
@@ -160,6 +163,11 @@ export default function CreateExerciseDialog({
         </SheetHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-4">
+          {isStandardExercise && (
+            <p className="text-sm text-muted-foreground rounded-md bg-muted p-3">
+              Este ejercicio es estándar y no se puede editar.
+            </p>
+          )}
           <Controller
             name="name"
             control={form.control}
@@ -171,7 +179,9 @@ export default function CreateExerciseDialog({
                   id={field.name}
                   aria-invalid={fieldState.invalid}
                   placeholder="Ej: Press de banca"
-                  disabled={form.formState.isSubmitting}
+                  disabled={
+                    form.formState.isSubmitting || isStandardExercise
+                  }
                   autoComplete="off"
                 />
                 <FieldDescription>
@@ -196,7 +206,9 @@ export default function CreateExerciseDialog({
                   aria-invalid={fieldState.invalid}
                   placeholder="Instrucciones y técnica..."
                   rows={3}
-                  disabled={form.formState.isSubmitting}
+                  disabled={
+                    form.formState.isSubmitting || isStandardExercise
+                  }
                   autoComplete="off"
                 />
                 {fieldState.invalid && (
@@ -215,7 +227,9 @@ export default function CreateExerciseDialog({
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  disabled={form.formState.isSubmitting}
+                  disabled={
+                    form.formState.isSubmitting || isStandardExercise
+                  }
                 >
                   <SelectTrigger
                     id={field.name}
@@ -250,7 +264,9 @@ export default function CreateExerciseDialog({
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  disabled={form.formState.isSubmitting}
+                  disabled={
+                    form.formState.isSubmitting || isStandardExercise
+                  }
                 >
                   <SelectTrigger
                     id={field.name}
@@ -285,7 +301,9 @@ export default function CreateExerciseDialog({
                   type="url"
                   aria-invalid={fieldState.invalid}
                   placeholder="Ej: https://www.youtube.com/watch?v=..."
-                  disabled={form.formState.isSubmitting}
+                  disabled={
+                    form.formState.isSubmitting || isStandardExercise
+                  }
                   autoComplete="off"
                 />
                 {fieldState.invalid && (
@@ -307,7 +325,9 @@ export default function CreateExerciseDialog({
                   }
                   size="sm"
                   onClick={() => toggleMuscle(muscle)}
-                  disabled={form.formState.isSubmitting}
+                  disabled={
+                    form.formState.isSubmitting || isStandardExercise
+                  }
                   className="capitalize"
                 >
                   {muscle}
@@ -319,7 +339,11 @@ export default function CreateExerciseDialog({
           <div className="flex gap-2 pt-4">
             <Button
               type="submit"
-              disabled={form.formState.isSubmitting || !form.formState.isValid}
+              disabled={
+                form.formState.isSubmitting ||
+                !form.formState.isValid ||
+                isStandardExercise
+              }
             >
               {form.formState.isSubmitting
                 ? isEditing

@@ -206,7 +206,7 @@ export default function DayBlocksContent({
                   {blockHeaderContent}
                 </div>
                 <BlockExercisesDropZone blockId={block.id}>
-                  <div className="flex flex-col gap-2 p-2 min-h-[80px]">
+                  <div className="flex flex-col gap-2 p-2 min-h-[200px]">
                     {blockExercises.map((exercise) => {
                       const exerciseIndex = day.exercises?.findIndex(
                         (e) => e.id === exercise.id
@@ -243,7 +243,7 @@ export default function DayBlocksContent({
                 header={blockHeaderContent}
               >
                 <BlockExercisesDropZone blockId={block.id}>
-                  <div className="flex flex-col gap-2 p-2 min-h-[80px]">
+                  <div className="flex flex-col gap-2 p-2 min-h-[140px]">
                     {blockExercises.map((exercise) => {
                       const exerciseIndex = day.exercises?.findIndex(
                         (e) => e.id === exercise.id
