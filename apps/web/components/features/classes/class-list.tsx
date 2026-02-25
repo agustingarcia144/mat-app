@@ -14,7 +14,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { type Id } from '@/convex/_generated/dataModel'
-import GenerateSchedulesDialog from './dialogs/generate-schedules-dialog'
 import {
   getClassListColumns,
   type ClassRow,
@@ -24,9 +23,10 @@ import { toast } from 'sonner'
 interface ClassListProps {
   classes: ClassRow[]
   onEditClass: (classId: Id<'classes'>) => void
+  onOpenGenerateTurnos?: (classItem: ClassRow) => void
 }
 
-export default function ClassList({ classes, onEditClass }: ClassListProps) {
+export default function ClassList({ classes, onEditClass, onOpenGenerateTurnos }: ClassListProps) {
   const removeClass = useMutation(api.classes.remove)
   const updateClass = useMutation(api.classes.update)
   const memberships = useQuery(
@@ -38,12 +38,6 @@ export default function ClassList({ classes, onEditClass }: ClassListProps) {
   const [classToDelete, setClassToDelete] = useState<{
     id: Id<'classes'>
     name: string
-  } | null>(null)
-  const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
-  const [selectedClassForGenerate, setSelectedClassForGenerate] = useState<{
-    id: Id<'classes'>
-    name: string
-    isRecurring: boolean
   } | null>(null)
 
   const trainersMap = useMemo(() => {
@@ -96,14 +90,14 @@ export default function ClassList({ classes, onEditClass }: ClassListProps) {
     [updateClass]
   )
 
-  const handleGenerateSchedules = useCallback((classItem: ClassRow) => {
-    setSelectedClassForGenerate({
-      id: classItem._id,
-      name: classItem.name,
-      isRecurring: classItem.isRecurring,
-    })
-    setGenerateDialogOpen(true)
-  }, [])
+  const handleGenerateTurnos = useCallback(
+    (classItem: ClassRow) => {
+      if (onOpenGenerateTurnos) {
+        onOpenGenerateTurnos(classItem)
+      }
+    },
+    [onOpenGenerateTurnos]
+  )
 
   const columns = useMemo(
     () =>
@@ -111,7 +105,7 @@ export default function ClassList({ classes, onEditClass }: ClassListProps) {
         trainersMap,
         deletingId,
         onEditClass,
-        onGenerateSchedules: handleGenerateSchedules,
+        onGenerateSchedules: handleGenerateTurnos,
         onToggleActive: handleToggleActive,
         onDeleteClick: handleDeleteClick,
       }),
@@ -119,7 +113,7 @@ export default function ClassList({ classes, onEditClass }: ClassListProps) {
       trainersMap,
       deletingId,
       onEditClass,
-      handleGenerateSchedules,
+      handleGenerateTurnos,
       handleToggleActive,
       handleDeleteClick,
     ]
@@ -141,7 +135,7 @@ export default function ClassList({ classes, onEditClass }: ClassListProps) {
             <DialogTitle>Eliminar clase</DialogTitle>
             <DialogDescription>
               ¿Estás seguro de eliminar la clase &quot;{classToDelete?.name ?? ''}&quot;?
-              Se eliminarán todas las clases futuras programadas.
+              Se eliminarán todos los turnos programados.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -161,19 +155,6 @@ export default function ClassList({ classes, onEditClass }: ClassListProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {selectedClassForGenerate && (
-        <GenerateSchedulesDialog
-          open={generateDialogOpen}
-          onOpenChange={setGenerateDialogOpen}
-          classId={selectedClassForGenerate.id}
-          classTitle={selectedClassForGenerate.name}
-          isRecurring={selectedClassForGenerate.isRecurring}
-          onSuccess={() => {
-            setSelectedClassForGenerate(null)
-          }}
-        />
-      )}
     </div>
   )
 }

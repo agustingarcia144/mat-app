@@ -157,7 +157,10 @@ export const backfillPlanificationRevisions = internalMutation({
       if (block.revisionId) continue
       const day = await ctx.db.get(block.workoutDayId)
       if (!day?.revisionId) continue
-      await ctx.db.patch(block._id, { revisionId: day.revisionId, updatedAt: now })
+      await ctx.db.patch(block._id, {
+        revisionId: day.revisionId,
+        updatedAt: now,
+      })
       summary.blocksPatched += 1
     }
 
@@ -219,6 +222,59 @@ export const backfillPlanificationRevisions = internalMutation({
     return {
       success: true,
       ...summary,
+    }
+  },
+})
+
+const BATCH_SIZE = 500
+
+/**
+ * Migration: Delete every class and all related records (classSchedules, classReservations).
+ * Processes in batches of 500 to avoid limits. Run once from the Convex dashboard.
+ * If you have more than 500 schedules, run the function again until it returns 0 deleted.
+ */
+export const deleteAllClassesAndRelated = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    let reservationsDeleted = 0
+    let schedulesDeleted = 0
+    let classesDeleted = 0
+
+    // Batch: schedules + their reservations (500 schedules per run)
+    const schedules = await ctx.db.query('classSchedules').take(BATCH_SIZE)
+    for (const schedule of schedules) {
+      // Delete reservations for this schedule in batches (in case one schedule has many)
+      let reservations: { _id: Id<'classReservations'> }[]
+      do {
+        reservations = await ctx.db
+          .query('classReservations')
+          .withIndex('by_schedule', (q) => q.eq('scheduleId', schedule._id))
+          .take(BATCH_SIZE)
+        for (const res of reservations) {
+          await ctx.db.delete(res._id)
+          reservationsDeleted += 1
+        }
+      } while (reservations.length === BATCH_SIZE)
+      await ctx.db.delete(schedule._id)
+      schedulesDeleted += 1
+    }
+
+    // Batch: classes (500 per run)
+    const classes = await ctx.db.query('classes').take(BATCH_SIZE)
+    for (const c of classes) {
+      await ctx.db.delete(c._id)
+      classesDeleted += 1
+    }
+
+    return {
+      success: true,
+      classesDeleted,
+      schedulesDeleted,
+      reservationsDeleted,
+      remaining:
+        schedules.length === BATCH_SIZE || classes.length === BATCH_SIZE
+          ? 'Run again to delete more'
+          : 'Done',
     }
   },
 })

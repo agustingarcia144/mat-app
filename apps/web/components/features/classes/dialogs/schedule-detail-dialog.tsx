@@ -262,10 +262,11 @@ export default function ScheduleDetailDialog({
   const checkIn = useMutation(api.classReservations.checkIn)
   const markNoShow = useMutation(api.classReservations.markNoShow)
   const cancelSchedule = useMutation(api.classSchedules.cancel)
+  const removeSchedule = useMutation(api.classSchedules.remove)
 
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [isCancelling, setIsCancelling] = useState(false)
+  const [isRemoving, setIsRemoving] = useState(false)
 
   const filteredReservations =
     !schedule || !reservations
@@ -312,25 +313,51 @@ export default function ScheduleDetailDialog({
     }
   }
 
-  const handleCancelSchedule = async () => {
-    if (
-      !confirm(
-        '¿Estás seguro de cancelar esta clase? Se cancelarán todas las reservas.'
-      )
-    ) {
-      return
-    }
-    setIsCancelling(true)
-    try {
-      await cancelSchedule({ id: scheduleId })
-      onOpenChange(false)
-    } catch (error) {
-      console.error('Error cancelling schedule:', error)
-      toast.error(
-        error instanceof Error ? error.message : 'Error al cancelar la clase'
-      )
-    } finally {
-      setIsCancelling(false)
+  const hasReservations =
+    schedule != null && schedule.currentReservations > 0
+
+  const handleRemoveOrCancelTurno = async () => {
+    if (!schedule) return
+    if (hasReservations) {
+      if (
+        !confirm(
+          '¿Estás seguro de cancelar este turno? Se cancelarán todas las reservas.'
+        )
+      ) {
+        return
+      }
+      setIsRemoving(true)
+      try {
+        await cancelSchedule({ id: scheduleId })
+        toast.success('Turno cancelado')
+        onOpenChange(false)
+      } catch (error) {
+        console.error('Error cancelling schedule:', error)
+        toast.error(
+          error instanceof Error ? error.message : 'Error al cancelar el turno'
+        )
+      } finally {
+        setIsRemoving(false)
+      }
+    } else {
+      if (
+        !confirm('¿Eliminar este turno? Se quitará del calendario.')
+      ) {
+        return
+      }
+      setIsRemoving(true)
+      try {
+        await removeSchedule({ id: scheduleId })
+        toast.success('Turno eliminado')
+        onOpenChange(false)
+      } catch (error) {
+        console.error('Error removing schedule:', error)
+        toast.error(
+          error instanceof Error ? error.message : 'Error al eliminar el turno'
+        )
+      } finally {
+        setIsRemoving(false)
+      }
     }
   }
 
@@ -446,10 +473,16 @@ export default function ScheduleDetailDialog({
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={handleCancelSchedule}
-                      disabled={isCancelling}
+                      onClick={handleRemoveOrCancelTurno}
+                      disabled={isRemoving}
                     >
-                      {isCancelling ? 'Cancelando...' : 'Cancelar Clase'}
+                      {isRemoving
+                        ? hasReservations
+                          ? 'Cancelando...'
+                          : 'Eliminando...'
+                        : hasReservations
+                          ? 'Cancelar turno'
+                          : 'Eliminar turno'}
                     </Button>
                   )}
                 </div>
@@ -474,7 +507,7 @@ export default function ScheduleDetailDialog({
                       <EmptyTitle>No hay reservas</EmptyTitle>
                       <EmptyDescription>
                         {statusFilter === 'all'
-                          ? 'No hay reservas para esta clase'
+                          ? 'No hay reservas para este turno'
                           : 'No hay reservas con este estado'}
                       </EmptyDescription>
                     </EmptyHeader>

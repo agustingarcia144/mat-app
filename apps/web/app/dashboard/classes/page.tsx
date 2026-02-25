@@ -26,10 +26,11 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import ClassFormDialog from '@/components/features/classes/dialogs/class-form-dialog'
+import GenerateSchedulesDialog from '@/components/features/classes/dialogs/generate-schedules-dialog'
 import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule-detail-dialog'
 import WeeklyTimeline from '@/components/features/classes/calendar/weekly-timeline'
 import ClassList from '@/components/features/classes/class-list'
-import { Plus, Calendar, List, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Calendar, List, ChevronLeft, ChevronRight, CalendarPlus } from 'lucide-react'
 import { startOfWeek, endOfWeek, addDays, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { type Id } from '@/convex/_generated/dataModel'
@@ -51,6 +52,11 @@ export default function ClassesPage() {
     Id<'classSchedules'> | undefined
   >()
   const [classFilter, setClassFilter] = useState<string>('all')
+  const [generateTurnosOpen, setGenerateTurnosOpen] = useState(false)
+  const [generateTurnosInitial, setGenerateTurnosInitial] = useState<{
+    id: Id<'classes'>
+    name: string
+  } | null>(null)
 
   const classes = useQuery(
     api.classes.getByOrganization,
@@ -112,22 +118,35 @@ export default function ClassesPage() {
     setSelectedScheduleId(undefined)
   }
 
+  const handleOpenGenerateTurnos = (classItem?: { _id: Id<'classes'>; name: string }) => {
+    setGenerateTurnosInitial(classItem ? { id: classItem._id, name: classItem.name } : null)
+    setGenerateTurnosOpen(true)
+  }
+
   return (
     <DashboardPageContainer className='space-y-4 py-4 md:space-y-6 md:py-6'>
       {/* Header */}
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div>
-          <h1 className='text-2xl font-bold md:text-3xl'>Clases</h1>
+          <h1 className='text-2xl font-bold md:text-3xl'>Clases y Turnos</h1>
           <p className='mt-1 text-sm text-muted-foreground md:text-base'>
-            Gestiona las clases y horarios de tu gimnasio
+            Gestiona las clases y los turnos de tu gimnasio
           </p>
         </div>
-        <ResponsiveActionButton
-          onClick={handleNewClass}
-          icon={<Plus className='h-4 w-4' aria-hidden />}
-          label='Nueva Clase'
-          tooltip='Nueva Clase'
-        />
+        <div className='flex gap-2'>
+          <ResponsiveActionButton
+            onClick={() => handleOpenGenerateTurnos()}
+            icon={<CalendarPlus className='h-4 w-4' aria-hidden />}
+            label='Crear turnos'
+            tooltip='Crear turnos'
+          />
+          <ResponsiveActionButton
+            onClick={handleNewClass}
+            icon={<Plus className='h-4 w-4' aria-hidden />}
+            label='Nueva Clase'
+            tooltip='Nueva Clase'
+          />
+        </div>
       </div>
 
       {/* View toggle and filters */}
@@ -159,7 +178,7 @@ export default function ClassesPage() {
         {selectedView === 'calendar' && (
           <div className='flex items-center gap-2'>
             <span className='hidden text-sm text-muted-foreground sm:inline'>
-              Filtrar por:
+              Filtrar por clase:
             </span>
             <Select value={classFilter} onValueChange={setClassFilter}>
               <SelectTrigger className='w-full sm:w-[220px]'>
@@ -281,7 +300,11 @@ export default function ClassesPage() {
               </EmptyContent>
             </Empty>
           ) : (
-            <ClassList classes={classes} onEditClass={handleEditClass} />
+            <ClassList
+              classes={classes}
+              onEditClass={handleEditClass}
+              onOpenGenerateTurnos={handleOpenGenerateTurnos}
+            />
           )}
         </div>
       )}
@@ -303,6 +326,14 @@ export default function ClassesPage() {
           scheduleId={selectedScheduleId}
         />
       )}
+
+      <GenerateSchedulesDialog
+        open={generateTurnosOpen}
+        onOpenChange={setGenerateTurnosOpen}
+        initialClassId={generateTurnosInitial?.id}
+        initialClassTitle={generateTurnosInitial?.name}
+        onSuccess={() => setGenerateTurnosInitial(null)}
+      />
     </DashboardPageContainer>
   )
 }
