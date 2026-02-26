@@ -5,7 +5,8 @@ import { useState } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useRouter } from 'next/navigation'
-import { FileText, Calendar, MoreVertical } from 'lucide-react'
+import { FileText, Calendar, GripVertical, MoreVertical } from 'lucide-react'
+import { useDraggable } from '@dnd-kit/react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,7 +38,9 @@ import DuplicatePlanificationDialog from '../dialogs/duplicate-planification-dia
 import DeletePlanificationDialog from '../dialogs/delete-planification-dialog'
 import AssignDialog from '../assignments/assign-dialog'
 import AssignedMembersDialog from '../assignments/assigned-members-dialog'
+import { getPlanificationDragId } from '../planification-folder-dnd'
 import type { PlanificationData } from './planification-list'
+import { cn } from '@/lib/utils'
 
 interface PlanificationListTableProps {
   planifications: PlanificationData[]
@@ -63,14 +66,40 @@ function PlanificationTableRow({
     }
   )
 
+  const dragId = getPlanificationDragId(planification._id)
+  const { ref, handleRef, isDragging } = useDraggable(
+    planification.isTemplate
+      ? { id: `noop-plan-${planification._id}` }
+      : { id: dragId }
+  )
+
   return (
     <>
       <TableRow
-        className="cursor-pointer"
+        ref={planification.isTemplate ? undefined : (ref as (el: HTMLTableRowElement | null) => void)}
+        className={cn(
+          'cursor-pointer',
+          isDragging && 'opacity-50'
+        )}
         onClick={() =>
           router.push(`/dashboard/planifications/${planification._id}`)
         }
       >
+        <TableCell
+          className="w-8 p-1 text-muted-foreground"
+          onClick={(e) => e.stopPropagation()}
+          ref={
+            planification.isTemplate
+              ? undefined
+              : (handleRef as (el: HTMLTableCellElement | null) => void)
+          }
+        >
+          {!planification.isTemplate && (
+            <span className="cursor-grab active:cursor-grabbing touch-none inline-block">
+              <GripVertical className="h-4 w-4" />
+            </span>
+          )}
+        </TableCell>
         <TableCell>
           <div className="flex items-center gap-2 min-w-0">
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -190,6 +219,7 @@ function PlanificationTableRow({
 function PlanificationTableSkeleton() {
   return (
     <TableRow>
+      <TableCell className="w-8" />
       <TableCell>
         <div className="flex items-center gap-2">
           <Skeleton className="h-4 w-4" />
@@ -222,6 +252,7 @@ export default function PlanificationListTable({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8"></TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>Fecha de creación</TableHead>
               <TableHead>Tipo</TableHead>
@@ -263,6 +294,7 @@ export default function PlanificationListTable({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-8"></TableHead>
             <TableHead>Nombre</TableHead>
             <TableHead>Fecha de creación</TableHead>
             <TableHead>Tipo</TableHead>

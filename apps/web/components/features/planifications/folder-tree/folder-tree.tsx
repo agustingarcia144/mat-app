@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronRight, Folder, FolderOpen, Plus, Trash2 } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { ChevronRight, Folder, FolderOpen, FolderInput, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { useDraggable, useDroppable } from '@dnd-kit/react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -12,6 +13,11 @@ import {
 } from '@/components/ui/context-menu'
 import CreateFolderDialog from '@/components/features/planifications/folder-tree/create-folder-dialog'
 import DeleteFolderDialog from '@/components/features/planifications/folder-tree/delete-folder-dialog'
+import MoveFolderDialog from '@/components/features/planifications/folder-tree/move-folder-dialog'
+import {
+  FOLDER_ROOT_ID,
+  getFolderDndId,
+} from '@/components/features/planifications/planification-folder-dnd'
 
 interface FolderData {
   _id: string
@@ -27,6 +33,8 @@ interface FolderTreeSidebarProps {
   onSelect: (id: string | null) => void
   /** Folder IDs that can be deleted (empty). When provided, "Eliminar" is shown in context menu. */
   deletableFolderIds?: string[]
+  /** When true, folders and root are draggable/droppable for DnD move. Default false (e.g. in picker dialogs). */
+  enableDnd?: boolean
 }
 
 interface FolderTreeProps {
@@ -41,6 +49,7 @@ interface FolderTreeProps {
   disableCreate?: boolean
   /** Folder IDs that can be deleted (empty). When provided, "Eliminar" is shown in context menu. */
   deletableFolderIds?: string[]
+  enableDnd?: boolean
 }
 
 interface FolderItemProps {
@@ -52,6 +61,7 @@ interface FolderItemProps {
   onSelect: (id: string | null) => void
   disableCreate?: boolean
   deletableFolderIds?: string[]
+  enableDnd?: boolean
 }
 
 function FolderItem({
@@ -63,14 +73,87 @@ function FolderItem({
   onSelect,
   disableCreate,
   deletableFolderIds,
+  enableDnd,
 }: FolderItemProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showMoveDialog, setShowMoveDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const isSelected = selectedId === folder._id
   const hasChildren = child && child.length > 0
   const canDelete =
     deletableFolderIds != null && deletableFolderIds.includes(folder._id)
+
+  const dndId = getFolderDndId(folder._id)
+  const { ref: dragRef, handleRef, isDragging } = useDraggable({
+    id: enableDnd ? dndId : `noop-folder-${folder._id}`,
+  })
+  const { ref: dropRef, isDropTarget } = useDroppable({
+    id: enableDnd ? dndId : `noop-folder-${folder._id}`,
+  })
+  const setRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      if (enableDnd) {
+        dragRef(el)
+        dropRef(el)
+      }
+    },
+    [enableDnd, dragRef, dropRef]
+  )
+
+  const rowContent = (
+    <>
+      {enableDnd && (
+        <div
+          ref={handleRef as (el: HTMLDivElement | null) => void}
+          className="shrink-0 cursor-grab active:cursor-grabbing touch-none text-muted-foreground opacity-0 group-hover:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+          aria-hidden
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </div>
+      )}
+      {hasChildren ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-4 w-4 p-0"
+          onClick={(e) => {
+            e.stopPropagation()
+            setIsExpanded(!isExpanded)
+          }}
+        >
+          <ChevronRight
+            className={cn(
+              'h-3 w-3 transition-transform',
+              isExpanded && 'rotate-90'
+            )}
+          />
+        </Button>
+      ) : (
+        <div className="h-4 w-4" />
+      )}
+
+      <div
+        className="flex items-center gap-2 flex-1 min-w-0"
+        onClick={() => onSelect(folder._id)}
+      >
+        {isExpanded ? (
+          <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+        ) : (
+          <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        <span className="text-sm truncate">{folder.name}</span>
+      </div>
+    </>
+  )
+
+  const rowClassName = cn(
+    'flex items-center gap-1 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer group',
+    isSelected && 'bg-accent',
+    enableDnd && isDragging && 'opacity-50',
+    enableDnd && isDropTarget && 'ring-2 ring-white'
+  )
 
   return (
     <div>
@@ -78,44 +161,11 @@ function FolderItem({
         <ContextMenu>
           <ContextMenuTrigger asChild>
             <div
-              className={cn(
-                'flex items-center gap-1 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer group',
-                isSelected && 'bg-accent'
-              )}
+              ref={enableDnd ? setRef : undefined}
+              className={rowClassName}
               style={{ paddingLeft: `${level * 12 + 8}px` }}
             >
-              {hasChildren ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-4 w-4 p-0"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setIsExpanded(!isExpanded)
-                  }}
-                >
-                  <ChevronRight
-                    className={cn(
-                      'h-3 w-3 transition-transform',
-                      isExpanded && 'rotate-90'
-                    )}
-                  />
-                </Button>
-              ) : (
-                <div className="h-4 w-4" />
-              )}
-
-              <div
-                className="flex items-center gap-2 flex-1 min-w-0"
-                onClick={() => onSelect(folder._id)}
-              >
-                {isExpanded ? (
-                  <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
-                ) : (
-                  <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-                )}
-                <span className="text-sm truncate">{folder.name}</span>
-              </div>
+              {rowContent}
             </div>
           </ContextMenuTrigger>
           <ContextMenuContent>
@@ -123,57 +173,27 @@ function FolderItem({
               <Plus className="h-4 w-4 mr-2" />
               Nueva subcarpeta
             </ContextMenuItem>
-            {canDelete && (
-              <ContextMenuItem
-                onClick={() => setShowDeleteDialog(true)}
-                className="text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Eliminar
-              </ContextMenuItem>
-            )}
+            <ContextMenuItem onClick={() => setShowMoveDialog(true)}>
+              <FolderInput className="h-4 w-4 mr-2" />
+              Mover
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => canDelete && setShowDeleteDialog(true)}
+              className="text-destructive"
+              disabled={!canDelete}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar
+            </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
       ) : (
         <div
-          className={cn(
-            'flex items-center gap-1 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer group',
-            isSelected && 'bg-accent'
-          )}
+          ref={enableDnd ? setRef : undefined}
+          className={rowClassName}
           style={{ paddingLeft: `${level * 12 + 8}px` }}
         >
-          {hasChildren ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-4 w-4 p-0"
-              onClick={(e) => {
-                e.stopPropagation()
-                setIsExpanded(!isExpanded)
-              }}
-            >
-              <ChevronRight
-                className={cn(
-                  'h-3 w-3 transition-transform',
-                  isExpanded && 'rotate-90'
-                )}
-              />
-            </Button>
-          ) : (
-            <div className="h-4 w-4" />
-          )}
-
-          <div
-            className="flex items-center gap-2 flex-1 min-w-0"
-            onClick={() => onSelect(folder._id)}
-          >
-            {isExpanded ? (
-              <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
-            ) : (
-              <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-            )}
-            <span className="text-sm truncate">{folder.name}</span>
-          </div>
+          {rowContent}
         </div>
       )}
 
@@ -189,6 +209,7 @@ function FolderItem({
               onSelect={onSelect}
               disableCreate={disableCreate}
               deletableFolderIds={deletableFolderIds}
+              enableDnd={enableDnd}
             />
           ))}
         </div>
@@ -199,6 +220,21 @@ function FolderItem({
           open={showCreateDialog}
           onOpenChange={setShowCreateDialog}
           parentId={folder._id}
+        />
+      )}
+
+      {!disableCreate && showMoveDialog && (
+        <MoveFolderDialog
+          open={showMoveDialog}
+          onOpenChange={setShowMoveDialog}
+          folderId={folder._id}
+          folderName={folder.name}
+          folders={folders}
+          onSuccess={() => {
+            if (selectedId === folder._id) {
+              onSelect(null)
+            }
+          }}
         />
       )}
 
@@ -227,6 +263,7 @@ function FolderTreeItem({
   onSelect,
   disableCreate,
   deletableFolderIds,
+  enableDnd,
 }: {
   folder: FolderData
   folders: FolderData[]
@@ -235,6 +272,7 @@ function FolderTreeItem({
   onSelect: (id: string | null) => void
   disableCreate?: boolean
   deletableFolderIds?: string[]
+  enableDnd?: boolean
 }) {
   const child = folders.filter((f) => f.parentId === folder._id)
   return (
@@ -247,7 +285,38 @@ function FolderTreeItem({
       onSelect={onSelect}
       disableCreate={disableCreate}
       deletableFolderIds={deletableFolderIds}
+      enableDnd={enableDnd}
     />
+  )
+}
+
+function DroppableRootRow({
+  rootLabel,
+  selectedId,
+  onSelect,
+  enableDnd,
+}: {
+  rootLabel: string
+  selectedId: string | null
+  onSelect: (id: string | null) => void
+  enableDnd?: boolean
+}) {
+  const { ref, isDropTarget } = useDroppable({
+    id: enableDnd ? FOLDER_ROOT_ID : 'noop-root',
+  })
+  return (
+    <div
+      ref={enableDnd ? ref : undefined}
+      className={cn(
+        'flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer',
+        selectedId === null && 'bg-accent',
+        enableDnd && isDropTarget && 'ring-2 ring-white'
+      )}
+      onClick={() => onSelect(null)}
+    >
+      <Folder className="h-4 w-4 text-muted-foreground" />
+      <span className="text-sm font-medium">{rootLabel}</span>
+    </div>
   )
 }
 
@@ -260,24 +329,19 @@ function FolderTree({
   rootLabel = 'Todas',
   disableCreate = false,
   deletableFolderIds,
+  enableDnd,
 }: FolderTreeProps) {
   const rootFolders = folders.filter((f) => !f.parentId)
 
   return (
     <div className="space-y-1">
-      {/* Root level */}
-      <div
-        className={cn(
-          'flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer',
-          selectedId === null && 'bg-accent'
-        )}
-        onClick={() => onSelect(null)}
-      >
-        <Folder className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">{rootLabel}</span>
-      </div>
+      <DroppableRootRow
+        rootLabel={rootLabel}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        enableDnd={enableDnd}
+      />
 
-      {/* Folder tree */}
       {rootFolders.map((folder) => (
         <FolderTreeItem
           key={folder._id}
@@ -288,6 +352,7 @@ function FolderTree({
           onSelect={onSelect}
           disableCreate={disableCreate}
           deletableFolderIds={deletableFolderIds}
+          enableDnd={enableDnd}
         />
       ))}
 
@@ -309,13 +374,13 @@ export default function FolderTreeSidebar({
   selectedId,
   onSelect,
   deletableFolderIds,
+  enableDnd = false,
 }: FolderTreeSidebarProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-bold">Carpetas</h1>
-        {/* Create root folder button */}
         <Button
           variant="ghost"
           size="sm"
@@ -331,6 +396,7 @@ export default function FolderTreeSidebar({
         showCreateDialog={showCreateDialog}
         setShowCreateDialog={setShowCreateDialog}
         deletableFolderIds={deletableFolderIds}
+        enableDnd={enableDnd}
       />
     </div>
   )

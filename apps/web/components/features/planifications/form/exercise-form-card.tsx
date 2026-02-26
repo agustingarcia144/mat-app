@@ -70,7 +70,7 @@ export default function ExerciseFormCard({
   dragHandle,
 }: ExerciseFormCardProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [localSets, setLocalSets] = useState<number>(1)
+  const [localSets, setLocalSets] = useState<string>('')
   const [localReps, setLocalReps] = useState<string>('')
   const [localWeight, setLocalWeight] = useState<string>('')
   const [localTimeMinutes, setLocalTimeMinutes] = useState<string>('')
@@ -100,7 +100,7 @@ export default function ExerciseFormCard({
       values.workoutWeeks?.[weekIndex]?.workoutDays?.[dayIndex]?.exercises?.[
         exerciseIndex
       ]
-    setLocalSets(ex?.sets ?? 1)
+    setLocalSets(ex?.sets != null ? String(ex.sets) : '')
     setLocalReps(ex?.reps ?? '')
     setLocalWeight(ex?.weight ?? '')
     const ts = ex?.timeSeconds
@@ -117,10 +117,12 @@ export default function ExerciseFormCard({
 
   const handleSave = () => {
     setSaveError(null)
-    const setsNum = Number(localSets)
+    const setsTrimmed = localSets?.trim() ?? ''
+    const setsNum =
+      setsTrimmed === '' ? NaN : parseInt(setsTrimmed, 10)
     const repsTrimmed = localReps?.trim() ?? ''
     const errors: { sets?: string; reps?: string } = {}
-    if (Number.isNaN(setsNum) || setsNum < 1) {
+    if (setsTrimmed === '' || Number.isNaN(setsNum) || setsNum < 1) {
       errors.sets = 'Debe tener al menos 1 serie'
     }
     const mins = Math.max(0, Math.floor(Number(localTimeMinutes?.trim()) || 0))
@@ -243,11 +245,10 @@ export default function ExerciseFormCard({
                 <Input
                   type="number"
                   value={localSets}
-                  onChange={(e) =>
-                    setLocalSets(parseInt(e.target.value, 10) || 0)
-                  }
+                  onChange={(e) => setLocalSets(e.target.value)}
                   placeholder="Series"
                   className="h-9"
+                  min={1}
                 />
                 {saveError?.sets && (
                   <FieldError errors={[{ message: saveError.sets }]} />

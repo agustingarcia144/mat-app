@@ -124,9 +124,12 @@ export const update = mutation({
   },
 })
 
+const MAX_SCHEDULES_ON_CLASS_DELETE = 400
+
 /**
  * Delete a class and all future schedules.
  * Fails if any future schedule has reservations — cancel or remove those turnos first.
+ * Fails if there are more than MAX_SCHEDULES_ON_CLASS_DELETE future schedules (to avoid timeouts).
  */
 export const remove = mutation({
   args: {
@@ -149,6 +152,12 @@ export const remove = mutation({
       .withIndex('by_class', (q) => q.eq('classId', args.id))
       .filter((q) => q.gte(q.field('startTime'), now))
       .collect()
+
+    if (futureSchedules.length > MAX_SCHEDULES_ON_CLASS_DELETE) {
+      throw new Error(
+        `No se puede eliminar la clase: tiene más de ${MAX_SCHEDULES_ON_CLASS_DELETE} turnos programados (${futureSchedules.length}). Cancelá o eliminá turnos primero hasta quedar con ${MAX_SCHEDULES_ON_CLASS_DELETE} o menos.`
+      )
+    }
 
     const withReservations = futureSchedules.filter(
       (s) => s.currentReservations > 0
