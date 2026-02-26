@@ -6,6 +6,7 @@ import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useRouter } from 'next/navigation'
 import { FileText, Calendar, MoreVertical } from 'lucide-react'
+import { useDraggable } from '@dnd-kit/react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -28,6 +29,8 @@ import DuplicatePlanificationDialog from '../dialogs/duplicate-planification-dia
 import DeletePlanificationDialog from '../dialogs/delete-planification-dialog'
 import AssignDialog from '../assignments/assign-dialog'
 import AssignedMembersDialog from '../assignments/assigned-members-dialog'
+import { getPlanificationDragId } from '../planification-folder-dnd'
+import { cn } from '@/lib/utils'
 
 export interface PlanificationData {
   _id: string
@@ -53,25 +56,33 @@ function PlanificationCard({
   const router = useRouter()
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
-   const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
-     useState(false)
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
+    useState(false)
 
-   const assignments = useQuery(
-     api.planificationAssignments.getByPlanification,
-     {
-       planificationId: planification._id as any,
-     }
-   )
+  const assignments = useQuery(
+    api.planificationAssignments.getByPlanification,
+    {
+      planificationId: planification._id as any,
+    }
+  )
 
-  return (
-    <>
-      <div
-        className="group border rounded-lg p-4 hover:border-primary cursor-pointer transition-colors"
-        onClick={() =>
-          router.push(`/dashboard/planifications/${planification._id}`)
-        }
-      >
+  const dragId = getPlanificationDragId(planification._id)
+  const { ref, isDragging } = useDraggable(
+    planification.isTemplate ? { id: `noop-plan-${planification._id}` } : { id: dragId }
+  )
+
+  const cardContent = (
+    <div
+      className={cn(
+        'group border rounded-lg p-4 hover:border-primary cursor-pointer transition-colors',
+        !planification.isTemplate && 'cursor-grab active:cursor-grabbing',
+        isDragging && 'opacity-50'
+      )}
+      onClick={() =>
+        router.push(`/dashboard/planifications/${planification._id}`)
+      }
+    >
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
@@ -158,6 +169,20 @@ function PlanificationCard({
           )}
         </div>
       </div>
+  )
+
+  return (
+    <>
+      {planification.isTemplate ? (
+        cardContent
+      ) : (
+        <div
+          ref={ref as (el: HTMLDivElement | null) => void}
+          className="touch-none"
+        >
+          {cardContent}
+        </div>
+      )}
 
       {/* Duplicate confirmation dialog */}
       <DuplicatePlanificationDialog
