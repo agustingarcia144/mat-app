@@ -101,6 +101,7 @@ type ReservationWithUser = {
   status: string
   notes?: string | null
   checkedInAt?: number | null
+  isFixedSlot?: boolean
   user: {
     firstName?: string | null
     lastName?: string | null
@@ -170,9 +171,16 @@ function ReservationRow({
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <p className="font-medium truncate">
-            {reservation.user?.fullName || 'Usuario'}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-medium truncate">
+              {reservation.user?.fullName || 'Usuario'}
+            </p>
+            {reservation.isFixedSlot && (
+              <Badge variant="secondary" className="text-xs font-normal">
+                Turno fijo
+              </Badge>
+            )}
+          </div>
           {reservation.notes && (
             <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
               {reservation.notes}

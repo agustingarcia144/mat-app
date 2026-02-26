@@ -107,11 +107,19 @@ export default function DashboardContent() {
     )
   }, [weekSessions, activeAssignment])
   const weekSessionsForDisplay = useMemo(
-    () => [
-      ...weekSessionsForActiveAssignment,
-      ...completedSessionsFromOtherAssignments,
-    ],
-    [weekSessionsForActiveAssignment, completedSessionsFromOtherAssignments]
+    () =>
+      activeAssignment
+        ? [
+            ...weekSessionsForActiveAssignment,
+            ...completedSessionsFromOtherAssignments,
+          ]
+        : (weekSessions ?? []),
+    [
+      activeAssignment,
+      weekSessionsForActiveAssignment,
+      completedSessionsFromOtherAssignments,
+      weekSessions,
+    ]
   )
 
   const exercisesByDay = useMemo(() => {
@@ -257,9 +265,9 @@ export default function DashboardContent() {
   }
 
   const todaySectionLoading =
-    workoutDays === undefined ||
     weekSessions === undefined ||
     reservationsForDay === undefined ||
+    (activeAssignment != null && workoutDays === undefined) ||
     (sessionForSelected != null &&
       scheduledWorkoutDay == null &&
       historicalWorkoutDay === undefined) ||
@@ -300,82 +308,82 @@ export default function DashboardContent() {
           </ThemedPressable>
         </View>
 
-        {!activeAssignment ? (
-          <NoActivePlanificationPlaceholder
-            onPress={() => router.push('/planifications' as Href)}
-            isDark={isDark}
-          />
-        ) : (
-          <>
-            <View
-              style={[
-                styles.calendarFullWidth,
-                { width: windowWidth, marginLeft: -24 },
-              ]}
-            >
-              <CalendarWeekView
-                selectedDate={selectedDate}
-                onDateSelect={setSelectedDate}
-                onWeekChange={handleWeekChange}
-                weekSessions={weekSessionsForDisplay}
-                workoutDays={
-                  workoutDays as {
+        <View
+          style={[
+            styles.calendarFullWidth,
+            { width: windowWidth, marginLeft: -24 },
+          ]}
+        >
+          <CalendarWeekView
+            selectedDate={selectedDate}
+            onDateSelect={setSelectedDate}
+            onWeekChange={handleWeekChange}
+            weekSessions={weekSessionsForDisplay}
+            workoutDays={
+              (workoutDays as
+                | {
                     dayOfWeek?: number
                     [key: string]: unknown
                   }[]
-                }
-                daysWithClasses={daysWithClasses}
-              />
-            </View>
+                | undefined) ?? []
+            }
+            daysWithClasses={daysWithClasses}
+          />
+        </View>
 
-            <ScrollView contentContainerStyle={styles.todaySection}>
-              {todaySectionLoading ? (
-                <View style={[styles.todaySectionLoading, styles.centered]}>
-                  <ActivityIndicator
-                    size="large"
-                    color={isDark ? '#a1a1aa' : '#71717a'}
-                  />
-                  <Text
-                    style={[
-                      styles.todaySectionLoadingText,
-                      { color: isDark ? '#71717a' : '#a1a1aa' },
-                    ]}
-                  >
-                    Cargando...
-                  </Text>
-                </View>
-              ) : (
-                <>
-                  {workoutDayToDisplay && (
-                    <ScheduledWorkoutCard
-                      name={workoutDayToDisplay.name}
-                      isDark={isDark}
-                      statusBadgeVariant={statusBadgeVariant}
-                      statusBadgeLabel={statusBadgeLabel}
-                      blockCount={blocksForDisplayDay?.length ?? 0}
-                      exerciseCount={
-                        exercisesByDay[workoutDayToDisplay._id]?.length ?? 0
-                      }
-                      onPress={handleOpenWorkout}
-                    />
-                  )}
-                  {reservedClassesItems.length > 0 && (
-                    <ReservedClassesForDay
-                      reservations={reservedClassesItems}
-                      isDark={isDark}
-                      onPressSchedule={(scheduleId) =>
-                        router.push(`/home/schedule/${scheduleId}` as Href)
-                      }
-                    />
-                  )}
-                  {reservedClassesItems.length === 0 &&
-                    workoutDayToDisplay === null &&
-                    sessionForSelected === null && <RestDayPlaceholder />}
-                </>
+        <ScrollView contentContainerStyle={styles.todaySection}>
+          {todaySectionLoading ? (
+            <View style={[styles.todaySectionLoading, styles.centered]}>
+              <ActivityIndicator
+                size="large"
+                color={isDark ? '#a1a1aa' : '#71717a'}
+              />
+              <Text
+                style={[
+                  styles.todaySectionLoadingText,
+                  { color: isDark ? '#71717a' : '#a1a1aa' },
+                ]}
+              >
+                Cargando...
+              </Text>
+            </View>
+          ) : (
+            <>
+              {workoutDayToDisplay && (
+                <ScheduledWorkoutCard
+                  name={workoutDayToDisplay.name}
+                  isDark={isDark}
+                  statusBadgeVariant={statusBadgeVariant}
+                  statusBadgeLabel={statusBadgeLabel}
+                  blockCount={blocksForDisplayDay?.length ?? 0}
+                  exerciseCount={
+                    exercisesByDay[workoutDayToDisplay._id]?.length ?? 0
+                  }
+                  onPress={handleOpenWorkout}
+                />
               )}
-            </ScrollView>
-          </>
-        )}
+              {reservedClassesItems.length > 0 && (
+                <ReservedClassesForDay
+                  reservations={reservedClassesItems}
+                  isDark={isDark}
+                  onPressSchedule={(scheduleId) =>
+                    router.push(`/home/schedule/${scheduleId}` as Href)
+                  }
+                />
+              )}
+              {reservedClassesItems.length === 0 &&
+                workoutDayToDisplay === null &&
+                sessionForSelected === null && <RestDayPlaceholder />}
+              {!activeAssignment && (
+                <NoActivePlanificationPlaceholder
+                  onPress={() => router.push('/planifications' as Href)}
+                  isDark={isDark}
+                  compact
+                />
+              )}
+            </>
+          )}
+        </ScrollView>
       </View>
     </ThemedView>
   )

@@ -103,6 +103,8 @@ interface ClassesListRowProps {
   onPressCard?: (scheduleId: string) => void
   hideReservationActions?: boolean
   busyCheckInReservationId?: string | null
+  /** When true, show "Turno fijo" badge (reservation matches member's fixed slot). */
+  isFixedSlot?: boolean
 }
 
 export function ClassesListRow({
@@ -120,6 +122,7 @@ export function ClassesListRow({
   onPressCard,
   hideReservationActions = false,
   busyCheckInReservationId = null,
+  isFixedSlot = false,
 }: ClassesListRowProps) {
   const { date, item } = row
   const schedule = item.schedule
@@ -212,17 +215,40 @@ export function ClassesListRow({
               <Text style={[styles.time, { color: timeColor }]}>
                 {timeLabel}
               </Text>
-              <View style={styles.badgeRow}>
+              <View style={[styles.badgeRow, styles.badgeRowWrap]}>
                 {isReservation ? (
-                  <ReservationBadge
-                    isDark={isDark}
-                    status={
-                      (item.reservation.status ?? 'confirmed') as
-                        | 'confirmed'
-                        | 'attended'
-                        | 'no_show'
-                    }
-                  />
+                  <>
+                    <ReservationBadge
+                      isDark={isDark}
+                      status={
+                        (item.reservation.status ?? 'confirmed') as
+                          | 'confirmed'
+                          | 'attended'
+                          | 'no_show'
+                      }
+                    />
+                    {isFixedSlot && (
+                      <View
+                        style={[
+                          styles.fixedSlotBadge,
+                          {
+                            backgroundColor: isDark
+                              ? 'rgba(59,130,246,0.22)'
+                              : '#dbeafe',
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.fixedSlotBadgeText,
+                            { color: isDark ? '#93c5fd' : '#1d4ed8' },
+                          ]}
+                        >
+                          Turno fijo
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 ) : booking?.canReserve ? (
                   <OccupancyBadge
                     spotsLeft={schedule.capacity - schedule.currentReservations}
@@ -432,6 +458,20 @@ const styles = StyleSheet.create({
   },
   badgeRow: {
     alignSelf: 'flex-start',
+  },
+  badgeRowWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  fixedSlotBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  fixedSlotBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   time: {
     fontSize: 15,

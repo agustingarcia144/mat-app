@@ -354,10 +354,13 @@ export function DayEditPageContent({
       `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`
     )
     const currentBlocks = currentDay.blocks || []
+    const realBlocksCount = currentBlocks.filter(
+      (b) => b.id !== SIN_BLOQUE_ID
+    ).length
     const newBlock = {
       id: `temp-block-${Date.now()}`,
-      name: `Bloque ${currentBlocks.length + 1}`,
-      order: currentBlocks.length,
+      name: `Bloque ${realBlocksCount + 1}`,
+      order: realBlocksCount,
       notes: '',
     }
     const lastBlock = currentBlocks[currentBlocks.length - 1]

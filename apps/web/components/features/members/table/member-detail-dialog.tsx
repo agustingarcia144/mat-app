@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -9,13 +10,33 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { useQuery } from 'convex/react'
+import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import type { Member } from '@repo/core'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Calendar, Eye, Users } from 'lucide-react'
+import { Calendar, Eye, Users, Clock, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
+
+const DAYS_OF_WEEK = [
+  { value: 0, label: 'Domingo' },
+  { value: 1, label: 'Lunes' },
+  { value: 2, label: 'Martes' },
+  { value: 3, label: 'Miércoles' },
+  { value: 4, label: 'Jueves' },
+  { value: 5, label: 'Viernes' },
+  { value: 6, label: 'Sábado' },
+]
 
 type Props = {
   member: Member | null
@@ -49,11 +70,25 @@ function safeDate(value: any): Date | null {
 
 export default function MemberDetailDialog({ member, open, onClose }: Props) {
   const router = useRouter()
+  const [addFixedSlotOpen, setAddFixedSlotOpen] = useState(false)
+  const [addClassId, setAddClassId] = useState<Id<'classes'> | ''>('')
+  const [addDayOfWeek, setAddDayOfWeek] = useState<number>(1)
+  const [addHour, setAddHour] = useState(9)
+  const [addMinute, setAddMinute] = useState(0)
 
   const assignments = useQuery(
     api.planificationAssignments.getByUser,
     member ? { userId: member.id } : 'skip'
   )
+  const fixedSlots = useQuery(
+    api.fixedClassSlots.listByUser,
+    member ? { userId: member.id } : 'skip'
+  )
+  const classes = useQuery(api.classes.getByOrganization, {
+    activeOnly: false,
+  })
+  const createFixedSlot = useMutation(api.fixedClassSlots.create)
+  const removeFixedSlot = useMutation(api.fixedClassSlots.remove)
 
   if (!member) return null
 
@@ -76,6 +111,47 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
   const handleAssign = () => {
     router.push('/dashboard/planifications')
+  }
+
+  const handleAddFixedSlot = async () => {
+    if (!addClassId) {
+      toast.error('Seleccioná una clase')
+      return
+    }
+    const startTimeMinutes = addHour * 60 + addMinute
+    const timezone = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined
+    try {
+      await createFixedSlot({
+        userId: member.id,
+        classId: addClassId as Id<'classes'>,
+        dayOfWeek: addDayOfWeek,
+        startTimeMinutes,
+        timezone,
+      })
+      toast.success('Turno fijo agregado')
+      setAddFixedSlotOpen(false)
+      setAddClassId('')
+      setAddDayOfWeek(1)
+      setAddHour(9)
+      setAddMinute(0)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al agregar turno fijo')
+    }
+  }
+
+  const handleRemoveFixedSlot = async (id: Id<'fixedClassSlots'>) => {
+    try {
+      await removeFixedSlot({ id })
+      toast.success('Turno fijo eliminado')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error al eliminar')
+    }
+  }
+
+  const formatSlotTime = (startTimeMinutes: number) => {
+    const h = Math.floor(startTimeMinutes / 60)
+    const m = startTimeMinutes % 60
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
   }
 
   /* =========================
@@ -337,8 +413,155 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
               )}
             </div>
           </div>
+
+          {/* TURNOS FIJOS */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Turnos fijos</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1"
+                onClick={() => setAddFixedSlotOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Agregar turno fijo
+              </Button>
+            </div>
+            <div className="border rounded-lg p-4 space-y-2">
+              {fixedSlots === undefined ? (
+                <p className="text-sm text-muted-foreground">Cargando…</p>
+              ) : fixedSlots.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Sin turnos fijos. El miembro se agregará automáticamente a cada
+                  clase que coincida con el horario asignado.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {fixedSlots.map((slot) => (
+                    <li
+                      key={slot._id}
+                      className="flex items-center justify-between gap-2 text-sm py-1 border-b border-border/50 last:border-0"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{slot.className ?? '-'}</span>
+                        <span className="text-muted-foreground">
+                          {DAYS_OF_WEEK.find((d) => d.value === slot.dayOfWeek)
+                            ?.label ?? slot.dayOfWeek}{' '}
+                          {formatSlotTime(slot.startTimeMinutes)}
+                        </span>
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        onClick={() => handleRemoveFixedSlot(slot._id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </div>
       </DialogContent>
+
+      {/* Add fixed slot dialog */}
+      <Dialog open={addFixedSlotOpen} onOpenChange={setAddFixedSlotOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Agregar turno fijo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Clase</Label>
+              <Select
+                value={addClassId}
+                onValueChange={(v) => setAddClassId(v as Id<'classes'>)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar clase" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes?.map((c) => (
+                    <SelectItem key={c._id} value={c._id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Día</Label>
+              <Select
+                value={String(addDayOfWeek)}
+                onValueChange={(v) => setAddDayOfWeek(Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DAYS_OF_WEEK.map((d) => (
+                    <SelectItem key={d.value} value={String(d.value)}>
+                      {d.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Hora</Label>
+                <Select
+                  value={String(addHour)}
+                  onValueChange={(v) => setAddHour(Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <SelectItem key={i} value={String(i)}>
+                        {i.toString().padStart(2, '0')}:00
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Minutos</Label>
+                <Select
+                  value={String(addMinute)}
+                  onValueChange={(v) => setAddMinute(Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0, 15, 30, 45].map((m) => (
+                      <SelectItem key={m} value={String(m)}>
+                        :{m.toString().padStart(2, '0')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setAddFixedSlotOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleAddFixedSlot}>Agregar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

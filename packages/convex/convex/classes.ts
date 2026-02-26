@@ -7,6 +7,7 @@ import {
   requireCurrentOrganizationMembership,
   requireOrganizationMembership,
 } from './permissions'
+import { assignFixedSlotsToSchedule } from './fixedClassSlots'
 
 /** Schedule document for insert (status is literal for type compatibility) */
 type ClassScheduleInsert = {
@@ -267,6 +268,7 @@ export const generateSchedules = mutation({
         createdAt: now,
         updatedAt: now,
       })
+      await assignFixedSlotsToSchedule(ctx, scheduleId)
       return { count: 1, scheduleId }
     }
 
@@ -388,9 +390,10 @@ export const generateSchedules = mutation({
       }
     }
 
-    // Batch insert all schedules
+    // Batch insert all schedules and assign fixed-slot members
     for (const schedule of schedules) {
-      await ctx.db.insert('classSchedules', schedule)
+      const scheduleId = await ctx.db.insert('classSchedules', schedule)
+      await assignFixedSlotsToSchedule(ctx, scheduleId)
     }
 
     return { count: schedules.length }
@@ -491,7 +494,8 @@ export const generateSchedulesFromTimeWindow = mutation({
     }
 
     for (const schedule of schedules) {
-      await ctx.db.insert('classSchedules', schedule)
+      const scheduleId = await ctx.db.insert('classSchedules', schedule)
+      await assignFixedSlotsToSchedule(ctx, scheduleId)
     }
 
     return { count: schedules.length }

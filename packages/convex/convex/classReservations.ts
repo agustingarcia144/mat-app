@@ -6,6 +6,7 @@ import {
   requireAdminOrTrainer,
   requireOrganizationMembership,
 } from './permissions'
+import { getDayAndMinutesInZone } from './fixedClassSlots'
 
 /**
  * Reserve a spot in a class
@@ -362,13 +363,37 @@ export const getByScheduleWithUsers = query({
       reservations = reservations.filter((r) => r.status === args.statusFilter)
     }
 
-    // Enrich with minimal user data (not full PII)
+    const organization = await ctx.db.get(schedule.organizationId)
+    const timezone =
+      organization?.timezone && organization.timezone.trim() !== ''
+        ? organization.timezone
+        : 'UTC'
+    const { dayOfWeek: scheduleDay, startTimeMinutes: scheduleMinutes } =
+      getDayAndMinutesInZone(schedule.startTime, timezone)
+
+    // Enrich with minimal user data and isFixedSlot
     const enrichedReservations = await Promise.all(
       reservations.map(async (reservation) => {
         const user = await ctx.db
           .query('users')
           .withIndex('by_externalId', (q) =>
             q.eq('externalId', reservation.userId)
+          )
+          .first()
+
+        const fixedSlot = await ctx.db
+          .query('fixedClassSlots')
+          .withIndex('by_organization_user', (q) =>
+            q
+              .eq('organizationId', schedule.organizationId)
+              .eq('userId', reservation.userId)
+          )
+          .filter((q) =>
+            q.and(
+              q.eq(q.field('classId'), schedule.classId),
+              q.eq(q.field('dayOfWeek'), scheduleDay),
+              q.eq(q.field('startTimeMinutes'), scheduleMinutes)
+            )
           )
           .first()
 
@@ -383,6 +408,7 @@ export const getByScheduleWithUsers = query({
                 imageUrl: user.imageUrl,
               }
             : null,
+          isFixedSlot: !!fixedSlot,
         }
       })
     )
