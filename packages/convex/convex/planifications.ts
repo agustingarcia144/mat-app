@@ -1,4 +1,5 @@
 import { mutation, query } from './_generated/server'
+import type { Id } from './_generated/dataModel'
 import { v } from 'convex/values'
 import {
   requireAuth,
@@ -393,22 +394,46 @@ export const duplicate = mutation({
           revisionId,
           name: day.name,
           order: day.order,
+          dayOfWeek: day.dayOfWeek,
           notes: day.notes,
           createdAt: now,
           updatedAt: now,
         })
 
-        // Duplicate day exercises
+        // Duplicate exercise blocks for this day (so blockId on dayExercises can be mapped)
+        const blocks = await ctx.db
+          .query('exerciseBlocks')
+          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
+          .collect()
+        const oldBlockIdToNew = new Map<Id<'exerciseBlocks'>, Id<'exerciseBlocks'>>()
+        for (const block of blocks) {
+          const newBlockId = await ctx.db.insert('exerciseBlocks', {
+            workoutDayId: newDayId,
+            revisionId,
+            name: block.name,
+            order: block.order,
+            notes: block.notes,
+            createdAt: now,
+            updatedAt: now,
+          })
+          oldBlockIdToNew.set(block._id, newBlockId)
+        }
+
+        // Duplicate day exercises (with blockId mapped to new blocks when set)
         const dayExercises = await ctx.db
           .query('dayExercises')
           .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
           .collect()
 
         for (const exercise of dayExercises) {
+          const newBlockId = exercise.blockId
+            ? oldBlockIdToNew.get(exercise.blockId)
+            : undefined
           await ctx.db.insert('dayExercises', {
             workoutDayId: newDayId,
             revisionId,
             exerciseId: exercise.exerciseId,
+            blockId: newBlockId,
             order: exercise.order,
             sets: exercise.sets,
             reps: exercise.reps,

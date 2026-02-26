@@ -28,9 +28,10 @@ import matWolfLooking from '@/assets/mat-wolf-looking.png'
 import ClassFormDialog from '@/components/features/classes/dialogs/class-form-dialog'
 import GenerateSchedulesDialog from '@/components/features/classes/dialogs/generate-schedules-dialog'
 import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule-detail-dialog'
+import FixedSlotsDialog from '@/components/features/classes/dialogs/fixed-slots-dialog'
 import WeeklyTimeline from '@/components/features/classes/calendar/weekly-timeline'
 import ClassList from '@/components/features/classes/class-list'
-import { Plus, Calendar, List, ChevronLeft, ChevronRight, CalendarPlus } from 'lucide-react'
+import { Plus, Calendar, List, ChevronLeft, ChevronRight, CalendarPlus, Users } from 'lucide-react'
 import { startOfWeek, endOfWeek, addDays, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { type Id } from '@/convex/_generated/dataModel'
@@ -57,6 +58,7 @@ export default function ClassesPage() {
     id: Id<'classes'>
     name: string
   } | null>(null)
+  const [fixedSlotsOpen, setFixedSlotsOpen] = useState(false)
 
   const classes = useQuery(
     api.classes.getByOrganization,
@@ -134,6 +136,12 @@ export default function ClassesPage() {
           </p>
         </div>
         <div className='flex gap-2'>
+          <ResponsiveActionButton
+            onClick={() => setFixedSlotsOpen(true)}
+            icon={<Users className='h-4 w-4' aria-hidden />}
+            label='Turnos fijos'
+            tooltip='Miembros con turno fijo'
+          />
           <ResponsiveActionButton
             onClick={() => handleOpenGenerateTurnos()}
             icon={<CalendarPlus className='h-4 w-4' aria-hidden />}
@@ -333,6 +341,11 @@ export default function ClassesPage() {
         initialClassId={generateTurnosInitial?.id}
         initialClassTitle={generateTurnosInitial?.name}
         onSuccess={() => setGenerateTurnosInitial(null)}
+      />
+
+      <FixedSlotsDialog
+        open={fixedSlotsOpen}
+        onOpenChange={setFixedSlotsOpen}
       />
     </DashboardPageContainer>
   )

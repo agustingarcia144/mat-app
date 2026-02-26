@@ -6,6 +6,7 @@ import {
   requireCurrentOrganizationMembership,
   requireOrganizationMembership,
 } from './permissions'
+import { assignFixedSlotsToSchedule } from './fixedClassSlots'
 
 /**
  * Create a single class schedule
@@ -35,7 +36,7 @@ export const create = mutation({
 
     const now = Date.now()
 
-    return await ctx.db.insert('classSchedules', {
+    const scheduleId = await ctx.db.insert('classSchedules', {
       classId: args.classId,
       organizationId: classTemplate.organizationId,
       startTime: args.startTime,
@@ -47,6 +48,9 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     })
+
+    await assignFixedSlotsToSchedule(ctx, scheduleId)
+    return scheduleId
   },
 })
 

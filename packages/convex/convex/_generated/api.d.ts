@@ -15,6 +15,7 @@ import type * as crons from "../crons.js";
 import type * as dayExercises from "../dayExercises.js";
 import type * as exerciseBlocks from "../exerciseBlocks.js";
 import type * as exercises from "../exercises.js";
+import type * as fixedClassSlots from "../fixedClassSlots.js";
 import type * as folders from "../folders.js";
 import type * as http from "../http.js";
 import type * as migrations from "../migrations.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   dayExercises: typeof dayExercises;
   exerciseBlocks: typeof exerciseBlocks;
   exercises: typeof exercises;
+  fixedClassSlots: typeof fixedClassSlots;
   folders: typeof folders;
   http: typeof http;
   migrations: typeof migrations;

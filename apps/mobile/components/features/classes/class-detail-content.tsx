@@ -9,6 +9,7 @@ import {
   Platform,
   Linking,
 } from 'react-native'
+import { useAuth } from '@clerk/clerk-expo'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery, useMutation } from 'convex/react'
@@ -34,6 +35,7 @@ export default function ClassDetailContent() {
   const insets = useSafeAreaInsets()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
+  const { userId } = useAuth()
 
   const scheduleWithDetails = useQuery(
     api.classSchedules.getScheduleWithDetails,
@@ -44,6 +46,10 @@ export default function ClassDetailContent() {
   const reserve = useMutation(api.classReservations.reserve)
   const cancelReservation = useMutation(api.classReservations.cancel)
   const checkInSelf = useMutation(api.classReservations.checkInSelf)
+  const fixedSlots = useQuery(
+    api.fixedClassSlots.listByUser,
+    userId ? { userId } : 'skip'
+  )
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -91,6 +97,20 @@ export default function ClassDetailContent() {
     const checkInClosesAt = reservation.schedule.endTime + 6 * 60 * 60 * 1000
     return now >= checkInOpensAt && now <= checkInClosesAt
   }, [reservation])
+
+  const isFixedSlot = useMemo(() => {
+    if (!reservation || !scheduleWithDetails?.startTime || !fixedSlots?.length)
+      return false
+    const d = new Date(scheduleWithDetails.startTime)
+    const day = d.getUTCDay()
+    const mins = d.getUTCHours() * 60 + d.getUTCMinutes()
+    return fixedSlots.some(
+      (s) =>
+        s.classId === scheduleWithDetails.classId &&
+        s.dayOfWeek === day &&
+        s.startTimeMinutes === mins
+    )
+  }, [reservation, scheduleWithDetails, fixedSlots])
 
   const handleReserve = useCallback(() => {
     if (!scheduleId) return
@@ -239,17 +259,40 @@ export default function ClassDetailContent() {
           </Text>
           <Text style={[styles.heroTime, { color: muted }]}>{timeLabel}</Text>
           <Text style={[styles.heroDate, { color: muted }]}>{dateLabel}</Text>
-          <View style={styles.heroBadgeWrap}>
+          <View style={[styles.heroBadgeWrap, styles.heroBadgeRow]}>
             {isReserved ? (
-              <ReservationBadge
-                isDark={isDark}
-                status={
-                  (reservation?.status ?? 'confirmed') as
-                    | 'confirmed'
-                    | 'attended'
-                    | 'no_show'
-                }
-              />
+              <>
+                <ReservationBadge
+                  isDark={isDark}
+                  status={
+                    (reservation?.status ?? 'confirmed') as
+                      | 'confirmed'
+                      | 'attended'
+                      | 'no_show'
+                  }
+                />
+                {isFixedSlot && (
+                  <View
+                    style={[
+                      styles.fixedSlotBadge,
+                      {
+                        backgroundColor: isDark
+                          ? 'rgba(59,130,246,0.22)'
+                          : '#dbeafe',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.fixedSlotBadgeText,
+                        { color: isDark ? '#93c5fd' : '#1d4ed8' },
+                      ]}
+                    >
+                      Turno fijo
+                    </Text>
+                  </View>
+                )}
+              </>
             ) : canReserve ? (
               <OccupancyBadge spotsLeft={spotsLeft} isDark={isDark} />
             ) : (
@@ -476,6 +519,21 @@ const styles = StyleSheet.create({
   heroBadgeWrap: {
     marginTop: SPACING.md,
     alignSelf: 'center',
+  },
+  heroBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  fixedSlotBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  fixedSlotBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   heroBadgeText: {
     fontSize: 14,

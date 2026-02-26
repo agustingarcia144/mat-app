@@ -43,6 +43,9 @@ export default defineSchema({
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
     logoUrl: v.optional(v.string()),
+    // IANA timezone for class times (e.g. "America/Argentina/Buenos_Aires").
+    // Used when matching fixed slots to schedules; if unset, UTC is used.
+    timezone: v.optional(v.string()),
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -405,4 +408,25 @@ export default defineSchema({
     .index('by_organization', ['organizationId'])
     .index('by_user_status', ['userId', 'status'])
     .index('by_schedule_status', ['scheduleId', 'status']),
+
+  // Fixed class slots - Members with a fixed weekly slot (class + day + time)
+  // Auto-assigned to every matching class occurrence when schedules are created
+  fixedClassSlots: defineTable({
+    organizationId: v.id('organizations'),
+    userId: v.string(), // Clerk user ID (member)
+    classId: v.id('classes'),
+    dayOfWeek: v.number(), // 0-6, Sunday = 0
+    startTimeMinutes: v.number(), // 0-1439, e.g. 540 = 9:00
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_class_slot', [
+      'organizationId',
+      'classId',
+      'dayOfWeek',
+      'startTimeMinutes',
+    ])
+    .index('by_user', ['userId'])
+    .index('by_organization_user', ['organizationId', 'userId']),
 })

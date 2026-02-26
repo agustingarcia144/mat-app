@@ -9,6 +9,7 @@ import {
   Copy,
   Pencil,
   GripVertical,
+  GripHorizontal,
   MoreVertical,
   ChevronDown,
 } from 'lucide-react'
@@ -94,10 +95,10 @@ function DraggableDayCard({
   const handleNode = (
     <div
       ref={handleRef as (el: HTMLDivElement | null) => void}
-      className="flex items-center justify-center cursor-grab active:cursor-grabbing touch-none text-muted-foreground shrink-0 rounded-l border border-r-0 border-border py-1 px-1"
+      className="flex items-center justify-center cursor-grab active:cursor-grabbing touch-none text-muted-foreground shrink-0 rounded-t border border-b-0 border-border py-1 px-1"
       aria-hidden
     >
-      <GripVertical className="h-3.5 w-3.5" />
+      <GripHorizontal className="h-3.5 w-3.5" />
     </div>
   )
   return (
@@ -106,7 +107,7 @@ function DraggableDayCard({
       className={`${isDragging ? 'opacity-50' : ''} ${isDropTarget ? 'ring-2 ring-primary/50' : ''}`}
     >
       {withHandle ? (
-        <div className="flex items-stretch gap-0 min-w-0 rounded-lg overflow-hidden border border-border">
+        <div className="flex flex-col gap-0 min-w-0 rounded-lg overflow-hidden border border-border">
           {handleNode}
           <div className="flex-1 min-w-0 bg-background">
             {children}

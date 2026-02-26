@@ -38,9 +38,7 @@ export default function WorkoutWeeksSection({
     name: 'workoutWeeks',
   })
 
-  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(
-    new Set([0])
-  )
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set([0]))
 
   const addWeek = () => {
     const newIndex = fields.length
@@ -85,13 +83,13 @@ export default function WorkoutWeeksSection({
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Semanas de entrenamiento</h2>
         <ResponsiveActionButton
-          type='button'
+          type="button"
           onClick={addWeek}
-          variant='outline'
-          mobileSize='sm'
-          icon={<Plus className='h-4 w-4' aria-hidden />}
-          label='Agregar semana'
-          tooltip='Agregar semana'
+          variant="outline"
+          mobileSize="sm"
+          icon={<Plus className="h-4 w-4" aria-hidden />}
+          label="Agregar semana"
+          tooltip="Agregar semana"
         />
       </div>
 
@@ -124,24 +122,8 @@ export default function WorkoutWeeksSection({
               ) || 0
 
             return (
-              <div
-                key={field.id}
-                className="border rounded-lg p-4 bg-muted/30"
-              >
+              <div key={field.id} className="border rounded-lg p-4 bg-muted/30">
                 <div className="flex items-center gap-3 mb-3">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => toggleWeekExpanded(weekIndex)}
-                  >
-                    {isExpanded ? (
-                      <ChevronUp className="h-5 w-5" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5" />
-                    )}
-                  </Button>
-
                   <Controller
                     name={`workoutWeeks.${weekIndex}.name`}
                     control={form.control}
@@ -170,6 +152,19 @@ export default function WorkoutWeeksSection({
                       {exerciseCount === 1 ? 'ejercicio' : 'ejercicios'}
                     </div>
                   )}
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => toggleWeekExpanded(weekIndex)}
+                  >
+                    {isExpanded ? (
+                      <ChevronUp className="h-5 w-5" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5" />
+                    )}
+                  </Button>
 
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -208,7 +203,7 @@ export default function WorkoutWeeksSection({
                 </div>
 
                 {isExpanded && (
-                  <div className="ml-11 mt-4">
+                  <div className="mt-4">
                     <WeekCalendarRow
                       form={form}
                       weekIndex={weekIndex}

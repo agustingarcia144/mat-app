@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import type { Href } from 'expo-router'
 import { FlashList } from '@shopify/flash-list'
+import { useAuth } from '@clerk/clerk-expo'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@repo/convex'
 import { format } from 'date-fns'
@@ -154,6 +155,7 @@ export default function ClassesContent() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
+  const { userId } = useAuth()
 
   const classes = useQuery(api.classes.getByOrganization, { activeOnly: true })
   const schedules = useQuery(api.classSchedules.getUpcoming, { limit: 25 })
@@ -163,6 +165,10 @@ export default function ClassesContent() {
     {}
   )
   const myPast = useQuery(api.classReservations.getPastByUser, {})
+  const fixedSlots = useQuery(
+    api.fixedClassSlots.listByUser,
+    userId ? { userId } : 'skip'
+  )
 
   const reserve = useMutation(api.classReservations.reserve)
   const cancelReservation = useMutation(api.classReservations.cancel)
@@ -575,34 +581,62 @@ export default function ClassesContent() {
     [insets.top, error, isDark, nextUpcoming, handlePressCard, activeTab]
   )
 
+  const isFixedSlotMatch = useCallback(
+    (classId: string, startTime: number) => {
+      if (!fixedSlots?.length) return false
+      const d = new Date(startTime)
+      const day = d.getUTCDay()
+      const mins = d.getUTCHours() * 60 + d.getUTCMinutes()
+      return fixedSlots.some(
+        (s) =>
+          s.classId === classId &&
+          s.dayOfWeek === day &&
+          s.startTimeMinutes === mins
+      )
+    },
+    [fixedSlots]
+  )
+
   const renderListItem = useCallback(
-    ({ item: row }: { item: ClassRow }) => (
-      <ClassesListRow
-        row={row as ClassRowData}
-        isDark={isDark}
-        colorScheme={colorScheme ?? null}
-        busyScheduleId={busyScheduleId}
-        busyReservationId={busyReservationId}
-        getBookingState={
-          getBookingState as (args: {
-            schedule: ListRowSchedule
-            classTemplate: ListRowClass
-          }) => BookingState
-        }
-        getCancellationState={
-          getCancellationState as (r: ListRowReservation) => CancellationState
-        }
-        getCheckInState={
-          getCheckInState as (r: ListRowReservation) => CheckInState
-        }
-        onReserve={handleReserve}
-        onCancel={handleCancel}
-        onCheckIn={handleCheckIn}
-        onPressCard={handlePressCard}
-        hideReservationActions={activeTab === 'past'}
-        busyCheckInReservationId={busyCheckInReservationId}
-      />
-    ),
+    ({ item: row }: { item: ClassRow }) => {
+      const isFixedSlot =
+        row.item.type === 'reservation' &&
+        'classId' in row.item.reservation &&
+        typeof (row.item.reservation as { classId?: string }).classId ===
+          'string' &&
+        isFixedSlotMatch(
+          (row.item.reservation as { classId: string }).classId,
+          row.item.schedule.startTime
+        )
+      return (
+        <ClassesListRow
+          row={row as ClassRowData}
+          isDark={isDark}
+          colorScheme={colorScheme ?? null}
+          busyScheduleId={busyScheduleId}
+          busyReservationId={busyReservationId}
+          getBookingState={
+            getBookingState as (args: {
+              schedule: ListRowSchedule
+              classTemplate: ListRowClass
+            }) => BookingState
+          }
+          getCancellationState={
+            getCancellationState as (r: ListRowReservation) => CancellationState
+          }
+          getCheckInState={
+            getCheckInState as (r: ListRowReservation) => CheckInState
+          }
+          onReserve={handleReserve}
+          onCancel={handleCancel}
+          onCheckIn={handleCheckIn}
+          onPressCard={handlePressCard}
+          hideReservationActions={activeTab === 'past'}
+          busyCheckInReservationId={busyCheckInReservationId}
+          isFixedSlot={isFixedSlot}
+        />
+      )
+    },
     [
       isDark,
       colorScheme,
@@ -617,6 +651,7 @@ export default function ClassesContent() {
       handlePressCard,
       activeTab,
       busyCheckInReservationId,
+      isFixedSlotMatch,
     ]
   )
 

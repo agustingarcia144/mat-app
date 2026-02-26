@@ -319,7 +319,9 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const originalPushState = window.history.pushState.bind(window.history)
-    const originalReplaceState = window.history.replaceState.bind(window.history)
+    const originalReplaceState = window.history.replaceState.bind(
+      window.history
+    )
 
     window.history.pushState = (data, unused, url) => {
       const parsed = resolveHistoryUrl(url)
@@ -366,7 +368,11 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
       // popstate cannot be cancelled. Restore current URL deterministically and
       // then ask for confirmation before performing the transition.
-      window.history.replaceState(window.history.state, '', currentFullPathRef.current)
+      window.history.replaceState(
+        window.history.state,
+        '',
+        currentFullPathRef.current
+      )
 
       queueBlockedNavigation({
         href: parsed.fullPath,
@@ -555,7 +561,9 @@ export function useUnsavedNavigationGuard() {
 export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
   const context = useContext(UnsavedChangesContext)
   if (!context) {
-    throw new Error('useUnsavedChanges must be used inside UnsavedChangesProvider')
+    throw new Error(
+      'useUnsavedChanges must be used inside UnsavedChangesProvider'
+    )
   }
   const {
     entries,
