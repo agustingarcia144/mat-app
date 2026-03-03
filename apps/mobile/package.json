@@ -7,6 +7,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "ios:device": "EXPO_XCODEBUILD_ARGS='-allowProvisioningUpdates -allowProvisioningDeviceRegistration' expo run:ios --device",
+    "ios:xcode": "open ios/Mat.xcworkspace",
     "web": "expo start --web",
     "lint": "expo lint"
   },

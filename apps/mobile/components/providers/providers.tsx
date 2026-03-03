@@ -10,6 +10,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ConvexProviderWithClerk } from 'convex/react-clerk'
 import { ConvexReactClient } from 'convex/react'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { PendingJoinProvider } from '@/contexts/pending-join-context'
 
 type AppResetContextValue = {
   resetApp: () => void
@@ -50,11 +51,13 @@ function Providers({ children }: { children: React.ReactNode }) {
       <GestureHandlerRootView key={resetKey}>
         <ClerkProvider tokenCache={tokenCache}>
           <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-            <ThemeProvider
-              value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
-            >
-              {children}
-            </ThemeProvider>
+            <PendingJoinProvider>
+              <ThemeProvider
+                value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
+              >
+                {children}
+              </ThemeProvider>
+            </PendingJoinProvider>
           </ConvexProviderWithClerk>
         </ClerkProvider>
       </GestureHandlerRootView>

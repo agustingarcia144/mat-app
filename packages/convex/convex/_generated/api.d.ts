@@ -18,6 +18,8 @@ import type * as exercises from "../exercises.js";
 import type * as fixedClassSlots from "../fixedClassSlots.js";
 import type * as folders from "../folders.js";
 import type * as http from "../http.js";
+import type * as joinGym from "../joinGym.js";
+import type * as joinGymNode from "../joinGymNode.js";
 import type * as migrations from "../migrations.js";
 import type * as organizationMemberships from "../organizationMemberships.js";
 import type * as organizations from "../organizations.js";
@@ -51,6 +53,8 @@ declare const fullApi: ApiFromModules<{
   fixedClassSlots: typeof fixedClassSlots;
   folders: typeof folders;
   http: typeof http;
+  joinGym: typeof joinGym;
+  joinGymNode: typeof joinGymNode;
   migrations: typeof migrations;
   organizationMemberships: typeof organizationMemberships;
   organizations: typeof organizations;

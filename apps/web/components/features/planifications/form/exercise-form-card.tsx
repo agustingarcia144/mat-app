@@ -171,7 +171,7 @@ export default function ExerciseFormCard({
             openDialog()
           }
         }}
-        className="w-full shrink-0 flex flex-col rounded-lg overflow-hidden border border-border bg-card transition-colors aspect-square relative cursor-pointer hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="w-full shrink-0 flex flex-col rounded-md overflow-hidden border border-border bg-card transition-colors aspect-4/3 relative cursor-pointer hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         {dragHandle}
         {/* Remove button: top right of card */}
@@ -183,9 +183,9 @@ export default function ExerciseFormCard({
             e.stopPropagation()
             onRemove()
           }}
-          className="absolute top-1 right-1 z-10 h-6 w-6 shrink-0 rounded-md text-muted-foreground hover:text-destructive"
+          className="absolute top-0.5 right-0.5 z-10 h-5 w-5 shrink-0 rounded text-muted-foreground hover:text-destructive"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-3 w-3" />
         </Button>
 
         <div className="flex-1 min-h-0 relative bg-muted backface-hidden transform-[translateZ(0)]">
@@ -195,7 +195,7 @@ export default function ExerciseFormCard({
               alt={`Miniatura de ${exercise?.exerciseName ?? 'ejercicio'}`}
               fill
               className="object-cover"
-              sizes="176px"
+              sizes="192px"
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-muted/50 p-4">
@@ -204,16 +204,16 @@ export default function ExerciseFormCard({
                 alt="Sin miniatura"
                 fill
                 className="object-contain"
-                sizes="176px"
+                sizes="192px"
               />
             </div>
           )}
         </div>
-        <div className="p-2 shrink-0 border-t">
-          <h4 className="font-medium text-xs truncate mb-1">
+        <div className="p-1.5 shrink-0 border-t">
+          <h4 className="font-medium text-[11px] truncate mb-0.5">
             {exercise?.exerciseName}
           </h4>
-          <p className="text-[11px] text-muted-foreground">{summaryText}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">{summaryText}</p>
         </div>
       </div>
 

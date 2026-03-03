@@ -97,13 +97,13 @@ export default function ExerciseLibrary({
     const muscles = filterMuscles.map(normalize)
     const equip = filterEquipment.map(normalize)
 
-    return list.filter((e) => {
+    return list.filter((e: Doc<'exercises'>) => {
       const matchesSearch =
         !term ||
         normalize(e.name).includes(term) ||
         normalize(e.description).includes(term) ||
         (Array.isArray(e.muscleGroups) &&
-          e.muscleGroups.some((m) => normalize(m).includes(term))) ||
+          e.muscleGroups.some((m: string) => normalize(m).includes(term))) ||
         normalize(e.category).includes(term) ||
         normalize(e.equipment).includes(term)
 
@@ -112,7 +112,7 @@ export default function ExerciseLibrary({
       const matchesMuscle =
         muscles.length === 0 ||
         (Array.isArray(e.muscleGroups) &&
-          e.muscleGroups.some((m) => muscles.includes(normalize(m))))
+          e.muscleGroups.some((m: string) => muscles.includes(normalize(m))))
       const matchesEquipment =
         equip.length === 0 || equip.includes(normalize(e.equipment))
 
@@ -218,7 +218,7 @@ export default function ExerciseLibrary({
             </EmptyHeader>
           </Empty>
         ) : (
-          filtered.map((e) => (
+          filtered.map((e: Doc<'exercises'>) => (
             <div
               key={e._id}
               className="border rounded-lg overflow-hidden hover:border-primary transition-colors group relative"
@@ -274,7 +274,7 @@ export default function ExerciseLibrary({
                         </Badge>
                       )}
                       {Array.isArray(e.muscleGroups) &&
-                        e.muscleGroups.map((m) => (
+                        e.muscleGroups.map((m: string) => (
                           <Badge
                             key={m}
                             variant="outline"

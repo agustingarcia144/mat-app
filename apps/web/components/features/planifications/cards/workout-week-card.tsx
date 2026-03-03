@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { api } from '@/convex/_generated/api'
+import { Doc } from '@/convex/_generated/dataModel'
 import { useQuery } from 'convex/react'
 import {
   Empty,
@@ -12,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import WorkoutDayCard from './workout-day-card'
 import matWolfLooking from '@/assets/mat-wolf-looking.png'
 
-export default function WorkoutWeekCard({ week }: { week: any }) {
+export default function WorkoutWeekCard({ week }: { week: Doc<'workoutWeeks'> }) {
   const workoutDays = useQuery(api.workoutDays.getByWeek, {
     weekId: week._id,
   })
@@ -45,7 +46,7 @@ export default function WorkoutWeekCard({ week }: { week: any }) {
         </Empty>
       ) : (
         <div className="space-y-4">
-          {workoutDays.map((day) => (
+          {workoutDays.map((day: Doc<'workoutDays'>) => (
             <WorkoutDayCard key={day._id} day={day} />
           ))}
         </div>

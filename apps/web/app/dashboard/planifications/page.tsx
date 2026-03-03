@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery, useMutation } from 'convex/react'
+import type { Doc } from '@/convex/_generated/dataModel'
 import { api } from '@/convex/_generated/api'
 import { Plus, FileStack, FolderTree } from 'lucide-react'
 import { useState, useCallback, useSyncExternalStore } from 'react'
@@ -183,7 +184,7 @@ export default function PlanificationsPage() {
   )
 
   const selectedFolderName = selectedFolderId
-    ? folders?.find((folder) => folder._id === selectedFolderId)?.name
+    ? folders?.find((folder: Doc<'folders'>) => folder._id === selectedFolderId)?.name
     : 'Todas'
 
   const planificationsGrid = (

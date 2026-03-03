@@ -11,10 +11,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.agusstingarcia144.matapp",
+      "deploymentTarget": "15.1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
-      "icon": "./assets/app.icon"
+      "icon": "./assets/app.icon",
+      "associatedDomains": ["applinks:mat-app-web.vercel.app"]
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +25,21 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.agusstingarcia144.matapp"
+      "package": "com.agusstingarcia144.matapp",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "mat-app-web.vercel.app",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",

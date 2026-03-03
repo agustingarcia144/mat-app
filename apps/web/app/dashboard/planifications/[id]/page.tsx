@@ -49,6 +49,11 @@ import DeletePlanificationDialog from '@/components/features/planifications/dial
 import AssignDialog from '@/components/features/planifications/assignments/assign-dialog'
 import AssignedMembersDialog from '@/components/features/planifications/assignments/assigned-members-dialog'
 import WorkoutWeekCard from '@/components/features/planifications/cards/workout-week-card'
+import type { Doc, Id } from '@/convex/_generated/dataModel'
+
+type AssignmentWithUser = Doc<'planificationAssignments'> & {
+  user?: { fullName?: string; email?: string; imageUrl?: string } | null
+}
 
 export default function PlanificationViewPage({
   params,
@@ -138,7 +143,7 @@ export default function PlanificationViewPage({
                 assignments &&
                 assignments.length > 0 && (
                   <AvatarGroup>
-                    {assignments.slice(0, 3).map((assignment) => {
+                    {assignments.slice(0, 3).map((assignment: AssignmentWithUser) => {
                       const user = assignment.user
                       const initials = user?.fullName
                         ? user.fullName
@@ -284,7 +289,7 @@ export default function PlanificationViewPage({
               </EmptyHeader>
             </Empty>
           ) : (
-            workoutWeeks.map((week) => (
+            workoutWeeks.map((week: Doc<'workoutWeeks'>) => (
               <WorkoutWeekCard key={week._id} week={week} />
             ))
           )}

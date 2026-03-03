@@ -119,14 +119,17 @@ export default function AssignDialog({
   const assignedUserIds = useMemo(() => {
     if (!assignments) return new Set<string>()
     return new Set(
-      assignments.filter((a) => a.status === 'active').map((a) => a.userId)
+      assignments
+        .filter((a: { status: string }) => a.status === 'active')
+        .map((a: { userId: string }) => a.userId)
     )
   }, [assignments])
 
   const availableMembers = useMemo(() => {
     if (!memberships) return []
     return memberships.filter(
-      (m) => m.role === 'member' && !assignedUserIds.has(m.userId)
+      (m: { role: string; userId: string }) =>
+        m.role === 'member' && !assignedUserIds.has(m.userId)
     )
   }, [memberships, assignedUserIds])
 
@@ -146,7 +149,7 @@ export default function AssignDialog({
             control={form.control}
             render={({ field, fieldState }) => {
               const selectedMember = availableMembers.find(
-                (m) => m.userId === field.value
+                (m: { userId: string }) => m.userId === field.value
               )
 
               return (
@@ -186,7 +189,7 @@ export default function AssignDialog({
                             No se encontraron miembros disponibles.
                           </CommandEmpty>
                           <CommandGroup>
-                            {availableMembers.map((member) => (
+                            {availableMembers.map((member: { userId: string; fullName?: string; email?: string }) => (
                               <CommandItem
                                 key={member.userId}
                                 value={`${member.fullName} ${member.email}`}

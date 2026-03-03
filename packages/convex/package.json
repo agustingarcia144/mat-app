@@ -2,7 +2,8 @@
   "name": "@repo/convex",
   "private": true,
   "scripts": {
-    "dev": "convex dev"
+    "dev": "convex dev",
+    "codegen": "convex codegen"
   },
   "dependencies": {
     "convex": "^1.31.5",

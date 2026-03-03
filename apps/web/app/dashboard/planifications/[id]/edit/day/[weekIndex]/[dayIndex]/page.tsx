@@ -1,10 +1,10 @@
 'use client'
 
-import { use, useCallback, useEffect } from 'react'
+import { use, useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, BookOpen, Plus } from 'lucide-react'
 import { DragDropProvider } from '@dnd-kit/react'
 import { usePlanificationForm } from '@/contexts/planification-form-context'
 import {
@@ -30,7 +30,17 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import type { PlanificationForm } from '@repo/core/schemas'
+
+const XL_BREAKPOINT = 1280
 
 function DayEditDndContent({
   form,
@@ -41,6 +51,9 @@ function DayEditDndContent({
   onRemoveBlock,
   onAddExercise,
   onRemoveExercise,
+  isCompactLayout,
+  librarySheetOpen,
+  onLibrarySheetOpenChange,
 }: {
   form: ReturnType<typeof usePlanificationForm>['form']
   weekIndex: number
@@ -53,6 +66,9 @@ function DayEditDndContent({
     blockId?: string
   ) => void
   onRemoveExercise: (exerciseIndex: number) => void
+  isCompactLayout: boolean
+  librarySheetOpen: boolean
+  onLibrarySheetOpenChange: (open: boolean) => void
 }) {
   const libraryNames = useLibraryExerciseNames()
   const blocksPath = `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.blocks`
@@ -209,85 +225,134 @@ function DayEditDndContent({
     [form, blocksPath, exercisesPath, libraryNames, onAddExercise]
   )
 
+  const contentArea = (
+    <div className="space-y-6 p-6 min-w-0 flex-1 min-h-0 overflow-auto">
+      <div className="flex items-end justify-between gap-4">
+        <Controller
+          name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.name`}
+          control={form.control}
+          render={({ field, fieldState }) => (
+            <Field
+              data-invalid={fieldState.invalid}
+              className="flex-1 min-w-0"
+            >
+              <label className="text-sm font-medium mb-1.5 block">
+                Nombre del día
+              </label>
+              <Input
+                {...field}
+                aria-invalid={fieldState.invalid}
+                placeholder="Ej: Día 1, Piernas, etc."
+                className="h-10"
+              />
+              {fieldState.invalid && (
+                <FieldError errors={[fieldState.error]} />
+              )}
+            </Field>
+          )}
+        />
+        <div className="flex items-center gap-2 shrink-0">
+          {isCompactLayout && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onLibrarySheetOpenChange(true)}
+              className="gap-2"
+            >
+              <BookOpen className="h-3.5 w-3.5" aria-hidden />
+              Biblioteca
+            </Button>
+          )}
+          <ResponsiveActionButton
+            type="button"
+            variant="outline"
+            mobileSize="sm"
+            onClick={onAddBlock}
+            icon={<Plus className="h-3.5 w-3.5" aria-hidden />}
+            label="Agregar bloque"
+            tooltip="Agregar bloque"
+            className="text-xs"
+          />
+        </div>
+      </div>
+
+      <DayBlocksContent
+        form={form}
+        weekIndex={weekIndex}
+        dayIndex={dayIndex}
+        day={day ?? { exercises: [] }}
+        onAddBlock={onAddBlock}
+        onRemoveBlock={onRemoveBlock}
+        onAddExercise={onAddExercise}
+        onRemoveExercise={onRemoveExercise}
+      />
+    </div>
+  )
+
   return (
     <DragDropProvider onDragEnd={handleDragEnd}>
-      <div className="rounded-lg border bg-background overflow-hidden h-full min-h-0 flex flex-col">
-        <ResizablePanelGroup
-          orientation="horizontal"
-          className="flex-1 min-h-0 w-full items-stretch"
-        >
-          <ResizablePanel
-            defaultSize="70"
-            minSize="50"
-            className="min-w-0 flex flex-col min-h-0"
-          >
-            <div className="space-y-6 p-6 min-w-0 flex-1 min-h-0 overflow-auto">
-              <div className="flex items-end justify-between gap-4">
-                <Controller
-                  name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.name`}
-                  control={form.control}
-                  render={({ field, fieldState }) => (
-                    <Field
-                      data-invalid={fieldState.invalid}
-                      className="flex-1 min-w-0"
-                    >
-                      <label className="text-sm font-medium mb-1.5 block">
-                        Nombre del día
-                      </label>
-                      <Input
-                        {...field}
-                        aria-invalid={fieldState.invalid}
-                        placeholder="Ej: Día 1, Piernas, etc."
-                        className="h-10"
-                      />
-                      {fieldState.invalid && (
-                        <FieldError errors={[fieldState.error]} />
-                      )}
-                    </Field>
-                  )}
-                />
-                <ResponsiveActionButton
-                  type="button"
-                  variant="outline"
-                  mobileSize="sm"
-                  onClick={onAddBlock}
-                  icon={<Plus className="h-3.5 w-3.5" aria-hidden />}
-                  label="Agregar bloque"
-                  tooltip="Agregar bloque"
-                  className="shrink-0 text-xs"
-                />
-              </div>
-
-              <DayBlocksContent
-                form={form}
-                weekIndex={weekIndex}
-                dayIndex={dayIndex}
-                day={day ?? { exercises: [] }}
-                onAddBlock={onAddBlock}
-                onRemoveBlock={onRemoveBlock}
-                onAddExercise={onAddExercise}
-                onRemoveExercise={onRemoveExercise}
-              />
+      <div className="rounded-lg border bg-background overflow-hidden h-full min-h-0 flex flex-col relative">
+        {isCompactLayout ? (
+          <>
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              {contentArea}
             </div>
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          <ResizablePanel
-            defaultSize="30"
-            minSize="20"
-            className="min-w-0 flex flex-col min-h-0"
+            <Sheet open={librarySheetOpen} onOpenChange={onLibrarySheetOpenChange}>
+              <SheetContent
+                side="right"
+                className="w-full sm:max-w-md overflow-hidden flex flex-col"
+              >
+                <SheetHeader>
+                  <SheetTitle>Biblioteca de ejercicios</SheetTitle>
+                  <SheetDescription>
+                    Haz clic en un ejercicio para añadirlo al día. Luego puedes arrastrarlo entre bloques.
+                  </SheetDescription>
+                </SheetHeader>
+                <div className="flex-1 min-h-0 flex flex-col mt-4 overflow-hidden">
+                  <ExerciseSelector
+                    className="flex-1 min-h-0"
+                    onSelect={(ex) => {
+                      onAddExercise(ex, undefined)
+                    }}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
+          </>
+        ) : (
+          <ResizablePanelGroup
+            orientation="horizontal"
+            className="flex-1 min-h-0 w-full items-stretch"
           >
-            <div className="p-4 flex flex-col flex-1 min-h-0">
-              <h2 className="text-sm font-semibold mb-3 shrink-0">
-                Biblioteca de ejercicios
-              </h2>
-              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                <ExerciseSelector className="flex-1 min-h-0" />
+            <ResizablePanel
+              defaultSize={75}
+              minSize={55}
+              className="min-w-0 flex flex-col min-h-0"
+            >
+              {contentArea}
+            </ResizablePanel>
+
+            <ResizableHandle withHandle />
+
+            <ResizablePanel
+              defaultSize={25}
+              minSize={18}
+              collapsible
+              collapsedSize={0}
+              className="min-w-0 flex flex-col min-h-0"
+            >
+              <div className="p-4 flex flex-col flex-1 min-h-0">
+                <h2 className="text-sm font-semibold mb-3 shrink-0">
+                  Biblioteca de ejercicios
+                </h2>
+                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                  <ExerciseSelector className="flex-1 min-h-0" />
+                </div>
               </div>
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </div>
     </DragDropProvider>
   )
@@ -443,6 +508,8 @@ export function DayEditPageContent({
   }
 
   const backHref = `/dashboard/planifications/${planificationId}/edit`
+  const isCompactLayout = !useMediaQuery(`(min-width: ${XL_BREAKPOINT}px)`)
+  const [librarySheetOpen, setLibrarySheetOpen] = useState(false)
 
   const handleBackClick = () => {
     if (!requestNavigation(backHref)) return
@@ -492,6 +559,9 @@ export function DayEditPageContent({
               onRemoveBlock={removeBlockFromDay}
               onAddExercise={addExerciseToDay}
               onRemoveExercise={removeExercise}
+              isCompactLayout={isCompactLayout}
+              librarySheetOpen={librarySheetOpen}
+              onLibrarySheetOpenChange={setLibrarySheetOpen}
             />
           </LibraryExerciseNamesProvider>
         </div>

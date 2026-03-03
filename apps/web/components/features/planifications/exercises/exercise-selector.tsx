@@ -6,8 +6,8 @@ import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Check, Plus, Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -33,10 +33,8 @@ export default function ExerciseSelector({
   className,
 }: ExerciseSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [selectedEquipment, setSelectedEquipment] = useState<string | null>(
-    null
-  )
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([])
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const libraryNames = useLibraryExerciseNames()
 
@@ -47,8 +45,10 @@ export default function ExerciseSelector({
 
   const exercises = useQuery(api.exercises.search, {
     searchTerm,
-    category: selectedCategory ?? undefined,
-    equipment: selectedEquipment ?? undefined,
+    category:
+      selectedCategories.length > 0 ? selectedCategories : undefined,
+    equipment:
+      selectedEquipment.length > 0 ? selectedEquipment : undefined,
   })
 
   useEffect(() => {
@@ -91,53 +91,21 @@ export default function ExerciseSelector({
         añadirlo al día.
       </p>
 
-      <div className="space-y-2 mb-3 shrink-0">
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-1.5">
-            Categoría
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {categories.map((cat) => {
-              const isActive = selectedCategory === cat
-              return (
-                <Badge
-                  key={cat}
-                  variant={isActive ? 'default' : 'secondary'}
-                  className="cursor-pointer text-xs rounded-full gap-1"
-                  onClick={() =>
-                    setSelectedCategory((prev) => (prev === cat ? null : cat))
-                  }
-                >
-                  {isActive && <Check className="h-3 w-3" />}
-                  {cat}
-                </Badge>
-              )
-            })}
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-1.5">
-            Equipamiento
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {equipment.map((eq) => {
-              const isActive = selectedEquipment === eq
-              return (
-                <Badge
-                  key={eq}
-                  variant={isActive ? 'default' : 'outline'}
-                  className="cursor-pointer text-xs rounded-full gap-1"
-                  onClick={() =>
-                    setSelectedEquipment((prev) => (prev === eq ? null : eq))
-                  }
-                >
-                  {isActive && <Check className="h-3 w-3" />}
-                  {eq}
-                </Badge>
-              )
-            })}
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 shrink-0">
+        <MultiSelect
+          options={categories.map((cat: string) => ({ value: cat, label: cat }))}
+          value={selectedCategories}
+          onChange={setSelectedCategories}
+          placeholder="Todas las categorías"
+          label="Categoría"
+        />
+        <MultiSelect
+          options={equipment.map((eq: string) => ({ value: eq, label: eq }))}
+          value={selectedEquipment}
+          onChange={setSelectedEquipment}
+          placeholder="Todo el equipamiento"
+          label="Equipamiento"
+        />
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
@@ -168,7 +136,7 @@ export default function ExerciseSelector({
               </EmptyHeader>
             </Empty>
           ) : (
-            exercises.map((exercise) => (
+            exercises.map((exercise: { _id: string; name: string }) => (
               <div
                 key={exercise._id}
                 onClick={() =>

@@ -414,7 +414,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
     toast.message('Tienes cambios sin guardar', {
       id: UNSAVED_CHANGES_TOAST_ID,
-      position: 'bottom-center',
+      position: 'top-center',
       duration: Infinity,
       dismissible: false,
       action:

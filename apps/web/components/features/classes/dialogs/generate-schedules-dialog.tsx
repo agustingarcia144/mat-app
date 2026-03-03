@@ -5,6 +5,7 @@ import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
+import type { Doc } from '@/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -351,7 +352,7 @@ export default function GenerateSchedulesDialog({
                     <SelectValue placeholder="Selecciona una clase" />
                   </SelectTrigger>
                   <SelectContent>
-                    {classes?.map((c) => (
+                    {classes?.map((c: Doc<'classes'>) => (
                       <SelectItem key={c._id} value={c._id}>
                         {c.name}
                       </SelectItem>

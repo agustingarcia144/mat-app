@@ -69,11 +69,11 @@ function SortableBlockColumn({
   return (
     <div
       ref={setRef}
-      className={`isolate flex flex-col justify-start items-stretch w-64 shrink-0 rounded-lg border bg-muted/30 overflow-hidden backface-hidden transform-[translateZ(0)] ${isDragging ? 'opacity-50' : ''} ${isDropTarget ? 'ring-2 ring-primary/50' : ''}`}
+      className={`isolate flex flex-col min-h-0 items-stretch w-48 shrink-0 rounded-lg border bg-muted/30 overflow-hidden backface-hidden transform-[translateZ(0)] ${isDragging ? 'opacity-50' : ''} ${isDropTarget ? 'ring-2 ring-primary/50' : ''}`}
     >
       <div
         ref={handleRef as (el: HTMLDivElement | null) => void}
-        className="flex items-center justify-center cursor-grab active:cursor-grabbing touch-none text-muted-foreground py-1 border-b border-border/50 rounded-t-lg bg-muted/50"
+        className="flex shrink-0 items-center justify-center cursor-grab active:cursor-grabbing touch-none text-muted-foreground py-1 border-b border-border/50 rounded-t-lg bg-muted/50"
         aria-hidden
       >
         <GripVertical className="h-4 w-4 rotate-90" />
@@ -104,7 +104,7 @@ function SortableExerciseRow({
   const handleNode = (
     <div
       ref={handleRef as (el: HTMLDivElement | null) => void}
-      className="flex items-center justify-center cursor-grab active:cursor-grabbing touch-none text-muted-foreground py-1.5 border-b border-border rounded-t-lg bg-muted/50"
+        className="flex items-center justify-center cursor-grab active:cursor-grabbing touch-none text-muted-foreground py-1 border-b border-border rounded-t-lg bg-muted/50"
       aria-hidden
     >
       <GripHorizontal className="h-3.5 w-3.5" />
@@ -132,7 +132,7 @@ function BlockExercisesDropZone({
   return (
     <div
       ref={ref as (el: HTMLDivElement | null) => void}
-      className={`rounded-md min-h-[60px] transition-colors ${isDropTarget ? 'ring-2 ring-primary/50 bg-primary/5' : ''}`}
+      className={`flex-1 min-h-0 flex flex-col rounded-md transition-colors overflow-hidden ${isDropTarget ? 'ring-2 ring-primary/50 bg-primary/5' : ''}`}
     >
       {children}
     </div>
@@ -153,7 +153,7 @@ export default function DayBlocksContent({
   const blocks = day?.blocks ?? []
 
   return (
-    <div className="flex items-start gap-4 overflow-x-auto pb-2 min-h-0">
+    <div className="flex items-stretch gap-3 overflow-x-auto pb-2 min-h-[320px]">
       {blocks.map((block, blockIndex) => {
         const blockExercises = (day.exercises || []).filter(
           (ex) =>
@@ -162,7 +162,7 @@ export default function DayBlocksContent({
         )
         const isSinBloque = block.id === SIN_BLOQUE_ID
         const blockHeaderContent = (
-          <div className="flex items-center gap-1.5 flex-1 min-w-0 p-2">
+          <div className="flex items-center gap-1.5 min-w-0 shrink-0 border-b border-border/50 p-1.5">
             <Controller
               name={`${blocksPath}.${blockIndex}.name` as any}
               control={form.control}
@@ -201,12 +201,12 @@ export default function DayBlocksContent({
         return (
           <React.Fragment key={block.id}>
             {isSinBloque ? (
-              <div className="flex flex-col justify-start items-stretch w-64 shrink-0 rounded-lg border bg-muted/30 overflow-hidden">
-                <div className="flex flex-col shrink-0">
+              <div className="flex flex-col min-h-0 items-stretch w-48 shrink-0 rounded-lg border bg-muted/30 overflow-hidden">
+                <div className="shrink-0">
                   {blockHeaderContent}
                 </div>
                 <BlockExercisesDropZone blockId={block.id}>
-                  <div className="flex flex-col gap-2 p-2 min-h-[200px]">
+                  <div className="flex flex-col gap-1.5 p-1.5 min-h-0 flex-1 overflow-y-auto">
                     {blockExercises.map((exercise) => {
                       const exerciseIndex = day.exercises?.findIndex(
                         (e) => e.id === exercise.id
@@ -243,7 +243,7 @@ export default function DayBlocksContent({
                 header={blockHeaderContent}
               >
                 <BlockExercisesDropZone blockId={block.id}>
-                  <div className="flex flex-col gap-2 p-2 min-h-[140px]">
+                  <div className="flex flex-col gap-1.5 p-1.5 min-h-0 flex-1 overflow-y-auto">
                     {blockExercises.map((exercise) => {
                       const exerciseIndex = day.exercises?.findIndex(
                         (e) => e.id === exercise.id

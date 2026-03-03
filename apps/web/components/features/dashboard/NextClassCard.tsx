@@ -9,7 +9,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Clock, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { type Id } from '@/convex/_generated/dataModel'
+import { type Doc, type Id } from '@/convex/_generated/dataModel'
 
 type Props = {
   onOpenDetail: (id: Id<'classSchedules'>) => void
@@ -39,16 +39,16 @@ export default function NextClassCard({ onOpenDetail }: Props) {
 
     return schedules
       .filter(
-        (s) =>
+        (s: Doc<'classSchedules'>) =>
           s.startTime >= now &&
           s.startTime <= next48hs &&
           s.status !== 'cancelled'
       )
-      .map((s) => ({
+      .map((s: Doc<'classSchedules'>) => ({
         ...s,
-        class: classes.find((c) => c._id === s.classId),
+        class: classes.find((c: Doc<'classes'>) => c._id === s.classId),
       }))
-      .sort((a, b) => a.startTime - b.startTime)
+      .sort((a: { startTime: number }, b: { startTime: number }) => a.startTime - b.startTime)
   }, [schedules, classes])
 
   useEffect(() => {

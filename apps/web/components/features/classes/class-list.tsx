@@ -42,7 +42,7 @@ export default function ClassList({ classes, onEditClass, onOpenGenerateTurnos }
 
   const trainersMap = useMemo(() => {
     const map = new Map<string, string>()
-    memberships?.forEach((m) => {
+    memberships?.forEach((m: { role: string; userId: string; fullName?: string; email?: string }) => {
       if (m.role === 'trainer') {
         map.set(m.userId, m.fullName || m.email || 'Entrenador')
       }

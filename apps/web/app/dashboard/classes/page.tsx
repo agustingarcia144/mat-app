@@ -34,7 +34,7 @@ import ClassList from '@/components/features/classes/class-list'
 import { Plus, Calendar, List, ChevronLeft, ChevronRight, CalendarPlus, Users } from 'lucide-react'
 import { startOfWeek, endOfWeek, addDays, format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { type Id } from '@/convex/_generated/dataModel'
+import { type Doc, type Id } from '@/convex/_generated/dataModel'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
 
 export default function ClassesPage() {
@@ -89,9 +89,9 @@ export default function ClassesPage() {
   const enrichedSchedules = useMemo(() => {
     if (!schedules || !classes) return []
 
-    return schedules.map((schedule) => ({
+    return schedules.map((schedule: Doc<'classSchedules'>) => ({
       ...schedule,
-      class: classes.find((c) => c._id === schedule.classId),
+      class: classes.find((c: Doc<'classes'>) => c._id === schedule.classId),
     }))
   }, [schedules, classes])
 

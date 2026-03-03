@@ -41,6 +41,13 @@ import { cn } from '@/lib/utils'
 import { type Id } from '@/convex/_generated/dataModel'
 import { toast } from 'sonner'
 
+type MembershipWithUser = {
+  role: string
+  userId: string
+  fullName?: string
+  email?: string
+}
+
 interface ClassFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -126,7 +133,7 @@ export default function ClassFormDialog({
     }
   }, [open, reset])
 
-  const trainers = memberships?.filter((m) => m.role === 'trainer') || []
+  const trainers = memberships?.filter((m: MembershipWithUser) => m.role === 'trainer') || []
 
   const onSubmit = async (data: ClassForm) => {
     setIsSubmitting(true)
@@ -222,7 +229,7 @@ export default function ClassFormDialog({
                       className="w-full justify-between"
                     >
                       {field.value
-                        ? trainers.find((t) => t.userId === field.value)
+                        ? trainers.find((t: MembershipWithUser) => t.userId === field.value)
                             ?.fullName || 'Seleccionar...'
                         : 'Seleccionar...'}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -250,7 +257,7 @@ export default function ClassFormDialog({
                             />
                             Ninguno
                           </CommandItem>
-                          {trainers.map((trainer) => (
+                          {trainers.map((trainer: MembershipWithUser) => (
                             <CommandItem
                               key={trainer.userId}
                               value={trainer.userId}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { api } from '@/convex/_generated/api'
+import { Doc } from '@/convex/_generated/dataModel'
 import { useQuery } from 'convex/react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getVideoThumbnailUrl } from '@repo/core/utils'
@@ -26,7 +27,7 @@ function formatTimeSeconds(seconds: number): string {
       : `${secs} s`
 }
 
-export default function WorkoutDayCard({ day }: { day: any }) {
+export default function WorkoutDayCard({ day }: { day: Doc<'workoutDays'> }) {
   const [videoDialogOpen, setVideoDialogOpen] = useState(false)
   const [selectedVideo, setSelectedVideo] = useState<{
     url: string
@@ -54,7 +55,7 @@ export default function WorkoutDayCard({ day }: { day: any }) {
     const byBlock = new Map<string, ExerciseType[]>()
     const unblocked: ExerciseType[] = []
 
-    dayExercises.forEach((ex) => {
+    dayExercises.forEach((ex: ExerciseType) => {
       if (ex.blockId) {
         const blockExercises = byBlock.get(ex.blockId) || []
         blockExercises.push(ex)
@@ -65,10 +66,10 @@ export default function WorkoutDayCard({ day }: { day: any }) {
     })
 
     // Sort exercises within each block by order
-    byBlock.forEach((exercises) => {
-      exercises.sort((a, b) => a.order - b.order)
+    byBlock.forEach((exercises: ExerciseType[]) => {
+      exercises.sort((a: ExerciseType, b: ExerciseType) => a.order - b.order)
     })
-    unblocked.sort((a, b) => a.order - b.order)
+    unblocked.sort((a: ExerciseType, b: ExerciseType) => a.order - b.order)
 
     return { exercisesByBlock: byBlock, unblockedExercises: unblocked }
   }, [dayExercises, blocks])
@@ -109,8 +110,8 @@ export default function WorkoutDayCard({ day }: { day: any }) {
         <div className="space-y-4">
           {/* Exercises grouped by blocks */}
           {blocks
-            .sort((a, b) => a.order - b.order)
-            .map((block) => {
+            .sort((a: { order: number }, b: { order: number }) => a.order - b.order)
+            .map((block: { _id: string; name: string }) => {
               const blockExercises = exercisesByBlock.get(block._id) || []
               if (blockExercises.length === 0) return null
 

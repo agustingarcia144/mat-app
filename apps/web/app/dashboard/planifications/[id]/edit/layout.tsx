@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useMemo, useEffect, useRef, useState, useCallback } from 'react'
+import type { Doc } from '@/convex/_generated/dataModel'
 import { useQuery, useMutation } from 'convex/react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/convex/_generated/api'
@@ -53,14 +54,14 @@ function EditFormShell({
   const fullWeeksData = useMemo(() => {
     if (!workoutWeeks || !workoutDays || !allExercises) return null
     const exercisesByDay: Record<string, any[]> = {}
-    allExercises.forEach((ex) => {
+    allExercises.forEach((ex: Doc<'dayExercises'> & { exercise?: { name: string } | null }) => {
       const dayId = ex.workoutDayId
       if (!exercisesByDay[dayId]) exercisesByDay[dayId] = []
       exercisesByDay[dayId].push(ex)
     })
-    const weeks = workoutWeeks.map((week) => {
-      const daysForWeek = workoutDays.filter((day) => day.weekId === week._id)
-      const daysWithExercises = daysForWeek.map((day) => {
+    const weeks = workoutWeeks.map((week: Doc<'workoutWeeks'>) => {
+      const daysForWeek = workoutDays.filter((day: Doc<'workoutDays'>) => day.weekId === week._id)
+      const daysWithExercises = daysForWeek.map((day: Doc<'workoutDays'>) => {
         const dayExercises = exercisesByDay[day._id] || []
         return {
           id: day._id,
@@ -68,7 +69,7 @@ function EditFormShell({
           order: day.order,
           dayOfWeek: day.dayOfWeek ?? 1,
           blocks: [] as any[],
-          exercises: dayExercises.map((ex) => ({
+          exercises: dayExercises.map((ex: Doc<'dayExercises'> & { exercise?: { name: string } | null }) => ({
             id: ex._id,
             exerciseId: ex.exerciseId,
             exerciseName: ex.exercise?.name || 'Unknown',
@@ -85,10 +86,10 @@ function EditFormShell({
         id: week._id,
         name: week.name,
         order: week.order,
-        workoutDays: daysWithExercises.sort((a, b) => a.order - b.order),
+        workoutDays: daysWithExercises.sort((a: { order: number }, b: { order: number }) => a.order - b.order),
       }
     })
-    return weeks.sort((a, b) => a.order - b.order)
+    return weeks.sort((a: { order: number }, b: { order: number }) => a.order - b.order)
   }, [workoutWeeks, workoutDays, allExercises])
 
   const [blocksByDay, setBlocksByDay] = useState<Map<string, any[]>>(new Map())

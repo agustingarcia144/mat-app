@@ -47,7 +47,7 @@ import {
   Users,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { type Id } from '@/convex/_generated/dataModel'
+import { type Doc, type Id } from '@/convex/_generated/dataModel'
 import ClassStatusBadge from '@/components/shared/badges/class-status-badge'
 import { toast } from 'sonner'
 
@@ -131,7 +131,7 @@ function ReservationRow({
     api.planificationAssignments.getByUser,
     reservation.userId ? { userId: reservation.userId } : 'skip'
   )
-  const assignment = assignments?.find((a) => a.status === 'active')
+  const assignment = assignments?.find((a: Doc<'planificationAssignments'> & { planification?: { _id: Id<'planifications'>; name: string } | null }) => a.status === 'active')
   const planStatus = assignment ? getPlanStatus(assignment) : null
   const showAssign = !assignment || planStatus?.status === 'expired'
 
@@ -281,16 +281,16 @@ export default function ScheduleDetailDialog({
       ? []
       : statusFilter === 'all'
         ? reservations
-        : reservations.filter((r) => r.status === statusFilter)
+        : reservations.filter((r: Doc<'classReservations'>) => r.status === statusFilter)
 
   const confirmedCount = reservations
-    ? reservations.filter((r) => r.status === 'confirmed').length
+    ? reservations.filter((r: Doc<'classReservations'>) => r.status === 'confirmed').length
     : 0
   const attendedCount = reservations
-    ? reservations.filter((r) => r.status === 'attended').length
+    ? reservations.filter((r: Doc<'classReservations'>) => r.status === 'attended').length
     : 0
   const noShowCount = reservations
-    ? reservations.filter((r) => r.status === 'no_show').length
+    ? reservations.filter((r: Doc<'classReservations'>) => r.status === 'no_show').length
     : 0
 
   const handleCheckIn = async (reservationId: Id<'classReservations'>) => {
@@ -522,7 +522,7 @@ export default function ScheduleDetailDialog({
                   </Empty>
                 ) : (
                   <div className="space-y-2">
-                    {filteredReservations.map((reservation) => (
+                    {filteredReservations.map((reservation: ReservationWithUser) => (
                       <ReservationRow
                         key={reservation._id}
                         reservation={reservation}

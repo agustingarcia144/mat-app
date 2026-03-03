@@ -143,8 +143,8 @@ export const getByOrganization = query({
 export const search = query({
   args: {
     searchTerm: v.string(),
-    category: v.optional(v.string()),
-    equipment: v.optional(v.string()),
+    category: v.optional(v.union(v.string(), v.array(v.string()))),
+    equipment: v.optional(v.union(v.string(), v.array(v.string()))),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx)
@@ -157,11 +157,30 @@ export const search = query({
       )
       .collect()
     // Filter by category if provided
-    if (args.category && args.category !== 'all') {
-      exercises = exercises.filter((e) => e.category === args.category)
+    const categories = args.category
+      ? Array.isArray(args.category)
+        ? args.category.filter((c) => c && c !== 'all')
+        : args.category !== 'all'
+          ? [args.category]
+          : []
+      : []
+    if (categories.length > 0) {
+      exercises = exercises.filter((e) =>
+        e.category ? categories.includes(e.category) : false
+      )
     }
-    if (args.equipment && args.equipment !== 'all') {
-      exercises = exercises.filter((e) => e.equipment === args.equipment)
+    // Filter by equipment if provided
+    const equipmentList = args.equipment
+      ? Array.isArray(args.equipment)
+        ? args.equipment.filter((eq) => eq && eq !== 'all')
+        : args.equipment !== 'all'
+          ? [args.equipment]
+          : []
+      : []
+    if (equipmentList.length > 0) {
+      exercises = exercises.filter((e) =>
+        e.equipment ? equipmentList.includes(e.equipment) : false
+      )
     }
     if (args.searchTerm) {
       const term = args.searchTerm.toLowerCase()

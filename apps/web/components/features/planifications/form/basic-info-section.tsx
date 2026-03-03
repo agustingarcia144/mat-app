@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Controller, UseFormReturn } from 'react-hook-form'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
+import { Doc } from '@/convex/_generated/dataModel'
 import { ChevronDown, ChevronUp, FolderOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -171,7 +172,7 @@ export default function BasicInfoSection({
                         className="flex-1 min-w-0 bg-muted"
                         value={
                           field.value
-                            ? (folders?.find((f) => f._id === field.value)
+                            ? (folders?.find((f: Doc<'folders'>) => f._id === field.value)
                                 ?.path ?? field.value)
                             : 'Sin carpeta'
                         }

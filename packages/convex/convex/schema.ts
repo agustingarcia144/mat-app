@@ -80,6 +80,24 @@ export default defineSchema({
     .index('by_organization_user', ['organizationId', 'userId'])
     .index('by_organization_role', ['organizationId', 'role']),
 
+  // Join requests (QR/deep link): user requested to join org; admin/trainer approves or rejects.
+  organizationJoinRequests: defineTable({
+    organizationId: v.id('organizations'),
+    userId: v.string(), // Clerk user ID
+    status: v.union(
+      v.literal('pending'),
+      v.literal('approved'),
+      v.literal('rejected')
+    ),
+    requestedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    resolvedBy: v.optional(v.string()), // Clerk user ID of admin/trainer who resolved
+    source: v.optional(v.string()), // e.g. 'qr'
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_status', ['organizationId', 'status'])
+    .index('by_organization_user', ['organizationId', 'userId']),
+
   // Clerk webhook processing ledger for idempotency, replay defense, and auditing.
   webhookEvents: defineTable({
     svixId: v.string(),

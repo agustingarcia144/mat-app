@@ -8,9 +8,11 @@ import { api } from '@repo/convex'
 import Providers from '@/components/providers/providers'
 import { Colors } from '@/constants/theme'
 import HeaderCloseButton from '@/components/ui/header-close-button'
+import { usePendingJoin } from '@/contexts/pending-join-context'
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useConvexAuth()
+  const { pendingToken, isLoading: pendingLoading } = usePendingJoin()
   const convexUser = useQuery(
     api.users.getCurrentUser,
     isAuthenticated ? {} : 'skip'
@@ -31,15 +33,27 @@ function RootLayoutNav() {
     const inOnboarding =
       segments[0] === 'onboarding' || segments[0] === 'onboarding-2'
     const inOrgSelection = segments[0] === 'select-organization'
+    const inJoinConfirm = segments[0] === 'join-gym-confirm'
     const inAuthPage =
       segments[0] === undefined ||
       segments[0] === 'sign-in' ||
       segments[0] === 'sign-up'
 
     if (!isAuthenticated) {
-      if (inAuthGroup || inModal || inOnboarding || inOrgSelection) {
+      if (inAuthGroup || inModal || inOnboarding || inOrgSelection || inJoinConfirm) {
         router.replace('/')
       }
+      return
+    }
+
+    // Deferred deep link: show join confirmation when we have a pending token
+    if (
+      !pendingLoading &&
+      pendingToken &&
+      !inJoinConfirm &&
+      !inAuthPage
+    ) {
+      router.replace('/join-gym-confirm')
       return
     }
 
@@ -54,7 +68,7 @@ function RootLayoutNav() {
 
     // Authenticated users must always have an active org before they can access app content.
     if (!hasActiveOrganization) {
-      if (!inOrgSelection) {
+      if (!inOrgSelection && !inJoinConfirm) {
         router.replace('/select-organization')
       }
       return
@@ -91,6 +105,8 @@ function RootLayoutNav() {
   }, [
     isAuthenticated,
     isLoading,
+    pendingToken,
+    pendingLoading,
     convexUser,
     currentMembership,
     segments,
@@ -109,6 +125,7 @@ function RootLayoutNav() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="onboarding-2" />
         <Stack.Screen name="select-organization" />
+        <Stack.Screen name="join-gym-confirm" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
           name="profile"

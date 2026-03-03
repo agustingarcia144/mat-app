@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import type { Id } from '@/convex/_generated/dataModel'
+import type { Doc, Id } from '@/convex/_generated/dataModel'
 import type { Member } from '@repo/core'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -92,12 +92,12 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
   if (!member) return null
 
-  const assignment = assignments?.find((a) => a.status === 'active')
+  const assignment = assignments?.find((a: Doc<'planificationAssignments'> & { planification?: { _id: Id<'planifications'> } | null }) => a.status === 'active')
 
   const initials =
     member.fullName
       ?.split(' ')
-      .map((n) => n[0])
+      .map((n: string) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2) ||
@@ -438,7 +438,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {fixedSlots.map((slot) => (
+                  {fixedSlots.map((slot: Doc<'fixedClassSlots'> & { className?: string | null }) => (
                     <li
                       key={slot._id}
                       className="flex items-center justify-between gap-2 text-sm py-1 border-b border-border/50 last:border-0"
@@ -486,7 +486,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                   <SelectValue placeholder="Seleccionar clase" />
                 </SelectTrigger>
                 <SelectContent>
-                  {classes?.map((c) => (
+                  {classes?.map((c: Doc<'classes'>) => (
                     <SelectItem key={c._id} value={c._id}>
                       {c.name}
                     </SelectItem>

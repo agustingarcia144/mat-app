@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import type { Id } from '@/convex/_generated/dataModel'
+import type { Doc, Id } from '@/convex/_generated/dataModel'
 import {
   Dialog,
   DialogContent,
@@ -155,7 +155,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las clases</SelectItem>
-                  {classes?.map((c) => (
+                  {classes?.map((c: Doc<'classes'>) => (
                     <SelectItem key={c._id} value={c._id}>
                       {c.name}
                     </SelectItem>
@@ -210,7 +210,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {fixedSlots.map((slot) => (
+                    {fixedSlots.map((slot: Doc<'fixedClassSlots'> & { className: string | null; userFullName: string }) => (
                       <tr
                         key={slot._id}
                         className="border-t border-border hover:bg-muted/30"
@@ -277,7 +277,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                   <SelectValue placeholder="Seleccionar clase" />
                 </SelectTrigger>
                 <SelectContent>
-                  {classes?.map((c) => (
+                  {classes?.map((c: Doc<'classes'>) => (
                     <SelectItem key={c._id} value={c._id}>
                       {c.name}
                     </SelectItem>
