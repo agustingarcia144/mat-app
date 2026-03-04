@@ -4,11 +4,15 @@ import { useQuery, useMutation } from 'convex/react'
 import type { Doc } from '@/convex/_generated/dataModel'
 import { api } from '@/convex/_generated/api'
 import { Plus, FileStack, FolderTree } from 'lucide-react'
-import { useState, useCallback, useSyncExternalStore } from 'react'
 import {
-  DragDropProvider,
-  useDragDropMonitor,
-} from '@dnd-kit/react'
+  useState,
+  useCallback,
+  useSyncExternalStore,
+  useEffect,
+  startTransition,
+} from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { DragDropProvider, useDragDropMonitor } from '@dnd-kit/react'
 import { toast } from 'sonner'
 import {
   parsePlanificationDragId,
@@ -85,8 +89,27 @@ export default function PlanificationsPage() {
   const isMobile = useIsMobile()
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [createDialogTemplateId, setCreateDialogTemplateId] = useState<
+    string | undefined
+  >(undefined)
+  const [createDialogTemplate, setCreateDialogTemplate] = useState<
+    { name: string; description?: string } | undefined
+  >(undefined)
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false)
   const [dialogFolderId, setDialogFolderId] = useState<string | undefined>()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  useEffect(() => {
+    const createFrom = searchParams.get('createFrom')
+    if (createFrom) {
+      startTransition(() => {
+        setCreateDialogTemplateId(createFrom)
+        setCreateDialogOpen(true)
+      })
+      router.replace('/dashboard/planifications', { scroll: false })
+    }
+  }, [searchParams, router])
   const listView = useSyncExternalStore(
     subscribeToListView,
     getStoredListView,
@@ -113,12 +136,19 @@ export default function PlanificationsPage() {
       if ((event as { canceled?: boolean })?.canceled) return
       const ev = event as {
         operation?: { source?: { id?: string }; target?: { id?: string } }
-        detail?: { operation?: { source?: { id?: string }; target?: { id?: string } } }
+        detail?: {
+          operation?: { source?: { id?: string }; target?: { id?: string } }
+        }
       }
-      const mgr = manager as {
-        dragOperation?: { source?: { id?: string }; target?: { id?: string } }
-        operation?: { source?: { id?: string }; target?: { id?: string } }
-      } | undefined
+      const mgr = manager as
+        | {
+            dragOperation?: {
+              source?: { id?: string }
+              target?: { id?: string }
+            }
+            operation?: { source?: { id?: string }; target?: { id?: string } }
+          }
+        | undefined
       const op =
         ev?.operation ??
         mgr?.dragOperation ??
@@ -161,18 +191,12 @@ export default function PlanificationsPage() {
         )
         const targetFolderId =
           targetId === FOLDER_ROOT_ID ? null : parseFolderDndId(targetId)
-        if (
-          targetFolderId != null &&
-          invalidTargets.has(targetFolderId)
-        )
-          return
+        if (targetFolderId != null && invalidTargets.has(targetFolderId)) return
         try {
           await moveFolder({
             id: sourceFolderId as any,
             newParentId:
-              targetId === FOLDER_ROOT_ID
-                ? undefined
-                : (targetFolderId as any),
+              targetId === FOLDER_ROOT_ID ? undefined : (targetFolderId as any),
           })
           toast.success('Carpeta movida')
         } catch {
@@ -184,13 +208,28 @@ export default function PlanificationsPage() {
   )
 
   const selectedFolderName = selectedFolderId
-    ? folders?.find((folder: Doc<'folders'>) => folder._id === selectedFolderId)?.name
+    ? folders?.find((folder: Doc<'folders'>) => folder._id === selectedFolderId)
+        ?.name
     : 'Todas'
+
+  const handleUseTemplate = useCallback(
+    (template: { _id: string; name: string; description?: string }) => {
+      setCreateDialogTemplateId(template._id)
+      setCreateDialogTemplate({
+        name: template.name,
+        description: template.description,
+      })
+      setCreateDialogOpen(true)
+      setTemplatesDialogOpen(false)
+    },
+    []
+  )
 
   const planificationsGrid = (
     <PlanificationList
       planifications={planifications || []}
       isLoading={planifications === undefined}
+      onUseTemplate={handleUseTemplate}
     />
   )
 
@@ -198,7 +237,7 @@ export default function PlanificationsPage() {
     listView === 'grid' ? (
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className='flex-1 min-h-0 p-4 pt-2 overflow-auto'>
+          <div className="flex-1 min-h-0 p-4 pt-2 overflow-auto">
             {planificationsGrid}
           </div>
         </ContextMenuTrigger>
@@ -214,10 +253,11 @@ export default function PlanificationsPage() {
         </ContextMenuContent>
       </ContextMenu>
     ) : (
-      <div className='flex-1 min-h-0 p-4 pt-2 overflow-auto'>
+      <div className="flex-1 min-h-0 p-4 pt-2 overflow-auto">
         <PlanificationListTable
           planifications={planifications || []}
           isLoading={planifications === undefined}
+          onUseTemplate={handleUseTemplate}
         />
       </div>
     )
@@ -230,59 +270,64 @@ export default function PlanificationsPage() {
           setCreateDialogOpen(open)
           if (!open) {
             setDialogFolderId(undefined)
+            setCreateDialogTemplateId(undefined)
+            setCreateDialogTemplate(undefined)
           }
         }}
         folderId={dialogFolderId}
+        templateId={createDialogTemplateId}
+        initialTemplate={createDialogTemplate}
       />
 
       <TemplatesDialog
         open={templatesDialogOpen}
         onOpenChange={setTemplatesDialogOpen}
+        onUseTemplate={handleUseTemplate}
       />
     </>
   )
 
   if (isMobile) {
     return (
-      <DashboardPageContainer className='space-y-4 py-4 md:py-6'>
-        <div className='space-y-1'>
-          <h1 className='text-2xl font-bold'>Planificaciones</h1>
-          <p className='text-sm text-muted-foreground'>
+      <DashboardPageContainer className="space-y-4 py-4 md:py-6">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold">Planificaciones</h1>
+          <p className="text-sm text-muted-foreground">
             Gestiona programas de entrenamiento
           </p>
         </div>
 
-        <div className='flex items-center gap-2'>
+        <div className="flex items-center gap-2">
           <ResponsiveActionButton
-            variant='outline'
+            variant="outline"
             onClick={() => setTemplatesDialogOpen(true)}
-            icon={<FileStack className='h-4 w-4' aria-hidden />}
-            label='Ver Plantillas'
-            tooltip='Ver Plantillas'
+            icon={<FileStack className="h-4 w-4" aria-hidden />}
+            label="Ver Plantillas"
+            tooltip="Ver Plantillas"
           />
           <ResponsiveActionButton
             onClick={() => {
               setDialogFolderId(undefined)
               setCreateDialogOpen(true)
             }}
-            icon={<Plus className='h-4 w-4' aria-hidden />}
-            label='Nueva planificación'
-            tooltip='Nueva planificación'
+            icon={<Plus className="h-4 w-4" aria-hidden />}
+            label="Nueva planificación"
+            tooltip="Nueva planificación"
           />
           <Sheet open={mobileFoldersOpen} onOpenChange={setMobileFoldersOpen}>
             <SheetTrigger asChild>
               <ResponsiveActionButton
-                variant='outline'
-                icon={<FolderTree className='h-4 w-4' aria-hidden />}
-                label='Carpetas'
-                tooltip='Seleccionar carpeta'
+                variant="outline"
+                icon={<FolderTree className="h-4 w-4" aria-hidden />}
+                label="Carpetas"
+                tooltip="Seleccionar carpeta"
               />
             </SheetTrigger>
-            <SheetContent side='right' className='w-full sm:max-w-md'>
+            <SheetContent side="right" className="w-full sm:max-w-md">
               <SheetHeader>
                 <SheetTitle>Carpetas</SheetTitle>
               </SheetHeader>
-              <div className='mt-4 overflow-y-auto'>
+              <div className="mt-4 overflow-y-auto">
                 <FolderTreeSidebar
                   folders={folders || []}
                   selectedId={selectedFolderId}
@@ -297,12 +342,12 @@ export default function PlanificationsPage() {
           </Sheet>
         </div>
 
-        <div className='rounded-lg border p-3'>
-          <p className='text-xs text-muted-foreground'>Carpeta activa</p>
-          <p className='truncate text-sm font-medium'>{selectedFolderName}</p>
+        <div className="rounded-lg border p-3">
+          <p className="text-xs text-muted-foreground">Carpeta activa</p>
+          <p className="truncate text-sm font-medium">{selectedFolderName}</p>
         </div>
 
-        <div className='rounded-lg border p-3'>{planificationsGrid}</div>
+        <div className="rounded-lg border p-3">{planificationsGrid}</div>
 
         {dialogs}
       </DashboardPageContainer>
@@ -310,30 +355,30 @@ export default function PlanificationsPage() {
   }
 
   return (
-    <DashboardPageContainer className='py-6'>
-      <div className='mb-6 flex items-center justify-between'>
+    <DashboardPageContainer className="py-6">
+      <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className='text-3xl font-bold'>Planificaciones</h1>
-          <p className='mt-1 text-muted-foreground'>
+          <h1 className="text-3xl font-bold">Planificaciones</h1>
+          <p className="mt-1 text-muted-foreground">
             Gestiona programas de entrenamiento
           </p>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className="flex items-center gap-2">
           <ResponsiveActionButton
             variant="outline"
             onClick={() => setTemplatesDialogOpen(true)}
-            icon={<FileStack className='h-4 w-4' aria-hidden />}
-            label='Ver Plantillas'
-            tooltip='Ver Plantillas'
+            icon={<FileStack className="h-4 w-4" aria-hidden />}
+            label="Ver Plantillas"
+            tooltip="Ver Plantillas"
           />
           <ResponsiveActionButton
             onClick={() => {
               setDialogFolderId(undefined)
               setCreateDialogOpen(true)
             }}
-            icon={<Plus className='h-4 w-4' aria-hidden />}
-            label='Nueva planificación'
-            tooltip='Nueva planificación'
+            icon={<Plus className="h-4 w-4" aria-hidden />}
+            label="Nueva planificación"
+            tooltip="Nueva planificación"
           />
         </div>
       </div>
@@ -342,41 +387,41 @@ export default function PlanificationsPage() {
 
       <DragDropProvider onDragEnd={handleDragEnd}>
         <PlanificationsDragEndMonitor onDragEnd={handleDragEnd}>
-        <ResizablePanelGroup
-          orientation="horizontal"
-          className="rounded-lg border"
-        >
-          <ResizablePanel defaultSize={25} className="p-4 bg-card">
-            <FolderTreeSidebar
-              folders={folders || []}
-              selectedId={selectedFolderId}
-              onSelect={setSelectedFolderId}
-              deletableFolderIds={deletableFolderIds ?? []}
-              enableDnd
-            />
-          </ResizablePanel>
-          <ResizableHandle />
-          <ResizablePanel defaultSize={75} className="relative">
-            <div className="absolute inset-0 flex flex-col">
-              <div className="shrink-0 flex justify-end p-4 pb-2 items-center gap-2">
-                <span className="text-sm text-muted-foreground">Vista:</span>
-                <Select
-                  value={listView}
-                  onValueChange={(v) => setListView(v as 'grid' | 'table')}
-                >
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue placeholder="Vista" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="grid">Cuadrícula</SelectItem>
-                    <SelectItem value="table">Tabla</SelectItem>
-                  </SelectContent>
-                </Select>
+          <ResizablePanelGroup
+            orientation="horizontal"
+            className="rounded-lg border min-h-[calc(100vh-320px)]"
+          >
+            <ResizablePanel defaultSize={25} className="p-4 bg-card">
+              <FolderTreeSidebar
+                folders={folders || []}
+                selectedId={selectedFolderId}
+                onSelect={setSelectedFolderId}
+                deletableFolderIds={deletableFolderIds ?? []}
+                enableDnd
+              />
+            </ResizablePanel>
+            <ResizableHandle />
+            <ResizablePanel defaultSize={75} className="relative">
+              <div className="absolute inset-0 flex flex-col">
+                <div className="shrink-0 flex justify-end p-4 pb-2 items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Vista:</span>
+                  <Select
+                    value={listView}
+                    onValueChange={(v) => setListView(v as 'grid' | 'table')}
+                  >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue placeholder="Vista" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="grid">Cuadrícula</SelectItem>
+                      <SelectItem value="table">Tabla</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {desktopListContent}
               </div>
-              {desktopListContent}
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+            </ResizablePanel>
+          </ResizablePanelGroup>
         </PlanificationsDragEndMonitor>
       </DragDropProvider>
     </DashboardPageContainer>

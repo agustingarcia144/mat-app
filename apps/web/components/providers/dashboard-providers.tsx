@@ -1,11 +1,14 @@
 import React from 'react'
 import { SidebarProvider } from '@/components/ui/sidebar'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 function DashboardProviders({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
-      {children}
-    </SidebarProvider>
+    <TooltipProvider>
+      <SidebarProvider>
+        {children}
+      </SidebarProvider>
+    </TooltipProvider>
   )
 }
 

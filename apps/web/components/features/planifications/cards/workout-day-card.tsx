@@ -16,6 +16,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 function formatTimeSeconds(seconds: number): string {
   const mins = Math.floor(seconds / 60)
@@ -27,7 +32,13 @@ function formatTimeSeconds(seconds: number): string {
       : `${secs} s`
 }
 
-export default function WorkoutDayCard({ day }: { day: Doc<'workoutDays'> }) {
+export default function WorkoutDayCard({
+  day,
+  compact = false,
+}: {
+  day: Doc<'workoutDays'>
+  compact?: boolean
+}) {
   const [videoDialogOpen, setVideoDialogOpen] = useState(false)
   const [selectedVideo, setSelectedVideo] = useState<{
     url: string
@@ -80,8 +91,14 @@ export default function WorkoutDayCard({ day }: { day: Doc<'workoutDays'> }) {
   }
 
   return (
-    <div className="border rounded-lg p-5 bg-background">
-      <h3 className="text-lg font-semibold mb-3">{day.name}</h3>
+    <div
+      className={`border rounded-lg bg-background min-w-0 overflow-hidden ${compact ? 'p-3' : 'p-5'}`}
+    >
+      <h3
+        className={`font-semibold mb-3 truncate ${compact ? 'text-sm' : 'text-lg'}`}
+      >
+        {day.name}
+      </h3>
 
       {dayExercises === undefined || blocks === undefined ? (
         <div className="space-y-2">
@@ -107,7 +124,7 @@ export default function WorkoutDayCard({ day }: { day: Doc<'workoutDays'> }) {
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="space-y-4">
+        <div className={compact ? 'space-y-2' : 'space-y-4'}>
           {/* Exercises grouped by blocks */}
           {blocks
             .sort((a: { order: number }, b: { order: number }) => a.order - b.order)
@@ -116,22 +133,95 @@ export default function WorkoutDayCard({ day }: { day: Doc<'workoutDays'> }) {
               if (blockExercises.length === 0) return null
 
               return (
-                <div key={block._id} className="space-y-2">
-                  <h4 className="text-sm font-semibold text-muted-foreground border-l-2 border-primary/30 pl-2">
+                <div key={block._id} className={compact ? 'space-y-1' : 'space-y-2'}>
+                  <h4
+                    className={`font-semibold text-muted-foreground border-l-2 border-primary/30 pl-2 truncate ${compact ? 'text-xs' : 'text-sm'}`}
+                  >
                     {block.name}
                   </h4>
-                  <div className="space-y-2 ml-2">
+                  <div className={compact ? 'space-y-1 ml-1' : 'space-y-2 ml-2'}>
                     {blockExercises.map((ex: ExerciseType, i) => {
                       const thumbnailUrl = ex.exercise?.videoUrl
                         ? getVideoThumbnailUrl(ex.exercise.videoUrl)
                         : null
 
+                      const setsRepsEl = (
+                        <div
+                          className={`flex items-center gap-1 ${compact ? 'text-xs' : 'text-sm'}`}
+                        >
+                          <span className="font-medium">{ex.sets}</span>
+                          <span className="text-muted-foreground">×</span>
+                          <span className="font-medium">{ex.reps}</span>
+                          {ex.weight && (
+                            <>
+                              <span className="text-muted-foreground">x</span>
+                              <span className="font-medium">{ex.weight}</span>
+                            </>
+                          )}
+                          {ex.timeSeconds != null && ex.timeSeconds > 0 && (
+                            <>
+                              <span className="text-muted-foreground">·</span>
+                              <span className="font-medium">
+                                {formatTimeSeconds(ex.timeSeconds)}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      )
+
+                      if (compact) {
+                        return (
+                          <div
+                            key={ex._id}
+                            className="flex flex-col gap-1.5 p-2 bg-muted/50 rounded-md min-w-0"
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-sm font-medium text-muted-foreground shrink-0">
+                                {i + 1}.
+                              </span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <p className="font-medium truncate text-sm min-w-0">
+                                    {ex.exercise?.name || 'Ejercicio eliminado'}
+                                  </p>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {ex.exercise?.name || 'Ejercicio eliminado'}
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  ex.exercise?.videoUrl &&
+                                  openVideoDialog(
+                                    ex.exercise.videoUrl,
+                                    ex.exercise?.name || 'Ejercicio'
+                                  )
+                                }
+                                className="relative shrink-0 w-10 h-10 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
+                              >
+                                <Image
+                                  src={thumbnailUrl ?? matWolfFallback}
+                                  alt={`Video de ${ex.exercise?.name || 'ejercicio'}`}
+                                  fill
+                                  className="object-cover"
+                                  sizes="40px"
+                                />
+                              </button>
+                              {setsRepsEl}
+                            </div>
+                          </div>
+                        )
+                      }
+
                       return (
                         <div
                           key={ex._id}
-                          className="flex items-center gap-4 p-3 bg-muted/50 rounded-md"
+                          className="flex items-center p-3 gap-4 bg-muted/50 rounded-md min-w-0"
                         >
-                          <span className="text-sm font-medium text-muted-foreground w-6 shrink-0">
+                          <span className="text-sm font-medium text-muted-foreground w-5 shrink-0">
                             {i + 1}.
                           </span>
                           <button
@@ -153,35 +243,24 @@ export default function WorkoutDayCard({ day }: { day: Doc<'workoutDays'> }) {
                               sizes="64px"
                             />
                           </button>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium">
-                              {ex.exercise?.name || 'Ejercicio eliminado'}
-                            </p>
+                          <div className="flex-1 min-w-0 overflow-hidden">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <p className="font-medium truncate text-sm">
+                                  {ex.exercise?.name || 'Ejercicio eliminado'}
+                                </p>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {ex.exercise?.name || 'Ejercicio eliminado'}
+                              </TooltipContent>
+                            </Tooltip>
                             {ex.exercise?.category && (
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-xs text-muted-foreground truncate">
                                 {ex.exercise.category}
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-sm shrink-0">
-                            <span className="font-medium">{ex.sets}</span>
-                            <span className="text-muted-foreground">×</span>
-                            <span className="font-medium">{ex.reps}</span>
-                            {ex.weight && (
-                              <>
-                                <span className="text-muted-foreground">x</span>
-                                <span className="font-medium">{ex.weight}</span>
-                              </>
-                            )}
-                            {ex.timeSeconds != null && ex.timeSeconds > 0 && (
-                              <>
-                                <span className="text-muted-foreground">·</span>
-                                <span className="font-medium">
-                                  {formatTimeSeconds(ex.timeSeconds)}
-                                </span>
-                              </>
-                            )}
-                          </div>
+                          <div className="shrink-0">{setsRepsEl}</div>
                         </div>
                       )
                     })}
@@ -192,22 +271,95 @@ export default function WorkoutDayCard({ day }: { day: Doc<'workoutDays'> }) {
 
           {/* Unblocked exercises */}
           {unblockedExercises.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">
+            <div className={compact ? 'space-y-1' : 'space-y-2'}>
+              <h4
+                className={`font-semibold text-muted-foreground ${compact ? 'text-xs' : 'text-sm'}`}
+              >
                 Sin bloque
               </h4>
-              <div className="space-y-2">
+              <div className={compact ? 'space-y-1' : 'space-y-2'}>
                 {unblockedExercises.map((ex, i) => {
                   const thumbnailUrl = ex.exercise?.videoUrl
                     ? getVideoThumbnailUrl(ex.exercise.videoUrl)
                     : null
 
+                  const setsRepsEl = (
+                    <div
+                      className={`flex items-center gap-1 ${compact ? 'text-xs' : 'text-sm'}`}
+                    >
+                      <span className="font-medium">{ex.sets}</span>
+                      <span className="text-muted-foreground">×</span>
+                      <span className="font-medium">{ex.reps}</span>
+                      {ex.weight && (
+                        <>
+                          <span className="text-muted-foreground">@</span>
+                          <span className="font-medium">{ex.weight}</span>
+                        </>
+                      )}
+                      {ex.timeSeconds != null && ex.timeSeconds > 0 && (
+                        <>
+                          <span className="text-muted-foreground">·</span>
+                          <span className="font-medium">
+                            {formatTimeSeconds(ex.timeSeconds)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )
+
+                  if (compact) {
+                    return (
+                      <div
+                        key={ex._id}
+                        className="flex flex-col gap-1.5 p-2 bg-muted/50 rounded-md min-w-0"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-sm font-medium text-muted-foreground shrink-0">
+                            {i + 1}.
+                          </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <p className="font-medium truncate text-sm min-w-0">
+                                {ex.exercise?.name || 'Ejercicio eliminado'}
+                              </p>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {ex.exercise?.name || 'Ejercicio eliminado'}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              ex.exercise?.videoUrl &&
+                              openVideoDialog(
+                                ex.exercise.videoUrl,
+                                ex.exercise?.name || 'Ejercicio'
+                              )
+                            }
+                            className="relative shrink-0 w-10 h-10 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
+                          >
+                            <Image
+                              src={thumbnailUrl ?? matWolfFallback}
+                              alt={`Video de ${ex.exercise?.name || 'ejercicio'}`}
+                              fill
+                              className="object-cover"
+                              sizes="40px"
+                            />
+                          </button>
+                          {setsRepsEl}
+                        </div>
+                      </div>
+                    )
+                  }
+
                   return (
                     <div
                       key={ex._id}
-                      className="flex items-center gap-4 p-3 bg-muted/50 rounded-md"
+                      className="flex items-center p-3 gap-4 bg-muted/50 rounded-md min-w-0"
                     >
-                      <span className="text-sm font-medium text-muted-foreground w-6 shrink-0">
+                      <span className="text-sm font-medium text-muted-foreground w-5 shrink-0">
                         {i + 1}.
                       </span>
                       <button
@@ -229,35 +381,24 @@ export default function WorkoutDayCard({ day }: { day: Doc<'workoutDays'> }) {
                           sizes="64px"
                         />
                       </button>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium">
-                          {ex.exercise?.name || 'Ejercicio eliminado'}
-                        </p>
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <p className="font-medium truncate text-sm">
+                              {ex.exercise?.name || 'Ejercicio eliminado'}
+                            </p>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {ex.exercise?.name || 'Ejercicio eliminado'}
+                          </TooltipContent>
+                        </Tooltip>
                         {ex.exercise?.category && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground truncate">
                             {ex.exercise.category}
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-sm shrink-0">
-                        <span className="font-medium">{ex.sets}</span>
-                        <span className="text-muted-foreground">×</span>
-                        <span className="font-medium">{ex.reps}</span>
-                        {ex.weight && (
-                          <>
-                            <span className="text-muted-foreground">@</span>
-                            <span className="font-medium">{ex.weight}</span>
-                          </>
-                        )}
-                        {ex.timeSeconds != null && ex.timeSeconds > 0 && (
-                          <>
-                            <span className="text-muted-foreground">·</span>
-                            <span className="font-medium">
-                              {formatTimeSeconds(ex.timeSeconds)}
-                            </span>
-                          </>
-                        )}
-                      </div>
+                      <div className="shrink-0">{setsRepsEl}</div>
                     </div>
                   )
                 })}

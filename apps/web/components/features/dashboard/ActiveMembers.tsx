@@ -6,6 +6,7 @@ import { api } from '@/convex/_generated/api'
 import StatsCard from './StatsCard'
 import { mapMembershipsToMembers } from '@repo/core/utils'
 import { Badge } from '@/components/ui/badge'
+import { CheckCircle } from 'lucide-react'
 
 export default function ActiveMembers() {
   const memberships = useQuery(
@@ -35,7 +36,8 @@ export default function ActiveMembers() {
       title="Miembros activos"
       value={activeCount}
       footer={
-        <Badge className="bg-green-500/20 text-green-400 border border-green-500/30">
+        <Badge variant="dark" className="gap-2">
+          <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
           Activos
         </Badge>
       }

@@ -17,14 +17,17 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import PlanificationListTable from '@/components/features/planifications/library/planification-list-table'
+import type { PlanificationData } from '@/components/features/planifications/library/planification-list'
 import matWolfLooking from '@/assets/mat-wolf-looking.png'
 
 export default function TemplatesDialog({
   open,
   onOpenChange,
+  onUseTemplate,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onUseTemplate?: (template: PlanificationData) => void
 }) {
   const templates = useQuery(api.planifications.getTemplates)
 
@@ -60,6 +63,7 @@ export default function TemplatesDialog({
             <PlanificationListTable
               planifications={templates}
               isLoading={false}
+              onUseTemplate={onUseTemplate}
             />
           )}
         </div>

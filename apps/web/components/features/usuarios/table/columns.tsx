@@ -4,7 +4,8 @@ import { ColumnDef } from '@tanstack/react-table'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
+import RoleBadge from '@/components/shared/badges/role-badge'
+import StatusBadge from '@/components/shared/badges/status-badge'
 import { useState } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { toast } from 'sonner'
@@ -23,16 +24,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { Member } from '@repo/core'
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: 'Admin',
-  trainer: 'Entrenador',
-  member: 'Miembro',
-}
-
-function getRoleLabel(role: string): string {
-  return ROLE_LABELS[role?.toLowerCase()] ?? role ?? '—'
-}
 
 function UserNameCell({ member }: { member: Member }) {
   const initials =
@@ -148,36 +139,16 @@ export const getColumns = (): ColumnDef<Member>[] => [
   {
     accessorKey: 'role',
     header: 'Rol',
-    cell: ({ row }) => {
-      const role = row.original.role?.toLowerCase()
-      const label = getRoleLabel(row.original.role ?? '')
-      const variant =
-        role === 'admin'
-          ? 'default'
-          : role === 'trainer'
-            ? 'secondary'
-            : 'outline'
-      return <Badge variant={variant}>{label}</Badge>
-    },
+    cell: ({ row }) => (
+      <RoleBadge role={row.original.role ?? ''} />
+    ),
   },
   {
     accessorKey: 'status',
     header: 'Estado',
-    cell: ({ row }) => {
-      const status = row.original.status?.toLowerCase()
-      const isActive = status === 'active'
-      return (
-        <Badge
-          className={
-            isActive
-              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-              : 'bg-red-500/20 text-red-400 border border-red-500/30'
-          }
-        >
-          {isActive ? 'Activo' : 'Inactivo'}
-        </Badge>
-      )
-    },
+    cell: ({ row }) => (
+      <StatusBadge status={row.original.status?.toLowerCase() ?? 'inactive'} />
+    ),
   },
   {
     accessorKey: 'createdAt',

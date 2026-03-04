@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
-import { ArrowLeft, BookOpen, Plus } from 'lucide-react'
+import { ArrowLeft, BookOpen, CalendarDays, Plus } from 'lucide-react'
 import { DragDropProvider } from '@dnd-kit/react'
 import { usePlanificationForm } from '@/contexts/planification-form-context'
 import {
@@ -37,6 +37,13 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import type { PlanificationForm } from '@repo/core/schemas'
 
@@ -232,10 +239,7 @@ function DayEditDndContent({
           name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.name`}
           control={form.control}
           render={({ field, fieldState }) => (
-            <Field
-              data-invalid={fieldState.invalid}
-              className="flex-1 min-w-0"
-            >
+            <Field data-invalid={fieldState.invalid} className="flex-1 min-w-0">
               <label className="text-sm font-medium mb-1.5 block">
                 Nombre del día
               </label>
@@ -245,9 +249,7 @@ function DayEditDndContent({
                 placeholder="Ej: Día 1, Piernas, etc."
                 className="h-10"
               />
-              {fieldState.invalid && (
-                <FieldError errors={[fieldState.error]} />
-              )}
+              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
           )}
         />
@@ -298,7 +300,10 @@ function DayEditDndContent({
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {contentArea}
             </div>
-            <Sheet open={librarySheetOpen} onOpenChange={onLibrarySheetOpenChange}>
+            <Sheet
+              open={librarySheetOpen}
+              onOpenChange={onLibrarySheetOpenChange}
+            >
               <SheetContent
                 side="right"
                 className="w-full sm:max-w-md overflow-hidden flex flex-col"
@@ -306,7 +311,8 @@ function DayEditDndContent({
                 <SheetHeader>
                   <SheetTitle>Biblioteca de ejercicios</SheetTitle>
                   <SheetDescription>
-                    Haz clic en un ejercicio para añadirlo al día. Luego puedes arrastrarlo entre bloques.
+                    Haz clic en un ejercicio para añadirlo al día. Luego puedes
+                    arrastrarlo entre bloques.
                   </SheetDescription>
                 </SheetHeader>
                 <div className="flex-1 min-h-0 flex flex-col mt-4 overflow-hidden">
@@ -510,6 +516,10 @@ export function DayEditPageContent({
   const backHref = `/dashboard/planifications/${planificationId}/edit`
   const isCompactLayout = !useMediaQuery(`(min-width: ${XL_BREAKPOINT}px)`)
   const [librarySheetOpen, setLibrarySheetOpen] = useState(false)
+  const [weekDaysDialogOpen, setWeekDaysDialogOpen] = useState(false)
+
+  const week = form.watch(`workoutWeeks.${weekIndex}`)
+  const weekDays = week?.workoutDays ?? []
 
   const handleBackClick = () => {
     if (!requestNavigation(backHref)) return
@@ -535,7 +545,7 @@ export function DayEditPageContent({
 
   return (
     <div className="w-full py-6">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 mr-6">
         <Button
           variant="ghost"
           size="sm"
@@ -546,6 +556,76 @@ export function DayEditPageContent({
           <ArrowLeft className="h-4 w-4" aria-hidden />
           <span className="sr-only md:not-sr-only">Volver</span>
         </Button>
+        <Dialog open={weekDaysDialogOpen} onOpenChange={setWeekDaysDialogOpen}>
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              aria-label="Ver ejercicios de otros días de la semana"
+            >
+              <CalendarDays className="h-4 w-4" aria-hidden />
+              <span className="sr-only md:not-sr-only">
+                Ver días de la semana
+              </span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>
+                Ejercicios por día
+                {week?.name && (
+                  <span className="font-normal text-muted-foreground">
+                    {' '}
+                    — {week.name}
+                  </span>
+                )}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground -mt-2">
+              Revisa qué ejercicios tienes planificados en cada día para evitar
+              repetirlos.
+            </p>
+            <div className="flex-1 overflow-y-auto min-h-0 space-y-4 py-2">
+              {weekDays.map((d, idx) => {
+                const exercises = d?.exercises ?? []
+                const isCurrentDay = idx === dayIndex
+                return (
+                  <div
+                    key={d?.id ?? idx}
+                    className={`rounded-lg border p-3 ${
+                      isCurrentDay ? 'border-primary bg-primary/5' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-medium">
+                        {d?.name || `Día ${idx + 1}`}
+                      </span>
+                      {isCurrentDay && (
+                        <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">
+                          Editando
+                        </span>
+                      )}
+                    </div>
+                    {exercises.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Sin ejercicios
+                      </p>
+                    ) : (
+                      <ul className="text-sm text-muted-foreground space-y-1">
+                        {exercises.map((ex, exIdx) => (
+                          <li key={ex?.id ?? exIdx}>
+                            • {ex?.exerciseName ?? 'Ejercicio'}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
       <div className="w-full p-3 md:p-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
         <div className="flex-1 min-h-0 flex flex-col">

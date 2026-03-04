@@ -5,7 +5,8 @@ import { useQueries, useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import StatsCard from './StatsCard'
 import { mapMembershipsToMembers } from '@repo/core/utils'
-import { Dumbbell } from 'lucide-react'
+import { Dumbbell, XCircle, AlertTriangle } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 function safeDate(value: any): Date | null {
   if (!value) return null
@@ -140,29 +141,29 @@ export default function PlanificationStatus() {
               )}
 
               {m.planStatus.status === 'expired' && (
-                <span className="text-red-500 font-medium">
+                <Badge variant="dark" className="gap-2">
+                  <XCircle className="h-4 w-4 text-red-500 shrink-0" />
                   Vencida
                   {m.planStatus.daysExpired !== null && (
-                    <span className="text-muted-foreground font-normal">
-                      {' '}
+                    <span className="font-normal text-zinc-400">
                       (hace {m.planStatus.daysExpired} día
                       {m.planStatus.daysExpired !== 1 && 's'})
                     </span>
                   )}
-                </span>
+                </Badge>
               )}
 
               {m.planStatus.status === 'expiring_soon' && (
-                <span className="text-yellow-500 font-medium">
-                  ⚠️ Por vencer
+                <Badge variant="dark" className="gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                  Por vencer
                   {m.planStatus.daysLeft !== null && (
-                    <span className="text-muted-foreground font-normal">
-                      {' '}
+                    <span className="font-normal text-zinc-400">
                       ({m.planStatus.daysLeft} día
                       {m.planStatus.daysLeft !== 1 && 's'})
                     </span>
                   )}
-                </span>
+                </Badge>
               )}
             </div>
           </div>

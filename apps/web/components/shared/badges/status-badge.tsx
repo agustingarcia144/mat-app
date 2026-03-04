@@ -1,5 +1,4 @@
 import { Badge } from '@/components/ui/badge'
-import React from 'react'
 import { CheckCircle, CircleX } from 'lucide-react'
 
 function StatusBadge({ status }: { status: string }) {
@@ -14,23 +13,26 @@ function StatusBadge({ status }: { status: string }) {
     }
   }
 
-  const getStatusIcon = (status: string) => {
+  const getVariant = (status: string): 'dark' | 'outline' => {
     switch (status) {
       case 'active':
-        return <CheckCircle className="w-4 h-4 text-green-500" />
       case 'inactive':
-        return <CircleX className="w-4 h-4 text-red-500" />
+        return 'dark'
       default:
-        return <CheckCircle className="w-4 h-4 text-gray-400" />
+        return 'outline'
     }
   }
 
+  const Icon = status === 'inactive' ? CircleX : CheckCircle
+  const iconColor =
+    status === 'inactive' ? 'text-red-500' : 'text-green-500'
+
   return (
     <Badge
-      variant="outline"
+      variant={getVariant(status)}
       className="flex items-center gap-2 px-2 rounded-full w-fit"
     >
-      {getStatusIcon(status)}
+      <Icon className={`h-4 w-4 shrink-0 ${iconColor}`} />
       {getStatusText(status)}
     </Badge>
   )

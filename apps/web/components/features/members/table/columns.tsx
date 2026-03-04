@@ -4,7 +4,7 @@ import { ColumnDef } from '@tanstack/react-table'
 import { Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
+import StatusBadge from '@/components/shared/badges/status-badge'
 import { useState } from 'react'
 import MemberDetailDialog from '@/components/features/members/table/member-detail-dialog'
 import type { Member } from '@repo/core'
@@ -78,25 +78,12 @@ export const getColumns = (): ColumnDef<Member>[] => [
   },
 
   {
-  accessorKey: 'status',
-  header: 'Estado',
-  cell: ({ row }) => {
-    const status = row.original.status?.toLowerCase()
-    const isActive = status === 'active'
-
-    return (
-      <Badge
-        className={
-          isActive
-            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-            : 'bg-red-500/20 text-red-400 border border-red-500/30'
-        }
-      >
-        {isActive ? 'Activo' : 'Inactivo'}
-      </Badge>
-    )
+    accessorKey: 'status',
+    header: 'Estado',
+    cell: ({ row }) => (
+      <StatusBadge status={row.original.status?.toLowerCase() ?? 'inactive'} />
+    ),
   },
-},
 
   {
     accessorKey: 'createdAt',

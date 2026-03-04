@@ -26,6 +26,7 @@ import {
   Copy,
   Trash2,
   MoreVertical,
+  FileStack,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -49,7 +50,17 @@ import DeletePlanificationDialog from '@/components/features/planifications/dial
 import AssignDialog from '@/components/features/planifications/assignments/assign-dialog'
 import AssignedMembersDialog from '@/components/features/planifications/assignments/assigned-members-dialog'
 import WorkoutWeekCard from '@/components/features/planifications/cards/workout-week-card'
+import WorkoutWeekHorizontalView from '@/components/features/planifications/cards/workout-week-horizontal-view'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
+
+type ViewMode = 'vertical' | 'horizontal'
 
 type AssignmentWithUser = Doc<'planificationAssignments'> & {
   user?: { fullName?: string; email?: string; imageUrl?: string } | null
@@ -67,6 +78,7 @@ export default function PlanificationViewPage({
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
     useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('vertical')
 
   const planification = useQuery(api.planifications.getById, {
     id: id as any,
@@ -115,15 +127,19 @@ export default function PlanificationViewPage({
       >
         <Link href="/dashboard/planifications">
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          <span className='sr-only md:not-sr-only'>Volver a planificaciones</span>
+          <span className="sr-only md:not-sr-only">
+            Volver a planificaciones
+          </span>
         </Link>
       </Button>
-      <div className="container mx-auto max-w-5xl px-3 py-6 md:px-0">
+      <div className={`container mx-auto px-3 py-6 md:px-0`}>
         <div className="mb-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <div className="mb-2 flex items-center gap-3">
-                <h1 className="text-2xl font-bold md:text-3xl">{planification.name}</h1>
+                <h1 className="text-2xl font-bold md:text-3xl">
+                  {planification.name}
+                </h1>
                 {planification.isTemplate && (
                   <Badge variant="secondary">Plantilla</Badge>
                 )}
@@ -143,42 +159,44 @@ export default function PlanificationViewPage({
                 assignments &&
                 assignments.length > 0 && (
                   <AvatarGroup>
-                    {assignments.slice(0, 3).map((assignment: AssignmentWithUser) => {
-                      const user = assignment.user
-                      const initials = user?.fullName
-                        ? user.fullName
-                            .split(' ')
-                            .map((n) => n[0])
-                            .join('')
-                            .toUpperCase()
-                            .slice(0, 2)
-                        : user?.email
-                          ? user.email[0].toUpperCase()
-                          : '?'
+                    {assignments
+                      .slice(0, 3)
+                      .map((assignment: AssignmentWithUser) => {
+                        const user = assignment.user
+                        const initials = user?.fullName
+                          ? user.fullName
+                              .split(' ')
+                              .map((n) => n[0])
+                              .join('')
+                              .toUpperCase()
+                              .slice(0, 2)
+                          : user?.email
+                            ? user.email[0].toUpperCase()
+                            : '?'
 
-                      return (
-                        <Tooltip key={assignment._id}>
-                          <TooltipTrigger asChild>
-                            <Avatar key={assignment._id} className="h-8 w-8">
-                              {user?.imageUrl && (
-                                <AvatarImage
-                                  src={user.imageUrl}
-                                  alt={user.fullName || user.email || 'User'}
-                                />
-                              )}
-                              <AvatarFallback className="text-xs">
-                                {initials}
-                              </AvatarFallback>
-                            </Avatar>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {user?.fullName ||
-                              user?.email ||
-                              'Usuario no encontrado'}
-                          </TooltipContent>
-                        </Tooltip>
-                      )
-                    })}
+                        return (
+                          <Tooltip key={assignment._id}>
+                            <TooltipTrigger asChild>
+                              <Avatar key={assignment._id} className="h-8 w-8">
+                                {user?.imageUrl && (
+                                  <AvatarImage
+                                    src={user.imageUrl}
+                                    alt={user.fullName || user.email || 'User'}
+                                  />
+                                )}
+                                <AvatarFallback className="text-xs">
+                                  {initials}
+                                </AvatarFallback>
+                              </Avatar>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {user?.fullName ||
+                                user?.email ||
+                                'Usuario no encontrado'}
+                            </TooltipContent>
+                          </Tooltip>
+                        )
+                      })}
                     {assignments.length > 3 && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -230,6 +248,18 @@ export default function PlanificationViewPage({
                     <Copy className="h-4 w-4 mr-2" />
                     Duplicar
                   </DropdownMenuItem>
+                  {planification.isTemplate && (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        router.push(
+                          `/dashboard/planifications?createFrom=${planification._id}`
+                        )
+                      }
+                    >
+                      <FileStack className="h-4 w-4 mr-2" />
+                      Usar Plantilla
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem
                     onClick={() => setDeleteDialogOpen(true)}
                     className="text-destructive"
@@ -289,9 +319,31 @@ export default function PlanificationViewPage({
               </EmptyHeader>
             </Empty>
           ) : (
-            workoutWeeks.map((week: Doc<'workoutWeeks'>) => (
-              <WorkoutWeekCard key={week._id} week={week} />
-            ))
+            <>
+              <div className="flex items-center justify-end">
+                <Select
+                  value={viewMode}
+                  onValueChange={(v) => setViewMode(v as ViewMode)}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Vista" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="vertical">Lista vertical</SelectItem>
+                    <SelectItem value="horizontal">
+                      Calendario horizontal
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {viewMode === 'vertical'
+                ? workoutWeeks.map((week: Doc<'workoutWeeks'>) => (
+                    <WorkoutWeekCard key={week._id} week={week} />
+                  ))
+                : workoutWeeks.map((week: Doc<'workoutWeeks'>) => (
+                    <WorkoutWeekHorizontalView key={week._id} week={week} />
+                  ))}
+            </>
           )}
         </div>
       </div>

@@ -15,24 +15,36 @@ function RoleBadge({ role }: { role: string }) {
     }
   }
 
-  const getRoleIcon = (role: string) => {
+  const getVariant = (role: string): 'dark' | 'outline' => {
     switch (role) {
       case 'admin':
-        return <UserRound className="w-4 h-4 text-green-500" />
       case 'trainer':
-        return <UserRound className="w-4 h-4 text-blue-500" />
       case 'member':
-        return <UserRound className="w-4 h-4 text-gray-500" />
+        return 'dark'
       default:
-        return <UserRound className="w-4 h-4 text-gray-400" />
+        return 'outline'
     }
   }
+
+  const getIconColor = (role: string): string => {
+    switch (role) {
+      case 'admin':
+        return 'text-green-500'
+      case 'trainer':
+        return 'text-blue-400'
+      case 'member':
+        return 'text-zinc-400'
+      default:
+        return 'text-zinc-400'
+    }
+  }
+
   return (
     <Badge
-      variant="outline"
+      variant={getVariant(role)}
       className="flex items-center gap-2 px-2 rounded-full w-fit"
     >
-      {getRoleIcon(role)}
+      <UserRound className={`h-4 w-4 shrink-0 ${getIconColor(role)}`} />
       {getRoleText(role)}
     </Badge>
   )

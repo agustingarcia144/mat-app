@@ -1,6 +1,5 @@
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, Clock, XCircle } from 'lucide-react'
-import React from 'react'
 
 type ClassStatus = 'scheduled' | 'cancelled' | 'completed'
 
@@ -18,24 +17,27 @@ function ClassStatusBadge({ status }: { status: ClassStatus }) {
     }
   }
 
-  const getStatusIcon = (status: ClassStatus) => {
+  const getVariant = (status: ClassStatus): 'success' | 'destructive' | 'warning' | 'outline' => {
     switch (status) {
       case 'scheduled':
-        return <Clock className="w-4 h-4 text-yellow-500" />
+        return 'warning'
       case 'cancelled':
-        return <XCircle className="w-4 h-4 text-red-500" />
+        return 'destructive'
       case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-500" />
+        return 'success'
       default:
-        return <Clock className="w-4 h-4 text-gray-400" />
+        return 'outline'
     }
   }
+
+  const Icon = status === 'scheduled' ? Clock : status === 'cancelled' ? XCircle : CheckCircle
+
   return (
     <Badge
-      variant="outline"
+      variant={getVariant(status)}
       className="flex items-center gap-2 px-2 rounded-full w-fit"
     >
-      {getStatusIcon(status)}
+      <Icon className="w-4 h-4 shrink-0" />
       {getStatusText(status)}
     </Badge>
   )

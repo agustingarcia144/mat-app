@@ -13,6 +13,7 @@ import MemberDetailDialog from '@/components/features/members/table/member-detai
 import { JoinRequestsCard } from '@/components/features/members/join-requests-card'
 import { Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import StatusBadge from '@/components/shared/badges/status-badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
@@ -109,15 +110,7 @@ export default function MembersPage() {
                         </p>
                       </div>
                     </div>
-                    <Badge
-                      className={
-                        isActive
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      }
-                    >
-                      {isActive ? 'Activo' : 'Inactivo'}
-                    </Badge>
+                    <StatusBadge status={isActive ? 'active' : 'inactive'} />
                   </div>
                 </button>
               )

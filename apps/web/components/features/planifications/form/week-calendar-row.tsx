@@ -20,7 +20,9 @@ import {
   useDragDropMonitor,
 } from '@dnd-kit/react'
 import { Button } from '@/components/ui/button'
-import DayBlocksContent from '@/components/features/planifications/form/day-blocks-content'
+import DayBlocksContent, {
+  SIN_BLOQUE_ID,
+} from '@/components/features/planifications/form/day-blocks-content'
 import { PlanificationForm } from '@repo/core/schemas'
 import {
   Tooltip,
@@ -237,27 +239,83 @@ function DayCardContent({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {blockCount} {blockCount === 1 ? 'bloque' : 'bloques'} · {exerciseCount}{' '}
-        {exerciseCount === 1 ? 'ejercicio' : 'ejercicios'}
-      </p>
-      {exerciseCount > 0 && (
-        <>
+      <div className="flex items-center gap-1">
+        <p className="text-xs text-muted-foreground">
+          {blockCount} {blockCount === 1 ? 'bloque' : 'bloques'} · {exerciseCount}{' '}
+          {exerciseCount === 1 ? 'ejercicio' : 'ejercicios'}
+        </p>
+        {exerciseCount > 0 && (
           <button
             type="button"
             onClick={() => onToggleExercisesVisible(fieldId)}
-            className="text-xs text-primary hover:underline text-left"
+            className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={exercisesVisible ? 'Ocultar ejercicios' : 'Ver ejercicios'}
           >
-            {exercisesVisible ? 'Ocultar ejercicios' : 'Ver ejercicios'}
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${exercisesVisible ? 'rotate-180' : ''}`}
+            />
           </button>
+        )}
+      </div>
+      {exerciseCount > 0 && (
+        <>
           {exercisesVisible && (
-            <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside max-h-24 overflow-y-auto">
-              {(day?.exercises ?? []).map((ex: any) => (
-                <li key={ex.id} className="truncate">
-                  {ex.exerciseName}
-                </li>
-              ))}
-            </ul>
+            <div className="text-xs text-muted-foreground space-y-1.5 max-h-24 overflow-y-auto">
+              {(() => {
+                const blocks = day?.blocks ?? []
+                const exercises = day?.exercises ?? []
+                const byBlockId = new Map<string | null, typeof exercises>()
+                for (const ex of exercises) {
+                  const key = ex.blockId ?? null
+                  const list = byBlockId.get(key) ?? []
+                  list.push(ex)
+                  byBlockId.set(key, list)
+                }
+                const groups: {
+                  id: string
+                  name: string
+                  exercises: typeof exercises
+                }[] = []
+                for (const block of blocks) {
+                  const blockExercises =
+                    block.id === SIN_BLOQUE_ID
+                      ? byBlockId.get(null) ?? []
+                      : byBlockId.get(block.id) ?? []
+                  if (blockExercises.length > 0) {
+                    groups.push({
+                      id: block.id,
+                      name: block.name,
+                      exercises: blockExercises,
+                    })
+                  }
+                }
+                const unblocked = byBlockId.get(null) ?? []
+                if (
+                  unblocked.length > 0 &&
+                  !blocks.some((b: { id: string }) => b.id === SIN_BLOQUE_ID)
+                ) {
+                  groups.push({
+                    id: 'sin-bloque',
+                    name: 'Sin bloque',
+                    exercises: unblocked,
+                  })
+                }
+                return groups.map((group) => (
+                  <div key={group.id}>
+                    <span className="font-medium text-foreground/80">
+                      {group.name}:
+                    </span>
+                    <ul className="ml-2 mt-0.5 space-y-0.5 list-disc list-inside">
+                      {group.exercises.map((ex: any) => (
+                        <li key={ex.id} className="truncate">
+                          {ex.exerciseName}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              })()}
+            </div>
           )}
         </>
       )}

@@ -46,12 +46,15 @@ export interface PlanificationData {
 interface PlanificationListProps {
   planifications: PlanificationData[]
   isLoading: boolean
+  onUseTemplate?: (template: PlanificationData) => void
 }
 
 function PlanificationCard({
   planification,
+  onUseTemplate,
 }: {
   planification: PlanificationData
+  onUseTemplate?: (template: PlanificationData) => void
 }) {
   const router = useRouter()
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
@@ -100,6 +103,14 @@ function PlanificationCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation()
+                  router.push(`/dashboard/planifications/${planification._id}`)
+                }}
+              >
+                Ver
+              </DropdownMenuItem>
               {!planification.isTemplate && (
                 <>
                   <DropdownMenuItem
@@ -138,6 +149,16 @@ function PlanificationCard({
               >
                 Duplicar
               </DropdownMenuItem>
+              {planification.isTemplate && onUseTemplate && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onUseTemplate(planification)
+                  }}
+                >
+                  Usar Plantilla
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation()
@@ -233,6 +254,7 @@ function PlanificationSkeleton() {
 export default function PlanificationList({
   planifications,
   isLoading,
+  onUseTemplate,
 }: PlanificationListProps) {
   if (isLoading) {
     return (
@@ -270,6 +292,7 @@ export default function PlanificationList({
         <PlanificationCard
           key={planification._id}
           planification={planification}
+          onUseTemplate={onUseTemplate}
         />
       ))}
     </div>

@@ -8,6 +8,22 @@ import { Platform } from 'react-native';
 const tintColorLight = '#000';
 const tintColorDark = '#fff';
 
+/** Semantic badge colors aligned with web design system */
+export const BadgeColors = {
+  success: {
+    light: { bg: '#dcfce7', text: '#166534' },
+    dark: { bg: 'rgba(34,197,94,0.22)', text: '#86efac' },
+  },
+  warning: {
+    light: { bg: '#ffedd5', text: '#c2410c' },
+    dark: { bg: 'rgba(234,88,12,0.22)', text: '#fdba74' },
+  },
+  destructive: {
+    light: { bg: '#fee2e2', text: '#991b1b' },
+    dark: { bg: 'rgba(239,68,68,0.22)', text: '#fca5a5' },
+  },
+} as const;
+
 export const Colors = {
   light: {
     text: '#11181C',

@@ -1,5 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import { BadgeColors } from '@/constants/theme'
 
 interface ReservationBadgeProps {
   isDark: boolean
@@ -10,35 +11,24 @@ export function ReservationBadge({
   isDark,
   status = 'confirmed',
 }: ReservationBadgeProps) {
-  const palette =
+  const colorPalette =
     status === 'attended'
-      ? {
-          bg: isDark ? 'rgba(34,197,94,0.22)' : '#dcfce7',
-          text: isDark ? '#86efac' : '#166534',
-          label: 'Asististe',
-        }
+      ? BadgeColors.success[isDark ? 'dark' : 'light']
       : status === 'no_show'
-        ? {
-            bg: isDark ? 'rgba(239,68,68,0.24)' : '#fee2e2',
-            text: isDark ? '#fca5a5' : '#b91c1c',
-            label: 'No show',
-          }
-        : {
-            bg: isDark ? 'rgba(234,88,12,0.2)' : '#ffedd5',
-            text: isDark ? '#fdba74' : '#c2410c',
-            label: 'Reservado',
-          }
+        ? BadgeColors.destructive[isDark ? 'dark' : 'light']
+        : BadgeColors.warning[isDark ? 'dark' : 'light']
+
+  const label =
+    status === 'attended' ? 'Asististe' : status === 'no_show' ? 'No show' : 'Reservado'
 
   return (
     <View
       style={[
         styles.badge,
-        {
-          backgroundColor: palette.bg,
-        },
+        { backgroundColor: colorPalette.bg },
       ]}
     >
-      <Text style={[styles.badgeText, { color: palette.text }]}>{palette.label}</Text>
+      <Text style={[styles.badgeText, { color: colorPalette.text }]}>{label}</Text>
     </View>
   )
 }

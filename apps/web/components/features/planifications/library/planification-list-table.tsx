@@ -45,12 +45,15 @@ import { cn } from '@/lib/utils'
 interface PlanificationListTableProps {
   planifications: PlanificationData[]
   isLoading: boolean
+  onUseTemplate?: (template: PlanificationData) => void
 }
 
 function PlanificationTableRow({
   planification,
+  onUseTemplate,
 }: {
   planification: PlanificationData
+  onUseTemplate?: (template: PlanificationData) => void
 }) {
   const router = useRouter()
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
@@ -136,6 +139,14 @@ function PlanificationTableRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation()
+                  router.push(`/dashboard/planifications/${planification._id}`)
+                }}
+              >
+                Ver
+              </DropdownMenuItem>
             {!planification.isTemplate && (
               <>
                 <DropdownMenuItem
@@ -172,6 +183,16 @@ function PlanificationTableRow({
               >
                 Duplicar
               </DropdownMenuItem>
+              {planification.isTemplate && onUseTemplate && (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onUseTemplate(planification)
+                  }}
+                >
+                  Usar Plantilla
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation()
@@ -245,6 +266,7 @@ function PlanificationTableSkeleton() {
 export default function PlanificationListTable({
   planifications,
   isLoading,
+  onUseTemplate,
 }: PlanificationListTableProps) {
   if (isLoading) {
     return (
@@ -306,6 +328,7 @@ export default function PlanificationListTable({
             <PlanificationTableRow
               key={planification._id}
               planification={planification}
+              onUseTemplate={onUseTemplate}
             />
           ))}
         </TableBody>

@@ -28,6 +28,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { FolderTree } from '@/components/features/planifications/folder-tree/folder-tree'
 
 interface BasicInfoSectionProps {
@@ -36,19 +43,71 @@ interface BasicInfoSectionProps {
   showCollapsibleIcon?: boolean
   /** When true, the Tipo (Planificación/Plantilla) field is disabled. Use for edit mode. */
   isEditMode?: boolean
+  /** When true, hide Tipo radio (create-from-template mode: always Planificación). */
+  createFromTemplate?: boolean
+  /** When true, show template selector for create flow. Always visible in create mode. */
+  showTemplateSelector?: boolean
+  /** Currently selected template id (for display). Controlled by parent. */
+  selectedTemplateId?: string
+  /** Called when user selects/changes template. templateId is '__none__' for "Ninguna", or template id. */
+  onTemplateChange?: (
+    templateId: string,
+    template?: { name: string; description?: string }
+  ) => void
 }
 
 export default function BasicInfoSection({
   form,
   showCollapsibleIcon = true,
   isEditMode = false,
+  createFromTemplate = false,
+  showTemplateSelector = false,
+  selectedTemplateId,
+  onTemplateChange,
 }: BasicInfoSectionProps) {
   const folders = useQuery(api.folders.getTree)
+  const templates = useQuery(api.planifications.getTemplates)
   const [folderPickerOpen, setFolderPickerOpen] = useState(false)
   const isTemplate = form.watch('isTemplate')
 
+  const handleTemplateSelect = (value: string) => {
+    if (value === '__none__') {
+      onTemplateChange?.('__none__', undefined)
+      return
+    }
+    const template = templates?.find((t) => t._id === value)
+    onTemplateChange?.(value, template ? { name: template.name, description: template.description } : undefined)
+  }
+
+  const templateSelectorNode =
+    showTemplateSelector && !isTemplate ? (
+      <Field>
+        <FieldLabel className="mb-2 block">Plantilla como base</FieldLabel>
+        <Select
+          value={selectedTemplateId ?? '__none__'}
+          onValueChange={handleTemplateSelect}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Ninguna (crear vacía)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">Ninguna (crear vacía)</SelectItem>
+            {(templates ?? []).map((t) => (
+              <SelectItem key={t._id} value={t._id}>
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <FieldDescription>
+          Opcional. Selecciona una plantilla para copiar su contenido.
+        </FieldDescription>
+      </Field>
+    ) : null
+
   const formContent = (
     <div className="space-y-4 pt-4 px-2">
+            {!createFromTemplate && (
             <Controller
               name="isTemplate"
               control={form.control}
@@ -112,6 +171,9 @@ export default function BasicInfoSection({
                 </Field>
               )}
             />
+            )}
+
+            {templateSelectorNode}
 
             <Controller
               name="name"

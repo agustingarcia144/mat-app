@@ -1,5 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import { BadgeColors } from '@/constants/theme'
 
 interface OccupancyBadgeProps {
   /** Number of spots left (capacity - currentReservations) */
@@ -30,35 +31,16 @@ export function OccupancyBadge({ spotsLeft, isDark }: OccupancyBadgeProps) {
   const state = getBadgeState(spotsLeft)
   const label = getLabel(spotsLeft, state)
 
-  const backgroundColor =
+  const palette =
     state === 'available'
-      ? isDark
-        ? 'rgba(34,197,94,0.2)'
-        : '#dcfce7'
+      ? BadgeColors.success[isDark ? 'dark' : 'light']
       : state === 'last'
-        ? isDark
-          ? 'rgba(234,88,12,0.2)'
-          : '#ffedd5'
-        : isDark
-          ? 'rgba(185,28,28,0.2)'
-          : '#fee2e2'
-
-  const textColor =
-    state === 'available'
-      ? isDark
-        ? '#86efac'
-        : '#166534'
-      : state === 'last'
-        ? isDark
-          ? '#fdba74'
-          : '#c2410c'
-        : isDark
-          ? '#fca5a5'
-          : '#991b1b'
+        ? BadgeColors.warning[isDark ? 'dark' : 'light']
+        : BadgeColors.destructive[isDark ? 'dark' : 'light']
 
   return (
-    <View style={[styles.badge, { backgroundColor }]}>
-      <Text style={[styles.badgeText, { color: textColor }]} numberOfLines={1}>
+    <View style={[styles.badge, { backgroundColor: palette.bg }]}>
+      <Text style={[styles.badgeText, { color: palette.text }]} numberOfLines={1}>
         {label}
       </Text>
     </View>

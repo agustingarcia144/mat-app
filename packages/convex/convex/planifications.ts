@@ -452,6 +452,159 @@ export const duplicate = mutation({
 })
 
 /**
+ * Create a new planification from a template (copies full content, creates planification not template)
+ */
+export const createFromTemplate = mutation({
+  args: {
+    templateId: v.id('planifications'),
+    name: v.string(),
+    description: v.optional(v.string()),
+    folderId: v.optional(v.id('folders')),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx)
+
+    const template = await ctx.db.get(args.templateId)
+    if (!template) {
+      throw new Error('Plantilla no encontrada')
+    }
+    if (!template.isTemplate) {
+      throw new Error('Solo se pueden usar plantillas como base')
+    }
+
+    await requireAdminOrTrainer(ctx, template.organizationId)
+
+    const now = Date.now()
+
+    const newPlanificationId = await ctx.db.insert('planifications', {
+      organizationId: template.organizationId,
+      name: args.name,
+      description: args.description ?? template.description,
+      folderId: args.folderId,
+      isTemplate: false,
+      hasEverBeenAssigned: false,
+      createdBy: identity.subject,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const revisionId = await ctx.db.insert('planificationRevisions', {
+      planificationId: newPlanificationId,
+      revisionNumber: 1,
+      name: args.name,
+      description: args.description ?? template.description,
+      createdBy: identity.subject,
+      supersedesRevisionId: undefined,
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await ctx.db.patch(newPlanificationId, {
+      currentRevisionId: revisionId,
+      updatedAt: now,
+    })
+
+    const sourceRevisionId = await resolveRevisionIdForPlanification(
+      ctx,
+      args.templateId
+    )
+
+    let workoutWeeks = await ctx.db
+      .query('workoutWeeks')
+      .withIndex('by_planification_revision', (q) =>
+        q
+          .eq('planificationId', args.templateId)
+          .eq('revisionId', sourceRevisionId)
+      )
+      .collect()
+    if (workoutWeeks.length === 0) {
+      workoutWeeks = await ctx.db
+        .query('workoutWeeks')
+        .withIndex('by_planification', (q) =>
+          q.eq('planificationId', args.templateId)
+        )
+        .collect()
+    }
+
+    for (const week of workoutWeeks) {
+      const newWeekId = await ctx.db.insert('workoutWeeks', {
+        planificationId: newPlanificationId,
+        revisionId,
+        name: week.name,
+        order: week.order,
+        notes: week.notes,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const workoutDays = await ctx.db
+        .query('workoutDays')
+        .withIndex('by_week', (q) => q.eq('weekId', week._id))
+        .collect()
+
+      for (const day of workoutDays) {
+        const newDayId = await ctx.db.insert('workoutDays', {
+          weekId: newWeekId,
+          planificationId: newPlanificationId,
+          revisionId,
+          name: day.name,
+          order: day.order,
+          dayOfWeek: day.dayOfWeek,
+          notes: day.notes,
+          createdAt: now,
+          updatedAt: now,
+        })
+
+        const blocks = await ctx.db
+          .query('exerciseBlocks')
+          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
+          .collect()
+        const oldBlockIdToNew = new Map<Id<'exerciseBlocks'>, Id<'exerciseBlocks'>>()
+        for (const block of blocks) {
+          const newBlockId = await ctx.db.insert('exerciseBlocks', {
+            workoutDayId: newDayId,
+            revisionId,
+            name: block.name,
+            order: block.order,
+            notes: block.notes,
+            createdAt: now,
+            updatedAt: now,
+          })
+          oldBlockIdToNew.set(block._id, newBlockId)
+        }
+
+        const dayExercises = await ctx.db
+          .query('dayExercises')
+          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
+          .collect()
+
+        for (const exercise of dayExercises) {
+          const newBlockId = exercise.blockId
+            ? oldBlockIdToNew.get(exercise.blockId)
+            : undefined
+          await ctx.db.insert('dayExercises', {
+            workoutDayId: newDayId,
+            revisionId,
+            exerciseId: exercise.exerciseId,
+            blockId: newBlockId,
+            order: exercise.order,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            weight: exercise.weight,
+            timeSeconds: exercise.timeSeconds,
+            notes: exercise.notes,
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
+      }
+    }
+
+    return newPlanificationId
+  },
+})
+
+/**
  * Get planification by ID
  */
 export const getById = query({

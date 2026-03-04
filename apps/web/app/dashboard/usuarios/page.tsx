@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import MemberDetailDialog from '@/components/features/members/table/member-detail-dialog'
 import { Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import StatusBadge from '@/components/shared/badges/status-badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
@@ -126,15 +127,7 @@ export default function UsuariosPage() {
                         <Badge variant="outline" className="text-xs">
                           {roleLabel}
                         </Badge>
-                        <Badge
-                          className={
-                            isActive
-                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                              : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          }
-                        >
-                          {isActive ? 'Activo' : 'Inactivo'}
-                        </Badge>
+                        <StatusBadge status={isActive ? 'active' : 'inactive'} />
                       </div>
                     </div>
                   </div>

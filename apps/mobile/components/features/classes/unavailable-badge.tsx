@@ -1,6 +1,7 @@
 import { IconSymbol } from '@/components/ui/icon-symbol'
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import { BadgeColors } from '@/constants/theme'
 
 interface UnavailableBadgeProps {
   isDark: boolean
@@ -11,25 +12,23 @@ export function UnavailableBadge({
   isDark,
   showIcon = true,
 }: UnavailableBadgeProps) {
+  const palette = BadgeColors.destructive[isDark ? 'dark' : 'light']
+
   return (
     <View
       style={[
         styles.badge,
-        {
-          backgroundColor: isDark ? 'rgba(239,68,68,0.2)' : '#fee2e2',
-        },
+        { backgroundColor: palette.bg },
       ]}
     >
       {showIcon && (
         <IconSymbol
           name="lock.fill"
           size={14}
-          color={isDark ? '#fca5a5' : '#991b1b'}
+          color={palette.text}
         />
       )}
-      <Text
-        style={[styles.badgeText, { color: isDark ? '#fca5a5' : '#991b1b' }]}
-      >
+      <Text style={[styles.badgeText, { color: palette.text }]}>
         No Disponible
       </Text>
     </View>

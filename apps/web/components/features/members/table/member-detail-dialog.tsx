@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import StatusBadge from '@/components/shared/badges/status-badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useQuery, useMutation } from 'convex/react'
@@ -249,22 +250,13 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
             <div>
               <p className="text-muted-foreground">Estado</p>
 
-              {(() => {
-                const status = member.status?.toLowerCase()
-                const isActive = status === 'active' || status === 'activo'
-
-                return (
-                  <Badge
-                    className={
-                      isActive
-                        ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                        : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                    }
-                  >
-                    {isActive ? 'Activo' : 'Inactivo'}
-                  </Badge>
-                )
-              })()}
+              <StatusBadge
+                status={
+                  member.status?.toLowerCase() === 'activo'
+                    ? 'active'
+                    : member.status?.toLowerCase() ?? 'inactive'
+                }
+              />
             </div>
 
             <div>
@@ -365,7 +357,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
                     {planStatus.status === 'active' && (
                       <>
-                        <Badge className="bg-green-600">Activa</Badge>
+                        <Badge variant="success">Activa</Badge>
 
                         {planStatus.daysLeft !== null && (
                           <Badge variant="secondary">
@@ -377,7 +369,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                     )}
 
                     {planStatus.status === 'expiring_soon' && (
-                      <Badge className="bg-yellow-500 text-black">
+                      <Badge variant="warning">
                         ⚠️ Próxima a vencer ({planStatus.daysLeft} día
                         {planStatus.daysLeft !== 1 && 's'})
                       </Badge>
