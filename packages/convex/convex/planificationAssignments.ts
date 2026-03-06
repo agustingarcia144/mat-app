@@ -229,6 +229,37 @@ export const getByPlanification = query({
 })
 
 /**
+ * Check if the current user's organization uses planifications:
+ * at least one non-template planification and at least one active assignment to a member.
+ */
+export const organizationUsesPlanifications = query({
+  args: {},
+  handler: async (ctx) => {
+    const { organizationId } = await requireActiveOrgContext(ctx)
+
+    const planification = await ctx.db
+      .query('planifications')
+      .withIndex('by_organization_isTemplate', (q) =>
+        q.eq('organizationId', organizationId).eq('isTemplate', false)
+      )
+      .filter((q) => q.neq(q.field('isArchived'), true))
+      .first()
+
+    if (!planification) return false
+
+    const assignment = await ctx.db
+      .query('planificationAssignments')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', organizationId)
+      )
+      .filter((q) => q.eq(q.field('status'), 'active'))
+      .first()
+
+    return assignment != null
+  },
+})
+
+/**
  * Get all assignments for an organization
  */
 export const getByOrganization = query({

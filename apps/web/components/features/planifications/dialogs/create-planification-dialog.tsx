@@ -142,7 +142,7 @@ export default function CreatePlanificationDialog({
         if (!o) setSelectedTemplateId(undefined)
       }}
     >
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nueva planificación</DialogTitle>
         </DialogHeader>

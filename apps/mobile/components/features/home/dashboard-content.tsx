@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   Image,
+  Platform,
   useWindowDimensions,
   ActivityIndicator,
 } from 'react-native'
@@ -19,7 +20,7 @@ import { ThemedText } from '@/components/ui/themed-text'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
 import { format, getISODay, startOfWeek, endOfWeek } from 'date-fns'
 import { CalendarWeekView } from '@/components/features/home/calendar-week-view'
-import { NoActivePlanificationPlaceholder } from '@/components/features/home/no-active-planification-placeholder'
+import { NoActivePlanAlert } from '@/components/features/home/no-active-plan-alert'
 import { ReservedClassesForDay } from '@/components/features/home/reserved-classes-for-day'
 import { RestDayPlaceholder } from '@/components/features/home/rest-day-placeholder'
 import { ScheduledWorkoutCard } from '@/components/features/home/scheduled-workout-card'
@@ -46,6 +47,19 @@ export default function DashboardContent() {
     () => assignments?.find((a) => a.status === 'active'),
     [assignments]
   )
+
+  const organizationUsesPlanifications = useQuery(
+    api.planificationAssignments.organizationUsesPlanifications,
+    user?.id ? {} : 'skip'
+  )
+
+  const showNoActivePlanAlert =
+    !activeAssignment && organizationUsesPlanifications === true
+
+  const tabBarHeight = Platform.OS === 'ios' ? 49 : 56
+  const alertTabGap = 12
+  const alertBottomOffset = insets.bottom + tabBarHeight + alertTabGap
+  const alertHeight = 110
 
   const { monday, sunday } = useMemo(
     () => ({
@@ -275,7 +289,17 @@ export default function DashboardContent() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={[styles.content, { paddingTop: insets.top + 24 }]}>
+      <View
+        style={[
+          styles.content,
+          {
+            paddingTop: insets.top + 24,
+            paddingBottom: showNoActivePlanAlert
+              ? alertHeight + alertBottomOffset
+              : 24,
+          },
+        ]}
+      >
         <View style={styles.headerRow}>
           <ThemedText type="title" style={styles.welcome}>
             ¡Hola, {user?.firstName || user?.emailAddresses[0]?.emailAddress}!
@@ -374,17 +398,24 @@ export default function DashboardContent() {
               {reservedClassesItems.length === 0 &&
                 workoutDayToDisplay === null &&
                 sessionForSelected === null && <RestDayPlaceholder />}
-              {!activeAssignment && (
-                <NoActivePlanificationPlaceholder
-                  onPress={() => router.push('/planifications' as Href)}
-                  isDark={isDark}
-                  compact
-                />
-              )}
             </>
           )}
         </ScrollView>
       </View>
+      {showNoActivePlanAlert && (
+        <View
+          style={[
+            styles.alertOverlay,
+            { bottom: alertBottomOffset },
+          ]}
+          pointerEvents="box-none"
+        >
+          <NoActivePlanAlert
+            onPress={() => router.push('/planifications' as Href)}
+            isDark={isDark}
+          />
+        </View>
+      )}
     </ThemedView>
   )
 }
@@ -392,6 +423,11 @@ export default function DashboardContent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  alertOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   centered: {
     justifyContent: 'center',
