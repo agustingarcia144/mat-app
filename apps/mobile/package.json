@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
+    "postinstall": "cd ../.. && pnpm --filter @repo/core build",
     "dev": "expo start",
     "start": "expo start",
     "android": "expo run:android",

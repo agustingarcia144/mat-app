@@ -8,6 +8,9 @@ const config = getDefaultConfig(__dirname)
 const projectRoot = __dirname
 const monorepoRoot = path.resolve(projectRoot, '../..')
 
+// Enable package exports resolution (required for @repo/core/utils subpath imports)
+config.resolver.unstable_enablePackageExports = true
+
 // Exclude packages/*/node_modules to fix TreeFS "already exists in file map" conflict
 config.resolver.blockList = [
   /packages[\\/][^\\/]+[\\/]node_modules[/\\]/,

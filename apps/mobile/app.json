@@ -16,7 +16,9 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "icon": "./assets/app.icon",
-      "associatedDomains": ["applinks:mat-app-web.vercel.app"]
+      "associatedDomains": [
+        "applinks:mat-app-web.vercel.app"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -37,7 +39,10 @@
               "pathPrefix": "/join"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -68,7 +73,10 @@
       "reactCompiler": true
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "6989a53a-345c-43a7-9a11-74e15d9901bf"
+      }
     }
   }
 }
