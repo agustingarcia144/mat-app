@@ -40,6 +40,7 @@ import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type Id } from '@/convex/_generated/dataModel'
 import { toast } from 'sonner'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 type MembershipWithUser = {
   role: string
@@ -63,12 +64,14 @@ export default function ClassFormDialog({
 }: ClassFormDialogProps) {
   const createClass = useMutation(api.classes.create)
   const updateClass = useMutation(api.classes.update)
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
-    api.organizationMemberships.getOrganizationMemberships
+    api.organizationMemberships.getOrganizationMemberships,
+    open && canQueryCurrentOrganization ? {} : 'skip'
   )
   const existingClass = useQuery(
     api.classes.getById,
-    classId ? { id: classId } : 'skip'
+    open && classId && canQueryCurrentOrganization ? { id: classId } : 'skip'
   )
 
   const [isSubmitting, setIsSubmitting] = useState(false)

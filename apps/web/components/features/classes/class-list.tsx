@@ -19,6 +19,7 @@ import {
   type ClassRow,
 } from './class-list-columns'
 import { toast } from 'sonner'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 interface ClassListProps {
   classes: ClassRow[]
@@ -29,8 +30,10 @@ interface ClassListProps {
 export default function ClassList({ classes, onEditClass, onOpenGenerateTurnos }: ClassListProps) {
   const removeClass = useMutation(api.classes.remove)
   const updateClass = useMutation(api.classes.update)
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
-    api.organizationMemberships.getOrganizationMemberships
+    api.organizationMemberships.getOrganizationMemberships,
+    canQueryCurrentOrganization ? {} : 'skip'
   )
 
   const [deletingId, setDeletingId] = useState<Id<'classes'> | null>(null)

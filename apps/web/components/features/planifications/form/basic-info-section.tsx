@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { FolderTree } from '@/components/features/planifications/folder-tree/folder-tree'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 interface BasicInfoSectionProps {
   form: UseFormReturn<any>
@@ -65,8 +66,15 @@ export default function BasicInfoSection({
   selectedTemplateId,
   onTemplateChange,
 }: BasicInfoSectionProps) {
-  const folders = useQuery(api.folders.getTree)
-  const templates = useQuery(api.planifications.getTemplates)
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
+  const folders = useQuery(
+    api.folders.getTree,
+    canQueryCurrentOrganization ? {} : 'skip'
+  )
+  const templates = useQuery(
+    api.planifications.getTemplates,
+    canQueryCurrentOrganization ? {} : 'skip'
+  )
   const [folderPickerOpen, setFolderPickerOpen] = useState(false)
   const isTemplate = form.watch('isTemplate')
 

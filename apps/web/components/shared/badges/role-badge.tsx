@@ -1,47 +1,30 @@
 import { Badge } from '@/components/ui/badge'
 import { UserRound } from 'lucide-react'
+import { getOrgRoleLabel } from '@/lib/security/roles'
 
 function RoleBadge({ role }: { role: string }) {
   const getRoleText = (role: string): string => {
-    switch (role) {
-      case 'admin':
-        return 'Administrador'
-      case 'trainer':
-        return 'Entrenador'
-      case 'member':
-        return 'Miembro'
-      default:
-        return role.charAt(0).toUpperCase() + role.slice(1)
-    }
+    return getOrgRoleLabel(role)
   }
 
-  const getVariant = (role: string): 'dark' | 'outline' => {
-    switch (role) {
-      case 'admin':
-      case 'trainer':
-      case 'member':
-        return 'dark'
-      default:
-        return 'outline'
-    }
-  }
+  const getVariant = (): 'dark' | 'outline' => 'outline'
 
   const getIconColor = (role: string): string => {
-    switch (role) {
-      case 'admin':
-        return 'text-green-500'
-      case 'trainer':
-        return 'text-blue-400'
-      case 'member':
-        return 'text-zinc-400'
-      default:
-        return 'text-zinc-400'
+    const normalized = role.toLowerCase()
+    if (normalized.includes('admin')) return 'text-green-500'
+    if (
+      normalized.includes('trainer') ||
+      normalized.includes('teacher') ||
+      normalized.includes('instructor')
+    ) {
+      return 'text-blue-400'
     }
+    return 'text-zinc-400'
   }
 
   return (
     <Badge
-      variant={getVariant(role)}
+      variant={getVariant()}
       className="flex items-center gap-2 px-2 rounded-full w-fit"
     >
       <UserRound className={`h-4 w-4 shrink-0 ${getIconColor(role)}`} />

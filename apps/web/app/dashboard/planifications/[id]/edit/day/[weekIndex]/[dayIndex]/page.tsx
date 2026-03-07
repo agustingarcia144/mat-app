@@ -492,6 +492,7 @@ export function DayEditPageContent({
             sets: 3,
             reps: '10',
             weight: '',
+            prPercentage: undefined,
             timeSeconds: undefined,
             notes: '',
           },

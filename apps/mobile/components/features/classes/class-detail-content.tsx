@@ -294,7 +294,20 @@ export default function ClassDetailContent() {
                 )}
               </>
             ) : canReserve ? (
-              <OccupancyBadge spotsLeft={spotsLeft} isDark={isDark} />
+              <OccupancyBadge
+                capacity={capacity}
+                currentReservations={currentReservations}
+                status={scheduleWithDetails.status}
+                isDark={isDark}
+              />
+            ) : scheduleWithDetails.status !== 'scheduled' ||
+                currentReservations >= capacity ? (
+              <OccupancyBadge
+                capacity={capacity}
+                currentReservations={currentReservations}
+                status={scheduleWithDetails.status}
+                isDark={isDark}
+              />
             ) : (
               <UnavailableBadge isDark={isDark} />
             )}

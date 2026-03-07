@@ -5,7 +5,13 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from '@react-navigation/native'
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from 'react'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ConvexProviderWithClerk } from 'convex/react-clerk'
 import { ConvexReactClient } from 'convex/react'
@@ -49,7 +55,10 @@ function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AppResetContext.Provider value={contextValue}>
       <GestureHandlerRootView key={resetKey}>
-        <ClerkProvider tokenCache={tokenCache}>
+        <ClerkProvider
+          tokenCache={tokenCache}
+          publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}
+        >
           <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
             <PendingJoinProvider>
               <ThemeProvider

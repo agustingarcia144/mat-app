@@ -76,11 +76,11 @@ export function getClassListColumns({
       header: 'Recurrente',
       cell: ({ row }) =>
         row.original.isRecurring ? (
-          <Badge variant="dark" className="gap-1">
+          <Badge variant="outline" className="gap-1">
             <Check className="h-3 w-3 shrink-0 text-green-500" />
           </Badge>
         ) : (
-          <Badge variant="dark" className="gap-1">
+          <Badge variant="outline" className="gap-1">
             <X className="h-3 w-3 shrink-0 text-red-500" />
           </Badge>
         ),
@@ -110,12 +110,12 @@ export function getClassListColumns({
       header: 'Estado',
       cell: ({ row }) =>
         row.original.isActive ? (
-          <Badge variant="dark" className="gap-1">
+          <Badge variant="outline" className="gap-1">
             <CheckCircle2 className="h-3 w-3 shrink-0 text-green-500" />
             Activa
           </Badge>
         ) : (
-          <Badge variant="dark" className="gap-1">
+          <Badge variant="outline" className="gap-1">
             <XCircle className="h-3 w-3 shrink-0 text-red-500" />
             Inactiva
           </Badge>

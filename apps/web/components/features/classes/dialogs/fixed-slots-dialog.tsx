@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -22,15 +23,16 @@ import {
 import { mapMembershipsToMembers } from '@repo/core/utils'
 import { Clock, Plus, RefreshCw, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 const DAYS_OF_WEEK = [
-  { value: 0, label: 'Domingo' },
   { value: 1, label: 'Lunes' },
   { value: 2, label: 'Martes' },
   { value: 3, label: 'Miércoles' },
   { value: 4, label: 'Jueves' },
   { value: 5, label: 'Viernes' },
   { value: 6, label: 'Sábado' },
+  { value: 0, label: 'Domingo' },
 ]
 
 const normalize = (v?: string) => v?.toString().trim().toLowerCase() ?? ''
@@ -47,24 +49,28 @@ type Props = {
 }
 
 export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const [classFilter, setClassFilter] = useState<string>('all')
   const [addOpen, setAddOpen] = useState(false)
   const [addUserId, setAddUserId] = useState<string>('')
   const [addClassId, setAddClassId] = useState<Id<'classes'> | ''>('')
-  const [addDayOfWeek, setAddDayOfWeek] = useState<number>(1)
+  const [addDaysOfWeek, setAddDaysOfWeek] = useState<number[]>([1])
   const [addHour, setAddHour] = useState(9)
   const [addMinute, setAddMinute] = useState(0)
 
   const fixedSlots = useQuery(
     api.fixedClassSlots.listByOrganizationAndClass,
-    open ? { classId: classFilter === 'all' ? undefined : (classFilter as Id<'classes'>) } : 'skip'
+    open && canQueryCurrentOrganization
+      ? { classId: classFilter === 'all' ? undefined : (classFilter as Id<'classes'>) }
+      : 'skip'
   )
-  const classes = useQuery(api.classes.getByOrganization, {
-    activeOnly: false,
-  })
+  const classes = useQuery(
+    api.classes.getByOrganization,
+    open && canQueryCurrentOrganization ? { activeOnly: false } : 'skip'
+  )
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    open ? undefined : 'skip'
+    open && canQueryCurrentOrganization ? {} : 'skip'
   )
   const createFixedSlot = useMutation(api.fixedClassSlots.create)
   const removeFixedSlot = useMutation(api.fixedClassSlots.remove)
@@ -84,21 +90,31 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
       toast.error('Seleccioná miembro y clase')
       return
     }
+    if (addDaysOfWeek.length === 0) {
+      toast.error('Seleccioná al menos un día')
+      return
+    }
     const startTimeMinutes = addHour * 60 + addMinute
     const timezone = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined
     try {
-      await createFixedSlot({
-        userId: addUserId,
-        classId: addClassId as Id<'classes'>,
-        dayOfWeek: addDayOfWeek,
-        startTimeMinutes,
-        timezone,
-      })
-      toast.success('Turno fijo agregado')
+      for (const dayOfWeek of addDaysOfWeek) {
+        await createFixedSlot({
+          userId: addUserId,
+          classId: addClassId as Id<'classes'>,
+          dayOfWeek,
+          startTimeMinutes,
+          timezone,
+        })
+      }
+      toast.success(
+        addDaysOfWeek.length === 1
+          ? 'Turno fijo agregado'
+          : `${addDaysOfWeek.length} turnos fijos agregados`
+      )
       setAddOpen(false)
       setAddUserId('')
       setAddClassId('')
-      setAddDayOfWeek(1)
+      setAddDaysOfWeek([1])
       setAddHour(9)
       setAddMinute(0)
     } catch (e: unknown) {
@@ -286,22 +302,30 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Día</Label>
-              <Select
-                value={String(addDayOfWeek)}
-                onValueChange={(v) => setAddDayOfWeek(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DAYS_OF_WEEK.map((d) => (
-                    <SelectItem key={d.value} value={String(d.value)}>
-                      {d.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Días</Label>
+              <div className="flex flex-wrap gap-3 pt-1">
+                {DAYS_OF_WEEK.map((day) => (
+                  <div key={day.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`add-dow-${day.value}`}
+                      checked={addDaysOfWeek.includes(day.value)}
+                      onCheckedChange={(checked) => {
+                        setAddDaysOfWeek((prev) =>
+                          checked
+                            ? [...prev, day.value].sort((a, b) => a - b)
+                            : prev.filter((d) => d !== day.value)
+                        )
+                      }}
+                    />
+                    <Label
+                      htmlFor={`add-dow-${day.value}`}
+                      className="text-sm font-normal cursor-pointer"
+                    >
+                      {day.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

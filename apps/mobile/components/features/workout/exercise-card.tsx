@@ -12,11 +12,18 @@ export interface DayExerciseForCard {
   sets: number
   reps: string
   weight?: string
+  prPercentage?: number
   order: number
   exercise?: {
     name?: string
     videoUrl?: string
   }
+}
+
+function formatLoad(weight?: string, prPercentage?: number) {
+  if (weight?.trim()) return weight.trim()
+  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% PR`
+  return ''
 }
 
 export interface ExerciseCardProps {
@@ -55,6 +62,7 @@ export function ExerciseCard({
     : null
   const hasThumbnail = !!thumbnailUrl
   const overlayTextColor = hasThumbnail ? '#fff' : inputColor
+  const loadLabel = formatLoad(dayEx.weight, dayEx.prPercentage)
 
   const isExerciseCompleted =
     values.length >= dayEx.sets &&
@@ -124,7 +132,7 @@ export function ExerciseCard({
           style={[styles.cardFooterLabel, { color: isDark ? '#fff' : '#000' }]}
         >
           Series {dayEx.sets} × {dayEx.reps}
-          {dayEx.weight ? ` · ${dayEx.weight}` : ''}
+          {loadLabel ? ` · ${loadLabel}` : ''}
         </Text>
         <MaterialIcons
           name={isExpanded ? 'keyboard-arrow-down' : 'keyboard-arrow-up'}

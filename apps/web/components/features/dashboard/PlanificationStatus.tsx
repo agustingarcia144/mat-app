@@ -7,6 +7,7 @@ import StatsCard from './StatsCard'
 import { mapMembershipsToMembers } from '@repo/core/utils'
 import { Dumbbell, XCircle, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 function safeDate(value: any): Date | null {
   if (!value) return null
@@ -60,8 +61,10 @@ function computePlanStatus(assignment: any) {
 const normalize = (v?: string) => v?.toLowerCase().trim() ?? ''
 
 export default function PlanificationStatus() {
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
-    api.organizationMemberships.getOrganizationMemberships
+    api.organizationMemberships.getOrganizationMemberships,
+    canQueryCurrentOrganization ? {} : 'skip'
   )
 
   const members = useMemo(() => {
@@ -141,7 +144,7 @@ export default function PlanificationStatus() {
               )}
 
               {m.planStatus.status === 'expired' && (
-                <Badge variant="dark" className="gap-2">
+                <Badge variant="outline" className="gap-2">
                   <XCircle className="h-4 w-4 text-red-500 shrink-0" />
                   Vencida
                   {m.planStatus.daysExpired !== null && (

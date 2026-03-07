@@ -60,6 +60,26 @@ const SLOT_INTERVAL_OPTIONS = [
 
 const MAX_SLOTS_PER_GENERATION = 400
 
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
+  value: String(i).padStart(2, '0'),
+  label: `${String(i).padStart(2, '0')}:00`,
+}))
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => ({
+  value: String(i).padStart(2, '0'),
+  label: String(i).padStart(2, '0'),
+}))
+
+function parseTimeHHmm(value: string | undefined): { hour: string; minute: string } {
+  if (!value || !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
+    return { hour: '08', minute: '00' }
+  }
+  const [h, m] = value.split(':')
+  return {
+    hour: h!.padStart(2, '0'),
+    minute: m!.padStart(2, '0'),
+  }
+}
+
 type Mode = 'timeWindow' | 'single'
 
 const generateTurnosFormSchema = z
@@ -430,10 +450,51 @@ export default function GenerateSchedulesDialog({
               <div className="grid grid-cols-2 gap-4">
                 <Field>
                   <FieldLabel>Hora inicio (por día)</FieldLabel>
-                  <Input
-                    type="time"
-                    {...register('timeWindowStart')}
-                    placeholder="08:00"
+                  <Controller
+                    name="timeWindowStart"
+                    control={form.control}
+                    render={({ field }) => {
+                      const { hour, minute } = parseTimeHHmm(field.value)
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={hour}
+                            onValueChange={(h) =>
+                              field.onChange(`${h}:${minute}`)
+                            }
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Hora" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {HOUR_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-muted-foreground">:</span>
+                          <Select
+                            value={minute}
+                            onValueChange={(m) =>
+                              field.onChange(`${hour}:${m}`)
+                            }
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Min" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MINUTE_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    }}
                   />
                   {errors.timeWindowStart && (
                     <FieldError>{errors.timeWindowStart.message}</FieldError>
@@ -441,10 +502,51 @@ export default function GenerateSchedulesDialog({
                 </Field>
                 <Field>
                   <FieldLabel>Hora fin (por día)</FieldLabel>
-                  <Input
-                    type="time"
-                    {...register('timeWindowEnd')}
-                    placeholder="20:00"
+                  <Controller
+                    name="timeWindowEnd"
+                    control={form.control}
+                    render={({ field }) => {
+                      const { hour, minute } = parseTimeHHmm(field.value)
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={hour}
+                            onValueChange={(h) =>
+                              field.onChange(`${h}:${minute}`)
+                            }
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Hora" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {HOUR_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-muted-foreground">:</span>
+                          <Select
+                            value={minute}
+                            onValueChange={(m) =>
+                              field.onChange(`${hour}:${m}`)
+                            }
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Min" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MINUTE_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    }}
                   />
                   {errors.timeWindowEnd && (
                     <FieldError>{errors.timeWindowEnd.message}</FieldError>

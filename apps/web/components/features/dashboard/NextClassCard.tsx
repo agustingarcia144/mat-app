@@ -2,7 +2,6 @@
 
 import { useMemo, useEffect, useState } from 'react'
 import { useQuery } from 'convex/react'
-import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
@@ -10,14 +9,15 @@ import { es } from 'date-fns/locale'
 import { Clock, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type Doc, type Id } from '@/convex/_generated/dataModel'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 type Props = {
   onOpenDetail: (id: Id<'classSchedules'>) => void
 }
 
 export default function NextClassCard({ onOpenDetail }: Props) {
-  const { isLoaded, userId, orgId } = useAuth()
-  const canQuery = isLoaded && !!userId && !!orgId
+  const canQuery = useCanQueryCurrentOrganization()
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now())
 
   const schedules = useQuery(
     api.classSchedules.getUpcoming,
@@ -34,13 +34,12 @@ export default function NextClassCard({ onOpenDetail }: Props) {
   const enriched = useMemo(() => {
     if (!schedules || !classes) return []
 
-    const now = Date.now()
-    const next48hs = now + 48 * 60 * 60 * 1000
+    const next48hs = nowTimestamp + 48 * 60 * 60 * 1000
 
     return schedules
       .filter(
         (s: Doc<'classSchedules'>) =>
-          s.startTime >= now &&
+          s.startTime >= nowTimestamp &&
           s.startTime <= next48hs &&
           s.status !== 'cancelled'
       )
@@ -49,22 +48,29 @@ export default function NextClassCard({ onOpenDetail }: Props) {
         class: classes.find((c: Doc<'classes'>) => c._id === s.classId),
       }))
       .sort((a: { startTime: number }, b: { startTime: number }) => a.startTime - b.startTime)
-  }, [schedules, classes])
+  }, [schedules, classes, nowTimestamp])
 
   useEffect(() => {
-    if (index > 0 && index >= enriched.length) {
-      setIndex(Math.max(0, enriched.length - 1))
-    }
-  }, [enriched.length, index])
+    const interval = window.setInterval(() => {
+      setNowTimestamp(Date.now())
+    }, 60000)
 
-  const current = enriched[index]
+    return () => window.clearInterval(interval)
+  }, [])
+
+  const currentIndex = Math.min(index, Math.max(0, enriched.length - 1))
+  const current = enriched[currentIndex]
 
   const next = () => {
-    if (index < enriched.length - 1) setIndex((i) => i + 1)
+    if (currentIndex < enriched.length - 1) {
+      setIndex(currentIndex + 1)
+    }
   }
 
   const prev = () => {
-    if (index > 0) setIndex((i) => i - 1)
+    if (currentIndex > 0) {
+      setIndex(currentIndex - 1)
+    }
   }
 
   const [timeLeft, setTimeLeft] = useState('')
@@ -126,7 +132,7 @@ export default function NextClassCard({ onOpenDetail }: Props) {
             size="icon"
             variant="ghost"
             onClick={prev}
-            disabled={index === 0}
+            disabled={currentIndex === 0}
             className="h-8 w-8"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -136,7 +142,7 @@ export default function NextClassCard({ onOpenDetail }: Props) {
             size="icon"
             variant="ghost"
             onClick={next}
-            disabled={index === enriched.length - 1}
+            disabled={currentIndex === enriched.length - 1}
             className="h-8 w-8"
           >
             <ChevronRight className="h-4 w-4" />

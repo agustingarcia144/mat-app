@@ -1,4 +1,5 @@
-import { mutation, query } from './_generated/server'
+import { mutation, query, type MutationCtx } from './_generated/server'
+import type { Id } from './_generated/dataModel'
 import { v } from 'convex/values'
 import {
   requireAuth,
@@ -7,6 +8,46 @@ import {
   requireOrganizationMembership,
 } from './permissions'
 import { assignFixedSlotsToSchedule } from './fixedClassSlots'
+
+async function getReservationsForSchedule(
+  ctx: MutationCtx,
+  scheduleId: Id<'classSchedules'>
+) {
+  return await ctx.db
+    .query('classReservations')
+    .withIndex('by_schedule', (q) => q.eq('scheduleId', scheduleId))
+    .collect()
+}
+
+function canEditOrDeleteSchedule(
+  schedule: {
+    status: 'scheduled' | 'cancelled' | 'completed'
+  },
+  reservations: Array<{
+    status: 'confirmed' | 'cancelled' | 'attended' | 'no_show'
+  }>
+) {
+  if (reservations.length === 0) {
+    return true
+  }
+
+  const hasAttendanceHistory = reservations.some(
+    (reservation) =>
+      reservation.status === 'attended' || reservation.status === 'no_show'
+  )
+  if (hasAttendanceHistory) {
+    return false
+  }
+
+  const hasNonCancelledReservations = reservations.some(
+    (reservation) => reservation.status !== 'cancelled'
+  )
+  if (hasNonCancelledReservations) {
+    return false
+  }
+
+  return schedule.status === 'cancelled'
+}
 
 /**
  * Create a single class schedule
@@ -74,6 +115,19 @@ export const update = mutation({
     }
 
     await requireAdminOrTrainer(ctx, schedule.organizationId)
+
+    const reservations = await getReservationsForSchedule(ctx, args.id)
+    if (!canEditOrDeleteSchedule(schedule, reservations)) {
+      throw new Error(
+        'No se puede editar un turno con reservas activas o asistencias.'
+      )
+    }
+
+    const nextStartTime = args.startTime ?? schedule.startTime
+    const nextEndTime = args.endTime ?? schedule.endTime
+    if (nextStartTime >= nextEndTime) {
+      throw new Error('startTime must be before endTime')
+    }
 
     // If reducing capacity, check that we don't have more reservations
     if (args.capacity !== undefined && args.capacity < schedule.currentReservations) {
@@ -152,26 +206,33 @@ export const remove = mutation({
 
     await requireAdminOrTrainer(ctx, schedule.organizationId)
 
-    if (schedule.currentReservations > 0) {
-      throw new Error(
-        'No se puede eliminar un turno con reservas. Cancelalo primero.'
-      )
-    }
-
-    // Optional: only allow delete for scheduled (not already cancelled)
-    // So we don't accidentally delete history. Allow delete of empty scheduled slots.
     const reservations = await ctx.db
       .query('classReservations')
       .withIndex('by_schedule', (q) => q.eq('scheduleId', args.id))
       .collect()
 
-    if (reservations.length > 0) {
+    if (!canEditOrDeleteSchedule(schedule, reservations)) {
       throw new Error(
-        'No se puede eliminar un turno con reservas. Cancelalo primero.'
+        'No se puede eliminar un turno con reservas activas o asistencias.'
       )
     }
 
+    for (const reservation of reservations) {
+      await ctx.db.delete(reservation._id)
+    }
+
     await ctx.db.delete(args.id)
+
+    if (schedule.batchId) {
+      const remainingSchedules = await ctx.db
+        .query('classSchedules')
+        .withIndex('by_batch', (q) => q.eq('batchId', schedule.batchId))
+        .collect()
+
+      if (remainingSchedules.length === 0) {
+        await ctx.db.delete(schedule.batchId)
+      }
+    }
   },
 })
 

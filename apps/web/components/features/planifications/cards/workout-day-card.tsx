@@ -32,6 +32,12 @@ function formatTimeSeconds(seconds: number): string {
       : `${secs} s`
 }
 
+function formatLoad(weight?: string, prPercentage?: number): string | null {
+  if (weight?.trim()) return weight.trim()
+  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% PR`
+  return null
+}
+
 export default function WorkoutDayCard({
   day,
   compact = false,
@@ -127,35 +133,60 @@ export default function WorkoutDayCard({
         <div className={compact ? 'space-y-2' : 'space-y-4'}>
           {/* Exercises grouped by blocks */}
           {blocks
-            .sort((a: { order: number }, b: { order: number }) => a.order - b.order)
+            .sort(
+              (a: { order: number }, b: { order: number }) => a.order - b.order
+            )
             .map((block: { _id: string; name: string }) => {
               const blockExercises = exercisesByBlock.get(block._id) || []
               if (blockExercises.length === 0) return null
 
               return (
-                <div key={block._id} className={compact ? 'space-y-1' : 'space-y-2'}>
+                <div
+                  key={block._id}
+                  className={compact ? 'space-y-1' : 'space-y-2'}
+                >
                   <h4
                     className={`font-semibold text-muted-foreground border-l-2 border-primary/30 pl-2 truncate ${compact ? 'text-xs' : 'text-sm'}`}
                   >
                     {block.name}
                   </h4>
-                  <div className={compact ? 'space-y-1 ml-1' : 'space-y-2 ml-2'}>
+                  <div
+                    className={compact ? 'space-y-1 ml-1' : 'space-y-2 ml-2'}
+                  >
                     {blockExercises.map((ex: ExerciseType, i) => {
                       const thumbnailUrl = ex.exercise?.videoUrl
                         ? getVideoThumbnailUrl(ex.exercise.videoUrl)
                         : null
-
+                      const loadLabel = formatLoad(ex.weight, ex.prPercentage)
+                      const hasReps =
+                        ex.reps != null && String(ex.reps).trim() !== ''
+                      const hasSets =
+                        ex.sets != null && String(ex.sets).trim() !== ''
                       const setsRepsEl = (
                         <div
                           className={`flex items-center gap-1 ${compact ? 'text-xs' : 'text-sm'}`}
                         >
-                          <span className="font-medium">{ex.sets}</span>
-                          <span className="text-muted-foreground">×</span>
-                          <span className="font-medium">{ex.reps}</span>
-                          {ex.weight && (
+                          {hasSets && (
+                            <span className="font-medium">{ex.sets}</span>
+                          )}
+                          {hasReps && (
                             <>
-                              <span className="text-muted-foreground">x</span>
-                              <span className="font-medium">{ex.weight}</span>
+                              {hasSets && (
+                                <span className="text-muted-foreground">
+                                  ×
+                                </span>
+                              )}
+                              <span className="font-medium">{ex.reps}</span>
+                            </>
+                          )}
+                          {loadLabel && (
+                            <>
+                              {(hasSets || hasReps) && (
+                                <span className="text-muted-foreground">
+                                  x
+                                </span>
+                              )}
+                              <span className="font-medium">{loadLabel}</span>
                             </>
                           )}
                           {ex.timeSeconds != null && ex.timeSeconds > 0 && (
@@ -282,18 +313,32 @@ export default function WorkoutDayCard({
                   const thumbnailUrl = ex.exercise?.videoUrl
                     ? getVideoThumbnailUrl(ex.exercise.videoUrl)
                     : null
-
+                  const loadLabel = formatLoad(ex.weight, ex.prPercentage)
+                  const hasReps =
+                    ex.reps != null && String(ex.reps).trim() !== ''
+                  const hasSets =
+                    ex.sets != null && String(ex.sets).trim() !== ''
                   const setsRepsEl = (
                     <div
                       className={`flex items-center gap-1 ${compact ? 'text-xs' : 'text-sm'}`}
                     >
-                      <span className="font-medium">{ex.sets}</span>
-                      <span className="text-muted-foreground">×</span>
-                      <span className="font-medium">{ex.reps}</span>
-                      {ex.weight && (
+                      {hasSets && (
+                        <span className="font-medium">{ex.sets}</span>
+                      )}
+                      {hasReps && (
                         <>
-                          <span className="text-muted-foreground">@</span>
-                          <span className="font-medium">{ex.weight}</span>
+                          {hasSets && (
+                            <span className="text-muted-foreground">×</span>
+                          )}
+                          <span className="font-medium">{ex.reps}</span>
+                        </>
+                      )}
+                      {loadLabel && (
+                        <>
+                          {(hasSets || hasReps) && (
+                            <span className="text-muted-foreground">x</span>
+                          )}
+                          <span className="font-medium">{loadLabel}</span>
                         </>
                       )}
                       {ex.timeSeconds != null && ex.timeSeconds > 0 && (

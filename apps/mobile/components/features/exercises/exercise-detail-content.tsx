@@ -23,6 +23,12 @@ import { useExerciseVideo } from '@/contexts/exercise-video-context'
 
 const HEADER_BG = { light: '#e5e5e5', dark: '#262626' }
 
+function formatLoad(weight?: string, prPercentage?: number) {
+  if (weight?.trim()) return weight.trim()
+  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% PR`
+  return ''
+}
+
 export default function ExerciseDetailContent() {
   const { assignmentId, exerciseId, dayExerciseId } = useLocalSearchParams<{
     assignmentId?: string
@@ -102,7 +108,8 @@ export default function ExerciseDetailContent() {
     if (dayExercise) {
       parts.push(`${dayExercise.sets} series`)
       parts.push(`${dayExercise.reps} rep`)
-      if (dayExercise.weight?.trim()) parts.push(dayExercise.weight.trim())
+      const loadLabel = formatLoad(dayExercise.weight, dayExercise.prPercentage)
+      if (loadLabel) parts.push(loadLabel)
     }
     return parts
   }, [dayExercise])

@@ -6,6 +6,12 @@ import { assignmentDetailStyles as styles } from './assignment-detail-styles'
 import type { DayExerciseWithDetails } from './types'
 import { PressableScale } from 'pressto'
 
+function formatLoad(weight?: string, prPercentage?: number) {
+  if (weight?.trim()) return weight.trim()
+  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% PR`
+  return ''
+}
+
 interface AssignmentDetailExerciseRowProps {
   ex: DayExerciseWithDetails
   isDark: boolean
@@ -22,6 +28,7 @@ export function AssignmentDetailExerciseRow({
   const thumbnailUrl = ex.exercise?.videoUrl
     ? getVideoThumbnailUrl(ex.exercise.videoUrl)
     : null
+  const loadLabel = formatLoad(ex.weight, ex.prPercentage)
 
   return (
     <PressableScale
@@ -68,7 +75,7 @@ export function AssignmentDetailExerciseRow({
         </ThemedText>
         <Text style={[styles.exerciseMeta, { color: muted }]}>
           {ex.sets} × {ex.reps}
-          {ex.weight ? ` · ${ex.weight}` : ''}
+          {loadLabel ? ` · ${loadLabel}` : ''}
         </Text>
       </View>
     </PressableScale>

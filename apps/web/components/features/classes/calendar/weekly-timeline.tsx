@@ -93,27 +93,22 @@ export default function WeeklyTimeline({
     if (schedule.status === 'cancelled') return 'bg-gray-400'
     if (schedule.status === 'completed') return 'bg-gray-300'
 
-    // Guard against division by zero
-    if (schedule.capacity === 0) {
-      return schedule.currentReservations > 0 ? 'bg-red-500' : 'bg-gray-500'
-    }
+    if (schedule.capacity <= 0) return 'bg-red-500'
 
     const percentFull = (schedule.currentReservations / schedule.capacity) * 100
     if (percentFull >= 100) return 'bg-red-500'
-    if (percentFull >= 80) return 'bg-orange-500'
-    if (percentFull >= 50) return 'bg-yellow-500'
+    if (percentFull > 60) return 'bg-orange-500'
     return 'bg-green-500'
   }
 
   const getScheduleStatusLabel = (schedule: Doc<'classSchedules'>) => {
     if (schedule.status === 'cancelled') return 'Cancelada'
     if (schedule.status === 'completed') return 'Completada'
-    if (schedule.capacity === 0) return 'Sin cupo'
+    if (schedule.capacity <= 0) return 'Completo'
 
     const percentFull = (schedule.currentReservations / schedule.capacity) * 100
-    if (percentFull >= 100) return 'Completa'
-    if (percentFull >= 80) return 'Casi llena'
-    if (percentFull >= 50) return 'Medio llena'
+    if (percentFull >= 100) return 'Completo'
+    if (percentFull > 60) return 'Pocos cupos'
     return 'Disponible'
   }
 
@@ -345,12 +340,8 @@ export default function WeeklyTimeline({
           <span>Disponible</span>
         </div>
         <div className='flex items-center gap-2'>
-          <div className='h-3 w-3 rounded bg-yellow-500' />
-          <span>Medio lleno</span>
-        </div>
-        <div className='flex items-center gap-2'>
           <div className='h-3 w-3 rounded bg-orange-500' />
-          <span>Casi lleno</span>
+          <span>Pocos cupos</span>
         </div>
         <div className='flex items-center gap-2'>
           <div className='h-3 w-3 rounded bg-red-500' />

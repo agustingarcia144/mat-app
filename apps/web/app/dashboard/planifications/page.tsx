@@ -70,6 +70,7 @@ import FolderTreeSidebar from '@/components/features/planifications/folder-tree/
 import CreatePlanificationDialog from '@/components/features/planifications/dialogs/create-planification-dialog'
 import TemplatesDialog from '@/components/features/planifications/dialogs/templates-dialog'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
 
@@ -87,6 +88,7 @@ function PlanificationsDragEndMonitor({
 
 export default function PlanificationsPage() {
   const isMobile = useIsMobile()
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [createDialogTemplateId, setCreateDialogTemplateId] = useState<
@@ -123,11 +125,22 @@ export default function PlanificationsPage() {
   }, [])
   const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false)
 
-  const folders = useQuery(api.folders.getTree)
-  const deletableFolderIds = useQuery(api.folders.getDeletableFolderIds)
-  const planifications = useQuery(api.planifications.getByFolder, {
-    folderId: selectedFolderId ? (selectedFolderId as any) : undefined,
-  })
+  const folders = useQuery(
+    api.folders.getTree,
+    canQueryCurrentOrganization ? {} : 'skip'
+  )
+  const deletableFolderIds = useQuery(
+    api.folders.getDeletableFolderIds,
+    canQueryCurrentOrganization ? {} : 'skip'
+  )
+  const planifications = useQuery(
+    api.planifications.getByFolder,
+    canQueryCurrentOrganization
+      ? {
+          folderId: selectedFolderId ? (selectedFolderId as any) : undefined,
+        }
+      : 'skip'
+  )
   const updatePlanification = useMutation(api.planifications.update)
   const moveFolder = useMutation(api.folders.move)
 

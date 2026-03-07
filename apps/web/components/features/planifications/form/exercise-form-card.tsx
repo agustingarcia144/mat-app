@@ -38,6 +38,7 @@ function formatSetsRepsWeight(
   sets: number | undefined,
   reps: string | undefined,
   weight: string | undefined,
+  prPercentage: number | undefined,
   timeSeconds: number | undefined
 ): string {
   const parts: string[] = []
@@ -46,6 +47,7 @@ function formatSetsRepsWeight(
   const main = parts.join(' ')
   let suffix = ''
   if (weight?.trim()) suffix = ` · ${weight.trim()} kg`
+  else if (prPercentage != null && prPercentage > 0) suffix = ` · ${prPercentage}% PR`
   if (timeSeconds != null && timeSeconds > 0) {
     const mins = Math.floor(timeSeconds / 60)
     const secs = timeSeconds % 60
@@ -73,11 +75,13 @@ export default function ExerciseFormCard({
   const [localSets, setLocalSets] = useState<string>('')
   const [localReps, setLocalReps] = useState<string>('')
   const [localWeight, setLocalWeight] = useState<string>('')
+  const [localPrPercentage, setLocalPrPercentage] = useState<string>('')
   const [localTimeMinutes, setLocalTimeMinutes] = useState<string>('')
   const [localTimeSeconds, setLocalTimeSeconds] = useState<string>('')
   const [saveError, setSaveError] = useState<{
     sets?: string
     reps?: string
+    load?: string
   } | null>(null)
 
   const exercise = form.watch(
@@ -103,6 +107,9 @@ export default function ExerciseFormCard({
     setLocalSets(ex?.sets != null ? String(ex.sets) : '')
     setLocalReps(ex?.reps ?? '')
     setLocalWeight(ex?.weight ?? '')
+    setLocalPrPercentage(
+      ex?.prPercentage != null ? String(ex.prPercentage) : ''
+    )
     const ts = ex?.timeSeconds
     if (ts != null && ts > 0) {
       setLocalTimeMinutes(String(Math.floor(ts / 60)))
@@ -121,9 +128,26 @@ export default function ExerciseFormCard({
     const setsNum =
       setsTrimmed === '' ? NaN : parseInt(setsTrimmed, 10)
     const repsTrimmed = localReps?.trim() ?? ''
-    const errors: { sets?: string; reps?: string } = {}
+    const weightTrimmed = localWeight?.trim() ?? ''
+    const prTrimmed = localPrPercentage?.trim() ?? ''
+    const hasWeight = weightTrimmed !== ''
+    const hasPrPercentage = prTrimmed !== ''
+    const prPercentageValue = hasPrPercentage ? Number(prTrimmed) : undefined
+    const errors: { sets?: string; reps?: string; load?: string } = {}
     if (setsTrimmed === '' || Number.isNaN(setsNum) || setsNum < 1) {
       errors.sets = 'Debe tener al menos 1 serie'
+    }
+    if (hasWeight && hasPrPercentage) {
+      errors.load = 'Usa peso o % de PR, no ambos'
+    } else if (
+      hasPrPercentage &&
+      (
+        prPercentageValue == null ||
+        Number.isNaN(prPercentageValue) ||
+        prPercentageValue <= 0
+      )
+    ) {
+      errors.load = 'Ingresa un porcentaje válido'
     }
     const mins = Math.max(0, Math.floor(Number(localTimeMinutes?.trim()) || 0))
     const secs = Math.max(
@@ -140,9 +164,16 @@ export default function ExerciseFormCard({
     }
     form.setValue(`${basePath}.sets` as any, setsNum, { shouldDirty: true })
     form.setValue(`${basePath}.reps` as any, repsTrimmed, { shouldDirty: true })
-    form.setValue(`${basePath}.weight` as any, localWeight?.trim() ?? '', {
+    form.setValue(`${basePath}.weight` as any, hasPrPercentage ? '' : weightTrimmed, {
       shouldDirty: true,
     })
+    form.setValue(
+      `${basePath}.prPercentage` as any,
+      hasPrPercentage ? prPercentageValue : undefined,
+      {
+        shouldDirty: true,
+      }
+    )
     const timeSecondsToSave =
       hasTime ? mins * 60 + secs : undefined
     form.setValue(`${basePath}.timeSeconds` as any, timeSecondsToSave, {
@@ -156,6 +187,7 @@ export default function ExerciseFormCard({
     exercise?.sets,
     exercise?.reps,
     exercise?.weight,
+    exercise?.prPercentage,
     exercise?.timeSeconds
   )
 
@@ -266,16 +298,51 @@ export default function ExerciseFormCard({
                   <FieldError errors={[{ message: saveError.reps }]} />
                 )}
               </Field>
-              <Field>
+              <Field data-invalid={!!saveError?.load}>
                 <label className="text-sm font-medium block mb-1.5">
-                  Peso (kg)
+                  Carga
                 </label>
-                <Input
-                  value={localWeight}
-                  onChange={(e) => setLocalWeight(e.target.value)}
-                  placeholder="Opcional"
-                  className="h-9"
-                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1.5">
+                      Peso (kg)
+                    </label>
+                    <Input
+                      value={localWeight}
+                      onChange={(e) => {
+                        const nextValue = e.target.value
+                        setLocalWeight(nextValue)
+                        if (nextValue.trim()) setLocalPrPercentage('')
+                      }}
+                      placeholder="Opcional"
+                      className="h-9"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1.5">
+                      % de PR
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      step="any"
+                      value={localPrPercentage}
+                      onChange={(e) => {
+                        const nextValue = e.target.value
+                        setLocalPrPercentage(nextValue)
+                        if (nextValue.trim()) setLocalWeight('')
+                      }}
+                      placeholder="Ej: 80"
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Elige peso en kg o porcentaje del PR.
+                </p>
+                {saveError?.load && (
+                  <FieldError errors={[{ message: saveError.load }]} />
+                )}
               </Field>
               <Field>
                 <label className="text-sm font-medium block mb-1.5">

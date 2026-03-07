@@ -3,10 +3,14 @@
 import Image from 'next/image'
 import { useState, useMemo } from 'react'
 import { useQuery } from 'convex/react'
-import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
-import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Empty,
   EmptyContent,
@@ -31,19 +35,30 @@ import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule
 import FixedSlotsDialog from '@/components/features/classes/dialogs/fixed-slots-dialog'
 import WeeklyTimeline from '@/components/features/classes/calendar/weekly-timeline'
 import ClassList from '@/components/features/classes/class-list'
-import { Plus, Calendar, List, ChevronLeft, ChevronRight, CalendarPlus, Users } from 'lucide-react'
+import BatchList from '@/components/features/classes/batch-list'
+import {
+  Plus,
+  Calendar,
+  List,
+  ChevronLeft,
+  ChevronRight,
+  CalendarPlus,
+  Users,
+  Layers3,
+  MoreVertical,
+} from 'lucide-react'
 import { startOfWeek, endOfWeek, addDays, format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { type Doc, type Id } from '@/convex/_generated/dataModel'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 export default function ClassesPage() {
-  const { isLoaded: authLoaded, userId, orgId } = useAuth()
-  const canQueryOrgData = authLoaded && Boolean(userId) && Boolean(orgId)
+  const canQueryOrgData = useCanQueryCurrentOrganization()
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedView, setSelectedView] = useState<'calendar' | 'list'>(
-    'calendar'
-  )
+  const [selectedView, setSelectedView] = useState<
+    'calendar' | 'list' | 'batches'
+  >('calendar')
   const [classFormOpen, setClassFormOpen] = useState(false)
   const [editingClassId, setEditingClassId] = useState<
     Id<'classes'> | undefined
@@ -120,80 +135,102 @@ export default function ClassesPage() {
     setSelectedScheduleId(undefined)
   }
 
-  const handleOpenGenerateTurnos = (classItem?: { _id: Id<'classes'>; name: string }) => {
-    setGenerateTurnosInitial(classItem ? { id: classItem._id, name: classItem.name } : null)
+  const handleOpenGenerateTurnos = (classItem?: {
+    _id: Id<'classes'>
+    name: string
+  }) => {
+    setGenerateTurnosInitial(
+      classItem ? { id: classItem._id, name: classItem.name } : null
+    )
     setGenerateTurnosOpen(true)
   }
 
   return (
-    <DashboardPageContainer className='space-y-4 py-4 md:space-y-6 md:py-6'>
+    <DashboardPageContainer className="space-y-4 py-4 md:space-y-6 md:py-6">
       {/* Header */}
-      <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className='text-2xl font-bold md:text-3xl'>Clases y Turnos</h1>
-          <p className='mt-1 text-sm text-muted-foreground md:text-base'>
+          <h1 className="text-2xl font-bold md:text-3xl">Clases y Turnos</h1>
+          <p className="mt-1 text-sm text-muted-foreground md:text-base">
             Gestiona las clases y los turnos de tu gimnasio
           </p>
         </div>
-        <div className='flex gap-2'>
-          <ResponsiveActionButton
-            onClick={() => setFixedSlotsOpen(true)}
-            icon={<Users className='h-4 w-4' aria-hidden />}
-            label='Turnos fijos'
-            tooltip='Miembros con turno fijo'
-          />
-          <ResponsiveActionButton
-            onClick={() => handleOpenGenerateTurnos()}
-            icon={<CalendarPlus className='h-4 w-4' aria-hidden />}
-            label='Crear turnos'
-            tooltip='Crear turnos'
-          />
-          <ResponsiveActionButton
-            onClick={handleNewClass}
-            icon={<Plus className='h-4 w-4' aria-hidden />}
-            label='Nueva Clase'
-            tooltip='Nueva Clase'
-          />
+        <div className="flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <MoreVertical className="h-4 w-4" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setFixedSlotsOpen(true)}>
+                <Users className="mr-2 h-4 w-4" aria-hidden />
+                Turnos fijos
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleOpenGenerateTurnos()}>
+                <CalendarPlus className="mr-2 h-4 w-4" aria-hidden />
+                Crear turnos
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSelectedView('batches')}>
+                <Layers3 className="mr-2 h-4 w-4" aria-hidden />
+                Lotes de turnos
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleNewClass}>
+                <Plus className="mr-2 h-4 w-4" aria-hidden />
+                Nueva clase
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       {/* View toggle and filters */}
-      <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs
           value={selectedView}
-          onValueChange={(v) => setSelectedView(v as 'calendar' | 'list')}
+          onValueChange={(v) =>
+            setSelectedView(v as 'calendar' | 'list' | 'batches')
+          }
         >
           <TabsList>
             <TabsTrigger
-              value='calendar'
-              className='gap-0 md:gap-2'
-              aria-label='Vista calendario'
+              value="calendar"
+              className="gap-0 md:gap-2"
+              aria-label="Vista calendario"
             >
-              <Calendar className='h-4 w-4' />
-              <span className='sr-only md:not-sr-only'>Calendario</span>
+              <Calendar className="h-4 w-4" />
+              <span className="sr-only md:not-sr-only">Calendario</span>
             </TabsTrigger>
             <TabsTrigger
-              value='list'
-              className='gap-0 md:gap-2'
-              aria-label='Vista lista'
+              value="list"
+              className="gap-0 md:gap-2"
+              aria-label="Vista clases"
             >
-              <List className='h-4 w-4' />
-              <span className='sr-only md:not-sr-only'>Lista</span>
+              <List className="h-4 w-4" />
+              <span className="sr-only md:not-sr-only">Clases</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="batches"
+              className="gap-0 md:gap-2"
+              aria-label="Vista lotes"
+            >
+              <Layers3 className="h-4 w-4" />
+              <span className="sr-only md:not-sr-only">Lotes</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {selectedView === 'calendar' && (
-          <div className='flex items-center gap-2'>
-            <span className='hidden text-sm text-muted-foreground sm:inline'>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-sm text-muted-foreground sm:inline">
               Filtrar por clase:
             </span>
             <Select value={classFilter} onValueChange={setClassFilter}>
-              <SelectTrigger className='w-full sm:w-[220px]'>
-                <SelectValue placeholder='Todas las clases' />
+              <SelectTrigger className="w-full sm:w-[220px]">
+                <SelectValue placeholder="Todas las clases" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value='all'>Todas las clases</SelectItem>
+                <SelectItem value="all">Todas las clases</SelectItem>
                 {classes?.map((classItem) => (
                   <SelectItem key={classItem._id} value={classItem._id}>
                     {classItem.name}
@@ -207,31 +244,31 @@ export default function ClassesPage() {
 
       {/* Content */}
       {selectedView === 'calendar' ? (
-        <div className='space-y-4 rounded-lg border p-3 md:p-4'>
+        <div className="space-y-4 rounded-lg border p-3 md:p-4">
           {/* Week navigation – always visible so users can move between weeks even when empty */}
-          <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
-            <div className='flex items-center gap-2'>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2">
               <Button
-                variant='outline'
-                size='icon'
+                variant="outline"
+                size="icon"
                 onClick={goToPreviousWeek}
-                aria-label='Semana anterior'
+                aria-label="Semana anterior"
               >
-                <ChevronLeft className='h-4 w-4' aria-hidden />
+                <ChevronLeft className="h-4 w-4" aria-hidden />
               </Button>
-              <Button variant='outline' onClick={goToToday}>
+              <Button variant="outline" onClick={goToToday}>
                 Hoy
               </Button>
               <Button
-                variant='outline'
-                size='icon'
+                variant="outline"
+                size="icon"
                 onClick={goToNextWeek}
-                aria-label='Semana siguiente'
+                aria-label="Semana siguiente"
               >
-                <ChevronRight className='h-4 w-4' aria-hidden />
+                <ChevronRight className="h-4 w-4" aria-hidden />
               </Button>
             </div>
-            <h2 className='text-base font-semibold md:text-lg'>
+            <h2 className="text-base font-semibold md:text-lg">
               {format(weekStart, 'd', { locale: es })} -{' '}
               {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", {
                 locale: es,
@@ -240,16 +277,16 @@ export default function ClassesPage() {
           </div>
 
           {schedules === undefined ? (
-            <div className='overflow-hidden rounded-lg border'>
-              <div className='overflow-x-auto'>
-                <div className='min-w-[800px]'>
+            <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-x-auto">
+                <div className="min-w-[800px]">
                   {/* Day headers */}
-                  <div className='grid grid-cols-8 bg-muted'>
-                    <Skeleton className='h-14 rounded-none border-r border-b border-border' />
+                  <div className="grid grid-cols-8 bg-muted">
+                    <Skeleton className="h-14 rounded-none border-r border-b border-border" />
                     {Array.from({ length: 7 }).map((_, i) => (
                       <Skeleton
                         key={i}
-                        className='h-14 rounded-none border-r border-b border-border'
+                        className="h-14 rounded-none border-r border-b border-border"
                       />
                     ))}
                   </div>
@@ -257,13 +294,13 @@ export default function ClassesPage() {
                   {Array.from({ length: 12 }).map((_, rowIndex) => (
                     <div
                       key={rowIndex}
-                      className='grid grid-cols-8 border-b border-border last:border-b-0'
+                      className="grid grid-cols-8 border-b border-border last:border-b-0"
                     >
-                      <Skeleton className='h-[60px] rounded-none border-r border-border' />
+                      <Skeleton className="h-[60px] rounded-none border-r border-border" />
                       {Array.from({ length: 7 }).map((_, colIndex) => (
                         <Skeleton
                           key={colIndex}
-                          className='h-[60px] rounded-none border-r border-border'
+                          className="h-[60px] rounded-none border-r border-border"
                         />
                       ))}
                     </div>
@@ -281,20 +318,20 @@ export default function ClassesPage() {
             />
           )}
         </div>
-      ) : (
-        <div className='rounded-lg border p-3 md:p-4'>
+      ) : selectedView === 'list' ? (
+        <div className="rounded-lg border p-3 md:p-4">
           {classes === undefined ? (
-            <div className='py-12 text-center'>
-              <p className='text-muted-foreground'>Cargando clases...</p>
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground">Cargando clases...</p>
             </div>
           ) : classes.length === 0 ? (
-            <Empty className='py-12'>
+            <Empty className="py-12">
               <EmptyHeader>
                 <EmptyMedia>
                   <Image
                     src={matWolfLooking}
-                    alt=''
-                    className='h-20 w-20 object-contain'
+                    alt=""
+                    className="h-20 w-20 object-contain"
                   />
                 </EmptyMedia>
                 <EmptyTitle>No hay clases creadas</EmptyTitle>
@@ -314,6 +351,10 @@ export default function ClassesPage() {
               onOpenGenerateTurnos={handleOpenGenerateTurnos}
             />
           )}
+        </div>
+      ) : (
+        <div className="rounded-lg border p-3 md:p-4">
+          <BatchList />
         </div>
       )}
 

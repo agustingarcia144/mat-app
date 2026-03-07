@@ -144,7 +144,7 @@ function ReservationRow({
   const planBadge =
     assignment && planStatus ? (
       planStatus.status === 'expired' ? (
-        <Badge variant="destructive" className="text-xs">
+        <Badge variant="outline" className="text-xs">
           Vencida
         </Badge>
       ) : planStatus.status === 'active' && planStatus.daysLeft != null ? (

@@ -252,6 +252,7 @@ export default defineSchema({
     sets: v.number(),
     reps: v.optional(v.string()), // Can be "10", "10-12", "AMRAP", etc.
     weight: v.optional(v.string()), // e.g., "50kg", "BW", "25lb"
+    prPercentage: v.optional(v.number()), // e.g., 80 means 80% of PR
     timeSeconds: v.optional(v.number()), // Time in seconds (e.g. plank duration)
     notes: v.optional(v.string()),
     // Timestamps
@@ -375,10 +376,56 @@ export default defineSchema({
     .index('by_organization_active', ['organizationId', 'isActive'])
     .index('by_trainer', ['trainerId']),
 
+  // Schedule batches - generation runs for class schedules
+  scheduleBatches: defineTable({
+    organizationId: v.id('organizations'),
+    classId: v.id('classes'),
+    sourceType: v.union(v.literal('single'), v.literal('timeWindow')),
+    status: v.union(
+      v.literal('active'),
+      v.literal('replaced')
+    ),
+    sourceConfig: v.union(
+      v.object({
+        mode: v.literal('single'),
+        startTime: v.number(),
+        endTime: v.number(),
+        endDate: v.optional(v.number()),
+        durationMinutes: v.number(),
+      }),
+      v.object({
+        mode: v.literal('timeWindow'),
+        rangeStartDate: v.number(),
+        rangeEndDate: v.number(),
+        timeWindowStartMinutes: v.number(),
+        timeWindowEndMinutes: v.number(),
+        slotIntervalMinutes: v.number(),
+        durationMinutes: v.number(),
+        daysOfWeek: v.optional(v.array(v.number())),
+      })
+    ),
+    generatedCount: v.number(),
+    firstStartTime: v.number(),
+    lastEndTime: v.number(),
+    createdBy: v.string(),
+    duplicatedFromBatchId: v.optional(v.id('scheduleBatches')),
+    replacedByBatchId: v.optional(v.id('scheduleBatches')),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_status_created', [
+      'organizationId',
+      'status',
+      'createdAt',
+    ])
+    .index('by_class', ['classId']),
+
   // Class Schedules - Individual class occurrences
   classSchedules: defineTable({
     classId: v.id('classes'),
     organizationId: v.id('organizations'), // Denormalized for queries
+    batchId: v.optional(v.id('scheduleBatches')),
     startTime: v.number(), // Timestamp
     endTime: v.number(), // Timestamp
     capacity: v.number(), // Can override class capacity
@@ -398,6 +445,8 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_class', ['classId'])
+    .index('by_batch', ['batchId'])
+    .index('by_class_time', ['classId', 'startTime'])
     .index('by_organization', ['organizationId'])
     .index('by_organization_time', ['organizationId', 'startTime'])
     .index('by_start_time', ['startTime']),

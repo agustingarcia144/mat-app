@@ -17,7 +17,7 @@ function StatusBadge({ status }: { status: string }) {
     switch (status) {
       case 'active':
       case 'inactive':
-        return 'dark'
+        return 'outline'
       default:
         return 'outline'
     }

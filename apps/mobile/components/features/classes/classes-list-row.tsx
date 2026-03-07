@@ -251,7 +251,16 @@ export function ClassesListRow({
                   </>
                 ) : booking?.canReserve ? (
                   <OccupancyBadge
-                    spotsLeft={schedule.capacity - schedule.currentReservations}
+                    capacity={schedule.capacity}
+                    currentReservations={schedule.currentReservations}
+                    status={schedule.status}
+                    isDark={isDark}
+                  />
+                ) : booking?.isFull || schedule.status !== 'scheduled' ? (
+                  <OccupancyBadge
+                    capacity={schedule.capacity}
+                    currentReservations={schedule.currentReservations}
+                    status={schedule.status}
                     isDark={isDark}
                   />
                 ) : (

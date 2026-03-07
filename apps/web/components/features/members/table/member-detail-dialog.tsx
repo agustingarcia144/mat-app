@@ -344,7 +344,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                   <div className="flex flex-wrap gap-2">
                     {planStatus.status === 'expired' && (
                       <>
-                        <Badge variant="destructive">Vencida</Badge>
+                        <Badge variant="outline">Vencida</Badge>
 
                         {planStatus.daysExpired !== null && (
                           <Badge variant="secondary">

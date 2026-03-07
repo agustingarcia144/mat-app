@@ -24,9 +24,13 @@ export const dayExerciseSchema = z.object({
   sets: z.number().min(1, 'Debe tener al menos 1 serie').int(),
   reps: z.string().optional(),
   weight: z.string().optional(),
+  prPercentage: z.number().positive('El porcentaje debe ser mayor a 0').optional(),
   /** Time in seconds (always stored in seconds; UI may display/input in minutes) */
   timeSeconds: z.number().int().min(0).optional(),
   notes: z.string().optional(),
+}).refine((data) => !(data.weight?.trim() && data.prPercentage != null), {
+  message: 'Usa peso o % de PR, no ambos',
+  path: ['prPercentage'],
 })
 
 export const workoutDaySchema = z.object({

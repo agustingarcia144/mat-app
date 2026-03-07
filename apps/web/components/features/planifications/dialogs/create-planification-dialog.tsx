@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import BasicInfoSection from '@/components/features/planifications/form/basic-info-section'
 import { toast } from 'sonner'
 import type { Id } from '@/convex/_generated/dataModel'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 type InitialTemplate = { name: string; description?: string }
 
@@ -38,11 +39,14 @@ export default function CreatePlanificationDialog({
   initialTemplate?: InitialTemplate
 }) {
   const router = useRouter()
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const createPlanification = useMutation(api.planifications.create)
   const createFromTemplate = useMutation(api.planifications.createFromTemplate)
   const templateFromQuery = useQuery(
     api.planifications.getById,
-    templateIdProp ? { id: templateIdProp as Id<'planifications'> } : 'skip'
+    open && templateIdProp && canQueryCurrentOrganization
+      ? { id: templateIdProp as Id<'planifications'> }
+      : 'skip'
   )
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<

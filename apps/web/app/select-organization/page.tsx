@@ -7,6 +7,7 @@ import { useOrganization, useOrganizationList } from '@clerk/nextjs'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
+import { getOrgRoleLabel } from '@/lib/security/roles'
 
 export default function SelectOrganizationPage() {
   const router = useRouter()
@@ -99,7 +100,7 @@ export default function SelectOrganizationPage() {
                 <div className="text-left">
                   <p className="font-medium">{membership.organization.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    Rol: {membership.role}
+                    Rol: {getOrgRoleLabel(membership.role)}
                   </p>
                 </div>
                 <span className="text-xs text-muted-foreground">

@@ -19,6 +19,7 @@ import {
 import PlanificationListTable from '@/components/features/planifications/library/planification-list-table'
 import type { PlanificationData } from '@/components/features/planifications/library/planification-list'
 import matWolfLooking from '@/assets/mat-wolf-looking.png'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 export default function TemplatesDialog({
   open,
@@ -29,7 +30,11 @@ export default function TemplatesDialog({
   onOpenChange: (open: boolean) => void
   onUseTemplate?: (template: PlanificationData) => void
 }) {
-  const templates = useQuery(api.planifications.getTemplates)
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
+  const templates = useQuery(
+    api.planifications.getTemplates,
+    open && canQueryCurrentOrganization ? {} : 'skip'
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -7,20 +7,10 @@ import {
   requireCurrentOrganizationMembership,
   requireOrganizationMembership,
 } from './permissions'
-import { assignFixedSlotsToSchedule } from './fixedClassSlots'
-
-/** Schedule document for insert (status is literal for type compatibility) */
-type ClassScheduleInsert = {
-  classId: Id<'classes'>
-  organizationId: Id<'organizations'>
-  startTime: number
-  endTime: number
-  capacity: number
-  currentReservations: number
-  status: 'scheduled'
-  createdAt: number
-  updatedAt: number
-}
+import {
+  createBatchWithSchedules,
+  type ClassScheduleInsert,
+} from './scheduleBatchUtils'
 
 /**
  * Create a new class template
@@ -116,11 +106,36 @@ export const update = mutation({
 
     await requireAdminOrTrainer(ctx, classTemplate.organizationId)
 
+    const now = Date.now()
     const { id, ...updates } = args
+
+    if (updates.capacity !== undefined) {
+      const upcomingSchedules = await ctx.db
+        .query('classSchedules')
+        .withIndex('by_class', (q) => q.eq('classId', args.id))
+        .filter((q) => q.gte(q.field('startTime'), now))
+        .collect()
+
+      const overbookedSchedules = upcomingSchedules.filter(
+        (schedule) => schedule.currentReservations > updates.capacity!
+      )
+      if (overbookedSchedules.length > 0) {
+        throw new Error(
+          `No se puede actualizar la capacidad: ${overbookedSchedules.length} turnos futuros ya tienen más reservas que la nueva capacidad.`
+        )
+      }
+
+      for (const schedule of upcomingSchedules) {
+        await ctx.db.patch(schedule._id, {
+          capacity: updates.capacity,
+          updatedAt: now,
+        })
+      }
+    }
 
     await ctx.db.patch(id, {
       ...updates,
-      updatedAt: Date.now(),
+      updatedAt: now,
     })
   },
 })
@@ -245,7 +260,7 @@ export const generateSchedules = mutation({
     endDate: v.optional(v.number()), // Optional end date (timestamp) from Generate Schedules dialog
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    const identity = await requireAuth(ctx)
 
     const classTemplate = await ctx.db.get(args.classId)
     if (!classTemplate) {
@@ -254,22 +269,39 @@ export const generateSchedules = mutation({
 
     await requireAdminOrTrainer(ctx, classTemplate.organizationId)
 
+    if (args.startDate >= args.endTime) {
+      throw new Error('La hora de inicio debe ser anterior a la de fin.')
+    }
+
     if (!classTemplate.isRecurring || !classTemplate.recurrencePattern) {
-      // For non-recurring, just create one schedule
       const now = Date.now()
-      const scheduleId = await ctx.db.insert('classSchedules', {
-        classId: args.classId,
+      const result = await createBatchWithSchedules(ctx, {
         organizationId: classTemplate.organizationId,
-        startTime: args.startDate,
-        endTime: args.endTime,
-        capacity: classTemplate.capacity,
-        currentReservations: 0,
-        status: 'scheduled',
-        createdAt: now,
-        updatedAt: now,
+        classId: args.classId,
+        sourceType: 'single',
+        sourceConfig: {
+          mode: 'single',
+          startTime: args.startDate,
+          endTime: args.endTime,
+          endDate: args.endDate,
+          durationMinutes: Math.round((args.endTime - args.startDate) / 60000),
+        },
+        createdBy: identity.subject,
+        schedules: [
+          {
+            classId: args.classId,
+            organizationId: classTemplate.organizationId,
+            startTime: args.startDate,
+            endTime: args.endTime,
+            capacity: classTemplate.capacity,
+            currentReservations: 0,
+            status: 'scheduled',
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
       })
-      await assignFixedSlotsToSchedule(ctx, scheduleId)
-      return { count: 1, scheduleId }
+      return result
     }
 
     const pattern = classTemplate.recurrencePattern
@@ -390,13 +422,20 @@ export const generateSchedules = mutation({
       }
     }
 
-    // Batch insert all schedules and assign fixed-slot members
-    for (const schedule of schedules) {
-      const scheduleId = await ctx.db.insert('classSchedules', schedule)
-      await assignFixedSlotsToSchedule(ctx, scheduleId)
-    }
-
-    return { count: schedules.length }
+    return await createBatchWithSchedules(ctx, {
+      organizationId: classTemplate.organizationId,
+      classId: args.classId,
+      sourceType: 'single',
+      sourceConfig: {
+        mode: 'single',
+        startTime: args.startDate,
+        endTime: args.endTime,
+        endDate,
+        durationMinutes: Math.round(duration / 60000),
+      },
+      createdBy: identity.subject,
+      schedules,
+    })
   },
 })
 
@@ -419,7 +458,7 @@ export const generateSchedulesFromTimeWindow = mutation({
     daysOfWeek: v.optional(v.array(v.number())), // 0–6, empty = all days
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    const identity = await requireAuth(ctx)
 
     const classTemplate = await ctx.db.get(args.classId)
     if (!classTemplate) {
@@ -493,11 +532,22 @@ export const generateSchedulesFromTimeWindow = mutation({
       current += dayMs
     }
 
-    for (const schedule of schedules) {
-      const scheduleId = await ctx.db.insert('classSchedules', schedule)
-      await assignFixedSlotsToSchedule(ctx, scheduleId)
-    }
-
-    return { count: schedules.length }
+    return await createBatchWithSchedules(ctx, {
+      organizationId: classTemplate.organizationId,
+      classId: args.classId,
+      sourceType: 'timeWindow',
+      sourceConfig: {
+        mode: 'timeWindow',
+        rangeStartDate: args.startDate,
+        rangeEndDate: args.endDate,
+        timeWindowStartMinutes: args.timeWindowStartMinutes,
+        timeWindowEndMinutes: args.timeWindowEndMinutes,
+        slotIntervalMinutes: args.slotIntervalMinutes,
+        durationMinutes: args.durationMinutes,
+        daysOfWeek: args.daysOfWeek,
+      },
+      createdBy: identity.subject,
+      schedules,
+    })
   },
 })

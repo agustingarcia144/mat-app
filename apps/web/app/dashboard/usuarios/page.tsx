@@ -5,16 +5,20 @@ import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { DataTable } from '@/components/ui/data-table'
 import { getColumns } from '@/components/features/usuarios/table/columns'
+import { InviteUserDialog } from '@/components/features/usuarios/invite-user-dialog'
+import { PendingInvitationsCard } from '@/components/features/usuarios/pending-invitations-card'
 import { mapMembershipsToMembers } from '@repo/core/utils'
 import type { Member } from '@repo/core'
 import DataTableSkeleton from '@/components/ui/data-table-skeleton'
 import { Input } from '@/components/ui/input'
 import MemberDetailDialog from '@/components/features/members/table/member-detail-dialog'
+import { Button } from '@/components/ui/button'
 import { Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import StatusBadge from '@/components/shared/badges/status-badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
 
 const normalize = (value?: string) =>
@@ -32,9 +36,13 @@ function getRoleLabel(role: string): string {
 
 export default function UsuariosPage() {
   const isMobile = useIsMobile()
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
-    api.organizationMemberships.getOrganizationMemberships
+    api.organizationMemberships.getOrganizationMemberships,
+    canQueryCurrentOrganization ? {} : 'skip'
   )
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
+  const [inviteRefreshKey, setInviteRefreshKey] = useState(0)
 
   const users = useMemo(() => {
     const all = mapMembershipsToMembers(memberships ?? [])
@@ -70,14 +78,21 @@ export default function UsuariosPage() {
 
   return (
     <DashboardPageContainer className="space-y-4 py-6 md:py-10">
-      <div className="relative w-full md:max-w-xs">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nombre, email o rol..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="h-10 pl-10"
-        />
+      <PendingInvitationsCard refreshKey={inviteRefreshKey} />
+
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="relative w-full md:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nombre, email o rol..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-10 pl-10"
+          />
+        </div>
+        <Button type="button" onClick={() => setInviteDialogOpen(true)}>
+          Invitar usuario
+        </Button>
       </div>
 
       {isMobile ? (
@@ -144,6 +159,11 @@ export default function UsuariosPage() {
         member={selectedMember}
         open={!!selectedMember}
         onClose={() => setSelectedMember(null)}
+      />
+      <InviteUserDialog
+        open={inviteDialogOpen}
+        onOpenChange={setInviteDialogOpen}
+        onInvited={() => setInviteRefreshKey((current) => current + 1)}
       />
     </DashboardPageContainer>
   )

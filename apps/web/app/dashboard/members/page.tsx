@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import StatusBadge from '@/components/shared/badges/status-badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
 
 const normalize = (value?: string) =>
@@ -23,8 +24,10 @@ const normalize = (value?: string) =>
 
 export default function MembersPage() {
   const isMobile = useIsMobile()
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
-    api.organizationMemberships.getOrganizationMemberships
+    api.organizationMemberships.getOrganizationMemberships,
+    canQueryCurrentOrganization ? {} : 'skip'
   )
 
   const members = mapMembershipsToMembers(memberships || [])

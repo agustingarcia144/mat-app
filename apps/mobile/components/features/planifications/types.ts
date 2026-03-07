@@ -8,6 +8,7 @@ export interface DayExerciseWithDetails {
   sets: number
   reps: string
   weight?: string
+  prPercentage?: number
   exercise?: { name?: string; videoUrl?: string } | null
 }
 

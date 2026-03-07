@@ -41,6 +41,7 @@ import { Check, ChevronsUpDown } from 'lucide-react'
 import { type DateRange } from 'react-day-picker'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 interface AssignDialogProps {
   open: boolean
@@ -54,14 +55,18 @@ export default function AssignDialog({
   planificationId,
 }: AssignDialogProps) {
   const assign = useMutation(api.planificationAssignments.assign)
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
-    api.organizationMemberships.getOrganizationMemberships
+    api.organizationMemberships.getOrganizationMemberships,
+    open && canQueryCurrentOrganization ? {} : 'skip'
   )
   const assignments = useQuery(
     api.planificationAssignments.getByPlanification,
-    {
-      planificationId: planificationId as any,
-    }
+    open && canQueryCurrentOrganization
+      ? {
+          planificationId: planificationId as any,
+        }
+      : 'skip'
   )
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({

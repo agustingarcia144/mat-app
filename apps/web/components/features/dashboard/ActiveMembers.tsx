@@ -7,10 +7,13 @@ import StatsCard from './StatsCard'
 import { mapMembershipsToMembers } from '@repo/core/utils'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle } from 'lucide-react'
+import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 export default function ActiveMembers() {
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
-    api.organizationMemberships.getOrganizationMemberships
+    api.organizationMemberships.getOrganizationMemberships,
+    canQueryCurrentOrganization ? {} : 'skip'
   )
 
   const activeCount = useMemo(() => {
@@ -36,7 +39,7 @@ export default function ActiveMembers() {
       title="Miembros activos"
       value={activeCount}
       footer={
-        <Badge variant="dark" className="gap-2">
+        <Badge variant="outline" className="gap-2">
           <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
           Activos
         </Badge>
