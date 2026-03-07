@@ -43,30 +43,32 @@ export function DataTable<TData, TValue>({
     getCoreRowModel: getCoreRowModel(),
   })
 
+  const hasRows = table.getRowModel().rows?.length > 0
+
   return (
     <div className="overflow-hidden rounded-md border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                return (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                )
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
+      {hasRows ? (
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  )
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && "selected"}
@@ -77,30 +79,50 @@ export function DataTable<TData, TValue>({
                   </TableCell>
                 ))}
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="p-0">
-                <Empty className="h-32 border-0 rounded-none">
-                  <EmptyHeader>
-                    <EmptyMedia>
-                      <Image
-                        src={matWolfLooking}
-                        alt=""
-                        className="h-14 w-14 object-contain"
-                      />
-                    </EmptyMedia>
-                    <EmptyTitle>No hay resultados</EmptyTitle>
-                    <EmptyDescription>
-                      No se encontraron registros para mostrar.
-                    </EmptyDescription>
-                  </EmptyHeader>
-                </Empty>
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <>
+          <div className="relative w-full overflow-x-auto">
+            <table className="w-full caption-bottom text-sm">
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => {
+                      return (
+                        <TableHead key={header.id}>
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                        </TableHead>
+                      )
+                    })}
+                  </TableRow>
+                ))}
+              </TableHeader>
+            </table>
+          </div>
+          <Empty className="h-32 border-0 rounded-none border-t">
+            <EmptyHeader>
+              <EmptyMedia>
+                <Image
+                  src={matWolfLooking}
+                  alt=""
+                  className="h-14 w-14 object-contain"
+                />
+              </EmptyMedia>
+              <EmptyTitle>No hay resultados</EmptyTitle>
+              <EmptyDescription>
+                No se encontraron registros para mostrar.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </>
+      )}
     </div>
   )
 }

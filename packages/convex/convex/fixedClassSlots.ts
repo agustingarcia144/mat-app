@@ -156,6 +156,8 @@ export const backfillToExistingSchedules = mutation({
 
 /**
  * Remove a fixed slot (admin/trainer only).
+ * Also cancels this member's reservations on all matching schedules (same class, day, time)
+ * so the member is removed from those schedules.
  */
 export const remove = mutation({
   args: {
@@ -170,6 +172,14 @@ export const remove = mutation({
     }
 
     await requireAdminOrTrainer(ctx, slot.organizationId)
+
+    await removeMemberFromMatchingSchedules(ctx, {
+      organizationId: slot.organizationId,
+      userId: slot.userId,
+      classId: slot.classId,
+      dayOfWeek: slot.dayOfWeek,
+      startTimeMinutes: slot.startTimeMinutes,
+    })
 
     await ctx.db.delete(args.id)
   },
@@ -337,6 +347,79 @@ async function assignFixedSlotToMatchingSchedules(
     })
     await ctx.db.patch(schedule._id, {
       currentReservations: schedule.currentReservations + 1,
+      updatedAt: now,
+    })
+  }
+}
+
+/**
+ * When removing a fixed slot, cancel this member's reservations on all schedules
+ * that match the slot (same class, day of week, time in org timezone) so the
+ * member is removed from those schedules.
+ */
+async function removeMemberFromMatchingSchedules(
+  ctx: MutationCtx,
+  slot: {
+    organizationId: Id<'organizations'>
+    userId: string
+    classId: Id<'classes'>
+    dayOfWeek: number
+    startTimeMinutes: number
+  }
+): Promise<void> {
+  const organization = await ctx.db.get(slot.organizationId)
+  const timezone =
+    organization?.timezone && organization.timezone.trim() !== ''
+      ? organization.timezone
+      : 'UTC'
+
+  const schedules = await ctx.db
+    .query('classSchedules')
+    .withIndex('by_organization_time', (q) =>
+      q.eq('organizationId', slot.organizationId)
+    )
+    .filter((q) =>
+      q.and(
+        q.eq(q.field('classId'), slot.classId),
+        q.eq(q.field('status'), 'scheduled')
+      )
+    )
+    .collect()
+
+  const now = Date.now()
+
+  for (const schedule of schedules) {
+    const { dayOfWeek, startTimeMinutes } = getDayAndMinutesInZone(
+      schedule.startTime,
+      timezone
+    )
+    if (
+      dayOfWeek !== slot.dayOfWeek ||
+      startTimeMinutes !== slot.startTimeMinutes
+    ) {
+      continue
+    }
+
+    const reservation = await ctx.db
+      .query('classReservations')
+      .withIndex('by_schedule', (q) => q.eq('scheduleId', schedule._id))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('userId'), slot.userId),
+          q.eq(q.field('status'), 'confirmed')
+        )
+      )
+      .first()
+
+    if (!reservation) continue
+
+    await ctx.db.patch(reservation._id, {
+      status: 'cancelled',
+      cancelledAt: now,
+      updatedAt: now,
+    })
+    await ctx.db.patch(schedule._id, {
+      currentReservations: Math.max(0, schedule.currentReservations - 1),
       updatedAt: now,
     })
   }
