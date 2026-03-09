@@ -151,7 +151,8 @@ export async function POST(request: Request) {
     )
   }
 
-  const redirectUrl = new URL('/dashboard', request.url).toString()
+  // Clerk invitation links must land on a public route so the ticket can be consumed.
+  const redirectUrl = new URL('/sign-up', request.url).toString()
   const result = await callClerkApi<ClerkInvitation>(
     `/organizations/${guard.session.orgId}/invitations`,
     {

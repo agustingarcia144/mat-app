@@ -44,7 +44,7 @@ export default function InicioLayout() {
         options={{
           presentation: 'formSheet',
           headerShown: true,
-          headerTransparent: false,
+          headerTransparent: true,
           contentStyle: { backgroundColor: 'transparent' },
           title: '',
           headerRight: () => <HeaderCloseButton />,

@@ -50,10 +50,10 @@ export default function InviteOnlySignUp() {
   const [signInError, setSignInError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (isSignedIn) {
+    if (isSignedIn && !ticket) {
       router.replace(DASHBOARD_REDIRECT)
     }
-  }, [isSignedIn, router])
+  }, [isSignedIn, router, ticket])
 
   useEffect(() => {
     if (
