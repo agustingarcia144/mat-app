@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { SignUp, useSignIn, useUser } from '@clerk/nextjs'
+import { SignUp, useClerk, useSignIn, useUser } from '@clerk/nextjs'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,6 +41,7 @@ function InvitationStatusCard({
 export default function InviteOnlySignUp() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { signOut } = useClerk()
   const { isLoaded, signIn, setActive } = useSignIn()
   const { isSignedIn } = useUser()
   const ticket = searchParams.get('__clerk_ticket')
@@ -83,19 +84,26 @@ export default function InviteOnlySignUp() {
           navigate: () => router.replace(DASHBOARD_REDIRECT),
         })
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
         const message =
           error && typeof error === 'object' && 'errors' in error
             ? (error as { errors?: Array<{ longMessage?: string }> }).errors?.[0]
                 ?.longMessage
             : null
 
+        if (message && /already signed in/i.test(message)) {
+          attemptedRef.current = false
+          await signOut()
+          setRetryKey((current) => current + 1)
+          return
+        }
+
         setSignInError(
           message ??
             'No se pudo completar el ingreso con esta invitación. Vuelve a intentarlo.'
         )
       })
-  }, [accountStatus, isLoaded, retryKey, router, setActive, signIn, ticket])
+  }, [accountStatus, isLoaded, retryKey, router, setActive, signIn, signOut, ticket])
 
   if (!ticket) {
     return (

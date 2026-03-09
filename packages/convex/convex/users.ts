@@ -1,4 +1,4 @@
-import { internalMutation, mutation, query } from './_generated/server'
+import { internalMutation, internalQuery, mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { requireCurrentOrganizationMembership } from './permissions'
 
@@ -165,6 +165,32 @@ export const getCurrentUser = query({
       .query('users')
       .withIndex('by_externalId', (q) => q.eq('externalId', clerkUserId))
       .first()
+  },
+})
+
+/**
+ * Internal helper for migrations: list users ordered by Clerk externalId.
+ */
+export const listExternalIdsBatch = internalQuery({
+  args: {
+    afterExternalId: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const users =
+      args.afterExternalId === undefined
+        ? await ctx.db.query('users').withIndex('by_externalId').take(args.limit)
+        : await ctx.db
+            .query('users')
+            .withIndex('by_externalId', (q) =>
+              q.gt('externalId', args.afterExternalId!)
+            )
+            .take(args.limit)
+
+    return users.map((user) => ({
+      id: user._id,
+      externalId: user.externalId,
+    }))
   },
 })
 

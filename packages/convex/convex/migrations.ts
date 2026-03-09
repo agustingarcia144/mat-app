@@ -1,6 +1,7 @@
-import { internalMutation } from './_generated/server'
+import { internalAction, internalMutation } from './_generated/server'
 import { v } from 'convex/values'
 import type { Id } from './_generated/dataModel'
+import { internal } from './_generated/api'
 
 /**
  * Migration: Wrap existing workout days in "Semana 1"
@@ -275,6 +276,122 @@ export const deleteAllClassesAndRelated = internalMutation({
         schedules.length === BATCH_SIZE || classes.length === BATCH_SIZE
           ? 'Run again to delete more'
           : 'Done',
+    }
+  },
+})
+
+const CLERK_API_BASE = 'https://api.clerk.com/v1'
+const CLERK_PAGE_SIZE = 100
+
+type ClerkUser = { id?: string }
+type ClerkUserListResponse =
+  | ClerkUser[]
+  | {
+      data?: ClerkUser[]
+    }
+
+function extractClerkUsers(payload: ClerkUserListResponse | null): ClerkUser[] {
+  if (!payload) return []
+  return Array.isArray(payload) ? payload : payload.data ?? []
+}
+
+/**
+ * Migration: delete Convex users that no longer exist in Clerk.
+ * Useful when webhook delivery missed `user.deleted` events.
+ */
+export const deleteUsersMissingInClerk = internalAction({
+  args: {
+    dryRun: v.optional(v.boolean()),
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const secret = process.env.CLERK_SECRET_KEY
+    if (!secret) {
+      throw new Error('Missing CLERK_SECRET_KEY')
+    }
+
+    const dryRun = args.dryRun ?? true
+    const batchSize = Math.max(1, Math.min(args.batchSize ?? 200, 500))
+
+    const clerkUserIds = new Set<string>()
+    let offset = 0
+
+    while (true) {
+      const response = await fetch(
+        `${CLERK_API_BASE}/users?limit=${CLERK_PAGE_SIZE}&offset=${offset}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${secret}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        const message =
+          body?.errors?.[0]?.long_message ??
+          body?.errors?.[0]?.message ??
+          body?.message ??
+          `Clerk API request failed with status ${response.status}`
+        throw new Error(message)
+      }
+
+      const body = (await response.json().catch(() => null)) as ClerkUserListResponse | null
+      const users = extractClerkUsers(body)
+      if (users.length === 0) break
+
+      for (const user of users) {
+        if (typeof user.id === 'string' && user.id.length > 0) {
+          clerkUserIds.add(user.id)
+        }
+      }
+
+      if (users.length < CLERK_PAGE_SIZE) break
+      offset += CLERK_PAGE_SIZE
+    }
+
+    let scanned = 0
+    let deleted = 0
+    const missingExternalIds: string[] = []
+    let afterExternalId: string | undefined = undefined
+
+    while (true) {
+      const userBatch: Array<{ externalId: string }> = await ctx.runQuery(
+        internal.users.listExternalIdsBatch,
+        {
+        afterExternalId,
+        limit: batchSize,
+        }
+      )
+
+      if (userBatch.length === 0) break
+      scanned += userBatch.length
+
+      for (const user of userBatch) {
+        if (!clerkUserIds.has(user.externalId)) {
+          missingExternalIds.push(user.externalId)
+          if (!dryRun) {
+            await ctx.runMutation(internal.users.deleteFromClerk, {
+              clerkUserId: user.externalId,
+            })
+            deleted += 1
+          }
+        }
+      }
+
+      afterExternalId = userBatch[userBatch.length - 1].externalId
+      if (userBatch.length < batchSize) break
+    }
+
+    return {
+      success: true,
+      dryRun,
+      scannedUsers: scanned,
+      missingInClerk: missingExternalIds.length,
+      deletedUsers: deleted,
+      sampleMissingExternalIds: missingExternalIds.slice(0, 50),
     }
   },
 })
