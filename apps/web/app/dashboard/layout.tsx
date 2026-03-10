@@ -6,6 +6,7 @@ import { AppSidebar } from '@/components/features/dashboard/sidebar/app-sidebar'
 import { SidebarInset } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { UnsavedChangesProvider } from '@/contexts/unsaved-changes-context'
+import { hasUserStaffOrganization } from '@/lib/security/user-org-access'
 import { isOrgStaffRole, isWebStaffGuardEnabled } from '@/lib/security/roles'
 
 async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,8 @@ async function DashboardLayout({ children }: { children: React.ReactNode }) {
   if (!userId) redirect('/sign-in')
   if (!orgId) redirect('/select-organization')
   if (isWebStaffGuardEnabled() && !isOrgStaffRole(orgRole)) {
+    const hasStaffOrg = await hasUserStaffOrganization(userId)
+    if (hasStaffOrg) redirect('/select-organization')
     redirect('/access-denied')
   }
 

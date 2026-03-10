@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  Modal,
 } from 'react-native'
 import { Picker } from '@react-native-picker/picker'
 import { useRouter } from 'expo-router'
@@ -32,6 +33,9 @@ function Onboarding2Content() {
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [activePicker, setActivePicker] = useState<'height' | 'weight' | null>(
+    null,
+  )
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -65,6 +69,9 @@ function Onboarding2Content() {
       setLoading(false)
     }
   }
+
+  const selectedHeight = heightCm ?? HEIGHT_CM[50]
+  const selectedWeight = weightKg ?? WEIGHT_KG[40]
 
   return (
     <KeyboardAvoidingView
@@ -102,70 +109,54 @@ function Onboarding2Content() {
               <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
                 Altura (cm)
               </Text>
-              <View
+              <ThemedPressable
+                onPress={() => !loading && setActivePicker('height')}
                 style={[
-                  styles.pickerWrap,
+                  styles.input,
+                  styles.pickerInput,
                   {
                     backgroundColor: isDark ? '#18181b' : '#f4f4f5',
                     borderColor: isDark ? '#27272a' : '#e4e4e7',
                   },
                 ]}
+                disabled={loading}
               >
-                <Picker
-                  selectedValue={heightCm ?? HEIGHT_CM[50]}
-                  onValueChange={(v) => setHeightCm(v as number)}
+                <Text
                   style={[
-                    styles.picker,
+                    styles.pickerInputText,
                     { color: isDark ? '#fff' : '#000' },
                   ]}
-                  enabled={!loading}
-                  prompt="Altura (cm)"
                 >
-                  {HEIGHT_CM.map((cm) => (
-                    <Picker.Item
-                      key={cm}
-                      label={`${cm} cm`}
-                      value={cm}
-                      color={isDark ? '#fff' : '#000'}
-                    />
-                  ))}
-                </Picker>
-              </View>
+                  {`${selectedHeight} cm`}
+                </Text>
+              </ThemedPressable>
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
                 Peso (kg)
               </Text>
-              <View
+              <ThemedPressable
+                onPress={() => !loading && setActivePicker('weight')}
                 style={[
-                  styles.pickerWrap,
+                  styles.input,
+                  styles.pickerInput,
                   {
                     backgroundColor: isDark ? '#18181b' : '#f4f4f5',
                     borderColor: isDark ? '#27272a' : '#e4e4e7',
                   },
                 ]}
+                disabled={loading}
               >
-                <Picker
-                  selectedValue={weightKg ?? WEIGHT_KG[40]}
-                  onValueChange={(v) => setWeightKg(v as number)}
+                <Text
                   style={[
-                    styles.picker,
+                    styles.pickerInputText,
                     { color: isDark ? '#fff' : '#000' },
                   ]}
-                  enabled={!loading}
-                  prompt="Peso (kg)"
                 >
-                  {WEIGHT_KG.map((kg) => (
-                    <Picker.Item
-                      key={kg}
-                      label={`${kg} kg`}
-                      value={kg}
-                      color={isDark ? '#fff' : '#000'}
-                    />
-                  ))}
-                </Picker>
-              </View>
+                  {`${selectedWeight} kg`}
+                </Text>
+              </ThemedPressable>
             </View>
 
             <View style={styles.inputGroup}>
@@ -191,6 +182,63 @@ function Onboarding2Content() {
                 editable={!loading}
               />
             </View>
+
+            <Modal
+              visible={activePicker !== null}
+              transparent
+              animationType="slide"
+              onRequestClose={() => setActivePicker(null)}
+            >
+              <View style={styles.sheetBackdrop}>
+                <View
+                  style={[
+                    styles.sheet,
+                    { backgroundColor: isDark ? '#000' : '#fff' },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.sheetTitle,
+                      { color: isDark ? '#fff' : '#000' },
+                    ]}
+                  >
+                    {activePicker === 'height' ? 'Altura (cm)' : 'Peso (kg)'}
+                  </Text>
+                  {activePicker === 'height' ? (
+                    <Picker
+                      selectedValue={selectedHeight}
+                      onValueChange={(v) => setHeightCm(v as number)}
+                    >
+                      {HEIGHT_CM.map((cm) => (
+                        <Picker.Item key={cm} label={`${cm} cm`} value={cm} />
+                      ))}
+                    </Picker>
+                  ) : (
+                    <Picker
+                      selectedValue={selectedWeight}
+                      onValueChange={(v) => setWeightKg(v as number)}
+                    >
+                      {WEIGHT_KG.map((kg) => (
+                        <Picker.Item key={kg} label={`${kg} kg`} value={kg} />
+                      ))}
+                    </Picker>
+                  )}
+                  <ThemedPressable
+                    onPress={() => setActivePicker(null)}
+                    style={styles.sheetDone}
+                  >
+                    <Text
+                      style={[
+                        styles.sheetDoneText,
+                        { color: isDark ? '#fff' : '#000' },
+                      ]}
+                    >
+                      Listo
+                    </Text>
+                  </ThemedPressable>
+                </View>
+              </View>
+            </Modal>
 
             <ThemedPressable
               type="primary"
@@ -302,6 +350,13 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     textAlignVertical: 'top',
   },
+  pickerInput: {
+    height: 48,
+    justifyContent: 'center',
+  },
+  pickerInputText: {
+    fontSize: 16,
+  },
   pickerWrap: {
     height: 48,
     borderRadius: 9999,
@@ -311,6 +366,31 @@ const styles = StyleSheet.create({
   },
   picker: {
     height: 48,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  sheet: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  sheetDone: {
+    marginTop: 12,
+    alignSelf: 'flex-end',
+  },
+  sheetDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   button: {
     height: 48,

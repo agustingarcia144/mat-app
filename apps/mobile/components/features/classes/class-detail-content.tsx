@@ -207,7 +207,11 @@ export default function ClassDetailContent() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
   }, [scheduleWithDetails])
 
-  if (scheduleWithDetails === undefined || myUpcoming === undefined || myPast === undefined) {
+  if (
+    scheduleWithDetails === undefined ||
+    myUpcoming === undefined ||
+    myPast === undefined
+  ) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
@@ -301,7 +305,7 @@ export default function ClassDetailContent() {
                 isDark={isDark}
               />
             ) : scheduleWithDetails.status !== 'scheduled' ||
-                currentReservations >= capacity ? (
+              currentReservations >= capacity ? (
               <OccupancyBadge
                 capacity={capacity}
                 currentReservations={currentReservations}

@@ -19,7 +19,11 @@ export function ReservationBadge({
         : BadgeColors.warning[isDark ? 'dark' : 'light']
 
   const label =
-    status === 'attended' ? 'Asististe' : status === 'no_show' ? 'No show' : 'Reservado'
+    status === 'attended'
+      ? 'Asististe'
+      : status === 'no_show'
+        ? 'Ausente'
+        : 'Reservado'
 
   return (
     <View

@@ -7,11 +7,15 @@ import { useOrganization, useOrganizationList } from '@clerk/nextjs'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
-import { getOrgRoleLabel } from '@/lib/security/roles'
+import {
+  getOrgRoleLabel,
+  isOrgStaffRole,
+  isWebStaffGuardEnabled,
+} from '@/lib/security/roles'
 
 export default function SelectOrganizationPage() {
   const router = useRouter()
-  const { organization } = useOrganization()
+  const { organization, membership } = useOrganization()
   const { userMemberships, setActive, isLoaded } = useOrganizationList({
     userMemberships: true,
   })
@@ -23,10 +27,17 @@ export default function SelectOrganizationPage() {
   const memberships = useMemo(() => userMemberships?.data ?? [], [userMemberships])
 
   useEffect(() => {
-    if (organization?.id) {
+    if (!organization?.id) return
+
+    if (!isWebStaffGuardEnabled()) {
+      router.replace('/dashboard')
+      return
+    }
+
+    if (isOrgStaffRole(membership?.role)) {
       router.replace('/dashboard')
     }
-  }, [organization?.id, router])
+  }, [organization?.id, membership?.role, router])
 
   const activateOrganization = useCallback(
     async (organizationId: string) => {
