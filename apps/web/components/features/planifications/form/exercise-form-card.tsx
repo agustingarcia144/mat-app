@@ -8,6 +8,7 @@ import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { getVideoThumbnailUrl } from '@repo/core/utils'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
 import { Field, FieldError } from '@/components/ui/field'
@@ -78,6 +79,7 @@ export default function ExerciseFormCard({
   const [localPrPercentage, setLocalPrPercentage] = useState<string>('')
   const [localTimeMinutes, setLocalTimeMinutes] = useState<string>('')
   const [localTimeSeconds, setLocalTimeSeconds] = useState<string>('')
+  const [localNotes, setLocalNotes] = useState<string>('')
   const [saveError, setSaveError] = useState<{
     sets?: string
     reps?: string
@@ -118,6 +120,7 @@ export default function ExerciseFormCard({
       setLocalTimeMinutes('')
       setLocalTimeSeconds('')
     }
+    setLocalNotes(ex?.notes ?? '')
     setSaveError(null)
     setDialogOpen(true)
   }, [form, weekIndex, dayIndex, exerciseIndex])
@@ -177,6 +180,9 @@ export default function ExerciseFormCard({
     const timeSecondsToSave =
       hasTime ? mins * 60 + secs : undefined
     form.setValue(`${basePath}.timeSeconds` as any, timeSecondsToSave, {
+      shouldDirty: true,
+    })
+    form.setValue(`${basePath}.notes` as any, localNotes.trim(), {
       shouldDirty: true,
     })
     form.trigger(`${basePath}` as any).catch(() => {})
@@ -377,6 +383,17 @@ export default function ExerciseFormCard({
                     </span>
                   </div>
                 </div>
+              </Field>
+              <Field>
+                <label className="text-sm font-medium block mb-1.5">
+                  Comentarios
+                </label>
+                <Textarea
+                  value={localNotes}
+                  onChange={(e) => setLocalNotes(e.target.value)}
+                  placeholder="Notas para el atleta"
+                  className="min-h-[96px]"
+                />
               </Field>
             </div>
           </div>

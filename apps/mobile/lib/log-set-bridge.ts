@@ -10,6 +10,8 @@ export type PendingLogSetResult = {
   weight: number
   /** When true, apply the same reps and weight to all sets of the exercise */
   applyToAllSets?: boolean
+  /** Optional duration in seconds (per exercise/session), if applicable */
+  timeSeconds?: number
 }
 
 export type LogSetSaveCallback = (result: PendingLogSetResult) => void

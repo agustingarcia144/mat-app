@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native'
+import { OtpInput } from 'react-native-otp-entry'
 import { useSignIn, useSSO } from '@clerk/clerk-expo'
 import { useRouter } from 'expo-router'
 import {
@@ -213,24 +214,25 @@ function SignInForm() {
           ) : null}
 
           <View style={styles.form}>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                  color: isDark ? '#fff' : '#000',
+            <OtpInput
+              numberOfDigits={6}
+              onTextChange={setOtpCode}
+              autoFocus
+              disabled={otpLoading}
+              focusColor={isDark ? '#fff' : '#000'}
+              theme={{
+                containerStyle: { marginBottom: 24 },
+                pinCodeContainerStyle: {
+                  borderRadius: 9999,
+                  borderWidth: 1,
                   borderColor: isDark ? '#27272a' : '#e4e4e7',
+                  backgroundColor: isDark ? '#18181b' : '#f4f4f5',
                 },
-              ]}
-              placeholder="Código"
-              placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
-              value={otpCode}
-              onChangeText={setOtpCode}
-              autoCapitalize="none"
-              autoComplete="one-time-code"
-              keyboardType="number-pad"
-              maxLength={8}
-              editable={!otpLoading}
+                pinCodeTextStyle: {
+                  color: isDark ? '#fff' : '#000',
+                  fontSize: 18,
+                },
+              }}
             />
 
             <ThemedPressable

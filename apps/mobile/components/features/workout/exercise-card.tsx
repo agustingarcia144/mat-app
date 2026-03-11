@@ -13,6 +13,8 @@ export interface DayExerciseForCard {
   reps: string
   weight?: string
   prPercentage?: number
+  timeSeconds?: number
+  notes?: string
   order: number
   exercise?: {
     name?: string
@@ -20,15 +22,32 @@ export interface DayExerciseForCard {
   }
 }
 
-function formatLoad(weight?: string, prPercentage?: number) {
-  if (weight?.trim()) return weight.trim()
-  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% PR`
-  return ''
+function formatTime(timeSeconds?: number) {
+  if (timeSeconds == null || timeSeconds <= 0) return ''
+  if (timeSeconds < 60) return `${timeSeconds}s`
+  const mins = Math.round(timeSeconds / 60)
+  return `${mins}min`
+}
+
+function formatLoad(
+  weight?: string,
+  prPercentage?: number,
+  timeSeconds?: number
+) {
+  const parts: string[] = []
+  if (weight?.trim()) parts.push(weight.trim())
+  if (prPercentage != null && prPercentage > 0)
+    parts.push(`${prPercentage}% PR`)
+  const time = formatTime(timeSeconds)
+  if (time) parts.push(time)
+  return parts.join(' · ')
 }
 
 export interface ExerciseCardProps {
   dayEx: DayExerciseForCard
   values: { reps: string; weight: string }[]
+  timeValues?: number[]
+  supportsTime?: boolean
   saving: boolean
   isExpanded: boolean
   onToggleExpand: () => void
@@ -45,6 +64,8 @@ export interface ExerciseCardProps {
 export function ExerciseCard({
   dayEx,
   values,
+  timeValues,
+  supportsTime = false,
   saving,
   isExpanded,
   onToggleExpand,
@@ -62,7 +83,14 @@ export function ExerciseCard({
     : null
   const hasThumbnail = !!thumbnailUrl
   const overlayTextColor = hasThumbnail ? '#fff' : inputColor
-  const loadLabel = formatLoad(dayEx.weight, dayEx.prPercentage)
+  const loadLabel = formatLoad(
+    dayEx.weight,
+    dayEx.prPercentage,
+    timeValues?.[0]
+  )
+  const notesLabel = dayEx.notes?.trim()
+  const hasTime =
+    supportsTime || (timeValues?.some((value) => value != null && value > 0) ?? false)
 
   const isExerciseCompleted =
     values.length >= dayEx.sets &&
@@ -128,12 +156,28 @@ export function ExerciseCard({
           { backgroundColor: isDark ? '#18181b' : '#f4f4f5' },
         ]}
       >
-        <Text
-          style={[styles.cardFooterLabel, { color: isDark ? '#fff' : '#000' }]}
-        >
-          Series {dayEx.sets} × {dayEx.reps}
-          {loadLabel ? ` · ${loadLabel}` : ''}
-        </Text>
+        <View style={styles.cardFooterContent}>
+          <Text
+            style={[
+              styles.cardFooterLabel,
+              { color: isDark ? '#fff' : '#000' },
+            ]}
+          >
+            Series {dayEx.sets} × {dayEx.reps}
+            {loadLabel ? ` · ${loadLabel}` : ''}
+          </Text>
+          {notesLabel ? (
+            <Text
+              style={[
+                styles.cardFooterNotes,
+                { color: isDark ? '#d4d4d8' : '#52525b' },
+              ]}
+              numberOfLines={2}
+            >
+              Comentarios: {notesLabel}
+            </Text>
+          ) : null}
+        </View>
         <MaterialIcons
           name={isExpanded ? 'keyboard-arrow-down' : 'keyboard-arrow-up'}
           size={24}
@@ -157,21 +201,34 @@ export function ExerciseCard({
                   setValues.weight?.trim().length > 0
                 return (
                   <View key={`set-${setIndex}`} style={styles.setRow}>
-                    <View style={styles.setInputs}>
+                    <View
+                      style={[
+                        styles.setInputs,
+                        hasTime && styles.setInputsCompact,
+                      ]}
+                    >
                       <PressableScale
                         onPress={() => onPressSet(setIndex)}
                         style={[
                           styles.setInputsPressable,
-                          (isNewSession || isCompleted) &&
-                            styles.setInputsPressableDisabled,
+                          isNewSession && styles.setInputsPressableDisabled,
                         ]}
                       >
-                        <View style={styles.setInputGroup}>
+                        <View
+                          style={[
+                            styles.setInputGroup,
+                            hasTime && styles.setInputGroupCompact,
+                          ]}
+                        >
                           <ThemedText style={styles.inputLabel}>
                             Reps
                           </ThemedText>
                           <View
-                            style={[styles.input, { backgroundColor: inputBg }]}
+                            style={[
+                              styles.input,
+                              hasTime && styles.inputCompact,
+                              { backgroundColor: inputBg },
+                            ]}
                           >
                             <Text
                               style={[
@@ -190,12 +247,21 @@ export function ExerciseCard({
                             </Text>
                           </View>
                         </View>
-                        <View style={styles.setInputGroup}>
+                        <View
+                          style={[
+                            styles.setInputGroup,
+                            hasTime && styles.setInputGroupCompact,
+                          ]}
+                        >
                           <ThemedText style={styles.inputLabel}>
                             Peso
                           </ThemedText>
                           <View
-                            style={[styles.input, { backgroundColor: inputBg }]}
+                            style={[
+                              styles.input,
+                              hasTime && styles.inputCompact,
+                              { backgroundColor: inputBg },
+                            ]}
                           >
                             <Text
                               style={[
@@ -214,6 +280,35 @@ export function ExerciseCard({
                             </Text>
                           </View>
                         </View>
+                        {hasTime && (
+                          <View
+                            style={[
+                              styles.setInputGroup,
+                              styles.setInputGroupCompact,
+                            ]}
+                          >
+                            <ThemedText style={styles.inputLabel}>
+                              Tiempo
+                            </ThemedText>
+                            <View
+                              style={[
+                                styles.input,
+                                styles.inputCompact,
+                                { backgroundColor: inputBg },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.inputValue,
+                                  { color: inputColor },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {formatTime(timeValues?.[setIndex])}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
                       </PressableScale>
                       <View style={styles.statusColumn}>
                         <View style={styles.statusSpacer} />
@@ -253,6 +348,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
     overflow: 'hidden',
+    maxWidth: 290,
   },
   thumbnailSection: {
     height: 200,
@@ -296,6 +392,11 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingTop: 12,
   },
+  expandedNotes: {
+    fontSize: 13,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
   cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -303,9 +404,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
+  cardFooterContent: {
+    flex: 1,
+    marginRight: 8,
+    minWidth: 0,
+  },
   cardFooterLabel: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  cardFooterNotes: {
+    fontSize: 12,
+    marginTop: 4,
   },
   setsGrid: {
     flexDirection: 'row',
@@ -322,6 +432,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  setInputsCompact: {
+    maxWidth: '100%',
+  },
   setInputsPressable: {
     flexDirection: 'row',
     gap: 8,
@@ -334,6 +447,9 @@ const styles = StyleSheet.create({
   setInputGroup: {
     flex: 1,
     minWidth: 0,
+  },
+  setInputGroupCompact: {
+    flexBasis: 0,
   },
   statusColumn: {
     justifyContent: 'flex-start',
@@ -361,6 +477,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     width: '100%',
+  },
+  inputCompact: {
+    paddingHorizontal: 8,
   },
   inputValue: {
     fontSize: 16,

@@ -346,6 +346,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   textArea: {
+    borderRadius: 16,
     minHeight: 88,
     paddingTop: 12,
     textAlignVertical: 'top',

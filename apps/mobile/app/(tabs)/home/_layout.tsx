@@ -26,7 +26,7 @@ export default function InicioLayout() {
           headerRight: () => <HeaderCloseButton />,
           headerShadowVisible: false,
           gestureEnabled: true,
-          sheetAllowedDetents: [0.7],
+          sheetAllowedDetents: [0.85],
         }}
       />
       <Stack.Screen

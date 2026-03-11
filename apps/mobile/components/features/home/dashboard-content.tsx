@@ -105,13 +105,9 @@ export default function DashboardContent() {
 
   const weekSessionsForActiveAssignment = useMemo(() => {
     if (!weekSessions || !activeAssignment) return []
-    return weekSessions.filter((session) => {
-      if (session.assignmentId !== activeAssignment._id) return false
-      if (activeAssignment.revisionId && session.revisionId) {
-        return session.revisionId === activeAssignment.revisionId
-      }
-      return true
-    })
+    return weekSessions.filter(
+      (session) => session.assignmentId === activeAssignment._id
+    )
   }, [weekSessions, activeAssignment])
   const completedSessionsFromOtherAssignments = useMemo(() => {
     if (!weekSessions || !activeAssignment) return []

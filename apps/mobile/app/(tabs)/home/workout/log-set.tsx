@@ -6,6 +6,7 @@ import {
   Platform,
   useWindowDimensions,
   Switch,
+  Image,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -39,6 +40,10 @@ const parseNum = (s: string | undefined, fallback: number): number => {
   return Number.isFinite(n) ? n : fallback
 }
 
+const TAB_PADDING = 4
+
+type TabId = 'load' | 'time'
+
 export default function LogSetScreen() {
   const router = useRouter()
   const params = useLocalSearchParams<{
@@ -46,6 +51,9 @@ export default function LogSetScreen() {
     setIndex?: string
     reps?: string
     weight?: string
+    timeSeconds?: string
+    notes?: string
+    supportsTime?: string
   }>()
   const insets = useSafeAreaInsets()
   const { width: screenWidth } = useWindowDimensions()
@@ -70,14 +78,73 @@ export default function LogSetScreen() {
     return WEIGHT_OPTIONS.includes(clamped) ? clamped : 20
   }, [params.weight])
 
+  const [activeTab, setActiveTab] = useState<TabId>('load')
   const [reps, setReps] = useState(initialReps)
   const [weightKg, setWeightKg] = useState(initialWeight)
   const [applyToAllSets, setApplyToAllSets] = useState(false)
+  const [emptyButComplete, setEmptyButComplete] = useState(false)
+
+  const initialTimeSeconds = useMemo(
+    () => Math.max(0, parseNum(params.timeSeconds, 0)),
+    [params.timeSeconds]
+  )
+  const supportsTimeFromPlan = useMemo(() => {
+    const raw =
+      typeof params.supportsTime === 'string'
+        ? params.supportsTime
+        : params.supportsTime?.[0]
+    return raw === '1' || raw === 'true'
+  }, [params.supportsTime])
+  const hasTime = supportsTimeFromPlan || initialTimeSeconds > 0
+  const notesParam = useMemo(() => {
+    const raw = typeof params.notes === 'string' ? params.notes : params.notes?.[0]
+    const trimmed = raw?.trim()
+    return trimmed && trimmed.length > 0 ? trimmed : ''
+  }, [params.notes])
+
+  const [timeAmount, setTimeAmount] = useState(() => {
+    if (!hasTime) return 30
+    if (initialTimeSeconds > 0) {
+      return Math.max(
+        1,
+        Math.min(60, Math.round(initialTimeSeconds / 60 || initialTimeSeconds))
+      )
+    }
+    return 30
+  })
+  const [timeUnit, setTimeUnit] = useState<'seconds' | 'minutes'>(() => {
+    if (!hasTime) return 'minutes'
+    if (initialTimeSeconds > 0) {
+      return initialTimeSeconds < 60 ? 'seconds' : 'minutes'
+    }
+    return 'seconds'
+  })
 
   useEffect(() => {
     setReps(initialReps)
     setWeightKg(initialWeight)
-  }, [params.dayExId, params.setIndex, initialReps, initialWeight])
+    if (hasTime) {
+      if (initialTimeSeconds > 0) {
+        setTimeAmount(
+          Math.max(
+            1,
+            Math.min(60, Math.round(initialTimeSeconds / 60 || initialTimeSeconds))
+          )
+        )
+        setTimeUnit(initialTimeSeconds < 60 ? 'seconds' : 'minutes')
+      } else {
+        setTimeAmount(30)
+        setTimeUnit('seconds')
+      }
+    }
+  }, [
+    params.dayExId,
+    params.setIndex,
+    initialReps,
+    initialWeight,
+    hasTime,
+    initialTimeSeconds,
+  ])
 
   const backgroundColor = Colors[colorScheme ?? 'light'].background
   const textColor = Colors[colorScheme ?? 'light'].text
@@ -93,12 +160,25 @@ export default function LogSetScreen() {
         : params.setIndex?.[0]
     const setIndex = setIndexParam != null ? Number(setIndexParam) : undefined
     if (dayExId != null && setIndex != null && Number.isFinite(setIndex)) {
+      let timeSeconds: number | undefined
+      if (emptyButComplete) {
+        // Keep parity with reps/weight: empty complete logs zero values.
+        timeSeconds = hasTime ? 0 : undefined
+      } else if (hasTime && timeAmount > 0) {
+        timeSeconds =
+          timeUnit === 'seconds' ? timeAmount : timeAmount * 60
+      } else {
+        timeSeconds = undefined
+      }
+      const repsToSave = emptyButComplete ? 0 : reps
+      const weightToSave = emptyButComplete ? 0 : weightKg
       invokeLogSetSaveCallback({
         dayExId,
         setIndex,
-        reps,
-        weight: weightKg,
+        reps: repsToSave,
+        weight: weightToSave,
         applyToAllSets,
+        timeSeconds,
       })
     }
     router.back()
@@ -113,6 +193,11 @@ export default function LogSetScreen() {
         <Text style={[styles.subtitle, { color: mutedColor }]}>
           Registrá repeticiones y peso en kg
         </Text>
+        {notesParam ? (
+          <Text style={[styles.commentsText, { color: mutedColor }]}>
+            Comentarios: {notesParam}
+          </Text>
+        ) : null}
       </View>
 
       <View
@@ -123,66 +208,242 @@ export default function LogSetScreen() {
           },
         ]}
       >
-        <View style={[styles.pickerRow, { gap: pickerGap }]}>
-          <View
-            style={[
-              styles.pickerBlock,
-              { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-            ]}
-          >
-            <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-              Repeticiones
-            </Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={reps}
-                onValueChange={(v) => setReps(Number(v))}
-                style={[styles.picker, { color: pickerColor }]}
-                itemStyle={
-                  Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                }
-                mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                prompt="Repeticiones"
-              >
-                {REPS_OPTIONS.map((n) => (
-                  <Picker.Item key={n} label={String(n)} value={n} />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          <View
-            style={[
-              styles.pickerBlock,
-              { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-            ]}
-          >
-            <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-              Peso (kg)
-            </Text>
-            <View style={styles.pickerWrap}>
-              <Picker
-                selectedValue={weightKg}
-                onValueChange={(v) => setWeightKg(Number(v))}
-                style={[styles.picker, { color: pickerColor }]}
-                itemStyle={
-                  Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                }
-                mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                prompt="Peso en kilos"
-              >
-                {WEIGHT_OPTIONS.map((n) => (
-                  <Picker.Item
-                    key={n}
-                    label={n % 1 === 0 ? `${n}.0` : String(n)}
-                    value={n}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
+        <View style={[styles.toggleRow, { marginBottom: 12 }]}>
+          <Text style={[styles.toggleLabel, { color: textColor }]}>
+            Marcar como completado
+          </Text>
+          <Switch
+            value={emptyButComplete}
+            onValueChange={setEmptyButComplete}
+            trackColor={{
+              false: isDark ? '#3f3f46' : '#e4e4e7',
+              true: isDark ? '#3b82f6' : '#2563eb',
+            }}
+            thumbColor="#fff"
+          />
         </View>
-        <View style={styles.toggleRow}>
+        {/* Tabs for Load vs Time */}
+        {!emptyButComplete && hasTime && (
+          <View
+            style={[
+              styles.tabs,
+              {
+                backgroundColor: isDark ? '#171717' : '#f4f4f5',
+                borderColor: isDark
+                  ? 'rgba(255,255,255,0.1)'
+                  : 'rgba(0,0,0,0.08)',
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.tabPill,
+                {
+                  backgroundColor: isDark ? '#27272a' : '#ffffff',
+                  left: activeTab === 'load' ? TAB_PADDING : undefined,
+                  right: activeTab === 'time' ? TAB_PADDING : undefined,
+                },
+              ]}
+            />
+            <View style={styles.tabButtons}>
+              <View style={styles.tabButton}>
+                <Text
+                  onPress={() => setActiveTab('load')}
+                  style={[
+                    styles.tabText,
+                    {
+                      color:
+                        activeTab === 'load'
+                          ? isDark
+                            ? '#fafafa'
+                            : '#18181b'
+                          : isDark
+                            ? '#a1a1aa'
+                            : '#71717a',
+                    },
+                  ]}
+                >
+                  Reps y peso
+                </Text>
+              </View>
+              {hasTime && (
+                <View style={styles.tabButton}>
+                  <Text
+                    onPress={() => setActiveTab('time')}
+                    style={[
+                      styles.tabText,
+                      {
+                        color:
+                          activeTab === 'time'
+                            ? isDark
+                              ? '#fafafa'
+                              : '#18181b'
+                            : isDark
+                              ? '#a1a1aa'
+                              : '#71717a',
+                      },
+                    ]}
+                  >
+                    Tiempo
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {activeTab === 'load' &&
+          (emptyButComplete ? (
+            <View style={styles.placeholderWrapper}>
+              <View style={styles.placeholderBox}>
+                <Image
+                  source={require('@/assets/images/mat-wolf.png')}
+                  style={styles.placeholderImage}
+                  resizeMode="contain"
+                />
+                <Text style={[styles.placeholderText, { color: mutedColor }]}>
+                  Este set se marcará como completado sin registrar repeticiones
+                  ni peso.
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.pickerRow, { gap: pickerGap }]}>
+              <View
+                style={[
+                  styles.pickerBlock,
+                  { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+                ]}
+              >
+                <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                  Repeticiones
+                </Text>
+                <View style={styles.pickerWrap}>
+                  <Picker
+                    selectedValue={reps}
+                    onValueChange={(v) => setReps(Number(v))}
+                    style={[styles.picker, { color: pickerColor }]}
+                    itemStyle={
+                      Platform.OS === 'ios' ? { color: pickerColor } : undefined
+                    }
+                    mode={Platform.OS === 'android' ? 'dropdown' : undefined}
+                    prompt="Repeticiones"
+                  >
+                    {REPS_OPTIONS.map((n) => (
+                      <Picker.Item key={n} label={String(n)} value={n} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.pickerBlock,
+                  { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+                ]}
+              >
+                <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                  Peso (kg)
+                </Text>
+                <View style={styles.pickerWrap}>
+                  <Picker
+                    selectedValue={weightKg}
+                    onValueChange={(v) => setWeightKg(Number(v))}
+                    style={[styles.picker, { color: pickerColor }]}
+                    itemStyle={
+                      Platform.OS === 'ios' ? { color: pickerColor } : undefined
+                    }
+                    mode={Platform.OS === 'android' ? 'dropdown' : undefined}
+                    prompt="Peso en kilos"
+                  >
+                    {WEIGHT_OPTIONS.map((n) => (
+                      <Picker.Item
+                        key={n}
+                        label={n % 1 === 0 ? `${n}.0` : String(n)}
+                        value={n}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+            </View>
+          ))}
+
+        {hasTime &&
+          activeTab === 'time' &&
+          (emptyButComplete ? (
+            <View style={styles.placeholderWrapper}>
+              <View style={styles.placeholderBox}>
+                <Image
+                  source={require('@/assets/images/mat-wolf.png')}
+                  style={styles.placeholderImage}
+                  resizeMode="contain"
+                />
+                <Text style={[styles.placeholderText, { color: mutedColor }]}>
+                  Este set se marcará como completado usando sólo el tiempo
+                  prescripto.
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={[styles.pickerRow, { gap: pickerGap }]}>
+              <View
+                style={[
+                  styles.pickerBlock,
+                  { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+                ]}
+              >
+                <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                  Tiempo
+                </Text>
+                <View style={styles.pickerWrap}>
+                  <Picker
+                    selectedValue={timeAmount}
+                    onValueChange={(v) => setTimeAmount(Number(v))}
+                    style={[styles.picker, { color: pickerColor }]}
+                    itemStyle={
+                      Platform.OS === 'ios' ? { color: pickerColor } : undefined
+                    }
+                    mode={Platform.OS === 'android' ? 'dropdown' : undefined}
+                    prompt="Tiempo"
+                  >
+                    {Array.from({ length: 60 }, (_, i) => i + 1).map((n) => (
+                      <Picker.Item key={n} label={String(n)} value={n} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.pickerBlock,
+                  { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+                ]}
+              >
+                <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                  Unidad
+                </Text>
+                <View style={styles.pickerWrap}>
+                  <Picker
+                    selectedValue={timeUnit}
+                    onValueChange={(v) =>
+                      setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
+                    }
+                    style={[styles.picker, { color: pickerColor }]}
+                    itemStyle={
+                      Platform.OS === 'ios' ? { color: pickerColor } : undefined
+                    }
+                    mode={Platform.OS === 'android' ? 'dropdown' : undefined}
+                    prompt="Unidad de tiempo"
+                  >
+                    <Picker.Item label="Segundos" value="seconds" />
+                    <Picker.Item label="Minutos" value="minutes" />
+                  </Picker>
+                </View>
+              </View>
+            </View>
+          ))}
+        <View style={[styles.toggleRow, { marginTop: 16 }]}>
           <Text style={[styles.toggleLabel, { color: textColor }]}>
             Aplicar a todos los sets del ejercicio
           </Text>
@@ -239,6 +500,11 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     lineHeight: 20,
+  },
+  commentsText: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 18,
   },
   content: {
     paddingBottom: 16,
@@ -302,5 +568,60 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 17,
     fontWeight: '600',
+  },
+  tabs: {
+    marginBottom: 20,
+    marginHorizontal: 12,
+    borderRadius: 9999,
+    paddingVertical: TAB_PADDING + 4,
+    paddingHorizontal: TAB_PADDING,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+  },
+  tabPill: {
+    position: 'absolute',
+    top: TAB_PADDING,
+    bottom: TAB_PADDING,
+    width: '48%',
+    borderRadius: 9999,
+  },
+  tabButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flex: 1,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabText: {
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  placeholderWrapper: {
+    minHeight: 295,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  placeholderBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: 'rgba(148,163,184,0.12)',
+  },
+  placeholderText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  placeholderImage: {
+    width: 140,
+    height: 140,
+    marginBottom: 12,
   },
 })

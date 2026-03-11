@@ -157,6 +157,21 @@ export const createRevision = mutation({
       updatedAt: now,
     })
 
+    // Active assignments should follow the latest revision so members receive
+    // updated planification fields (weeks/days/exercises/notes/comments).
+    const assignments = await ctx.db
+      .query('planificationAssignments')
+      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
+      .collect()
+    for (const assignment of assignments) {
+      if (assignment.status !== 'active') continue
+      if (assignment.revisionId === revisionId) continue
+      await ctx.db.patch(assignment._id, {
+        revisionId,
+        updatedAt: now,
+      })
+    }
+
     return revisionId
   },
 })

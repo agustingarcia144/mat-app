@@ -144,13 +144,7 @@ export const getMyWeekSessions = query({
     return inRange.filter((session) => {
       const assignment = assignmentById.get(session.assignmentId)
       if (!assignment) return false
-      const keepByStatus =
-        assignment.status === 'active' || session.status === 'completed'
-      if (!keepByStatus) return false
-      if (assignment.revisionId && session.revisionId) {
-        return assignment.revisionId === session.revisionId
-      }
-      return true
+      return assignment.status === 'active' || session.status === 'completed'
     })
   },
 })
@@ -195,12 +189,7 @@ export const getByAssignment = query({
       )
       .collect()
 
-    return sessions.filter((session) => {
-      if (assignment.revisionId && session.revisionId) {
-        return assignment.revisionId === session.revisionId
-      }
-      return true
-    })
+    return sessions
   },
 })
 

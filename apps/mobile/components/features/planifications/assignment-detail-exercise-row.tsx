@@ -29,6 +29,7 @@ export function AssignmentDetailExerciseRow({
     ? getVideoThumbnailUrl(ex.exercise.videoUrl)
     : null
   const loadLabel = formatLoad(ex.weight, ex.prPercentage)
+  const notesLabel = ex.notes?.trim()
 
   return (
     <PressableScale
@@ -77,6 +78,14 @@ export function AssignmentDetailExerciseRow({
           {ex.sets} × {ex.reps}
           {loadLabel ? ` · ${loadLabel}` : ''}
         </Text>
+        {notesLabel ? (
+          <Text
+            style={[styles.exerciseMeta, { color: muted, marginTop: 2 }]}
+            numberOfLines={2}
+          >
+            Comentarios: {notesLabel}
+          </Text>
+        ) : null}
       </View>
     </PressableScale>
   )

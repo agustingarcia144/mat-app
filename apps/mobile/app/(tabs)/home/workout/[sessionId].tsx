@@ -169,22 +169,27 @@ function WorkoutContent() {
 
         // If we have parsed values matching the number of sets, use them
         if (repsArray.length === numSets) {
-          baseValues = Array.from({ length: numSets }, (_, index) => ({
-            reps: repsArray[index] || defaultReps,
-            weight: (weightArray[index] || defaultWeight) ?? '',
-          }))
+          baseValues = Array.from({ length: numSets }, (_, index) => {
+            const repsValue = repsArray[index] ?? defaultReps
+            const weightValue = weightArray[index] ?? defaultWeight ?? ''
+            return {
+              reps: repsValue,
+              weight: weightValue,
+            }
+          })
         }
       } else if (log?.reps && !log.reps.includes(',')) {
         // If log exists but doesn't have comma-separated values, use the single value for all sets
         const logWeight = log.weight && log.weight !== '-' ? log.weight : ''
+        const repsValue = log.reps ?? defaultReps
         baseValues = Array.from({ length: numSets }, () => ({
-          reps: log.reps,
+          reps: repsValue,
           weight: (logWeight || defaultWeight) ?? '',
         }))
       } else {
         // Initialize from default values
         baseValues = Array.from({ length: numSets }, () => ({
-          reps: defaultReps,
+          reps: defaultReps ?? '',
           weight: defaultWeight,
         }))
       }
@@ -208,10 +213,37 @@ function WorkoutContent() {
     [logsByDayExercise, localValues]
   )
 
+  const getTimeValuesFor = useCallback(
+    (dayEx: NonNullable<typeof dayExercises>[number]) => {
+      const numSets = dayEx.sets
+      const defaultTime = Math.max(0, dayEx.timeSeconds ?? 0)
+      const log = logsByDayExercise[dayEx._id]
+      const raw = log?.timeSeconds
+      if (raw == null) {
+        return Array.from({ length: numSets }, () => defaultTime)
+      }
+      const parts = String(raw)
+        .split(',')
+        .map((p) => p.trim())
+      if (parts.length === 1) {
+        const single = Number(parts[0])
+        if (Number.isFinite(single)) {
+          return Array.from({ length: numSets }, () => Math.max(0, single))
+        }
+      }
+      return Array.from({ length: numSets }, (_, index) => {
+        const n = Number(parts[index])
+        return Number.isFinite(n) ? Math.max(0, n) : defaultTime
+      })
+    },
+    [logsByDayExercise]
+  )
+
   const saveLog = useCallback(
     async (
       dayEx: NonNullable<typeof dayExercises>[number],
-      valuesOverride?: { reps: string; weight: string }[]
+      valuesOverride?: { reps: string; weight: string }[],
+      timeValuesOverride?: number[]
     ) => {
       if (isNewSession || !sessionId) return
       const values = valuesOverride ?? getValuesFor(dayEx)
@@ -223,14 +255,22 @@ function WorkoutContent() {
 
       setSavingId(dayEx._id)
       try {
-        // For now, save the first set's values (backend doesn't support per-set tracking yet)
-        // TODO: Update backend to support per-set reps/weight
+        const existingLog = logsByDayExercise[dayEx._id]
+        const timeValues = timeValuesOverride ?? getTimeValuesFor(dayEx)
+        const hasTimeInPlan = (dayEx.timeSeconds ?? 0) > 0
+        const hasExistingTime = existingLog?.timeSeconds != null
+        const shouldPersistTime =
+          hasTimeInPlan || hasExistingTime || !!timeValuesOverride
+        const timeSeconds = shouldPersistTime
+          ? timeValues.map((value) => String(Math.max(0, value))).join(', ')
+          : undefined
         await setLog({
           sessionId: sessionId as any,
           dayExerciseId: dayEx._id,
           sets: numSets,
           reps: values.map((s) => s.reps.trim()).join(', '),
           weight: values.map((s) => s.weight.trim() || '-').join(', '),
+          timeSeconds,
           order: dayEx.order,
         })
         // Don't clear local state here: the logs query may not have refetched yet,
@@ -241,7 +281,7 @@ function WorkoutContent() {
         setSavingId(null)
       }
     },
-    [isNewSession, sessionId, getValuesFor, setLog]
+    [isNewSession, sessionId, getValuesFor, logsByDayExercise, setLog, getTimeValuesFor]
   )
 
   const applyLogSetResult = useCallback(
@@ -251,6 +291,7 @@ function WorkoutContent() {
       reps: number
       weight: number
       applyToAllSets?: boolean
+      timeSeconds?: number
     }) => {
       if (!dayExercises?.length) return
       const dayEx = dayExercises.find((d) => d._id === result.dayExId)
@@ -279,9 +320,19 @@ function WorkoutContent() {
             })()
         return { ...prev, [result.dayExId]: next }
       })
-      saveLog(dayEx, updatedValues)
+      let timeArray = getTimeValuesFor(dayEx)
+      if (result.timeSeconds != null) {
+        if (result.applyToAllSets) {
+          timeArray = Array.from({ length: dayEx.sets }, () => result.timeSeconds!)
+        } else {
+          const arr = [...timeArray]
+          arr[result.setIndex] = result.timeSeconds
+          timeArray = arr
+        }
+      }
+      saveLog(dayEx, updatedValues, timeArray)
     },
-    [dayExercises, getValuesFor, saveLog]
+    [dayExercises, getValuesFor, saveLog, getTimeValuesFor]
   )
 
   useFocusEffect(
@@ -345,12 +396,20 @@ function WorkoutContent() {
         const values = getValuesFor(dayEx)
         const allSetsFilled = values.every((set) => set.reps.trim().length > 0)
         if (!allSetsFilled) continue
+        const existingLog = logsByDayExercise[dayEx._id]
+        const timeValues = getTimeValuesFor(dayEx)
+        const hasTimeInPlan = (dayEx.timeSeconds ?? 0) > 0
+        const hasExistingTime = existingLog?.timeSeconds != null
         await setLog({
           sessionId: sessionId as any,
           dayExerciseId: dayEx._id,
           sets: dayEx.sets,
           reps: values.map((s) => s.reps.trim()).join(', '),
           weight: values.map((s) => s.weight.trim() || '-').join(', '),
+          timeSeconds:
+            hasTimeInPlan || hasExistingTime
+              ? timeValues.map((value) => String(Math.max(0, value))).join(', ')
+              : undefined,
           order: dayEx.order,
         })
       }
@@ -432,6 +491,8 @@ function WorkoutContent() {
               key={dayEx._id}
               dayEx={dayEx as DayExerciseForCard}
               values={getValuesFor(dayEx)}
+              timeValues={getTimeValuesFor(dayEx)}
+              supportsTime={(dayEx.timeSeconds ?? 0) > 0}
               saving={savingId === dayEx._id}
               isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
               onToggleExpand={() => toggleSetsExpanded(dayEx._id)}
@@ -447,13 +508,23 @@ function WorkoutContent() {
                 )
               }
               onPressSet={(setIndex) => {
-                if (isNewSession || isCompleted) return
+                if (isNewSession) return
                 const setValues = getValuesFor(dayEx)[setIndex] ?? {
                   reps: '',
                   weight: '',
                 }
+                const timeValues = getTimeValuesFor(dayEx)
+                const timeSeconds = timeValues[setIndex] ?? dayEx.timeSeconds ?? 0
                 router.push(
-                  `/home/workout/log-set?dayExId=${encodeURIComponent(dayEx._id)}&setIndex=${setIndex}&reps=${encodeURIComponent(setValues.reps || '')}&weight=${encodeURIComponent(setValues.weight || '')}` as Href
+                  `/home/workout/log-set?dayExId=${encodeURIComponent(
+                    dayEx._id
+                  )}&setIndex=${setIndex}&reps=${encodeURIComponent(
+                    setValues.reps || ''
+                  )}&weight=${encodeURIComponent(
+                    setValues.weight || ''
+                  )}&timeSeconds=${timeSeconds}&notes=${encodeURIComponent(
+                    dayEx.notes || ''
+                  )}&supportsTime=${(dayEx.timeSeconds ?? 0) > 0 ? '1' : '0'}` as Href
                 )
               }}
             />
@@ -479,6 +550,8 @@ function WorkoutContent() {
                         <ExerciseCard
                           dayEx={dayEx as DayExerciseForCard}
                           values={getValuesFor(dayEx)}
+                          timeValues={getTimeValuesFor(dayEx)}
+                          supportsTime={(dayEx.timeSeconds ?? 0) > 0}
                           saving={savingId === dayEx._id}
                           isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
                           onToggleExpand={() => toggleSetsExpanded(dayEx._id)}
@@ -494,13 +567,24 @@ function WorkoutContent() {
                             )
                           }
                           onPressSet={(setIndex) => {
-                            if (isNewSession || isCompleted) return
+                            if (isNewSession) return
                             const setValues = getValuesFor(dayEx)[setIndex] ?? {
                               reps: '',
                               weight: '',
                             }
+                            const timeValues = getTimeValuesFor(dayEx)
+                            const timeSeconds =
+                              timeValues[setIndex] ?? dayEx.timeSeconds ?? 0
                             router.push(
-                              `/home/workout/log-set?dayExId=${encodeURIComponent(dayEx._id)}&setIndex=${setIndex}&reps=${encodeURIComponent(setValues.reps || '')}&weight=${encodeURIComponent(setValues.weight || '')}` as Href
+                              `/home/workout/log-set?dayExId=${encodeURIComponent(
+                                dayEx._id
+                              )}&setIndex=${setIndex}&reps=${encodeURIComponent(
+                                setValues.reps || ''
+                              )}&weight=${encodeURIComponent(
+                                setValues.weight || ''
+                              )}&timeSeconds=${timeSeconds}&notes=${encodeURIComponent(
+                                dayEx.notes || ''
+                              )}&supportsTime=${(dayEx.timeSeconds ?? 0) > 0 ? '1' : '0'}` as Href
                             )
                           }}
                         />

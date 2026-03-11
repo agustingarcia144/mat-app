@@ -12,6 +12,8 @@ export const setLog = mutation({
     sets: v.number(),
     reps: v.string(),
     weight: v.optional(v.string()),
+    // Comma-separated per-set seconds, e.g. "30, 30, 45"
+    timeSeconds: v.optional(v.string()),
     order: v.number(),
   },
   handler: async (ctx, args) => {
@@ -48,6 +50,7 @@ export const setLog = mutation({
       sets: args.sets,
       reps: args.reps,
       weight: args.weight,
+      timeSeconds: args.timeSeconds,
       order: args.order,
       updatedAt: now,
     }
