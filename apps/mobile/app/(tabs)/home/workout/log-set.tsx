@@ -6,7 +6,6 @@ import {
   Platform,
   useWindowDimensions,
   Switch,
-  Image,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -43,6 +42,25 @@ const parseNum = (s: string | undefined, fallback: number): number => {
 const TAB_PADDING = 4
 
 type TabId = 'load' | 'time'
+type TimeUnit = 'seconds' | 'minutes'
+
+const toTimePickerState = (
+  rawTimeSeconds: number
+): { amount: number; unit: TimeUnit } => {
+  const safeSeconds = Math.max(0, Math.round(rawTimeSeconds))
+  if (safeSeconds <= 0) return { amount: 30, unit: 'seconds' }
+  if (safeSeconds < 60) return { amount: safeSeconds, unit: 'seconds' }
+  if (safeSeconds % 60 === 0) {
+    return {
+      amount: Math.max(1, Math.min(60, safeSeconds / 60)),
+      unit: 'minutes',
+    }
+  }
+  return {
+    amount: Math.max(1, Math.min(60, Math.round(safeSeconds / 60))),
+    unit: 'minutes',
+  }
+}
 
 export default function LogSetScreen() {
   const router = useRouter()
@@ -82,7 +100,6 @@ export default function LogSetScreen() {
   const [reps, setReps] = useState(initialReps)
   const [weightKg, setWeightKg] = useState(initialWeight)
   const [applyToAllSets, setApplyToAllSets] = useState(false)
-  const [emptyButComplete, setEmptyButComplete] = useState(false)
 
   const initialTimeSeconds = useMemo(
     () => Math.max(0, parseNum(params.timeSeconds, 0)),
@@ -102,40 +119,19 @@ export default function LogSetScreen() {
     return trimmed && trimmed.length > 0 ? trimmed : ''
   }, [params.notes])
 
-  const [timeAmount, setTimeAmount] = useState(() => {
-    if (!hasTime) return 30
-    if (initialTimeSeconds > 0) {
-      return Math.max(
-        1,
-        Math.min(60, Math.round(initialTimeSeconds / 60 || initialTimeSeconds))
-      )
-    }
-    return 30
-  })
-  const [timeUnit, setTimeUnit] = useState<'seconds' | 'minutes'>(() => {
-    if (!hasTime) return 'minutes'
-    if (initialTimeSeconds > 0) {
-      return initialTimeSeconds < 60 ? 'seconds' : 'minutes'
-    }
-    return 'seconds'
-  })
+  const initialTimePicker = useMemo(
+    () => toTimePickerState(initialTimeSeconds),
+    [initialTimeSeconds]
+  )
+  const [timeAmount, setTimeAmount] = useState(initialTimePicker.amount)
+  const [timeUnit, setTimeUnit] = useState<TimeUnit>(initialTimePicker.unit)
 
   useEffect(() => {
     setReps(initialReps)
     setWeightKg(initialWeight)
     if (hasTime) {
-      if (initialTimeSeconds > 0) {
-        setTimeAmount(
-          Math.max(
-            1,
-            Math.min(60, Math.round(initialTimeSeconds / 60 || initialTimeSeconds))
-          )
-        )
-        setTimeUnit(initialTimeSeconds < 60 ? 'seconds' : 'minutes')
-      } else {
-        setTimeAmount(30)
-        setTimeUnit('seconds')
-      }
+      setTimeAmount(initialTimePicker.amount)
+      setTimeUnit(initialTimePicker.unit)
     }
   }, [
     params.dayExId,
@@ -143,7 +139,7 @@ export default function LogSetScreen() {
     initialReps,
     initialWeight,
     hasTime,
-    initialTimeSeconds,
+    initialTimePicker,
   ])
 
   const backgroundColor = Colors[colorScheme ?? 'light'].background
@@ -161,22 +157,17 @@ export default function LogSetScreen() {
     const setIndex = setIndexParam != null ? Number(setIndexParam) : undefined
     if (dayExId != null && setIndex != null && Number.isFinite(setIndex)) {
       let timeSeconds: number | undefined
-      if (emptyButComplete) {
-        // Keep parity with reps/weight: empty complete logs zero values.
-        timeSeconds = hasTime ? 0 : undefined
-      } else if (hasTime && timeAmount > 0) {
+      if (hasTime && timeAmount > 0) {
         timeSeconds =
           timeUnit === 'seconds' ? timeAmount : timeAmount * 60
       } else {
         timeSeconds = undefined
       }
-      const repsToSave = emptyButComplete ? 0 : reps
-      const weightToSave = emptyButComplete ? 0 : weightKg
       invokeLogSetSaveCallback({
         dayExId,
         setIndex,
-        reps: repsToSave,
-        weight: weightToSave,
+        reps,
+        weight: weightKg,
         applyToAllSets,
         timeSeconds,
       })
@@ -208,22 +199,8 @@ export default function LogSetScreen() {
           },
         ]}
       >
-        <View style={[styles.toggleRow, { marginBottom: 12 }]}>
-          <Text style={[styles.toggleLabel, { color: textColor }]}>
-            Marcar como completado
-          </Text>
-          <Switch
-            value={emptyButComplete}
-            onValueChange={setEmptyButComplete}
-            trackColor={{
-              false: isDark ? '#3f3f46' : '#e4e4e7',
-              true: isDark ? '#3b82f6' : '#2563eb',
-            }}
-            thumbColor="#fff"
-          />
-        </View>
         {/* Tabs for Load vs Time */}
-        {!emptyButComplete && hasTime && (
+        {hasTime && (
           <View
             style={[
               styles.tabs,
@@ -292,157 +269,126 @@ export default function LogSetScreen() {
           </View>
         )}
 
-        {activeTab === 'load' &&
-          (emptyButComplete ? (
-            <View style={styles.placeholderWrapper}>
-              <View style={styles.placeholderBox}>
-                <Image
-                  source={require('@/assets/images/mat-wolf.png')}
-                  style={styles.placeholderImage}
-                  resizeMode="contain"
-                />
-                <Text style={[styles.placeholderText, { color: mutedColor }]}>
-                  Este set se marcará como completado sin registrar repeticiones
-                  ni peso.
-                </Text>
+        {activeTab === 'load' && (
+          <View style={[styles.pickerRow, { gap: pickerGap }]}>
+            <View
+              style={[
+                styles.pickerBlock,
+                { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+              ]}
+            >
+              <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                Repeticiones
+              </Text>
+              <View style={styles.pickerWrap}>
+                <Picker
+                  selectedValue={reps}
+                  onValueChange={(v) => setReps(Number(v))}
+                  style={[styles.picker, { color: pickerColor }]}
+                  itemStyle={
+                    Platform.OS === 'ios' ? { color: pickerColor } : undefined
+                  }
+                  mode={Platform.OS === 'android' ? 'dropdown' : undefined}
+                  prompt="Repeticiones"
+                >
+                  {REPS_OPTIONS.map((n) => (
+                    <Picker.Item key={n} label={String(n)} value={n} />
+                  ))}
+                </Picker>
               </View>
             </View>
-          ) : (
-            <View style={[styles.pickerRow, { gap: pickerGap }]}>
-              <View
-                style={[
-                  styles.pickerBlock,
-                  { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-                ]}
-              >
-                <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                  Repeticiones
-                </Text>
-                <View style={styles.pickerWrap}>
-                  <Picker
-                    selectedValue={reps}
-                    onValueChange={(v) => setReps(Number(v))}
-                    style={[styles.picker, { color: pickerColor }]}
-                    itemStyle={
-                      Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                    }
-                    mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                    prompt="Repeticiones"
-                  >
-                    {REPS_OPTIONS.map((n) => (
-                      <Picker.Item key={n} label={String(n)} value={n} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
 
-              <View
-                style={[
-                  styles.pickerBlock,
-                  { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-                ]}
-              >
-                <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                  Peso (kg)
-                </Text>
-                <View style={styles.pickerWrap}>
-                  <Picker
-                    selectedValue={weightKg}
-                    onValueChange={(v) => setWeightKg(Number(v))}
-                    style={[styles.picker, { color: pickerColor }]}
-                    itemStyle={
-                      Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                    }
-                    mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                    prompt="Peso en kilos"
-                  >
-                    {WEIGHT_OPTIONS.map((n) => (
-                      <Picker.Item
-                        key={n}
-                        label={n % 1 === 0 ? `${n}.0` : String(n)}
-                        value={n}
-                      />
-                    ))}
-                  </Picker>
-                </View>
+            <View
+              style={[
+                styles.pickerBlock,
+                { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+              ]}
+            >
+              <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                Peso (kg)
+              </Text>
+              <View style={styles.pickerWrap}>
+                <Picker
+                  selectedValue={weightKg}
+                  onValueChange={(v) => setWeightKg(Number(v))}
+                  style={[styles.picker, { color: pickerColor }]}
+                  itemStyle={
+                    Platform.OS === 'ios' ? { color: pickerColor } : undefined
+                  }
+                  mode={Platform.OS === 'android' ? 'dropdown' : undefined}
+                  prompt="Peso en kilos"
+                >
+                  {WEIGHT_OPTIONS.map((n) => (
+                    <Picker.Item
+                      key={n}
+                      label={n % 1 === 0 ? `${n}.0` : String(n)}
+                      value={n}
+                    />
+                  ))}
+                </Picker>
               </View>
             </View>
-          ))}
+          </View>
+        )}
 
-        {hasTime &&
-          activeTab === 'time' &&
-          (emptyButComplete ? (
-            <View style={styles.placeholderWrapper}>
-              <View style={styles.placeholderBox}>
-                <Image
-                  source={require('@/assets/images/mat-wolf.png')}
-                  style={styles.placeholderImage}
-                  resizeMode="contain"
-                />
-                <Text style={[styles.placeholderText, { color: mutedColor }]}>
-                  Este set se marcará como completado usando sólo el tiempo
-                  prescripto.
-                </Text>
+        {hasTime && activeTab === 'time' && (
+          <View style={[styles.pickerRow, { gap: pickerGap }]}>
+            <View
+              style={[
+                styles.pickerBlock,
+                { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+              ]}
+            >
+              <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                Tiempo
+              </Text>
+              <View style={styles.pickerWrap}>
+                <Picker
+                  selectedValue={timeAmount}
+                  onValueChange={(v) => setTimeAmount(Number(v))}
+                  style={[styles.picker, { color: pickerColor }]}
+                  itemStyle={
+                    Platform.OS === 'ios' ? { color: pickerColor } : undefined
+                  }
+                  mode={Platform.OS === 'android' ? 'dropdown' : undefined}
+                  prompt="Tiempo"
+                >
+                  {Array.from({ length: 60 }, (_, i) => i + 1).map((n) => (
+                    <Picker.Item key={n} label={String(n)} value={n} />
+                  ))}
+                </Picker>
               </View>
             </View>
-          ) : (
-            <View style={[styles.pickerRow, { gap: pickerGap }]}>
-              <View
-                style={[
-                  styles.pickerBlock,
-                  { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-                ]}
-              >
-                <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                  Tiempo
-                </Text>
-                <View style={styles.pickerWrap}>
-                  <Picker
-                    selectedValue={timeAmount}
-                    onValueChange={(v) => setTimeAmount(Number(v))}
-                    style={[styles.picker, { color: pickerColor }]}
-                    itemStyle={
-                      Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                    }
-                    mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                    prompt="Tiempo"
-                  >
-                    {Array.from({ length: 60 }, (_, i) => i + 1).map((n) => (
-                      <Picker.Item key={n} label={String(n)} value={n} />
-                    ))}
-                  </Picker>
-                </View>
-              </View>
 
-              <View
-                style={[
-                  styles.pickerBlock,
-                  { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-                ]}
-              >
-                <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                  Unidad
-                </Text>
-                <View style={styles.pickerWrap}>
-                  <Picker
-                    selectedValue={timeUnit}
-                    onValueChange={(v) =>
-                      setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
-                    }
-                    style={[styles.picker, { color: pickerColor }]}
-                    itemStyle={
-                      Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                    }
-                    mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                    prompt="Unidad de tiempo"
-                  >
-                    <Picker.Item label="Segundos" value="seconds" />
-                    <Picker.Item label="Minutos" value="minutes" />
-                  </Picker>
-                </View>
+            <View
+              style={[
+                styles.pickerBlock,
+                { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+              ]}
+            >
+              <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                Unidad
+              </Text>
+              <View style={styles.pickerWrap}>
+                <Picker
+                  selectedValue={timeUnit}
+                  onValueChange={(v) =>
+                    setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
+                  }
+                  style={[styles.picker, { color: pickerColor }]}
+                  itemStyle={
+                    Platform.OS === 'ios' ? { color: pickerColor } : undefined
+                  }
+                  mode={Platform.OS === 'android' ? 'dropdown' : undefined}
+                  prompt="Unidad de tiempo"
+                >
+                  <Picker.Item label="Segundos" value="seconds" />
+                  <Picker.Item label="Minutos" value="minutes" />
+                </Picker>
               </View>
             </View>
-          ))}
+          </View>
+        )}
         <View style={[styles.toggleRow, { marginTop: 16 }]}>
           <Text style={[styles.toggleLabel, { color: textColor }]}>
             Aplicar a todos los sets del ejercicio
@@ -601,27 +547,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     fontWeight: '600',
-  },
-  placeholderWrapper: {
-    minHeight: 295,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  placeholderBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: 'rgba(148,163,184,0.12)',
-  },
-  placeholderText: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  placeholderImage: {
-    width: 140,
-    height: 140,
-    marginBottom: 12,
   },
 })

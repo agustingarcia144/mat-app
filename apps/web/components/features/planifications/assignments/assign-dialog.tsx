@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useMutation } from 'convex/react'
+import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -55,11 +56,14 @@ export default function AssignDialog({
   planificationId,
 }: AssignDialogProps) {
   const assign = useMutation(api.planificationAssignments.assign)
+  const { orgId } = useAuth()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
 
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    open && canQueryCurrentOrganization ? {} : 'skip'
+    open && canQueryCurrentOrganization && orgId
+      ? { organizationExternalId: orgId }
+      : 'skip'
   )
 
   const assignments = useQuery(

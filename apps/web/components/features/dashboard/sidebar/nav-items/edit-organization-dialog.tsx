@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import { useOrganization } from '@clerk/nextjs'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -37,10 +38,14 @@ const EMPTY_STATE: FormState = {
 }
 
 export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
+  const router = useRouter()
   const { organization, membership, isLoaded } = useOrganization()
+  const organizationId = organization?.id ?? null
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY_STATE)
+  const [initialForm, setInitialForm] = useState<FormState>(EMPTY_STATE)
+  const [logoCacheBuster, setLogoCacheBuster] = useState<number>(0)
 
   const canEdit = useMemo(
     () => isOrgAdminRole(membership?.role),
@@ -59,8 +64,14 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
       phone: typeof metadata.phone === 'string' ? metadata.phone : '',
       email: typeof metadata.email === 'string' ? metadata.email : '',
     })
+    setInitialForm({
+      name: organization.name ?? '',
+      address: typeof metadata.address === 'string' ? metadata.address : '',
+      phone: typeof metadata.phone === 'string' ? metadata.phone : '',
+      email: typeof metadata.email === 'string' ? metadata.email : '',
+    })
     setLogoFile(null)
-  }, [open, organization])
+  }, [open, organizationId])
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -71,34 +82,50 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
 
     setIsSubmitting(true)
     try {
-      if (logoFile && organization) {
-        await organization.setLogo({ file: logoFile })
-        await organization.reload()
+      const hasFormChanges =
+        form.name !== initialForm.name ||
+        form.address !== initialForm.address ||
+        form.phone !== initialForm.phone ||
+        form.email !== initialForm.email
+      const hasLogoChange = Boolean(logoFile && organization)
+
+      if (!hasFormChanges && !hasLogoChange) {
+        toast.info('No hay cambios para guardar')
+        onOpenChange(false)
+        return
       }
 
-      const response = await fetch('/api/secure/organization', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: form.name,
-          metadata: {
-            address: form.address,
-            phone: form.phone,
-            email: form.email,
+      if (hasFormChanges) {
+        const response = await fetch('/api/secure/organization', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        }),
-      })
+          body: JSON.stringify({
+            name: form.name,
+            metadata: {
+              address: form.address,
+              phone: form.phone,
+              email: form.email,
+            },
+          }),
+        })
 
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null
-        throw new Error(body?.error || 'No se pudo actualizar la organización')
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as
+            | { error?: string }
+            | null
+          throw new Error(body?.error || 'No se pudo actualizar la organización')
+        }
+      }
+
+      if (logoFile && organization) {
+        await organization.setLogo({ file: logoFile })
+        setLogoCacheBuster(Date.now())
       }
 
       await organization?.reload()
+      router.refresh()
       toast.success('Organización actualizada')
       onOpenChange(false)
     } catch (error) {
@@ -143,7 +170,9 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
             {organization?.imageUrl && (
               <div className="relative h-12 w-12 overflow-hidden rounded-md border bg-muted">
                 <Image
-                  src={organization.imageUrl}
+                  src={`${organization.imageUrl}${
+                    organization.imageUrl.includes('?') ? '&' : '?'
+                  }v=${logoCacheBuster}`}
                   alt="Logo actual"
                   width={48}
                   height={48}

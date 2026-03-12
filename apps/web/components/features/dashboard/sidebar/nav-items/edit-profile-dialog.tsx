@@ -69,9 +69,9 @@ export default function EditProfileDialog({ open, onOpenChange }: Props) {
       })
 
       if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null
+        const body = (await response.json().catch(() => null)) as {
+          error?: string
+        } | null
         throw new Error(body?.error || 'No se pudo actualizar el perfil')
       }
 
@@ -94,10 +94,6 @@ export default function EditProfileDialog({ open, onOpenChange }: Props) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Editar perfil</DialogTitle>
-          <DialogDescription>
-            Solo se permiten cambios de perfil personal. Roles y membresías se
-            administran exclusivamente por backend.
-          </DialogDescription>
         </DialogHeader>
 
         <form className="grid gap-4" onSubmit={onSubmit}>
@@ -132,22 +128,6 @@ export default function EditProfileDialog({ open, onOpenChange }: Props) {
                 maxLength={64}
               />
             </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="profile-username">Usuario</Label>
-            <Input
-              id="profile-username"
-              value={form.username}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  username: event.target.value,
-                }))
-              }
-              disabled={isSubmitting}
-              maxLength={32}
-            />
           </div>
 
           <div className="grid gap-2">

@@ -75,13 +75,15 @@ export default function HeaderNavItems() {
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton size="lg">
                 {organization?.imageUrl ? (
-                  <Image
-                    src={organization.imageUrl}
-                    alt={organization?.name || 'Organization'}
-                    width={32}
-                    height={32}
-                    className="rounded-sm"
-                  />
+                  <div className="relative size-8 shrink-0 overflow-hidden rounded-sm">
+                    <Image
+                      src={organization.imageUrl}
+                      alt={organization?.name || 'Organization'}
+                      width={32}
+                      height={32}
+                      className="size-full object-cover"
+                    />
+                  </div>
                 ) : (
                   <div className="flex size-8 items-center justify-center rounded-sm bg-muted text-muted-foreground">
                     <span className="text-xs font-semibold">

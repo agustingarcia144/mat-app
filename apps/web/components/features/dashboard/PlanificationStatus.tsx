@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { useQueries, useQuery } from 'convex/react'
+import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import StatsCard from './StatsCard'
 import { mapMembershipsToMembers } from '@repo/core/utils'
@@ -61,10 +62,13 @@ function computePlanStatus(assignment: any) {
 const normalize = (v?: string) => v?.toLowerCase().trim() ?? ''
 
 export default function PlanificationStatus() {
+  const { orgId } = useAuth()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    canQueryCurrentOrganization ? {} : 'skip'
+    canQueryCurrentOrganization && orgId
+      ? { organizationExternalId: orgId }
+      : 'skip'
   )
 
   const members = useMemo(() => {
@@ -80,11 +84,11 @@ export default function PlanificationStatus() {
         m.id,
         {
           query: api.planificationAssignments.getByUser,
-          args: { userId: m.id },
+          args: { userId: m.id, organizationExternalId: orgId ?? undefined },
         },
       ])
     )
-  }, [members])
+  }, [members, orgId])
 
   const assignmentsByUser = useQueries(queries)
 

@@ -5,6 +5,7 @@ import {
   requireAuth,
   requireAdminOrTrainer,
   requireOrganizationMembership,
+  isAdminOrTrainer,
 } from './permissions'
 import { ensureCurrentRevisionForPlanification } from './planificationRevisionHelpers'
 
@@ -148,12 +149,29 @@ export const updateStatus = mutation({
 export const getByUser = query({
   args: {
     userId: v.string(),
+    organizationExternalId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { identity, organizationId } = await requireActiveOrgContext(ctx)
+    if (args.organizationExternalId) {
+      const activeOrganization = await ctx.db.get(organizationId)
+      if (
+        !activeOrganization ||
+        activeOrganization.externalId !== args.organizationExternalId
+      ) {
+        // Stale client org context (e.g. fast org switch); avoid cross-org flashes.
+        return []
+      }
+    }
 
     if (args.userId !== identity.subject) {
-      await requireAdminOrTrainer(ctx, organizationId)
+      const canViewOthers = await isAdminOrTrainer(ctx, organizationId)
+      if (!canViewOthers) {
+        // Non-admin/non-trainer trying to view another member's assignments:
+        // return an empty list instead of throwing to avoid surfacing
+        // authorization errors to regular members.
+        return []
+      }
     }
 
     const assignments = await ctx.db

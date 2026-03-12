@@ -192,6 +192,7 @@ export const remove = mutation({
 export const listByUser = query({
   args: {
     userId: v.string(),
+    organizationExternalId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
@@ -201,9 +202,23 @@ export const listByUser = query({
 
     const membership = await requireCurrentOrganizationMembership(ctx)
     const organizationId = membership.organizationId
+    if (args.organizationExternalId) {
+      const activeOrganization = await ctx.db.get(organizationId)
+      if (
+        !activeOrganization ||
+        activeOrganization.externalId !== args.organizationExternalId
+      ) {
+        // Stale client org context (e.g. fast org switch); avoid leaking data.
+        return []
+      }
+    }
 
     if (args.userId !== identity.subject) {
-      await requireAdminOrTrainer(ctx, organizationId)
+      const canViewOthers = membership.role === 'admin' || membership.role === 'trainer'
+      if (!canViewOthers) {
+        // Avoid surfacing authorization errors in the UI; just hide others' data.
+        return []
+      }
     } else {
       await requireOrganizationMembership(ctx, organizationId)
     }

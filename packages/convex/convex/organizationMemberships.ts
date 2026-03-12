@@ -1,6 +1,10 @@
 import { internalMutation, mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireAuth, requireCurrentOrganizationMembership } from './permissions'
+import {
+  requireAdminOrTrainer,
+  requireAuth,
+  requireCurrentOrganizationMembership,
+} from './permissions'
 
 /**
  * Upsert an organization membership from Clerk webhook data
@@ -178,9 +182,28 @@ export const deleteFromClerk = internalMutation({
  * Returns all members of the organization the current user belongs to
  */
 export const getOrganizationMemberships = query({
-  handler: async (ctx) => {
+  args: {
+    organizationExternalId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const currentMembership = await requireCurrentOrganizationMembership(ctx)
     const organizationId = currentMembership.organizationId
+    const isPrivilegedRole =
+      currentMembership.role === 'admin' || currentMembership.role === 'trainer'
+    if (!isPrivilegedRole) {
+      // Members should not be able to list all organization users.
+      return []
+    }
+    if (args.organizationExternalId) {
+      const activeOrganization = await ctx.db.get(organizationId)
+      if (
+        !activeOrganization ||
+        activeOrganization.externalId !== args.organizationExternalId
+      ) {
+        // Stale client org context (e.g. fast org switch); avoid cross-org flashes.
+        return []
+      }
+    }
 
     // Get all memberships for this organization
     const allMemberships = await ctx.db
@@ -324,5 +347,44 @@ export const setActiveOrganization = mutation({
     })
 
     return true
+  },
+})
+
+/**
+ * Set a member as inactive in the current organization.
+ * Admin/trainer only.
+ */
+export const setMemberInactive = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const currentMembership = await requireCurrentOrganizationMembership(ctx)
+    const organizationId = currentMembership.organizationId
+    await requireAdminOrTrainer(ctx, organizationId)
+
+    const targetMembership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_organization_user', (q) =>
+        q.eq('organizationId', organizationId).eq('userId', args.userId)
+      )
+      .first()
+
+    if (!targetMembership) {
+      throw new Error('User is not a member of the current organization')
+    }
+    if (targetMembership.role !== 'member') {
+      throw new Error('Only members can be set as inactive')
+    }
+    if (targetMembership.status === 'inactive') {
+      return { updated: false }
+    }
+
+    await ctx.db.patch(targetMembership._id, {
+      status: 'inactive',
+      updatedAt: Date.now(),
+    })
+
+    return { updated: true }
   },
 })

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery } from 'convex/react'
+import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import { DataTable } from '@/components/ui/data-table'
 import { getColumns } from '@/components/features/members/table/columns'
@@ -24,10 +25,13 @@ const normalize = (value?: string) =>
 
 export default function MembersPage() {
   const isMobile = useIsMobile()
+  const { orgId } = useAuth()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    canQueryCurrentOrganization ? {} : 'skip'
+    canQueryCurrentOrganization && orgId
+      ? { organizationExternalId: orgId }
+      : 'skip'
   )
 
   const members = mapMembershipsToMembers(memberships || [])

@@ -59,6 +59,8 @@ export interface ExerciseCardProps {
   isDark: boolean
   onPressExercise: () => void
   onPressSet: (setIndex: number) => void
+  onQuickCompleteSet: (setIndex: number) => void
+  isSetQuickCompleted?: (setIndex: number) => boolean
 }
 
 export function ExerciseCard({
@@ -77,6 +79,8 @@ export function ExerciseCard({
   isDark,
   onPressExercise,
   onPressSet,
+  onQuickCompleteSet,
+  isSetQuickCompleted,
 }: ExerciseCardProps) {
   const thumbnailUrl = dayEx.exercise?.videoUrl
     ? getVideoThumbnailUrl(dayEx.exercise.videoUrl)
@@ -86,7 +90,7 @@ export function ExerciseCard({
   const loadLabel = formatLoad(
     dayEx.weight,
     dayEx.prPercentage,
-    timeValues?.[0]
+    dayEx.timeSeconds
   )
   const notesLabel = dayEx.notes?.trim()
   const hasTime =
@@ -196,9 +200,13 @@ export function ExerciseCard({
             <View style={styles.setsColumn}>
               {Array.from({ length: dayEx.sets }).map((_, setIndex) => {
                 const setValues = values[setIndex] ?? { reps: '', weight: '' }
+                const setTimeSeconds = Math.max(0, timeValues?.[setIndex] ?? 0)
+                const formattedSetTime = formatTime(setTimeSeconds)
+                const setWasQuickCompleted = !!isSetQuickCompleted?.(setIndex)
                 const isSetCompleted =
+                  setWasQuickCompleted ||
                   setValues.reps?.trim().length > 0 &&
-                  setValues.weight?.trim().length > 0
+                    setValues.weight?.trim().length > 0
                 return (
                   <View key={`set-${setIndex}`} style={styles.setRow}>
                     <View
@@ -300,11 +308,17 @@ export function ExerciseCard({
                               <Text
                                 style={[
                                   styles.inputValue,
-                                  { color: inputColor },
+                                  {
+                                    color: formattedSetTime
+                                      ? inputColor
+                                      : isDark
+                                        ? '#71717a'
+                                        : '#a1a1aa',
+                                  },
                                 ]}
                                 numberOfLines={1}
                               >
-                                {formatTime(timeValues?.[setIndex])}
+                                {formattedSetTime || '0s'}
                               </Text>
                             </View>
                           </View>
@@ -313,21 +327,30 @@ export function ExerciseCard({
                       <View style={styles.statusColumn}>
                         <View style={styles.statusSpacer} />
                         <View style={styles.statusIconContainer}>
-                          <MaterialIcons
-                            name={
-                              isSetCompleted
-                                ? 'check-circle'
-                                : 'radio-button-unchecked'
+                          <PressableScale
+                            onPress={
+                              isNewSession || isCompleted
+                                ? undefined
+                                : () => onQuickCompleteSet(setIndex)
                             }
-                            size={24}
-                            color={
-                              isSetCompleted
-                                ? '#22c55e'
-                                : isDark
-                                  ? '#71717a'
-                                  : '#a1a1aa'
-                            }
-                          />
+                            style={styles.statusIconPressable}
+                          >
+                            <MaterialIcons
+                              name={
+                                isSetCompleted
+                                  ? 'check-circle'
+                                  : 'radio-button-unchecked'
+                              }
+                              size={24}
+                              color={
+                                isSetCompleted
+                                  ? '#22c55e'
+                                  : isDark
+                                    ? '#71717a'
+                                    : '#a1a1aa'
+                              }
+                            />
+                          </PressableScale>
                         </View>
                       </View>
                     </View>
@@ -465,6 +488,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 40,
     marginTop: 8,
+  },
+  statusIconPressable: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   inputLabel: {
     fontSize: 12,

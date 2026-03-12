@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { useQuery } from 'convex/react'
+import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import StatsCard from './StatsCard'
 import { mapMembershipsToMembers } from '@repo/core/utils'
@@ -10,10 +11,13 @@ import { CheckCircle } from 'lucide-react'
 import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 export default function ActiveMembers() {
+  const { orgId } = useAuth()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    canQueryCurrentOrganization ? {} : 'skip'
+    canQueryCurrentOrganization && orgId
+      ? { organizationExternalId: orgId }
+      : 'skip'
   )
 
   const activeCount = useMemo(() => {

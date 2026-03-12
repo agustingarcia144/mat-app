@@ -1,11 +1,13 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
-import { Eye, MoreVertical } from 'lucide-react'
+import { Eye, MoreVertical, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import StatusBadge from '@/components/shared/badges/status-badge'
 import { useState } from 'react'
+import { useMutation } from 'convex/react'
+import { toast } from 'sonner'
 import MemberDetailDialog from '@/components/features/members/table/member-detail-dialog'
 import {
   DropdownMenu,
@@ -13,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { api } from '@/convex/_generated/api'
 import type { Member } from '@repo/core'
 
 function MemberNameCell({ member }: { member: Member }) {
@@ -39,6 +42,34 @@ function MemberNameCell({ member }: { member: Member }) {
 
 function MemberActionsCell({ member }: { member: Member }) {
   const [open, setOpen] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const setMemberInactive = useMutation(
+    api.organizationMemberships.setMemberInactive
+  )
+  const memberStatus = member.status?.toLowerCase() ?? ''
+  const isInactive = memberStatus === 'inactive' || memberStatus === 'inactivo'
+
+  const handleSetInactive = async () => {
+    if (isInactive) return
+    const shouldContinue = window.confirm(
+      'Este miembro pasará a estado inactivo. ¿Deseas continuar?'
+    )
+    if (!shouldContinue) return
+
+    setIsUpdatingStatus(true)
+    try {
+      await setMemberInactive({ userId: member.id })
+      toast.success('Miembro marcado como inactivo')
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo actualizar el estado del miembro'
+      )
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
 
   return (
     <>
@@ -59,14 +90,25 @@ function MemberActionsCell({ member }: { member: Member }) {
               <Eye className="mr-2 h-4 w-4" />
               Ver
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                void handleSetInactive()
+              }}
+              disabled={isInactive || isUpdatingStatus}
+            >
+              <UserX className="mr-2 h-4 w-4" />
+              {isInactive ? 'Ya inactivo' : 'Marcar como inactivo'}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <MemberDetailDialog
-        member={member}
-        open={open}
-        onClose={() => setOpen(false)}
-      />
+      {open ? (
+        <MemberDetailDialog
+          member={member}
+          open={open}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
     </>
   )
 }
