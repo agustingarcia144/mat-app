@@ -130,7 +130,13 @@ export default function WorkoutDayCard({
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className={compact ? 'space-y-2' : 'space-y-4'}>
+        <div
+          className={
+            compact
+              ? 'space-y-2 max-h-72 overflow-y-auto pr-1'
+              : 'space-y-4'
+          }
+        >
           {/* Exercises grouped by blocks */}
           {blocks
             .sort(

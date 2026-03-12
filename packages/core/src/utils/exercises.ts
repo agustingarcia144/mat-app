@@ -1,13 +1,15 @@
 export const CATEGORIES = [
-'Dominante de cadera',
-'Dominante de rodilla',
-'Traccion', 
-'Empuje',
-'DLO',
-'Core',
-'Cardio',
-'Movilidad',
-'Otro',
+  'Dominante de cadera',
+  'Dominante de rodilla',
+  'Traccion',
+  'Empuje',
+  'DLO',
+  'Core',
+  'Cardio',
+  'Movilidad',
+  'Balísticos',
+  'Pliometria',
+  'Otro',
 ]
 
 export const EQUIPMENT_OPTIONS = [
