@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react'
 import { useQueries, useQuery } from 'convex/react'
-import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import StatsCard from './StatsCard'
 import { mapMembershipsToMembers } from '@repo/core/utils'
@@ -12,6 +11,7 @@ import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-or
 
 function safeDate(value: any): Date | null {
   if (!value) return null
+
   if (typeof value === 'string' && value.includes('/')) {
     const parts = value.split('/')
     if (parts.length === 3) {
@@ -20,12 +20,15 @@ function safeDate(value: any): Date | null {
       return isNaN(parsed.getTime()) ? null : parsed
     }
   }
+
   const d = new Date(value)
   return isNaN(d.getTime()) ? null : d
 }
 
 function computePlanStatus(assignment: any) {
-  if (!assignment) return { status: 'none' }
+  if (!assignment) {
+    return { status: 'none', daysLeft: null, daysExpired: null }
+  }
 
   const start = safeDate(assignment.startDate)
   const end = safeDate(assignment.endDate)
@@ -62,33 +65,34 @@ function computePlanStatus(assignment: any) {
 const normalize = (v?: string) => v?.toLowerCase().trim() ?? ''
 
 export default function PlanificationStatus() {
-  const { orgId } = useAuth()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
+
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    canQueryCurrentOrganization && orgId
-      ? { organizationExternalId: orgId }
-      : 'skip'
+    canQueryCurrentOrganization ? {} : 'skip'
   )
 
   const members = useMemo(() => {
     if (!memberships) return []
+
     const all = mapMembershipsToMembers(memberships)
+
     return all.filter((m: any) => normalize(m.role) === 'member')
   }, [memberships])
 
   const queries = useMemo(() => {
     if (!members.length) return {}
+
     return Object.fromEntries(
       members.map((m: any) => [
         m.id,
         {
           query: api.planificationAssignments.getByUser,
-          args: { userId: m.id, organizationExternalId: orgId ?? undefined },
+          args: { userId: m.id },
         },
       ])
     )
-  }, [members, orgId])
+  }, [members])
 
   const assignmentsByUser = useQueries(queries)
 
@@ -128,31 +132,37 @@ export default function PlanificationStatus() {
       actionIcon={Dumbbell}
     >
       {membersWithIssues.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full text-center space-y-2">
+        <div className="flex h-full flex-col items-center justify-center space-y-2 text-center">
           <p className="text-sm text-muted-foreground">
             Todos tus miembros pueden entrenar. Bien hecho! 🎉
           </p>
         </div>
       ) : (
         membersWithIssues.map((m: any) => (
-          <div key={m.id} className="flex flex-col border-b pb-2 text-sm">
-            <div className="flex justify-between items-center">
-              <span className="font-medium">
+          <div
+            key={m.id}
+            className="flex flex-col border-b pb-2 text-sm last:border-b-0"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0 flex-1 truncate font-medium">
                 {m.fullName || m.name}
               </span>
 
               {m.planStatus.status === 'none' && (
-                <span className="text-muted-foreground">
+                <span className="shrink-0 text-muted-foreground">
                   Sin planificación
                 </span>
               )}
 
               {m.planStatus.status === 'expired' && (
-                <Badge variant="outline" className="gap-2">
-                  <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                <Badge
+                  variant="outline"
+                  className="shrink-0 gap-2 rounded-full border border-red-300 bg-red-100 text-red-700 dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-400"
+                >
+                  <XCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
                   Vencida
                   {m.planStatus.daysExpired !== null && (
-                    <span className="font-normal text-zinc-400">
+                    <span className="font-normal text-red-700/80 dark:text-red-300/80">
                       (hace {m.planStatus.daysExpired} día
                       {m.planStatus.daysExpired !== 1 && 's'})
                     </span>
@@ -161,11 +171,14 @@ export default function PlanificationStatus() {
               )}
 
               {m.planStatus.status === 'expiring_soon' && (
-                <Badge variant="dark" className="gap-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                <Badge
+                  variant="outline"
+                  className="shrink-0 gap-2 rounded-full border border-yellow-300 bg-yellow-100 text-yellow-700 dark:border-yellow-500/40 dark:bg-yellow-500/20 dark:text-yellow-400"
+                >
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
                   Por vencer
                   {m.planStatus.daysLeft !== null && (
-                    <span className="font-normal text-zinc-400">
+                    <span className="font-normal text-yellow-700/80 dark:text-yellow-300/80">
                       ({m.planStatus.daysLeft} día
                       {m.planStatus.daysLeft !== 1 && 's'})
                     </span>
