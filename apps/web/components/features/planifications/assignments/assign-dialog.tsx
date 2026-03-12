@@ -56,10 +56,12 @@ export default function AssignDialog({
 }: AssignDialogProps) {
   const assign = useMutation(api.planificationAssignments.assign)
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
+
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
     open && canQueryCurrentOrganization ? {} : 'skip'
   )
+
   const assignments = useQuery(
     api.planificationAssignments.getByPlanification,
     open && canQueryCurrentOrganization
@@ -75,6 +77,9 @@ export default function AssignDialog({
   })
   const [memberSearchOpen, setMemberSearchOpen] = useState(false)
 
+  // NUEVO: múltiples seleccionados
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+
   const form = useForm<Assignment>({
     resolver: zodResolver(assignmentSchema),
     defaultValues: {
@@ -84,8 +89,7 @@ export default function AssignDialog({
       notes: '',
     },
   })
-
-  // Update form values when date range changes
+// Update form values when date range changes
   useEffect(() => {
     if (dateRange?.from) {
       form.setValue('startDate', format(dateRange.from, 'yyyy-MM-dd'))
@@ -100,29 +104,9 @@ export default function AssignDialog({
     }
   }, [dateRange, form])
 
-  const onSubmit = async (data: Assignment) => {
-    try {
-      await assign({
-        planificationId: planificationId as any,
-        userId: data.userId,
-        startDate: data.startDate
-          ? new Date(data.startDate).getTime()
-          : undefined,
-        endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
-        notes: data.notes?.trim() || undefined,
-      })
-
-      form.reset()
-      onOpenChange(false)
-    } catch (error: any) {
-      console.error('Failed to assign:', error)
-      toast.error(error.message || 'Error al asignar planificación')
-    }
-  }
-
-  // Filter out members who are already assigned
   const assignedUserIds = useMemo(() => {
     if (!assignments) return new Set<string>()
+
     return new Set(
       assignments
         .filter((a: { status: string }) => a.status === 'active')
@@ -132,11 +116,44 @@ export default function AssignDialog({
 
   const availableMembers = useMemo(() => {
     if (!memberships) return []
+
     return memberships.filter(
       (m: { role: string; userId: string }) =>
         m.role === 'member' && !assignedUserIds.has(m.userId)
     )
   }, [memberships, assignedUserIds])
+
+  const onSubmit = async (data: Assignment) => {
+    try {
+      if (selectedUsers.length === 0) {
+        toast.error('Selecciona al menos un miembro')
+        return
+      }
+
+      for (const userId of selectedUsers) {
+        await assign({
+          planificationId: planificationId as any,
+          userId,
+          startDate: data.startDate
+            ? new Date(data.startDate).getTime()
+            : undefined,
+          endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
+          notes: data.notes?.trim() || undefined,
+        })
+      }
+
+      form.reset()
+      setSelectedUsers([])
+      setDateRange({
+        from: new Date(),
+        to: addDays(new Date(), 30),
+      })
+      onOpenChange(false)
+    } catch (error: any) {
+      console.error('Failed to assign:', error)
+      toast.error(error.message || 'Error al asignar planificación')
+    }
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -144,7 +161,7 @@ export default function AssignDialog({
         <SheetHeader>
           <SheetTitle>Asignar planificación</SheetTitle>
           <SheetDescription>
-            Asigna esta planificación a un miembro
+            Asigna esta planificación a uno o varios miembros
           </SheetDescription>
         </SheetHeader>
 
@@ -152,92 +169,114 @@ export default function AssignDialog({
           <Controller
             name="userId"
             control={form.control}
-            render={({ field, fieldState }) => {
-              const selectedMember = availableMembers.find(
-                (m: { userId: string }) => m.userId === field.value
-              )
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel>Miembros *</FieldLabel>
 
-              return (
-                <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel>Miembro *</FieldLabel>
-                  <Popover
-                    open={memberSearchOpen}
-                    onOpenChange={setMemberSearchOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={memberSearchOpen}
-                        className={cn(
-                          'w-full justify-between',
-                          !field.value && 'text-muted-foreground'
-                        )}
-                        disabled={form.formState.isSubmitting}
-                      >
-                        {selectedMember
-                          ? selectedMember.fullName ||
-                            selectedMember.email ||
-                            'Usuario'
-                          : 'Buscar miembro...'}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-full min-w-[460px] p-0"
-                      align="start"
+                <Popover
+                  open={memberSearchOpen}
+                  onOpenChange={setMemberSearchOpen}
+                >
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={memberSearchOpen}
+                      className={cn(
+                        'w-full justify-between',
+                        selectedUsers.length === 0 && 'text-muted-foreground'
+                      )}
+                      disabled={form.formState.isSubmitting}
+                      type="button"
                     >
-                      <Command>
-                        <CommandInput placeholder="Buscar miembro..." />
-                        <CommandList>
-                          <CommandEmpty>
-                            No se encontraron miembros disponibles.
-                          </CommandEmpty>
-                          <CommandGroup>
-                            {availableMembers.map((member: { userId: string; fullName?: string; email?: string }) => (
-                              <CommandItem
-                                key={member.userId}
-                                value={`${member.fullName} ${member.email}`}
-                                onSelect={() => {
-                                  field.onChange(member.userId)
-                                  setMemberSearchOpen(false)
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'mr-2 h-4 w-4',
-                                    field.value === member.userId
-                                      ? 'opacity-100'
-                                      : 'opacity-0'
-                                  )}
-                                />
-                                <div className="flex flex-col">
-                                  <span className="font-medium">
-                                    {member.fullName || 'Sin nombre'}
-                                  </span>
-                                  {member.email && (
-                                    <span className="text-xs text-muted-foreground">
-                                      {member.email}
+                      {selectedUsers.length > 0
+                        ? `${selectedUsers.length} miembro(s) seleccionado(s)`
+                        : 'Buscar miembros...'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+
+                  <PopoverContent
+                    className="w-full min-w-[460px] p-0"
+                    align="start"
+                  >
+                    <Command>
+                      <CommandInput placeholder="Buscar miembro..." />
+                      <CommandList>
+                        <CommandEmpty>
+                          No se encontraron miembros disponibles.
+                        </CommandEmpty>
+                        <CommandGroup>
+                          {availableMembers.map(
+                            (member: {
+                              userId: string
+                              fullName?: string
+                              email?: string
+                            }) => {
+                              const isSelected = selectedUsers.includes(
+                                member.userId
+                              )
+
+                              return (
+                                <CommandItem
+                                  key={member.userId}
+                                  value={`${member.fullName || ''} ${member.email || ''}`}
+                                  onSelect={() => {
+                                    let nextSelectedUsers: string[] = []
+
+                                    if (isSelected) {
+                                      nextSelectedUsers = selectedUsers.filter(
+                                        id => id !== member.userId
+                                      )
+                                    } else {
+                                      nextSelectedUsers = [
+                                        ...selectedUsers,
+                                        member.userId,
+                                      ]
+                                    }
+
+                                    setSelectedUsers(nextSelectedUsers)
+
+                                    // mantenemos userId sincronizado solo para validación del schema
+                                    field.onChange(nextSelectedUsers[0] || '')
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      'mr-2 h-4 w-4',
+                                      isSelected ? 'opacity-100' : 'opacity-0'
+                                    )}
+                                  />
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">
+                                      {member.fullName || 'Sin nombre'}
                                     </span>
-                                  )}
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <FieldDescription>
-                    Busca y selecciona un miembro disponible para asignar la
-                    planificación.
-                  </FieldDescription>
-                  {fieldState.invalid && (
-                    <FieldError errors={[fieldState.error]} />
-                  )}
-                </Field>
-              )
-            }}
+                                    {member.email && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {member.email}
+                                      </span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              )
+                            }
+                          )}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+
+                <FieldDescription>
+                  Busca y selecciona uno o varios miembros disponibles para
+                  asignar la planificación.
+                </FieldDescription>
+
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
+              </Field>
+            )}
           />
 
           <Field>
@@ -282,10 +321,11 @@ export default function AssignDialog({
           <div className="flex gap-2 pt-4">
             <Button
               type="submit"
-              disabled={form.formState.isSubmitting || !form.formState.isValid}
+              disabled={form.formState.isSubmitting || selectedUsers.length === 0}
             >
               {form.formState.isSubmitting ? 'Asignando...' : 'Asignar'}
             </Button>
+
             <Button
               type="button"
               variant="outline"
