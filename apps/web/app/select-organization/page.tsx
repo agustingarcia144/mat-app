@@ -14,7 +14,9 @@ import {
 
 export default function SelectOrganizationPage() {
   const router = useRouter()
-  const organizations = useQuery(api.organizationMemberships.getMyStaffOrganizations)
+  const organizations = useQuery(
+    api.organizationMemberships.getMyStaffOrganizations
+  )
   const currentMembership = useQuery(
     api.organizationMemberships.getCurrentMembershipWithOrganization
   )
@@ -24,7 +26,8 @@ export default function SelectOrganizationPage() {
   const [loadingOrgId, setLoadingOrgId] = useState<string | null>(null)
 
   const memberships = useMemo(() => organizations ?? [], [organizations])
-  const isLoaded = organizations !== undefined && currentMembership !== undefined
+  const isLoaded =
+    organizations !== undefined && currentMembership !== undefined
 
   useEffect(() => {
     if (!isLoaded) return
@@ -62,12 +65,19 @@ export default function SelectOrganizationPage() {
         void activateOrganization(onlyOrganizationId)
       }
     }
-  }, [activateOrganization, currentMembership?.organization?._id, isLoaded, memberships])
+  }, [
+    activateOrganization,
+    currentMembership?.organization?._id,
+    isLoaded,
+    memberships,
+  ])
 
   if (!isLoaded) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-muted-foreground">Cargando organizaciones...</p>
+        <p className="text-sm text-muted-foreground">
+          Cargando organizaciones...
+        </p>
       </div>
     )
   }
@@ -100,7 +110,7 @@ export default function SelectOrganizationPage() {
         </p>
 
         <div className="mt-6 grid gap-3">
-          {memberships.map((membership) => {
+          {memberships.map((membership: (typeof memberships)[number]) => {
             const organizationId = membership.organizationId
             const isLoading = loadingOrgId === organizationId
             return (

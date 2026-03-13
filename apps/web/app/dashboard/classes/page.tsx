@@ -231,7 +231,7 @@ export default function ClassesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las clases</SelectItem>
-                {classes?.map((classItem) => (
+                {classes?.map((classItem: Doc<'classes'>) => (
                   <SelectItem key={classItem._id} value={classItem._id}>
                     {classItem.name}
                   </SelectItem>

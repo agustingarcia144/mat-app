@@ -83,7 +83,7 @@ export default function BasicInfoSection({
       onTemplateChange?.('__none__', undefined)
       return
     }
-    const template = templates?.find((t) => t._id === value)
+    const template = templates?.find((t: Doc<'planifications'>) => t._id === value)
     onTemplateChange?.(value, template ? { name: template.name, description: template.description } : undefined)
   }
 
@@ -100,7 +100,7 @@ export default function BasicInfoSection({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">Ninguna (crear vacía)</SelectItem>
-            {(templates ?? []).map((t) => (
+            {(templates ?? []).map((t: Doc<'planifications'>) => (
               <SelectItem key={t._id} value={t._id}>
                 {t.name}
               </SelectItem>

@@ -115,7 +115,7 @@ export default function HeaderNavItems() {
                   No hay organizaciones disponibles
                 </DropdownMenuItem>
               )}
-              {memberships.map((item) => {
+              {memberships.map((item: (typeof memberships)[number]) => {
                 const organizationId = item.organizationId
                 const isActive = organizationId === activeOrganizationId
                 const isSwitching = switchingOrgId === organizationId

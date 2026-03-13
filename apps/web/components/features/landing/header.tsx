@@ -107,15 +107,15 @@ export const HeroHeader = () => {
                     open={signInOpen}
                     onOpenChange={setSignInOpen}
                   />
-                  {/* <Button
+                  <Button
                     asChild
                     size="sm"
                     className={cn(isScrolled && 'lg:hidden')}
                   >
-                    <Link href="/sign-up">
-                      <span>Tengo invitación</span>
+                    <Link href="/invite-code">
+                      <span>Tengo invitacion</span>
                     </Link>
-                  </Button> */}
+                  </Button>
                 </Unauthenticated>
                 <Authenticated>
                   <div className="flex items-center">

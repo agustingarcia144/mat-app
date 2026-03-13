@@ -21,6 +21,8 @@ import type * as http from "../http.js";
 import type * as joinGym from "../joinGym.js";
 import type * as joinGymNode from "../joinGymNode.js";
 import type * as migrations from "../migrations.js";
+import type * as orgCreationCodes from "../orgCreationCodes.js";
+import type * as orgCreationCodesNode from "../orgCreationCodesNode.js";
 import type * as organizationMemberships from "../organizationMemberships.js";
 import type * as organizations from "../organizations.js";
 import type * as permissions from "../permissions.js";
@@ -58,6 +60,8 @@ declare const fullApi: ApiFromModules<{
   joinGym: typeof joinGym;
   joinGymNode: typeof joinGymNode;
   migrations: typeof migrations;
+  orgCreationCodes: typeof orgCreationCodes;
+  orgCreationCodesNode: typeof orgCreationCodesNode;
   organizationMemberships: typeof organizationMemberships;
   organizations: typeof organizations;
   permissions: typeof permissions;

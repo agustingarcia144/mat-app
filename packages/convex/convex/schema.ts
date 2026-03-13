@@ -108,6 +108,34 @@ export default defineSchema({
     .index('by_organization_status', ['organizationId', 'status'])
     .index('by_organization_email', ['organizationId', 'email']),
 
+  // Internal invite codes used to bootstrap brand-new organizations.
+  // This is separate from member join links/tokens.
+  organizationCreationInviteCodes: defineTable({
+    codeHash: v.string(),
+    status: v.union(
+      v.literal('active'),
+      v.literal('consumed'),
+      v.literal('revoked')
+    ),
+    expiresAt: v.optional(v.number()),
+    maxUses: v.number(),
+    usedCount: v.number(),
+    consumedAt: v.optional(v.number()),
+    consumedByUserId: v.optional(v.string()),
+    consumedOrganizationId: v.optional(v.id('organizations')),
+    createdBy: v.optional(v.string()),
+    metadata: v.optional(
+      v.object({
+        label: v.optional(v.string()),
+        notes: v.optional(v.string()),
+      })
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_codeHash', ['codeHash'])
+    .index('by_status', ['status']),
+
   // Clerk webhook processing ledger for idempotency, replay defense, and auditing.
   webhookEvents: defineTable({
     svixId: v.string(),

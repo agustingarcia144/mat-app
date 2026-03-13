@@ -29,7 +29,7 @@ export default function WorkoutWeekHorizontalView({
   const daysByWeekday = (() => {
     const map = new Map<number, Doc<'workoutDays'>[]>()
     for (let dow = 1; dow <= 7; dow++) map.set(dow, [])
-    ;(workoutDays ?? []).forEach((day) => {
+    ;(workoutDays ?? []).forEach((day: Doc<'workoutDays'>) => {
       const dow = day.dayOfWeek ?? 1
       const key = dow >= 1 && dow <= 7 ? dow : 1
       map.get(key)!.push(day)

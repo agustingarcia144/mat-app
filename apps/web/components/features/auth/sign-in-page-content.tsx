@@ -185,6 +185,15 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
             Registrarse
           </Link>
         </p>
+        <p className="text-center text-sm text-muted-foreground">
+          ¿Tenés un codigo de invitacion para crear organizacion?{' '}
+          <Link
+            href="/invite-code"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Tengo invitacion
+          </Link>
+        </p>
       </CardContent>
     </Card>
   )
