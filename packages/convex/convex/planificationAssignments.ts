@@ -149,19 +149,13 @@ export const updateStatus = mutation({
 export const getByUser = query({
   args: {
     userId: v.string(),
-    organizationExternalId: v.optional(v.string()),
+    organizationId: v.optional(v.id('organizations')),
   },
   handler: async (ctx, args) => {
     const { identity, organizationId } = await requireActiveOrgContext(ctx)
-    if (args.organizationExternalId) {
-      const activeOrganization = await ctx.db.get(organizationId)
-      if (
-        !activeOrganization ||
-        activeOrganization.externalId !== args.organizationExternalId
-      ) {
+    if (args.organizationId && args.organizationId !== organizationId) {
         // Stale client org context (e.g. fast org switch); avoid cross-org flashes.
         return []
-      }
     }
 
     if (args.userId !== identity.subject) {

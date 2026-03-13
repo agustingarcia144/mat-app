@@ -5,15 +5,16 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar'
 import { usePathname, useRouter } from 'next/navigation'
-import { useOrganization } from '@clerk/nextjs'
+import { useQuery } from 'convex/react'
 import { DASHBOARD_NAV_ITEMS } from '@/lib/dashboard-nav'
 import { useUnsavedNavigationGuard } from '@/contexts/unsaved-changes-context'
 import { isOrgAdminRole } from '@/lib/security/roles'
+import { api } from '@/convex/_generated/api'
 
 export default function ContentNavItems() {
   const pathname = usePathname()
   const router = useRouter()
-  const { membership } = useOrganization()
+  const membership = useQuery(api.organizationMemberships.getCurrentMembership)
   const { requestNavigation } = useUnsavedNavigationGuard()
   const [optimisticPath, setOptimisticPath] = useOptimistic(pathname)
   const [, startTransition] = useTransition()

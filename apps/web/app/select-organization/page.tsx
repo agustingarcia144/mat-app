@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useOrganization, useOrganizationList } from '@clerk/nextjs'
-import { useMutation } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,52 +14,55 @@ import {
 
 export default function SelectOrganizationPage() {
   const router = useRouter()
-  const { organization, membership } = useOrganization()
-  const { userMemberships, setActive, isLoaded } = useOrganizationList({
-    userMemberships: true,
-  })
+  const organizations = useQuery(api.organizationMemberships.getMyStaffOrganizations)
+  const currentMembership = useQuery(
+    api.organizationMemberships.getCurrentMembershipWithOrganization
+  )
   const setActiveOrganization = useMutation(
     api.organizationMemberships.setActiveOrganization
   )
   const [loadingOrgId, setLoadingOrgId] = useState<string | null>(null)
 
-  const memberships = useMemo(() => userMemberships?.data ?? [], [userMemberships])
+  const memberships = useMemo(() => organizations ?? [], [organizations])
+  const isLoaded = organizations !== undefined && currentMembership !== undefined
 
   useEffect(() => {
-    if (!organization?.id) return
+    if (!isLoaded) return
 
     if (!isWebStaffGuardEnabled()) {
       router.replace('/dashboard')
       return
     }
 
-    if (isOrgStaffRole(membership?.role)) {
+    if (isOrgStaffRole(currentMembership?.role)) {
       router.replace('/dashboard')
     }
-  }, [organization?.id, membership?.role, router])
+  }, [currentMembership?.role, isLoaded, router])
 
   const activateOrganization = useCallback(
     async (organizationId: string) => {
       setLoadingOrgId(organizationId)
       try {
-        await setActive?.({ organization: organizationId } as never)
         await setActiveOrganization({
-          organizationExternalId: organizationId,
+          organizationId: organizationId as never,
         })
         router.replace('/dashboard')
       } finally {
         setLoadingOrgId(null)
       }
     },
-    [router, setActive, setActiveOrganization]
+    [router, setActiveOrganization]
   )
 
   useEffect(() => {
     if (!isLoaded) return
-    if (memberships.length === 1 && !organization?.id) {
-      void activateOrganization(memberships[0].organization.id)
+    if (memberships.length === 1 && !currentMembership?.organization?._id) {
+      const onlyOrganizationId = memberships[0].organizationId
+      if (onlyOrganizationId) {
+        void activateOrganization(onlyOrganizationId)
+      }
     }
-  }, [activateOrganization, isLoaded, memberships, organization?.id])
+  }, [activateOrganization, currentMembership?.organization?._id, isLoaded, memberships])
 
   if (!isLoaded) {
     return (
@@ -76,8 +78,8 @@ export default function SelectOrganizationPage() {
         <div className="w-full max-w-md rounded-lg border bg-card p-6">
           <h1 className="text-xl font-semibold">Sin acceso a organización</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Tu cuenta no tiene membresías activas. Solicita una invitación a un
-            administrador.
+            Tu cuenta no tiene organizaciones con rol de administrador o
+            entrenador para acceder a la web.
           </p>
           <div className="mt-6">
             <Button asChild variant="outline">
@@ -99,17 +101,18 @@ export default function SelectOrganizationPage() {
 
         <div className="mt-6 grid gap-3">
           {memberships.map((membership) => {
-            const isLoading = loadingOrgId === membership.organization.id
+            const organizationId = membership.organizationId
+            const isLoading = loadingOrgId === organizationId
             return (
               <Button
-                key={membership.organization.id}
+                key={membership.organizationId}
                 variant="outline"
                 className="h-auto justify-between p-4"
-                disabled={Boolean(loadingOrgId)}
-                onClick={() => activateOrganization(membership.organization.id)}
+                disabled={Boolean(loadingOrgId) || !organizationId}
+                onClick={() => activateOrganization(organizationId)}
               >
                 <div className="text-left">
-                  <p className="font-medium">{membership.organization.name}</p>
+                  <p className="font-medium">{membership.organizationName}</p>
                   <p className="text-xs text-muted-foreground">
                     Rol: {getOrgRoleLabel(membership.role)}
                   </p>

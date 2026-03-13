@@ -31,7 +31,6 @@ import {
 } from 'lucide-react'
 
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@clerk/nextjs'
 
 import {
   Select,
@@ -80,7 +79,6 @@ function safeDate(value: any): Date | null {
 
 export default function MemberDetailDialog({ member, open, onClose }: Props) {
   const router = useRouter()
-  const { orgId } = useAuth()
 
   const [addFixedSlotOpen, setAddFixedSlotOpen] = useState(false)
   const [addClassId, setAddClassId] = useState<Id<'classes'> | ''>('')
@@ -90,16 +88,12 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
   const assignments = useQuery(
     api.planificationAssignments.getByUser,
-    member && open && orgId
-      ? { userId: member.id, organizationExternalId: orgId }
-      : 'skip'
+    member && open ? { userId: member.id } : 'skip'
   )
 
   const fixedSlots = useQuery(
     api.fixedClassSlots.listByUser,
-    member && open && orgId
-      ? { userId: member.id, organizationExternalId: orgId }
-      : 'skip'
+    member && open ? { userId: member.id } : 'skip'
   )
 
   const classes = useQuery(api.classes.getByOrganization, {

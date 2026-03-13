@@ -1,6 +1,7 @@
 'use client'
 
 import { type FormEvent, useEffect, useState } from 'react'
+import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -31,6 +32,7 @@ import {
   type StaffInviteRole,
   type StaffInvitation,
 } from '@/lib/security/organization-invitations'
+import { api } from '@/convex/_generated/api'
 
 type Props = {
   open: boolean
@@ -46,6 +48,7 @@ type FormErrors = {
 const INITIAL_ROLE: StaffInviteRole = 'trainer'
 
 export function InviteUserDialog({ open, onOpenChange, onInvited }: Props) {
+  const createInvitation = useMutation(api.organizations.createInvitation)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<StaffInviteRole>(INITIAL_ROLE)
   const [errors, setErrors] = useState<FormErrors>({})
@@ -86,31 +89,16 @@ export function InviteUserDialog({ open, onOpenChange, onInvited }: Props) {
 
     setIsSubmitting(true)
     try {
-      const response = await fetch('/api/secure/organization/invitations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          role,
-        }),
+      const result = await createInvitation({
+        email: email.trim().toLowerCase(),
+        role,
       })
-
-      const body = (await response.json().catch(() => null)) as
-        | {
-            error?: string
-            message?: string
-            invitation?: StaffInvitation
-          }
-        | null
-
-      if (!response.ok || !body?.invitation) {
-        throw new Error(body?.error || 'No se pudo enviar la invitación')
+      const invitation = result?.invitation as StaffInvitation | undefined
+      if (!invitation) {
+        throw new Error('No se pudo enviar la invitación')
       }
-
-      toast.success(body.message || 'Invitación enviada')
-      onInvited(body.invitation)
+      toast.success('Invitación enviada')
+      onInvited(invitation)
       onOpenChange(false)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error inesperado')
@@ -143,8 +131,8 @@ export function InviteUserDialog({ open, onOpenChange, onInvited }: Props) {
               required
             />
             <FieldDescription>
-              Si la persona ya tiene cuenta, podrá iniciar sesión. Si no, Clerk le
-              mostrará el alta desde la invitación.
+              Si la persona ya tiene cuenta, podrá iniciar sesión. Si no, podrá
+              crearla y luego aceptar la invitación.
             </FieldDescription>
             <FieldError>{errors.email}</FieldError>
           </Field>

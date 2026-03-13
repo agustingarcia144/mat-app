@@ -4,14 +4,13 @@ import { useAuth } from '@clerk/nextjs'
 import { useConvexAuth } from 'convex/react'
 
 export function useCanQueryCurrentOrganization() {
-  const { isLoaded, userId, orgId } = useAuth()
+  const { isLoaded, userId } = useAuth()
   const { isAuthenticated, isLoading } = useConvexAuth()
 
   return (
     isLoaded &&
     !isLoading &&
     isAuthenticated &&
-    Boolean(userId) &&
-    Boolean(orgId)
+    Boolean(userId)
   )
 }

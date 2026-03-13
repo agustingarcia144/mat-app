@@ -280,6 +280,192 @@ export const deleteAllClassesAndRelated = internalMutation({
   },
 })
 
+/**
+ * Migration: remove legacy Clerk-organization fields from existing documents.
+ *
+ * It strips:
+ * - users.activeOrganizationExternalId
+ * - organizations.externalId
+ * - organizationMemberships.externalMembershipId
+ *
+ * It also migrates users.activeOrganizationExternalId -> users.activeOrganizationId
+ * when a matching organization can be found.
+ */
+export const cleanupLegacyOrganizationExternalFields = internalMutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? true
+
+    const organizations = await ctx.db.query('organizations').collect()
+    const users = await ctx.db.query('users').collect()
+    const memberships = await ctx.db.query('organizationMemberships').collect()
+
+    const orgIdByExternalId = new Map<string, Id<'organizations'>>()
+    for (const org of organizations as Array<
+      (typeof organizations)[number] & { externalId?: string }
+    >) {
+      if (typeof org.externalId === 'string' && org.externalId.length > 0) {
+        orgIdByExternalId.set(org.externalId, org._id)
+      }
+    }
+
+    let organizationsUpdated = 0
+    let usersUpdated = 0
+    let membershipsUpdated = 0
+    let usersMappedFromLegacyExternalId = 0
+
+    if (!dryRun) {
+      for (const organization of organizations as Array<
+        (typeof organizations)[number] & { externalId?: string }
+      >) {
+        const { _id, _creationTime, externalId, ...rest } = organization
+        await ctx.db.replace(_id, rest)
+        if (externalId !== undefined) {
+          organizationsUpdated += 1
+        }
+      }
+
+      for (const user of users as Array<
+        (typeof users)[number] & { activeOrganizationExternalId?: string }
+      >) {
+        let nextActiveOrganizationId = user.activeOrganizationId
+        if (!nextActiveOrganizationId && user.activeOrganizationExternalId) {
+          const mapped = orgIdByExternalId.get(user.activeOrganizationExternalId)
+          if (mapped) {
+            nextActiveOrganizationId = mapped
+            usersMappedFromLegacyExternalId += 1
+          }
+        }
+
+        const { _id, _creationTime, activeOrganizationExternalId, ...rest } = user
+        await ctx.db.replace(_id, {
+          ...rest,
+          activeOrganizationId: nextActiveOrganizationId,
+        })
+        if (activeOrganizationExternalId !== undefined) {
+          usersUpdated += 1
+        }
+      }
+
+      for (const membership of memberships as Array<
+        (typeof memberships)[number] & { externalMembershipId?: string }
+      >) {
+        const { _id, _creationTime, externalMembershipId, ...rest } = membership
+        await ctx.db.replace(_id, rest)
+        if (externalMembershipId !== undefined) {
+          membershipsUpdated += 1
+        }
+      }
+    } else {
+      for (const organization of organizations as Array<
+        (typeof organizations)[number] & { externalId?: string }
+      >) {
+        if (organization.externalId !== undefined) {
+          organizationsUpdated += 1
+        }
+      }
+
+      for (const user of users as Array<
+        (typeof users)[number] & { activeOrganizationExternalId?: string }
+      >) {
+        if (user.activeOrganizationExternalId !== undefined) {
+          usersUpdated += 1
+        }
+      }
+
+      for (const membership of memberships as Array<
+        (typeof memberships)[number] & { externalMembershipId?: string }
+      >) {
+        if (membership.externalMembershipId !== undefined) {
+          membershipsUpdated += 1
+        }
+      }
+
+      for (const user of users as Array<
+        (typeof users)[number] & { activeOrganizationExternalId?: string }
+      >) {
+        if (
+          !user.activeOrganizationId &&
+          user.activeOrganizationExternalId &&
+          orgIdByExternalId.has(user.activeOrganizationExternalId)
+        ) {
+          usersMappedFromLegacyExternalId += 1
+        }
+      }
+    }
+
+    return {
+      success: true,
+      dryRun,
+      scanned: {
+        organizations: organizations.length,
+        users: users.length,
+        memberships: memberships.length,
+      },
+      updated: {
+        organizations: organizationsUpdated,
+        users: usersUpdated,
+        memberships: membershipsUpdated,
+      },
+      usersMappedFromLegacyExternalId,
+    }
+  },
+})
+
+/**
+ * Migration: clear legacy Clerk-hosted organization logos.
+ *
+ * Manual reupload strategy:
+ * - removes `logoUrl` when it points to `img.clerk.com`
+ * - keeps Convex storage-backed logos (`logoStorageId`) intact
+ */
+export const clearClerkOrganizationLogos = internalMutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? true
+    const organizations = await ctx.db.query('organizations').collect()
+
+    const shouldClear = (logoUrl: string | undefined) => {
+      if (!logoUrl) return false
+      try {
+        return new URL(logoUrl).hostname === 'img.clerk.com'
+      } catch {
+        return logoUrl.includes('img.clerk.com')
+      }
+    }
+
+    let cleared = 0
+    const sampleOrganizationIds: Id<'organizations'>[] = []
+
+    for (const org of organizations) {
+      if (!shouldClear(org.logoUrl)) continue
+      cleared += 1
+      if (sampleOrganizationIds.length < 50) {
+        sampleOrganizationIds.push(org._id)
+      }
+
+      if (!dryRun) {
+        await ctx.db.patch(org._id, {
+          logoUrl: undefined,
+          updatedAt: Date.now(),
+        })
+      }
+    }
+
+    return {
+      success: true,
+      dryRun,
+      scannedOrganizations: organizations.length,
+      clearedOrganizations: cleared,
+      sampleOrganizationIds,
+    }
+  },
+})
+
 const CLERK_API_BASE = 'https://api.clerk.com/v1'
 const CLERK_PAGE_SIZE = 100
 

@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import Image from 'next/image'
 
 const APP_STORE_URL = process.env.NEXT_PUBLIC_APP_STORE_URL ?? 'https://apps.apple.com/app'
 const PLAY_STORE_URL = process.env.NEXT_PUBLIC_PLAY_STORE_URL ?? 'https://play.google.com/store/apps'
@@ -64,12 +63,11 @@ export default async function JoinPage({
       <div className="max-w-md w-full flex flex-col items-center text-center">
         {logoUrl ? (
           <div className="relative w-20 h-20 rounded-2xl overflow-hidden mb-6 bg-zinc-200 dark:bg-zinc-800">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={logoUrl}
               alt=""
-              fill
-              className="object-cover"
-              unoptimized
+              className="h-full w-full object-cover"
             />
           </div>
         ) : (

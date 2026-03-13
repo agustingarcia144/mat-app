@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
-import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import { DataTable } from '@/components/ui/data-table'
 import { Button } from '@/components/ui/button'
@@ -31,13 +30,10 @@ interface ClassListProps {
 export default function ClassList({ classes, onEditClass, onOpenGenerateTurnos }: ClassListProps) {
   const removeClass = useMutation(api.classes.remove)
   const updateClass = useMutation(api.classes.update)
-  const { orgId } = useAuth()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    canQueryCurrentOrganization && orgId
-      ? { organizationExternalId: orgId }
-      : 'skip'
+    canQueryCurrentOrganization ? {} : 'skip'
   )
 
   const [deletingId, setDeletingId] = useState<Id<'classes'> | null>(null)

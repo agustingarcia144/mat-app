@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery } from 'convex/react'
-import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import { DataTable } from '@/components/ui/data-table'
 import { getColumns } from '@/components/features/usuarios/table/columns'
@@ -37,13 +36,11 @@ function getRoleLabel(role: string): string {
 
 export default function UsuariosPage() {
   const isMobile = useIsMobile()
-  const { orgId } = useAuth()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
+  const currentMembership = useQuery(api.organizationMemberships.getCurrentMembership)
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    canQueryCurrentOrganization && orgId
-      ? { organizationExternalId: orgId }
-      : 'skip'
+    canQueryCurrentOrganization ? {} : 'skip'
   )
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
   const [inviteRefreshKey, setInviteRefreshKey] = useState(0)
@@ -72,10 +69,20 @@ export default function UsuariosPage() {
     })
   }, [users, search])
 
-  if (memberships === undefined) {
+  if (memberships === undefined || currentMembership === undefined) {
     return (
       <DashboardPageContainer className="py-6 md:py-10">
         <DataTableSkeleton columns={6} rows={10} />
+      </DashboardPageContainer>
+    )
+  }
+
+  if (currentMembership?.role !== 'admin') {
+    return (
+      <DashboardPageContainer className="py-6 md:py-10">
+        <div className="rounded-lg border px-4 py-8 text-center text-sm text-muted-foreground">
+          Solo administradores pueden gestionar el equipo.
+        </div>
       </DashboardPageContainer>
     )
   }

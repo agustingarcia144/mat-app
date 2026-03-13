@@ -1,9 +1,8 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import Image from 'next/image'
-import { useOrganization } from '@clerk/nextjs'
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useMutation, useQuery } from 'convex/react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -17,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { isOrgAdminRole } from '@/lib/security/roles'
+import { api } from '@/convex/_generated/api'
 
 type Props = {
   open: boolean
@@ -39,39 +39,59 @@ const EMPTY_STATE: FormState = {
 
 export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
   const router = useRouter()
-  const { organization, membership, isLoaded } = useOrganization()
-  const organizationId = organization?.id ?? null
+  const currentOrganization = useQuery(api.organizations.getCurrentOrganization)
+  const updateOrganization = useMutation(
+    api.organizations.updateCurrentOrganization
+  )
+  const generateLogoUploadUrl = useMutation(
+    api.organizations.generateOrganizationLogoUploadUrl
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY_STATE)
   const [initialForm, setInitialForm] = useState<FormState>(EMPTY_STATE)
-  const [logoCacheBuster, setLogoCacheBuster] = useState<number>(0)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
+  const isLoaded = currentOrganization !== undefined
 
   const canEdit = useMemo(
-    () => isOrgAdminRole(membership?.role),
-    [membership?.role]
+    () => isOrgAdminRole(currentOrganization?.role),
+    [currentOrganization?.role]
   )
 
   useEffect(() => {
-    if (!open || !organization) return
-    const metadata = (organization.publicMetadata ?? {}) as Record<
-      string,
-      unknown
-    >
+    if (!open || !currentOrganization) return
     setForm({
-      name: organization.name ?? '',
-      address: typeof metadata.address === 'string' ? metadata.address : '',
-      phone: typeof metadata.phone === 'string' ? metadata.phone : '',
-      email: typeof metadata.email === 'string' ? metadata.email : '',
+      name: currentOrganization.name ?? '',
+      address: currentOrganization.address ?? '',
+      phone: currentOrganization.phone ?? '',
+      email: currentOrganization.email ?? '',
     })
     setInitialForm({
-      name: organization.name ?? '',
-      address: typeof metadata.address === 'string' ? metadata.address : '',
-      phone: typeof metadata.phone === 'string' ? metadata.phone : '',
-      email: typeof metadata.email === 'string' ? metadata.email : '',
+      name: currentOrganization.name ?? '',
+      address: currentOrganization.address ?? '',
+      phone: currentOrganization.phone ?? '',
+      email: currentOrganization.email ?? '',
     })
     setLogoFile(null)
-  }, [open, organizationId])
+    setLogoPreviewUrl(null)
+  }, [open, currentOrganization])
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl)
+      }
+    }
+  }, [logoPreviewUrl])
+
+  const handleLogoFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0] ?? null
+    if (logoPreviewUrl) {
+      URL.revokeObjectURL(logoPreviewUrl)
+    }
+    setLogoFile(selectedFile)
+    setLogoPreviewUrl(selectedFile ? URL.createObjectURL(selectedFile) : null)
+  }
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -86,45 +106,49 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
         form.name !== initialForm.name ||
         form.address !== initialForm.address ||
         form.phone !== initialForm.phone ||
-        form.email !== initialForm.email
-      const hasLogoChange = Boolean(logoFile && organization)
+        form.email !== initialForm.email ||
+        logoFile !== null
 
-      if (!hasFormChanges && !hasLogoChange) {
+      if (!hasFormChanges) {
         toast.info('No hay cambios para guardar')
         onOpenChange(false)
         return
       }
 
-      if (hasFormChanges) {
-        const response = await fetch('/api/secure/organization', {
-          method: 'PATCH',
+      let uploadedLogoStorageId: string | undefined
+      if (logoFile) {
+        const uploadUrl = await generateLogoUploadUrl({})
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': logoFile.type || 'application/octet-stream',
           },
-          body: JSON.stringify({
-            name: form.name,
-            metadata: {
-              address: form.address,
-              phone: form.phone,
-              email: form.email,
-            },
-          }),
+          body: logoFile,
         })
-
-        if (!response.ok) {
-          const body = (await response.json().catch(() => null)) as
-            | { error?: string }
-            | null
-          throw new Error(body?.error || 'No se pudo actualizar la organización')
+        if (!uploadResponse.ok) {
+          throw new Error('No se pudo subir el logo')
         }
+
+        const uploadResult = (await uploadResponse.json()) as {
+          storageId?: string
+        }
+        if (!uploadResult.storageId) {
+          throw new Error('La subida no devolvio un storageId valido')
+        }
+        uploadedLogoStorageId = uploadResult.storageId
       }
 
-      if (logoFile && organization) {
-        await organization.setLogo({ file: logoFile })
-        setLogoCacheBuster(Date.now())
-      }
-
-      await organization?.reload()
+      await updateOrganization({
+        name: form.name,
+        metadata: {
+          address: form.address,
+          phone: form.phone,
+          email: form.email,
+          ...(uploadedLogoStorageId
+            ? { logoStorageId: uploadedLogoStorageId as never }
+            : {}),
+        },
+      })
       router.refresh()
       toast.success('Organización actualizada')
       onOpenChange(false)
@@ -145,8 +169,7 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle>Editar organización</DialogTitle>
           <DialogDescription>
-            Solo puedes actualizar campos seguros. La eliminación y cambios de
-            membresía están restringidos al backend administrativo.
+            Modifica la información de la organización.
           </DialogDescription>
         </DialogHeader>
 
@@ -167,15 +190,12 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
 
           <div className="grid gap-2">
             <Label htmlFor="organization-logo">Logo</Label>
-            {organization?.imageUrl && (
-              <div className="relative h-12 w-12 overflow-hidden rounded-md border bg-muted">
-                <Image
-                  src={`${organization.imageUrl}${
-                    organization.imageUrl.includes('?') ? '&' : '?'
-                  }v=${logoCacheBuster}`}
-                  alt="Logo actual"
-                  width={48}
-                  height={48}
+            {(logoPreviewUrl || currentOrganization?.logoUrl) && (
+              <div className="h-16 w-16 overflow-hidden rounded-md border">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logoPreviewUrl ?? currentOrganization?.logoUrl ?? ''}
+                  alt="Logo de la organizacion"
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -183,19 +203,13 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
             <Input
               id="organization-logo"
               type="file"
-              accept="image/*"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                setLogoFile(file ?? null)
-              }}
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={handleLogoFileChange}
               disabled={!canEdit || isSubmitting}
-              className="cursor-pointer"
             />
-            {logoFile && (
-              <p className="text-muted-foreground text-sm">
-                Nuevo archivo: {logoFile.name}
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Sube una nueva imagen para reemplazar el logo actual.
+            </p>
           </div>
 
           <div className="grid gap-2">

@@ -19,14 +19,6 @@ export class OrgAccessError extends Error {
   }
 }
 
-function extractActiveOrganizationExternalId(identity: Record<string, unknown>) {
-  const candidate =
-    identity.orgId ?? identity.org_id ?? identity.organizationId ?? null
-  return typeof candidate === 'string' && candidate.length > 0
-    ? candidate
-    : null
-}
-
 /**
  * Get current user's role in the active organization
  */
@@ -77,9 +69,8 @@ export async function requireOrganizationMembership(
 /**
  * Require an active org context for the current user.
  * Priority:
- * 1) Active Clerk org claim in the auth token (org_id/orgId/organizationId)
- * 2) User's persisted activeOrganizationExternalId in Convex
- * 3) Single active membership fallback
+ * 1) User's persisted activeOrganizationId in Convex
+ * 2) Single active membership fallback
  */
 export async function requireCurrentOrganizationMembership(
   ctx: Ctx
@@ -99,28 +90,19 @@ export async function requireCurrentOrganizationMembership(
     )
   }
 
-  const identityExternalOrgId = extractActiveOrganizationExternalId(
-    identity as unknown as Record<string, unknown>
-  )
-
   const user = await ctx.db
     .query('users')
     .withIndex('by_externalId', (q) => q.eq('externalId', identity.subject))
     .first()
 
-  const selectedExternalOrgId =
-    identityExternalOrgId ?? user?.activeOrganizationExternalId ?? null
+  const selectedOrganizationId = user?.activeOrganizationId ?? null
 
-  if (selectedExternalOrgId) {
-    const selectedOrg = await ctx.db
-      .query('organizations')
-      .withIndex('by_externalId', (q) => q.eq('externalId', selectedExternalOrgId))
-      .first()
-
+  if (selectedOrganizationId) {
+    const selectedOrg = await ctx.db.get(selectedOrganizationId)
     if (!selectedOrg) {
       throw new OrgAccessError(
         'ORG_NOT_SYNCED',
-        'Selected organization is not synced in Convex'
+        'Selected organization no longer exists'
       )
     }
 

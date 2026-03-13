@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from 'react'
-import Image from 'next/image'
-import { useOrganization, useOrganizationList } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
-import { useMutation } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import { Check, ChevronsUpDown, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -25,33 +23,45 @@ import { isOrgAdminRole } from '@/lib/security/roles'
 
 export default function HeaderNavItems() {
   const router = useRouter()
-  const { organization, membership, isLoaded } = useOrganization()
-  const { userMemberships, setActive } = useOrganizationList({
-    userMemberships: true,
-  })
+  const membershipsQuery = useQuery(
+    api.organizationMemberships.getMyStaffOrganizations
+  )
+  const currentMembership = useQuery(
+    api.organizationMemberships.getCurrentMembershipWithOrganization
+  )
   const setActiveOrganization = useMutation(
     api.organizationMemberships.setActiveOrganization
   )
   const [switchingOrgId, setSwitchingOrgId] = useState<string | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const isLoaded =
+    membershipsQuery !== undefined && currentMembership !== undefined
 
   const canEditOrganization = useMemo(
-    () => isOrgAdminRole(membership?.role),
-    [membership?.role]
+    () => isOrgAdminRole(currentMembership?.role),
+    [currentMembership?.role]
   )
   const memberships = useMemo(
-    () => userMemberships?.data ?? [],
-    [userMemberships]
+    () => membershipsQuery ?? [],
+    [membershipsQuery]
   )
 
+  const activeOrganizationId = currentMembership?.organization?._id ?? null
+  const activeOrganizationName = currentMembership?.organization?.name ?? null
+  const activeOrganizationLogoUrl = currentMembership?.organization?.logoUrl ?? null
+
   const switchOrganization = async (organizationId: string) => {
-    if (!organizationId || organizationId === organization?.id) return
+    if (
+      !organizationId ||
+      organizationId === activeOrganizationId
+    ) {
+      return
+    }
 
     setSwitchingOrgId(organizationId)
     try {
-      await setActive?.({ organization: organizationId } as never)
       await setActiveOrganization({
-        organizationExternalId: organizationId,
+        organizationId: organizationId as never,
       })
       router.refresh()
       toast.success('Organización activa actualizada')
@@ -74,26 +84,25 @@ export default function HeaderNavItems() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton size="lg">
-                {organization?.imageUrl ? (
+                {activeOrganizationLogoUrl ? (
                   <div className="relative size-8 shrink-0 overflow-hidden rounded-sm">
-                    <Image
-                      src={organization.imageUrl}
-                      alt={organization?.name || 'Organization'}
-                      width={32}
-                      height={32}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={activeOrganizationLogoUrl}
+                      alt={activeOrganizationName || 'Organization'}
                       className="size-full object-cover"
                     />
                   </div>
                 ) : (
                   <div className="flex size-8 items-center justify-center rounded-sm bg-muted text-muted-foreground">
                     <span className="text-xs font-semibold">
-                      {organization?.name?.charAt(0).toUpperCase() || 'O'}
+                      {activeOrganizationName?.charAt(0).toUpperCase() || 'O'}
                     </span>
                   </div>
                 )}
                 <div className="grid flex-1 text-left text-sm leading-tight max-w-42">
                   <span className="truncate font-semibold">
-                    {organization?.name ?? 'Sin organización'}
+                    {activeOrganizationName ?? 'Sin organización'}
                   </span>
                 </div>
                 <ChevronsUpDown className="size-4" />
@@ -107,19 +116,20 @@ export default function HeaderNavItems() {
                 </DropdownMenuItem>
               )}
               {memberships.map((item) => {
-                const isActive = item.organization.id === organization?.id
-                const isSwitching = switchingOrgId === item.organization.id
+                const organizationId = item.organizationId
+                const isActive = organizationId === activeOrganizationId
+                const isSwitching = switchingOrgId === organizationId
                 return (
                   <DropdownMenuItem
-                    key={item.organization.id}
+                    key={item.organizationId}
                     onSelect={(event) => {
                       event.preventDefault()
-                      void switchOrganization(item.organization.id)
+                      void switchOrganization(organizationId)
                     }}
-                    disabled={Boolean(switchingOrgId)}
+                    disabled={Boolean(switchingOrgId) || !organizationId}
                   >
                     <span className="max-w-48 truncate">
-                      {item.organization.name}
+                      {item.organizationName}
                     </span>
                     <span className="ml-auto text-xs text-muted-foreground">
                       {isSwitching ? 'Cambiando...' : ''}

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery, useMutation } from 'convex/react'
-import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -65,13 +64,10 @@ export default function ClassFormDialog({
 }: ClassFormDialogProps) {
   const createClass = useMutation(api.classes.create)
   const updateClass = useMutation(api.classes.update)
-  const { orgId } = useAuth()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    open && canQueryCurrentOrganization && orgId
-      ? { organizationExternalId: orgId }
-      : 'skip'
+    open && canQueryCurrentOrganization ? {} : 'skip'
   )
   const existingClass = useQuery(
     api.classes.getById,

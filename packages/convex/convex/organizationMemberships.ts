@@ -1,4 +1,4 @@
-import { internalMutation, mutation, query } from './_generated/server'
+import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import {
   requireAdminOrTrainer,
@@ -6,176 +6,21 @@ import {
   requireCurrentOrganizationMembership,
 } from './permissions'
 
-/**
- * Upsert an organization membership from Clerk webhook data
- */
-export const upsertFromClerk = internalMutation({
-  args: {
-    data: v.any(), // Clerk organizationMembership data from webhook
-  },
-  handler: async (ctx, args) => {
-    const clerkMembership = args.data
-
-    // Try multiple possible field names for organization ID
-    const clerkOrgId =
-      clerkMembership.organization_id ||
-      clerkMembership.organization?.id ||
-      clerkMembership.org_id
-
-    // Try multiple possible field names for user ID
-    const clerkUserId =
-      clerkMembership.public_user_data?.user_id ||
-      clerkMembership.user_id ||
-      clerkMembership.user?.id ||
-      clerkMembership.public_user_data?.id
-    const clerkMembershipId =
-      clerkMembership.id || clerkMembership.membership_id || undefined
-
-    if (!clerkOrgId || !clerkUserId) {
-      console.error('Missing IDs in webhook data:', {
-        organization_id: clerkOrgId,
-        user_id: clerkUserId,
-        data_keys: Object.keys(clerkMembership),
-        full_data: JSON.stringify(clerkMembership, null, 2),
-      })
-      throw new Error(
-        `Missing organization ID or user ID in Clerk webhook data. Org ID: ${clerkOrgId}, User ID: ${clerkUserId}`
-      )
+async function resolveLogoUrl(
+  ctx: any,
+  logoStorageId: unknown,
+  logoUrl: string | undefined
+) {
+  if (logoStorageId) {
+    try {
+      const storageUrl = await ctx.storage.getUrl(logoStorageId)
+      if (storageUrl) return storageUrl
+    } catch {
+      // Fall through to legacy URL when storage reference is stale/invalid.
     }
-
-    // Find the organization by Clerk ID
-    const organization = await ctx.db
-      .query('organizations')
-      .withIndex('by_externalId', (q) => q.eq('externalId', clerkOrgId))
-      .first()
-
-    if (!organization) {
-      // Organization might not be synced yet - log and skip
-      console.warn(
-        `Organization ${clerkOrgId} not found when syncing membership`
-      )
-      return
-    }
-
-    // Map Clerk role to our role system
-    // Clerk roles: "org:admin", "org:member", or custom roles
-    // We map: "org:admin" -> "admin", custom trainer-like roles -> "trainer",
-    // default -> "member".
-    let role: 'admin' | 'trainer' | 'member' = 'member'
-    const clerkRole = clerkMembership.role || ''
-
-    if (
-      clerkRole === 'org:admin' ||
-      clerkRole.toLowerCase().includes('admin')
-    ) {
-      role = 'admin'
-    } else if (
-      clerkRole.toLowerCase().includes('trainer') ||
-      clerkRole.toLowerCase().includes('instructor') ||
-      clerkRole.toLowerCase().includes('teacher')
-    ) {
-      role = 'trainer'
-    } else {
-      role = 'member'
-    }
-
-    const existingByMembershipId = clerkMembershipId
-      ? await ctx.db
-          .query('organizationMemberships')
-          .withIndex('by_externalMembershipId', (q) =>
-            q.eq('externalMembershipId', clerkMembershipId)
-          )
-          .first()
-      : null
-    const existingByOrgUser = await ctx.db
-      .query('organizationMemberships')
-      .withIndex('by_organization_user', (q) =>
-        q.eq('organizationId', organization._id).eq('userId', clerkUserId)
-      )
-      .first()
-    const existing = existingByMembershipId ?? existingByOrgUser
-
-    const now = Date.now()
-    const createdAt = clerkMembership.created_at
-      ? new Date(clerkMembership.created_at).getTime()
-      : now
-    const updatedAt = clerkMembership.updated_at
-      ? new Date(clerkMembership.updated_at).getTime()
-      : now
-
-    const status: 'active' | 'inactive' =
-      clerkMembership?.status === 'inactive' ? 'inactive' : 'active'
-
-    const membershipData = {
-      externalMembershipId: clerkMembershipId,
-      organizationId: organization._id,
-      userId: clerkUserId,
-      role,
-      status,
-      joinedAt: existing?.joinedAt || createdAt,
-      lastActiveAt: updatedAt,
-      createdAt: existing?.createdAt || createdAt,
-      updatedAt,
-    }
-
-    if (existing) {
-      // Update existing membership
-      await ctx.db.patch(existing._id, membershipData)
-      return existing._id
-    } else {
-      // Create new membership
-      return await ctx.db.insert('organizationMemberships', membershipData)
-    }
-  },
-})
-
-/**
- * Delete an organization membership from Clerk webhook data.
- * Tries lookup by externalMembershipId first; if not found (e.g. never stored),
- * falls back to deleting by (orgId, userId) so the membership is always removed.
- */
-export const deleteFromClerk = internalMutation({
-  args: {
-    clerkOrgId: v.optional(v.string()),
-    clerkUserId: v.optional(v.string()),
-    clerkMembershipId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    if (args.clerkMembershipId) {
-      const membership = await ctx.db
-        .query('organizationMemberships')
-        .withIndex('by_externalMembershipId', (q) =>
-          q.eq('externalMembershipId', args.clerkMembershipId)
-        )
-        .first()
-      if (membership) {
-        await ctx.db.delete(membership._id)
-      }
-    }
-
-    if (args.clerkOrgId && args.clerkUserId) {
-      const organization = await ctx.db
-        .query('organizations')
-        .withIndex('by_externalId', (q) => q.eq('externalId', args.clerkOrgId!))
-        .first()
-
-      if (organization) {
-        const memberships = await ctx.db
-          .query('organizationMemberships')
-          .withIndex('by_organization_user', (q) =>
-            q
-              .eq('organizationId', organization._id)
-              .eq('userId', args.clerkUserId!)
-          )
-          .collect()
-
-        for (const membership of memberships) {
-          await ctx.db.delete(membership._id)
-        }
-      }
-    }
-  },
-})
+  }
+  return logoUrl ?? null
+}
 
 /**
  * Get all memberships for the current user's organization
@@ -183,7 +28,7 @@ export const deleteFromClerk = internalMutation({
  */
 export const getOrganizationMemberships = query({
   args: {
-    organizationExternalId: v.optional(v.string()),
+    organizationId: v.optional(v.id('organizations')),
   },
   handler: async (ctx, args) => {
     const currentMembership = await requireCurrentOrganizationMembership(ctx)
@@ -194,15 +39,9 @@ export const getOrganizationMemberships = query({
       // Members should not be able to list all organization users.
       return []
     }
-    if (args.organizationExternalId) {
-      const activeOrganization = await ctx.db.get(organizationId)
-      if (
-        !activeOrganization ||
-        activeOrganization.externalId !== args.organizationExternalId
-      ) {
-        // Stale client org context (e.g. fast org switch); avoid cross-org flashes.
-        return []
-      }
+    if (args.organizationId && args.organizationId !== organizationId) {
+      // Stale client org context (e.g. fast org switch); avoid cross-org flashes.
+      return []
     }
 
     // Get all memberships for this organization
@@ -217,7 +56,7 @@ export const getOrganizationMemberships = query({
     // Fetch user data for each membership
     const membershipsWithUsers = await Promise.all(
       allMemberships.map(async (membership) => {
-        // Find the user by Clerk ID (externalId)
+        // Find the user by auth external id.
         const user = await ctx.db
           .query('users')
           .withIndex('by_externalId', (q) =>
@@ -257,6 +96,35 @@ export const getCurrentMembership = query({
   },
 })
 
+export const getCurrentMembershipWithOrganization = query({
+  args: {},
+  handler: async (ctx) => {
+    try {
+      const membership = await requireCurrentOrganizationMembership(ctx)
+      const organization = await ctx.db.get(membership.organizationId)
+      if (!organization) {
+        return null
+      }
+      const resolvedLogoUrl = await resolveLogoUrl(
+        ctx,
+        organization.logoStorageId,
+        organization.logoUrl
+      )
+      return {
+        ...membership,
+        organization: {
+          _id: organization._id,
+          name: organization.name,
+          slug: organization.slug,
+          logoUrl: resolvedLogoUrl,
+        },
+      }
+    } catch {
+      return null
+    }
+  },
+})
+
 export const getMyOrganizations = query({
   args: {},
   handler: async (ctx) => {
@@ -272,11 +140,14 @@ export const getMyOrganizations = query({
     const orgs = await Promise.all(
       memberships.map(async (membership) => {
         const organization = await ctx.db.get(membership.organizationId)
+        const resolvedLogoUrl = organization
+          ? await resolveLogoUrl(ctx, organization.logoStorageId, organization.logoUrl)
+          : null
         return {
           organizationId: membership.organizationId,
-          organizationExternalId: organization?.externalId,
           organizationName: organization?.name,
           organizationSlug: organization?.slug,
+          organizationLogoUrl: resolvedLogoUrl,
           role: membership.role,
           status: membership.status,
         }
@@ -289,19 +160,88 @@ export const getMyOrganizations = query({
   },
 })
 
+export const getMyStaffOrganizations = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return []
+
+    const memberships = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_user', (q) => q.eq('userId', identity.subject))
+      .filter((q) => q.eq(q.field('status'), 'active'))
+      .collect()
+
+    const staffMemberships = memberships.filter(
+      (membership) => membership.role === 'admin' || membership.role === 'trainer'
+    )
+
+    const orgs = await Promise.all(
+      staffMemberships.map(async (membership) => {
+        const organization = await ctx.db.get(membership.organizationId)
+        const resolvedLogoUrl = organization
+          ? await resolveLogoUrl(ctx, organization.logoStorageId, organization.logoUrl)
+          : null
+        return {
+          organizationId: membership.organizationId,
+          organizationName: organization?.name,
+          organizationSlug: organization?.slug,
+          organizationLogoUrl: resolvedLogoUrl,
+          role: membership.role,
+          status: membership.status,
+        }
+      })
+    )
+
+    return orgs.sort((a, b) =>
+      (a.organizationName ?? '').localeCompare(b.organizationName ?? '')
+    )
+  },
+})
+
+export const removeMember = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const currentMembership = await requireCurrentOrganizationMembership(ctx)
+    const organizationId = currentMembership.organizationId
+    await requireAdminOrTrainer(ctx, organizationId)
+
+    const identity = await requireAuth(ctx)
+    if (args.userId === identity.subject) {
+      throw new Error('You cannot remove yourself from the organization')
+    }
+
+    const targetMembership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_organization_user', (q) =>
+        q.eq('organizationId', organizationId).eq('userId', args.userId)
+      )
+      .filter((q) => q.eq(q.field('status'), 'active'))
+      .first()
+
+    if (!targetMembership) {
+      throw new Error('User is not an active member of the current organization')
+    }
+
+    await ctx.db.patch(targetMembership._id, {
+      status: 'inactive',
+      updatedAt: Date.now(),
+    })
+
+    return { updated: true }
+  },
+})
+
 export const setActiveOrganization = mutation({
   args: {
-    organizationExternalId: v.string(),
+    organizationId: v.id('organizations'),
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
 
-    const organization = await ctx.db
-      .query('organizations')
-      .withIndex('by_externalId', (q) =>
-        q.eq('externalId', args.organizationExternalId)
-      )
-      .first()
+    const organization = await ctx.db.get(args.organizationId)
     if (!organization) {
       throw new Error('Organization not found')
     }
@@ -326,7 +266,7 @@ export const setActiveOrganization = mutation({
 
     if (existingUser) {
       await ctx.db.patch(existingUser._id, {
-        activeOrganizationExternalId: args.organizationExternalId,
+        activeOrganizationId: args.organizationId,
         updatedAt: now,
       })
       return true
@@ -341,7 +281,7 @@ export const setActiveOrganization = mutation({
       imageUrl: identity.pictureUrl || undefined,
       username: identity.nickname || undefined,
       onboardingCompleted: false,
-      activeOrganizationExternalId: args.organizationExternalId,
+      activeOrganizationId: args.organizationId,
       createdAt: now,
       updatedAt: now,
     })

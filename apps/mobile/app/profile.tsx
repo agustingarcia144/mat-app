@@ -2,13 +2,8 @@ import React from 'react'
 import { View, Text, StyleSheet, ScrollView, Image } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import {
-  useAuth,
-  useUser,
-  useClerk,
-  useOrganizationList,
-} from '@clerk/clerk-expo'
-import { Authenticated, AuthLoading, useMutation } from 'convex/react'
+import { useUser, useClerk } from '@clerk/clerk-expo'
+import { Authenticated, AuthLoading, useMutation, useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedText } from '@/components/ui/themed-text'
@@ -20,11 +15,11 @@ import { useAppReset } from '@/components/providers/providers'
 function ProfileContent() {
   const router = useRouter()
   const { user } = useUser()
-  const { orgId: activeOrgId } = useAuth()
   const { signOut } = useClerk()
-  const { userMemberships, setActive, isLoaded } = useOrganizationList({
-    userMemberships: true,
-  })
+  const organizations = useQuery(api.organizationMemberships.getMyOrganizations)
+  const currentMembership = useQuery(
+    api.organizationMemberships.getCurrentMembershipWithOrganization
+  )
   const setActiveOrganization = useMutation(
     api.organizationMemberships.setActiveOrganization
   )
@@ -45,8 +40,18 @@ function ProfileContent() {
     primaryEmail ||
     'Usuario'
   const imageUrl = user?.imageUrl
-  const memberships = userMemberships?.data ?? []
+  const memberships = React.useMemo(
+    () =>
+      (organizations ?? []).filter(
+        (membership) =>
+          typeof membership.organizationId === 'string' &&
+          membership.organizationId.length > 0
+      ),
+    [organizations]
+  )
   const hasMultipleOrganizations = memberships.length > 1
+  const activeOrgId = currentMembership?.organization?._id ?? null
+  const isLoaded = organizations !== undefined && currentMembership !== undefined
 
   const buttonBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'
   const backgroundColor = Colors[colorScheme ?? 'light'].background
@@ -58,8 +63,7 @@ function ProfileContent() {
       setOrgError(null)
       setSwitchingOrgId(selectedOrgId)
       try {
-        await setActive?.({ organization: selectedOrgId } as never)
-        await setActiveOrganization({ organizationExternalId: selectedOrgId })
+        await setActiveOrganization({ organizationId: selectedOrgId as never })
         resetApp()
         router.replace('/')
       } catch (error) {
@@ -71,7 +75,7 @@ function ProfileContent() {
         setSwitchingOrgId(null)
       }
     },
-    [activeOrgId, resetApp, router, setActive, setActiveOrganization]
+    [activeOrgId, resetApp, router, setActiveOrganization]
   )
 
   return (
@@ -138,14 +142,14 @@ function ProfileContent() {
             {orgError ? (
               <Text style={styles.orgErrorText}>{orgError}</Text>
             ) : null}
-            {memberships.map((membership) => {
-              const membershipOrgId = membership.organization?.id ?? ''
+            {memberships.map((membership, index) => {
+              const membershipOrgId = membership.organizationId
               const isCurrent = membershipOrgId === activeOrgId
               const isSwitching = switchingOrgId === membershipOrgId
 
               return (
                 <ThemedPressable
-                  key={membershipOrgId}
+                  key={`${membershipOrgId}-${index}`}
                   type="secondary"
                   lightColor={buttonBg}
                   darkColor={buttonBg}
@@ -159,7 +163,7 @@ function ProfileContent() {
                       { color: isDark ? '#fff' : '#000' },
                     ]}
                   >
-                    {membership.organization?.name}
+                    {membership.organizationName}
                     {isCurrent ? ' (actual)' : ''}
                     {isSwitching ? '...' : ''}
                   </Text>

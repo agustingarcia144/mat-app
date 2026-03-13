@@ -8,10 +8,6 @@ module.exports = {
       },
       {
         protocol: 'https',
-        hostname: 'html.tailus.io',
-      },
-      {
-        protocol: 'https',
         hostname: 'img.youtube.com',
       },
     ],

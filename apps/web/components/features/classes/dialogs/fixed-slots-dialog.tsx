@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
-import { useAuth } from '@clerk/nextjs'
 import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
 import {
@@ -50,7 +49,6 @@ type Props = {
 }
 
 export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
-  const { orgId } = useAuth()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const [classFilter, setClassFilter] = useState<string>('all')
   const [addOpen, setAddOpen] = useState(false)
@@ -72,9 +70,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
   )
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    open && canQueryCurrentOrganization && orgId
-      ? { organizationExternalId: orgId }
-      : 'skip'
+    open && canQueryCurrentOrganization ? {} : 'skip'
   )
   const createFixedSlot = useMutation(api.fixedClassSlots.create)
   const removeFixedSlot = useMutation(api.fixedClassSlots.remove)

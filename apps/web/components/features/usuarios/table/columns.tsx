@@ -8,6 +8,7 @@ import RoleBadge from '@/components/shared/badges/role-badge'
 import StatusBadge from '@/components/shared/badges/status-badge'
 import { useState } from 'react'
 import { useUser } from '@clerk/nextjs'
+import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
 import {
   DropdownMenu,
@@ -24,6 +25,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { Member } from '@repo/core'
+import { api } from '@/convex/_generated/api'
 
 function UserNameCell({ member }: { member: Member }) {
   const initials =
@@ -48,6 +50,7 @@ function UserNameCell({ member }: { member: Member }) {
 
 function UserActionsCell({ member }: { member: Member }) {
   const { user: currentUser } = useUser()
+  const removeMember = useMutation(api.organizationMemberships.removeMember)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const isSelf = currentUser?.id === member.id
@@ -55,18 +58,19 @@ function UserActionsCell({ member }: { member: Member }) {
   const handleDelete = async () => {
     setIsDeleting(true)
     try {
-      const res = await fetch(`/api/secure/organization/members/${member.id}`, {
-        method: 'DELETE',
+      const result = await removeMember({
+        userId: member.id,
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast.error(data.error ?? 'Error al eliminar el usuario')
+      if (!result?.updated) {
+        toast.error('No se pudo eliminar el usuario')
         return
       }
       toast.success('Usuario eliminado del equipo')
       setConfirmOpen(false)
-    } catch {
-      toast.error('Error al eliminar el usuario')
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Error al eliminar el usuario'
+      )
     } finally {
       setIsDeleting(false)
     }

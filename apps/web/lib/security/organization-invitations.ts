@@ -26,25 +26,3 @@ export function isStaffInviteRole(value: unknown): value is StaffInviteRole {
 export function getStaffInviteRoleLabel(role: StaffInviteRole | string) {
   return STAFF_INVITE_ROLE_LABELS[role as StaffInviteRole] ?? role
 }
-
-export function appRoleToClerkRole(role: StaffInviteRole) {
-  return role === 'admin' ? 'org:admin' : 'org:trainer'
-}
-
-export function clerkRoleToStaffInviteRole(role: string): StaffInviteRole | null {
-  const normalized = role.toLowerCase()
-
-  if (normalized.includes('admin')) {
-    return 'admin'
-  }
-
-  if (
-    normalized.includes('trainer') ||
-    normalized.includes('teacher') ||
-    normalized.includes('instructor')
-  ) {
-    return 'trainer'
-  }
-
-  return null
-}

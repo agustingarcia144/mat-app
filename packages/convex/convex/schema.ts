@@ -23,8 +23,7 @@ export default defineSchema({
     onboardingStep1Completed: v.optional(v.boolean()),
     onboardingCompleted: v.optional(v.boolean()),
     // Selected org context for multi-org users.
-    // Stored as Clerk organization ID (externalId in organizations table).
-    activeOrganizationExternalId: v.optional(v.string()),
+    activeOrganizationId: v.optional(v.id('organizations')),
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -34,8 +33,6 @@ export default defineSchema({
 
   // Organizations table - stores gym data
   organizations: defineTable({
-    // Clerk organization ID - used to link with Clerk
-    externalId: v.string(),
     // Basic fields
     name: v.string(),
     slug: v.string(),
@@ -43,23 +40,19 @@ export default defineSchema({
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
     logoUrl: v.optional(v.string()),
+    logoStorageId: v.optional(v.id('_storage')),
     // IANA timezone for class times (e.g. "America/Argentina/Buenos_Aires").
     // Used when matching fixed slots to schedules; if unset, UTC is used.
     timezone: v.optional(v.string()),
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
-  })
-    .index('by_externalId', ['externalId'])
-    .index('by_slug', ['slug']),
+  }).index('by_slug', ['slug']),
 
   // Organization memberships - links users to gyms with roles.
-  // One active role per user/org is enforced by webhook sync semantics.
   organizationMemberships: defineTable({
-    // Clerk organization membership ID (optional for backwards compatibility).
-    externalMembershipId: v.optional(v.string()),
     organizationId: v.id('organizations'),
-    // Clerk user ID (not a reference to users table to allow flexibility)
+    // Auth user id (not a users-table reference to keep flexibility)
     userId: v.string(),
     description: v.optional(v.string()),
     role: v.union(
@@ -74,7 +67,6 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index('by_externalMembershipId', ['externalMembershipId'])
     .index('by_organization', ['organizationId'])
     .index('by_user', ['userId'])
     .index('by_organization_user', ['organizationId', 'userId'])
@@ -97,6 +89,24 @@ export default defineSchema({
     .index('by_organization', ['organizationId'])
     .index('by_organization_status', ['organizationId', 'status'])
     .index('by_organization_user', ['organizationId', 'userId']),
+
+  // Organization invitations managed inside Convex (replaces Clerk invitations).
+  organizationInvitations: defineTable({
+    organizationId: v.id('organizations'),
+    email: v.string(),
+    role: v.union(v.literal('admin'), v.literal('trainer')),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('accepted'),
+      v.literal('revoked')
+    ),
+    invitedBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_status', ['organizationId', 'status'])
+    .index('by_organization_email', ['organizationId', 'email']),
 
   // Clerk webhook processing ledger for idempotency, replay defense, and auditing.
   webhookEvents: defineTable({

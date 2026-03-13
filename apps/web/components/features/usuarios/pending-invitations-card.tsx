@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useMutation, useQuery } from 'convex/react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { MailPlus, RefreshCw, Trash2 } from 'lucide-react'
@@ -24,61 +25,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { StaffInvitation } from '@/lib/security/organization-invitations'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 
 type Props = {
   refreshKey: number
 }
 
 export function PendingInvitationsCard({ refreshKey }: Props) {
-  const [invitations, setInvitations] = useState<StaffInvitation[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const invitationList = useQuery(api.organizations.listPendingInvitations)
+  const revokeInvitation = useMutation(api.organizations.revokeInvitation)
   const [selectedInvitation, setSelectedInvitation] =
     useState<StaffInvitation | null>(null)
   const [isRevoking, setIsRevoking] = useState(false)
-
-  const loadInvitations = useCallback(async (showSpinner = false) => {
-    if (showSpinner) {
-      setIsRefreshing(true)
-    } else {
-      setIsLoading(true)
-    }
-
-    try {
-      const response = await fetch('/api/secure/organization/invitations', {
-        method: 'GET',
-        cache: 'no-store',
-      })
-
-      const body = (await response.json().catch(() => null)) as
-        | {
-            error?: string
-            invitations?: StaffInvitation[]
-          }
-        | null
-
-      if (!response.ok) {
-        throw new Error(body?.error || 'No se pudieron cargar las invitaciones')
-      }
-
-      setInvitations(body?.invitations ?? [])
-      setError(null)
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'No se pudieron cargar las invitaciones'
-      )
-    } finally {
-      setIsLoading(false)
-      setIsRefreshing(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void loadInvitations()
-  }, [loadInvitations, refreshKey])
+  const invitations = useMemo(
+    () => (invitationList ?? []) as StaffInvitation[],
+    [invitationList, refreshKey]
+  )
 
   const handleRevoke = async () => {
     if (!selectedInvitation) {
@@ -87,22 +50,10 @@ export function PendingInvitationsCard({ refreshKey }: Props) {
 
     setIsRevoking(true)
     try {
-      const response = await fetch(
-        `/api/secure/organization/invitations/${selectedInvitation.id}`,
-        { method: 'DELETE' }
-      )
-
-      const body = (await response.json().catch(() => null)) as
-        | { error?: string }
-        | null
-
-      if (!response.ok) {
-        throw new Error(body?.error || 'No se pudo revocar la invitación')
-      }
-
-      setInvitations((current) =>
-        current.filter((item) => item.id !== selectedInvitation.id)
-      )
+      await revokeInvitation({
+        invitationId:
+          selectedInvitation.id as Id<'organizationInvitations'>,
+      })
       setSelectedInvitation(null)
       toast.success('Invitación revocada')
     } catch (revokeError) {
@@ -135,22 +86,21 @@ export function PendingInvitationsCard({ refreshKey }: Props) {
             variant="outline"
             size="sm"
             className="gap-2"
-            onClick={() => void loadInvitations(true)}
-            disabled={isLoading || isRefreshing}
+            onClick={() => {
+              // Keep manual refresh affordance by triggering a soft reload.
+              window.location.reload()
+            }}
+            disabled={invitationList === undefined}
           >
-            <RefreshCw className={`size-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`size-4 ${invitationList === undefined ? 'animate-spin' : ''}`} />
             Actualizar
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
-          {isLoading ? (
+          {invitationList === undefined ? (
             <p className="text-sm text-muted-foreground">
               Cargando invitaciones...
             </p>
-          ) : error ? (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              {error}
-            </div>
           ) : invitations.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No hay invitaciones pendientes por ahora.

@@ -192,7 +192,7 @@ export const remove = mutation({
 export const listByUser = query({
   args: {
     userId: v.string(),
-    organizationExternalId: v.optional(v.string()),
+    organizationId: v.optional(v.id('organizations')),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
@@ -202,15 +202,9 @@ export const listByUser = query({
 
     const membership = await requireCurrentOrganizationMembership(ctx)
     const organizationId = membership.organizationId
-    if (args.organizationExternalId) {
-      const activeOrganization = await ctx.db.get(organizationId)
-      if (
-        !activeOrganization ||
-        activeOrganization.externalId !== args.organizationExternalId
-      ) {
+    if (args.organizationId && args.organizationId !== organizationId) {
         // Stale client org context (e.g. fast org switch); avoid leaking data.
         return []
-      }
     }
 
     if (args.userId !== identity.subject) {

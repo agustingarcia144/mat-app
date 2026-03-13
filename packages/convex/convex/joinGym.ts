@@ -1,6 +1,6 @@
 /**
  * Deferred deep linking: join gym by signed token (QR code flow).
- * Token is verified server-side; membership is created via Clerk API; Convex syncs via webhook.
+ * Token is verified server-side; membership is managed in Convex.
  */
 import {
   action,
@@ -12,33 +12,37 @@ import {
 } from './_generated/server'
 import { internal } from './_generated/api'
 import { v } from 'convex/values'
+import type { Id } from './_generated/dataModel'
 import {
   requireAuth,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
 } from './permissions'
 
-/** Internal: get public org info by Clerk external id (for HTTP join page). */
-export const getOrgByExternalId = internalQuery({
-  args: { externalId: v.string() },
-  handler: async (ctx, args) => {
-    const org = await ctx.db
-      .query('organizations')
-      .withIndex('by_externalId', (q) => q.eq('externalId', args.externalId))
-      .first()
-    if (!org) return null
-    return { name: org.name, logoUrl: org.logoUrl ?? undefined }
-  },
-})
+async function resolveLogoUrl(
+  ctx: any,
+  logoStorageId: unknown,
+  logoUrl: string | undefined
+) {
+  if (logoStorageId) {
+    try {
+      const storageUrl = await ctx.storage.getUrl(logoStorageId)
+      if (storageUrl) return storageUrl
+    } catch {
+      // Ignore stale storage references and use legacy value.
+    }
+  }
+  return logoUrl ?? undefined
+}
 
-/** Internal: get full org doc by external id (for actions that need _id). */
-export const getOrgDocByExternalId = internalQuery({
-  args: { externalId: v.string() },
+/** Internal: get public org info by organization id (for HTTP join page). */
+export const getOrgById = internalQuery({
+  args: { organizationId: v.id('organizations') },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query('organizations')
-      .withIndex('by_externalId', (q) => q.eq('externalId', args.externalId))
-      .first()
+    const org = await ctx.db.get(args.organizationId)
+    if (!org) return null
+    const resolvedLogoUrl = await resolveLogoUrl(ctx, org.logoStorageId, org.logoUrl)
+    return { name: org.name, logoUrl: resolvedLogoUrl }
   },
 })
 
@@ -63,7 +67,7 @@ type JoinPreviewResult = {
   name: string
   logoUrl?: string
   alreadyMember: boolean
-  organizationExternalId: string
+  organizationId: Id<'organizations'>
 }
 
 /**
@@ -78,24 +82,22 @@ export const getJoinPreview = action({
       throw new Error('Not authenticated')
     }
 
-    const { clerkOrgId } = await ctx.runAction(internal.joinGymNode.verifyJoinToken, {
+    const { organizationId } = await ctx.runAction(internal.joinGymNode.verifyJoinToken, {
       token: args.token,
     })
 
-    const org = await ctx.runQuery(internal.joinGym.getOrgByExternalId, {
-      externalId: clerkOrgId,
+    const typedOrganizationId = organizationId as Id<'organizations'>
+    const org = await ctx.runQuery(internal.joinGym.getOrgById, {
+      organizationId: typedOrganizationId,
     })
 
     if (!org) {
       throw new Error('Gym not found')
     }
 
-    const orgDoc = await ctx.runQuery(internal.joinGym.getOrgDocByExternalId, {
-      externalId: clerkOrgId,
-    })
-    const membership = orgDoc
+    const membership = org
       ? await ctx.runQuery(internal.joinGym.getMembershipByOrgAndUser, {
-          organizationId: orgDoc._id,
+          organizationId: typedOrganizationId,
           userId: identity.subject,
         })
       : null
@@ -104,14 +106,14 @@ export const getJoinPreview = action({
       name: org.name,
       logoUrl: org.logoUrl ?? undefined,
       alreadyMember: membership != null,
-      organizationExternalId: clerkOrgId,
+      organizationId: typedOrganizationId,
     }
   },
 })
 
 type JoinGymResult = {
   success: boolean
-  organizationExternalId: string
+  organizationId: Id<'organizations'>
   organizationName: string
   pending: boolean
   message: string
@@ -119,12 +121,9 @@ type JoinGymResult = {
 
 /** Internal: db logic for join by token. */
 export const joinGymByTokenInternal = internalMutation({
-  args: { clerkOrgId: v.string(), userId: v.string() },
+  args: { organizationId: v.id('organizations'), userId: v.string() },
   handler: async (ctx, args): Promise<JoinGymResult> => {
-    const org = await ctx.db
-      .query('organizations')
-      .withIndex('by_externalId', (q) => q.eq('externalId', args.clerkOrgId))
-      .first()
+    const org = await ctx.db.get(args.organizationId)
 
     if (!org) {
       throw new Error('Gym not found')
@@ -133,7 +132,7 @@ export const joinGymByTokenInternal = internalMutation({
     const alreadyMember = await ctx.db
       .query('organizationMemberships')
       .withIndex('by_organization_user', (q) =>
-        q.eq('organizationId', org._id).eq('userId', args.userId)
+        q.eq('organizationId', args.organizationId).eq('userId', args.userId)
       )
       .filter((q) => q.eq(q.field('status'), 'active'))
       .first()
@@ -141,7 +140,7 @@ export const joinGymByTokenInternal = internalMutation({
     if (alreadyMember) {
       return {
         success: true,
-        organizationExternalId: args.clerkOrgId,
+        organizationId: args.organizationId,
         organizationName: org.name,
         pending: false,
         message: 'already_member',
@@ -151,7 +150,7 @@ export const joinGymByTokenInternal = internalMutation({
     const existingPending = await ctx.db
       .query('organizationJoinRequests')
       .withIndex('by_organization_user', (q) =>
-        q.eq('organizationId', org._id).eq('userId', args.userId)
+        q.eq('organizationId', args.organizationId).eq('userId', args.userId)
       )
       .filter((q) => q.eq(q.field('status'), 'pending'))
       .first()
@@ -159,7 +158,7 @@ export const joinGymByTokenInternal = internalMutation({
     if (existingPending) {
       return {
         success: true,
-        organizationExternalId: args.clerkOrgId,
+        organizationId: args.organizationId,
         organizationName: org.name,
         pending: true,
         message: 'request_pending',
@@ -168,7 +167,7 @@ export const joinGymByTokenInternal = internalMutation({
 
     const now = Date.now()
     await ctx.db.insert('organizationJoinRequests', {
-      organizationId: org._id,
+      organizationId: args.organizationId,
       userId: args.userId,
       status: 'pending',
       requestedAt: now,
@@ -177,7 +176,7 @@ export const joinGymByTokenInternal = internalMutation({
 
     return {
       success: true,
-      organizationExternalId: args.clerkOrgId,
+      organizationId: args.organizationId,
       organizationName: org.name,
       pending: true,
       message: 'request_submitted',
@@ -197,12 +196,13 @@ export const joinGymByToken = action({
       throw new Error('Not authenticated')
     }
 
-    const { clerkOrgId } = await ctx.runAction(internal.joinGymNode.verifyJoinToken, {
+    const { organizationId } = await ctx.runAction(internal.joinGymNode.verifyJoinToken, {
       token: args.token,
     })
 
+    const typedOrganizationId = organizationId as Id<'organizations'>
     return await ctx.runMutation(internal.joinGym.joinGymByTokenInternal, {
-      clerkOrgId,
+      organizationId: typedOrganizationId,
       userId: identity.subject,
     })
   },
@@ -279,9 +279,46 @@ export const markRequestApproved = internalMutation({
   },
 })
 
+export const createMembershipFromApprovedRequest = internalMutation({
+  args: {
+    organizationId: v.id('organizations'),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_organization_user', (q) =>
+        q.eq('organizationId', args.organizationId).eq('userId', args.userId)
+      )
+      .first()
+
+    const now = Date.now()
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        status: 'active',
+        role: existing.role ?? 'member',
+        updatedAt: now,
+        lastActiveAt: now,
+      })
+      return existing._id
+    }
+
+    return await ctx.db.insert('organizationMemberships', {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      role: 'member',
+      status: 'active',
+      joinedAt: now,
+      lastActiveAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+  },
+})
+
 /**
- * Approve a join request: create Clerk membership, then mark request approved.
- * Admin or trainer only. Action because it calls createClerkMembership.
+ * Approve a join request by creating a Convex membership.
+ * Admin or trainer only.
  */
 export const approveJoinRequest = action({
   args: { requestId: v.id('organizationJoinRequests') },
@@ -306,14 +343,10 @@ export const approveJoinRequest = action({
       throw new Error('Access denied: admin or trainer required')
     }
 
-    const result = await ctx.runAction(internal.joinGymNode.createClerkMembership, {
-      clerkUserId: data.request.userId,
-      clerkOrgId: data.org.externalId,
+    await ctx.runMutation(internal.joinGym.createMembershipFromApprovedRequest, {
+      organizationId: data.request.organizationId,
+      userId: data.request.userId,
     })
-
-    if (!result.ok) {
-      throw new Error(result.error ?? 'Could not add member to organization')
-    }
 
     await ctx.runMutation(internal.joinGym.markRequestApproved, {
       requestId: args.requestId,
@@ -379,11 +412,11 @@ export const httpJoinPreview = httpAction(async (ctx, request) => {
   }
 
   try {
-    const { clerkOrgId } = await ctx.runAction(internal.joinGymNode.verifyJoinToken, {
+    const { organizationId } = await ctx.runAction(internal.joinGymNode.verifyJoinToken, {
       token,
     })
-    const org = await ctx.runQuery(internal.joinGym.getOrgByExternalId, {
-      externalId: clerkOrgId,
+    const org = await ctx.runQuery(internal.joinGym.getOrgById, {
+      organizationId: organizationId as Id<'organizations'>,
     })
     if (!org) {
       return new Response(

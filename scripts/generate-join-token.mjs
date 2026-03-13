@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Generate a signed join-link token for a gym (Clerk organization).
- * Usage: JOIN_LINK_SECRET=xxx node scripts/generate-join-token.mjs <clerk_org_id> [expiry_seconds]
+ * Generate a signed join-link token for an organization id.
+ * Usage: JOIN_LINK_SECRET=xxx node scripts/generate-join-token.mjs <organization_id> [expiry_seconds]
  * Default expiry: 2 years.
  */
 import crypto from 'crypto'
@@ -16,15 +16,15 @@ if (!secret) {
   process.exit(1)
 }
 
-const clerkOrgId = process.argv[2]
-if (!clerkOrgId) {
-  console.error('Usage: JOIN_LINK_SECRET=xxx node scripts/generate-join-token.mjs <clerk_org_id> [expiry_seconds]')
+const organizationId = process.argv[2]
+if (!organizationId) {
+  console.error('Usage: JOIN_LINK_SECRET=xxx node scripts/generate-join-token.mjs <organization_id> [expiry_seconds]')
   process.exit(1)
 }
 
 const expirySeconds = parseInt(process.argv[3] || '0', 10) || 2 * 365 * 24 * 60 * 60
 const exp = Math.floor(Date.now() / 1000) + expirySeconds
-const payload = JSON.stringify({ o: clerkOrgId, exp })
+const payload = JSON.stringify({ o: organizationId, exp })
 const payloadB64 = base64UrlEncode(Buffer.from(payload, 'utf-8'))
 const sig = crypto.createHmac('sha256', secret).update(payloadB64).digest()
 const sigB64 = base64UrlEncode(sig)

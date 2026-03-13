@@ -17,8 +17,9 @@ function extractObjectId(data: any): string | undefined {
 }
 
 /**
- * Unified Clerk webhook handler
- * Handles all Clerk events: users, organizations, and organization memberships
+ * Clerk webhook handler.
+ * Organizations and memberships are now managed in Convex, so only user events
+ * are processed here.
  */
 export const clerkWebhook = httpAction(async (ctx, request) => {
   const webhookSecret = process.env.CLERK_WEBHOOK_SIGNING_SECRET;
@@ -105,55 +106,6 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
         const clerkUserId = evt.data.id;
         if (clerkUserId) {
           await ctx.runMutation(internal.users.deleteFromClerk, {
-            clerkUserId,
-          });
-        }
-        break;
-      }
-
-      // Organization events
-      case "organization.created":
-      case "organization.updated":
-        await ctx.runMutation(internal.organizations.upsertFromClerk, {
-          data: evt.data,
-        });
-        break;
-
-      case "organization.deleted": {
-        const clerkOrgId = evt.data.id;
-        if (clerkOrgId) {
-          await ctx.runMutation(internal.organizations.deleteFromClerk, {
-            clerkOrgId,
-          });
-        }
-        break;
-      }
-
-      // Organization membership events
-      case "organizationMembership.created":
-      case "organizationMembership.updated":
-        await ctx.runMutation(
-          internal.organizationMemberships.upsertFromClerk,
-          {
-            data: evt.data,
-          }
-        );
-        break;
-
-      case "organizationMembership.deleted": {
-        const data = evt.data as Record<string, unknown>;
-        const clerkMembershipId = data.id as string | undefined;
-        const clerkOrgId =
-          (data.organization_id as string | undefined) ||
-          (data.organization as { id?: string } | undefined)?.id;
-        const clerkUserId =
-          (data.public_user_data as { user_id?: string } | undefined)?.user_id ||
-          (data.publicUserData as { userId?: string } | undefined)?.userId ||
-          (data.user_id as string | undefined);
-        if (clerkMembershipId || (clerkOrgId && clerkUserId)) {
-          await ctx.runMutation(internal.organizationMemberships.deleteFromClerk, {
-            clerkMembershipId,
-            clerkOrgId,
             clerkUserId,
           });
         }
