@@ -9,10 +9,10 @@ import { Authenticated, Unauthenticated } from 'convex/react'
 import { SignInDialog } from '@/components/features/auth/sign-in-dialog'
 
 const menuItems = [
-  { name: 'Funcionalidades', href: '#link' },
-  { name: 'Solución', href: '#link' },
-  { name: 'Precios', href: '#link' },
-  { name: 'Nosotros', href: '#link' },
+  { name: 'Funcionalidades', href: '#link', visible: false },
+  { name: 'Solución', href: '#link', visible: false },
+  { name: 'Precios', href: '#link', visible: false },
+  { name: 'Nosotros', href: '#link', visible: false },
 ]
 
 export const HeroHeader = () => {
@@ -62,16 +62,19 @@ export const HeroHeader = () => {
 
             <div className="absolute inset-0 m-auto hidden size-fit lg:block">
               <ul className="flex gap-8 text-sm">
-                {menuItems.map((item, index) => (
-                  <li key={index}>
-                    <Link
-                      href={item.href}
-                      className="text-muted-foreground hover:text-accent-foreground block duration-150"
-                    >
-                      <span>{item.name}</span>
-                    </Link>
-                  </li>
-                ))}
+                {menuItems.map(
+                  (item, index) =>
+                    item.visible && (
+                      <li key={index}>
+                        <Link
+                          href={item.href}
+                          className="text-muted-foreground hover:text-accent-foreground block duration-150"
+                        >
+                          <span>{item.name}</span>
+                        </Link>
+                      </li>
+                    )
+                )}
               </ul>
             </div>
 
@@ -100,8 +103,11 @@ export const HeroHeader = () => {
                   >
                     <span>Iniciar sesión</span>
                   </Button>
-                  <SignInDialog open={signInOpen} onOpenChange={setSignInOpen} />
-                  <Button
+                  <SignInDialog
+                    open={signInOpen}
+                    onOpenChange={setSignInOpen}
+                  />
+                  {/* <Button
                     asChild
                     size="sm"
                     className={cn(isScrolled && 'lg:hidden')}
@@ -109,7 +115,7 @@ export const HeroHeader = () => {
                     <Link href="/sign-up">
                       <span>Tengo invitación</span>
                     </Link>
-                  </Button>
+                  </Button> */}
                 </Unauthenticated>
                 <Authenticated>
                   <div className="flex items-center">
