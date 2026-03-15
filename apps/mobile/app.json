@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.agusstingarcia144.matapp",
       "deploymentTarget": "15.1",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserNotificationsUsageDescription": "Mat te enviara recordatorios y avisos importantes sobre tus clases reservadas."
       },
       "icon": "./assets/app.icon",
       "associatedDomains": [
@@ -53,6 +54,7 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-splash-screen",
         {

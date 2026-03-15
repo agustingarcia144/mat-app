@@ -104,9 +104,9 @@ function WorkoutContent() {
   const [localValues, setLocalValues] = useState<
     Record<string, { reps: string; weight: string }[]>
   >({})
-  const [localTimeValues, setLocalTimeValues] = useState<Record<string, number[]>>(
-    {}
-  )
+  const [localTimeValues, setLocalTimeValues] = useState<
+    Record<string, number[]>
+  >({})
   const [quickCompletedSetsByDayEx, setQuickCompletedSetsByDayEx] = useState<
     Record<string, Record<number, true>>
   >({})
@@ -239,7 +239,9 @@ function WorkoutContent() {
         if (parts.length === 1) {
           const single = Number(parts[0])
           if (Number.isFinite(single)) {
-            baseValues = Array.from({ length: numSets }, () => Math.max(0, single))
+            baseValues = Array.from({ length: numSets }, () =>
+              Math.max(0, single)
+            )
           } else {
             baseValues = Array.from({ length: numSets }, () => defaultTime)
           }
@@ -305,7 +307,14 @@ function WorkoutContent() {
         setSavingId(null)
       }
     },
-    [isNewSession, sessionId, getValuesFor, logsByDayExercise, setLog, getTimeValuesFor]
+    [
+      isNewSession,
+      sessionId,
+      getValuesFor,
+      logsByDayExercise,
+      setLog,
+      getTimeValuesFor,
+    ]
   )
 
   const applyLogSetResult = useCallback(
@@ -347,7 +356,10 @@ function WorkoutContent() {
       let timeArray = getTimeValuesFor(dayEx)
       if (result.timeSeconds != null) {
         if (result.applyToAllSets) {
-          timeArray = Array.from({ length: dayEx.sets }, () => result.timeSeconds!)
+          timeArray = Array.from(
+            { length: dayEx.sets },
+            () => result.timeSeconds!
+          )
         } else {
           const arr = [...timeArray]
           arr[result.setIndex] = result.timeSeconds
@@ -378,7 +390,8 @@ function WorkoutContent() {
   const handleQuickCompleteSet = useCallback(
     (dayEx: NonNullable<typeof dayExercises>[number], setIndex: number) => {
       if (isNewSession) return
-      const wasQuickCompleted = !!quickCompletedSetsByDayEx[dayEx._id]?.[setIndex]
+      const wasQuickCompleted =
+        !!quickCompletedSetsByDayEx[dayEx._id]?.[setIndex]
       if (wasQuickCompleted) {
         setQuickCompletedSetsByDayEx((prev) => {
           const dayMap = { ...(prev[dayEx._id] ?? {}) }
@@ -462,7 +475,9 @@ function WorkoutContent() {
           ? current.weight
           : findPreviousString('weight'),
         timeSeconds:
-          currentTimeSeconds > 0 ? currentTimeSeconds : findPreviousTimeSeconds(),
+          currentTimeSeconds > 0
+            ? currentTimeSeconds
+            : findPreviousTimeSeconds(),
       }
     },
     [getTimeValuesFor, getValuesFor]

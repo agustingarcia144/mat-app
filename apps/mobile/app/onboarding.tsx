@@ -17,7 +17,7 @@ import { useMutation, Authenticated } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
-import { format } from 'date-fns'
+import { format, parseISO } from 'date-fns'
 
 function OnboardingContent() {
   const router = useRouter()
@@ -33,8 +33,16 @@ function OnboardingContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const displayBirthday =
-    birthday || (birthdayDate ? format(birthdayDate, 'dd/MM/yyyy') : '')
+  let displayBirthday = ''
+  if (birthdayDate) {
+    displayBirthday = format(birthdayDate, 'dd/MM/yyyy')
+  } else if (birthday) {
+    try {
+      displayBirthday = format(parseISO(birthday), 'dd/MM/yyyy')
+    } catch {
+      displayBirthday = birthday
+    }
+  }
 
   const onBirthdayChange = (_event: unknown, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios')

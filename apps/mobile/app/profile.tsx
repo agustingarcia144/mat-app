@@ -1,5 +1,12 @@
 import React from 'react'
-import { View, Text, StyleSheet, ScrollView, Image } from 'react-native'
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  Platform,
+} from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useUser, useClerk } from '@clerk/clerk-expo'
@@ -51,7 +58,8 @@ function ProfileContent() {
   )
   const hasMultipleOrganizations = memberships.length > 1
   const activeOrgId = currentMembership?.organization?._id ?? null
-  const isLoaded = organizations !== undefined && currentMembership !== undefined
+  const isLoaded =
+    organizations !== undefined && currentMembership !== undefined
 
   const buttonBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'
   const backgroundColor = Colors[colorScheme ?? 'light'].background
@@ -84,7 +92,12 @@ function ProfileContent() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 44 },
+          {
+            // Extra top padding on Android so avatar isn't cut off by the transparent header/title
+            paddingTop:
+              insets.top +
+              (Platform.OS === 'android' ? 64 : 44),
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >

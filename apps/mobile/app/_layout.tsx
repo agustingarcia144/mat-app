@@ -1,14 +1,15 @@
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import 'react-native-reanimated'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useColorScheme } from 'react-native'
-import { useConvexAuth, useQuery } from 'convex/react'
+import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import Providers from '@/components/providers/providers'
 import { Colors } from '@/constants/theme'
 import HeaderCloseButton from '@/components/ui/header-close-button'
 import { usePendingJoin } from '@/contexts/pending-join-context'
+import { registerForPushNotificationsAsync } from '@/lib/push-notifications'
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useConvexAuth()
@@ -24,6 +25,8 @@ function RootLayoutNav() {
   const segments = useSegments()
   const router = useRouter()
   const colorScheme = useColorScheme()
+  const upsertPushToken = useMutation(api.pushNotifications.registerDeviceToken)
+  const registeredForUserRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (isLoading) return
@@ -31,7 +34,9 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === '(tabs)'
     const inModal = segments[0] === 'profile'
     const inOnboarding =
-      segments[0] === 'onboarding' || segments[0] === 'onboarding-2'
+      segments[0] === 'onboarding-notifications' ||
+      segments[0] === 'onboarding' ||
+      segments[0] === 'onboarding-2'
     const inOrgSelection = segments[0] === 'select-organization'
     const inJoinConfirm = segments[0] === 'join-gym-confirm'
     const inAuthPage =
@@ -78,7 +83,7 @@ function RootLayoutNav() {
 
     if (inOrgSelection) {
       if (needsOnboarding) {
-        router.replace('/onboarding')
+        router.replace('/onboarding-notifications')
       } else {
         router.replace('/(tabs)/home')
       }
@@ -87,9 +92,8 @@ function RootLayoutNav() {
 
     if (needsOnboarding) {
       if (!inOnboarding) {
-        const goToStep2 =
-          convexUser?.onboardingStep1Completed === true
-        router.replace(goToStep2 ? '/onboarding-2' : '/onboarding')
+        const step1Done = convexUser?.onboardingStep1Completed === true
+        router.replace(step1Done ? '/onboarding-2' : '/onboarding-notifications')
       }
       return
     }
@@ -113,6 +117,50 @@ function RootLayoutNav() {
     router,
   ])
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      registeredForUserRef.current = null
+      return
+    }
+
+    if (!convexUser || convexUser === undefined) {
+      return
+    }
+
+    if (!convexUser.onboardingCompleted) {
+      return
+    }
+
+    if (registeredForUserRef.current === convexUser.externalId) {
+      return
+    }
+
+    let cancelled = false
+
+    const registerPushToken = async () => {
+      try {
+        const { token, platform } = await registerForPushNotificationsAsync()
+        if (cancelled || !token || !platform) {
+          return
+        }
+
+        await upsertPushToken({
+          token,
+          platform,
+        })
+        registeredForUserRef.current = convexUser.externalId
+      } catch (error) {
+        console.warn('Push notification setup failed', error)
+      }
+    }
+
+    void registerPushToken()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, convexUser, upsertPushToken])
+
   const backgroundColor = Colors[colorScheme ?? 'light'].background
   const headerTintColor = Colors[colorScheme ?? 'light'].text
 
@@ -122,6 +170,7 @@ function RootLayoutNav() {
         <Stack.Screen name="index" />
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
+        <Stack.Screen name="onboarding-notifications" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="onboarding-2" />
         <Stack.Screen name="select-organization" />

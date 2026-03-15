@@ -22,6 +22,7 @@ pnpm --filter @repo/convex dev
 
 - Web: `NEXT_PUBLIC_CONVEX_URL`
 - Mobile: `EXPO_PUBLIC_CONVEX_URL`
+- Convex (push notifications): `EXPO_ACCESS_TOKEN` (optional but recommended for Expo Push API)
 
 ## Data model ownership
 

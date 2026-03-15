@@ -1,6 +1,7 @@
 import { mutation, query, type MutationCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { v } from 'convex/values'
+import { internal } from './_generated/api'
 import {
   requireAuth,
   requireAdminOrTrainer,
@@ -172,6 +173,10 @@ export const cancel = mutation({
       .collect()
 
     const now = Date.now()
+    const classTemplate = await ctx.db.get(schedule.classId)
+    const className = classTemplate?.name ?? 'tu clase'
+    const affectedUserIds = reservations.map((reservation) => reservation.userId)
+
     for (const reservation of reservations) {
       await ctx.db.patch(reservation._id, {
         status: 'cancelled',
@@ -184,6 +189,14 @@ export const cancel = mutation({
       status: 'cancelled',
       updatedAt: now,
     })
+
+    if (affectedUserIds.length > 0) {
+      await ctx.runMutation(internal.pushNotifications.sendClassCancelledReminder, {
+        scheduleId: args.id,
+        userIds: affectedUserIds,
+        className,
+      })
+    }
   },
 })
 

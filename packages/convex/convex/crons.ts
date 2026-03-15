@@ -12,4 +12,26 @@ crons.interval(
   }
 )
 
+crons.interval(
+  'send-class-reminders-minus-1h',
+  { minutes: 5 },
+  internal.pushNotifications.sendPreClassReminders,
+  {
+    lookAheadMinutes: 60,
+    windowMinutes: 10,
+    scheduleLimit: 150,
+  }
+)
+
+crons.interval(
+  'send-attendance-reminders-plus-1h',
+  { minutes: 5 },
+  internal.pushNotifications.sendAttendanceReminders,
+  {
+    delayMinutes: 60,
+    windowMinutes: 10,
+    scheduleLimit: 150,
+  }
+)
+
 export default crons

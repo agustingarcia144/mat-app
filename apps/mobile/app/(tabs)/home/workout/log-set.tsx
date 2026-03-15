@@ -6,14 +6,144 @@ import {
   Platform,
   useWindowDimensions,
   Switch,
+  Modal,
+  Pressable,
+  ScrollView,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Picker } from '@react-native-picker/picker'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
+import { IconSymbol } from '@/components/ui/icon-symbol'
 import { Colors } from '@/constants/theme'
 import { invokeLogSetSaveCallback } from '@/lib/log-set-bridge'
+
+/** Android fallback: native Picker often doesn't render (e.g. in form sheet). Use a modal list instead. */
+function AndroidPickerRow<T extends string | number>({
+  label,
+  options,
+  selectedValue,
+  onValueChange,
+  valueToLabel,
+  isDark,
+}: {
+  label: string
+  options: T[]
+  selectedValue: T
+  onValueChange: (v: T) => void
+  valueToLabel: (v: T) => string
+  isDark: boolean
+}) {
+  const [visible, setVisible] = useState(false)
+  const bg = isDark ? '#1c1c1e' : '#f4f4f5'
+  const textColor = isDark ? '#fafafa' : '#18181b'
+  const muted = isDark ? '#a1a1aa' : '#71717a'
+
+  return (
+    <>
+      <View style={androidPickerStyles.block}>
+        <Text style={[androidPickerStyles.label, { color: muted }]}>
+          {label}
+        </Text>
+        <Pressable
+          style={[androidPickerStyles.trigger, { backgroundColor: bg }]}
+          onPress={() => setVisible(true)}
+        >
+          <Text style={[androidPickerStyles.triggerText, { color: textColor }]}>
+            {valueToLabel(selectedValue)}
+          </Text>
+        </Pressable>
+      </View>
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVisible(false)}
+      >
+        <Pressable
+          style={androidPickerStyles.modalOverlay}
+          onPress={() => setVisible(false)}
+        >
+          <View
+            style={[
+              androidPickerStyles.modalContent,
+              { backgroundColor: isDark ? '#171717' : '#fff' },
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
+            <ScrollView
+              style={androidPickerStyles.modalList}
+              keyboardShouldPersistTaps="handled"
+            >
+              {options.map((value) => (
+                <Pressable
+                  key={String(value)}
+                  style={[
+                    androidPickerStyles.modalOption,
+                    selectedValue === value &&
+                      androidPickerStyles.modalOptionSelected,
+                  ]}
+                  onPress={() => {
+                    onValueChange(value)
+                    setVisible(false)
+                  }}
+                >
+                  <Text
+                    style={[
+                      androidPickerStyles.modalOptionText,
+                      { color: selectedValue === value ? textColor : muted },
+                    ]}
+                  >
+                    {valueToLabel(value)}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
+  )
+}
+
+const androidPickerStyles = StyleSheet.create({
+  block: { flex: 1, minWidth: 0 },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  trigger: {
+    minHeight: 48,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  triggerText: { fontSize: 16, fontWeight: '500' },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    maxHeight: 320,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  modalList: { maxHeight: 320 },
+  modalOption: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  modalOptionSelected: { backgroundColor: 'rgba(59, 130, 246, 0.15)' },
+  modalOptionText: { fontSize: 16 },
+})
 
 const REPS_MIN = 1
 const REPS_MAX = 100
@@ -74,7 +204,7 @@ export default function LogSetScreen() {
     supportsTime?: string
   }>()
   const insets = useSafeAreaInsets()
-  const { width: screenWidth } = useWindowDimensions()
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions()
   const colorScheme = useColorScheme()
   const contentPadding = 12
   const pickerGap = 8
@@ -114,7 +244,8 @@ export default function LogSetScreen() {
   }, [params.supportsTime])
   const hasTime = supportsTimeFromPlan || initialTimeSeconds > 0
   const notesParam = useMemo(() => {
-    const raw = typeof params.notes === 'string' ? params.notes : params.notes?.[0]
+    const raw =
+      typeof params.notes === 'string' ? params.notes : params.notes?.[0]
     const trimmed = raw?.trim()
     return trimmed && trimmed.length > 0 ? trimmed : ''
   }, [params.notes])
@@ -158,8 +289,7 @@ export default function LogSetScreen() {
     if (dayExId != null && setIndex != null && Number.isFinite(setIndex)) {
       let timeSeconds: number | undefined
       if (hasTime && timeAmount > 0) {
-        timeSeconds =
-          timeUnit === 'seconds' ? timeAmount : timeAmount * 60
+        timeSeconds = timeUnit === 'seconds' ? timeAmount : timeAmount * 60
       } else {
         timeSeconds = undefined
       }
@@ -179,79 +309,96 @@ export default function LogSetScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      <View style={[styles.titleBlock, { paddingTop: headerClearance }]}>
-        <Text style={[styles.title, { color: textColor }]}>Reps y peso</Text>
-        <Text style={[styles.subtitle, { color: mutedColor }]}>
-          Registrá repeticiones y peso en kg
-        </Text>
-        {notesParam ? (
-          <Text style={[styles.commentsText, { color: mutedColor }]}>
-            Comentarios: {notesParam}
-          </Text>
-        ) : null}
-      </View>
-
+      {Platform.OS === 'android' && (
+        <Pressable
+          style={[
+            styles.sheetOverlay,
+            {
+              height: screenHeight * 0.25,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+            },
+          ]}
+          onPress={() => router.back()}
+          accessibilityLabel="Cerrar"
+          accessibilityRole="button"
+        />
+      )}
       <View
         style={[
-          styles.content,
-          {
-            paddingHorizontal: contentPadding,
+          styles.sheetInner,
+          Platform.OS === 'android' && {
+            marginTop: screenHeight * 0.25,
+            height: screenHeight * 0.75,
+            backgroundColor,
           },
         ]}
       >
-        {/* Tabs for Load vs Time */}
-        {hasTime && (
-          <View
-            style={[
-              styles.tabs,
-              {
-                backgroundColor: isDark ? '#171717' : '#f4f4f5',
-                borderColor: isDark
-                  ? 'rgba(255,255,255,0.1)'
-                  : 'rgba(0,0,0,0.08)',
-              },
-            ]}
-          >
+        <View style={[styles.titleBlock, { paddingTop: headerClearance }]}>
+          {Platform.OS === 'android' && (
+            <Pressable
+              style={styles.closeButton}
+              onPress={() => router.back()}
+              hitSlop={12}
+              accessibilityLabel="Cerrar"
+            >
+              <IconSymbol
+                name="xmark"
+                size={22}
+                color={isDark ? '#fff' : '#000'}
+              />
+            </Pressable>
+          )}
+          <Text style={[styles.title, { color: textColor }]}>Reps y peso</Text>
+          <Text style={[styles.subtitle, { color: mutedColor }]}>
+            Registrá repeticiones y peso en kg
+          </Text>
+          {notesParam ? (
+            <Text style={[styles.commentsText, { color: mutedColor }]}>
+              Comentarios: {notesParam}
+            </Text>
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.content,
+            {
+              paddingHorizontal: contentPadding,
+            },
+          ]}
+        >
+          {/* Tabs for Load vs Time */}
+          {hasTime && (
             <View
               style={[
-                styles.tabPill,
+                styles.tabs,
                 {
-                  backgroundColor: isDark ? '#27272a' : '#ffffff',
-                  left: activeTab === 'load' ? TAB_PADDING : undefined,
-                  right: activeTab === 'time' ? TAB_PADDING : undefined,
+                  backgroundColor: isDark ? '#171717' : '#f4f4f5',
+                  borderColor: isDark
+                    ? 'rgba(255,255,255,0.1)'
+                    : 'rgba(0,0,0,0.08)',
                 },
               ]}
-            />
-            <View style={styles.tabButtons}>
-              <View style={styles.tabButton}>
-                <Text
-                  onPress={() => setActiveTab('load')}
-                  style={[
-                    styles.tabText,
-                    {
-                      color:
-                        activeTab === 'load'
-                          ? isDark
-                            ? '#fafafa'
-                            : '#18181b'
-                          : isDark
-                            ? '#a1a1aa'
-                            : '#71717a',
-                    },
-                  ]}
-                >
-                  Reps y peso
-                </Text>
-              </View>
-              {hasTime && (
+            >
+              <View
+                style={[
+                  styles.tabPill,
+                  {
+                    backgroundColor: isDark ? '#27272a' : '#ffffff',
+                    left: activeTab === 'load' ? TAB_PADDING : undefined,
+                    right: activeTab === 'time' ? TAB_PADDING : undefined,
+                  },
+                ]}
+              />
+              <View style={styles.tabButtons}>
                 <View style={styles.tabButton}>
                   <Text
-                    onPress={() => setActiveTab('time')}
+                    onPress={() => setActiveTab('load')}
                     style={[
                       styles.tabText,
                       {
                         color:
-                          activeTab === 'time'
+                          activeTab === 'load'
                             ? isDark
                               ? '#fafafa'
                               : '#18181b'
@@ -261,170 +408,239 @@ export default function LogSetScreen() {
                       },
                     ]}
                   >
-                    Tiempo
+                    Reps y peso
                   </Text>
                 </View>
+                {hasTime && (
+                  <View style={styles.tabButton}>
+                    <Text
+                      onPress={() => setActiveTab('time')}
+                      style={[
+                        styles.tabText,
+                        {
+                          color:
+                            activeTab === 'time'
+                              ? isDark
+                                ? '#fafafa'
+                                : '#18181b'
+                              : isDark
+                                ? '#a1a1aa'
+                                : '#71717a',
+                        },
+                      ]}
+                    >
+                      Tiempo
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {activeTab === 'load' && (
+            <View style={[styles.pickerRow, { gap: pickerGap }]}>
+              {Platform.OS === 'android' ? (
+                <>
+                  <AndroidPickerRow
+                    label="Repeticiones"
+                    options={REPS_OPTIONS}
+                    selectedValue={reps}
+                    onValueChange={(v) => setReps(Number(v))}
+                    valueToLabel={(n) => String(n)}
+                    isDark={isDark}
+                  />
+                  <AndroidPickerRow
+                    label="Peso (kg)"
+                    options={WEIGHT_OPTIONS}
+                    selectedValue={weightKg}
+                    onValueChange={(v) => setWeightKg(Number(v))}
+                    valueToLabel={(n) => (n % 1 === 0 ? `${n}.0` : String(n))}
+                    isDark={isDark}
+                  />
+                </>
+              ) : (
+                <>
+                  <View
+                    style={[
+                      styles.pickerBlock,
+                      { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+                    ]}
+                  >
+                    <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                      Repeticiones
+                    </Text>
+                    <View style={styles.pickerWrap}>
+                      <Picker
+                        selectedValue={reps}
+                        onValueChange={(v) => setReps(Number(v))}
+                        style={[styles.picker, { color: pickerColor }]}
+                        itemStyle={{ color: pickerColor }}
+                        prompt="Repeticiones"
+                      >
+                        {REPS_OPTIONS.map((n) => (
+                          <Picker.Item key={n} label={String(n)} value={n} />
+                        ))}
+                      </Picker>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.pickerBlock,
+                      { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+                    ]}
+                  >
+                    <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                      Peso (kg)
+                    </Text>
+                    <View style={styles.pickerWrap}>
+                      <Picker
+                        selectedValue={weightKg}
+                        onValueChange={(v) => setWeightKg(Number(v))}
+                        style={[styles.picker, { color: pickerColor }]}
+                        itemStyle={{ color: pickerColor }}
+                        prompt="Peso en kilos"
+                      >
+                        {WEIGHT_OPTIONS.map((n) => (
+                          <Picker.Item
+                            key={n}
+                            label={n % 1 === 0 ? `${n}.0` : String(n)}
+                            value={n}
+                          />
+                        ))}
+                      </Picker>
+                    </View>
+                  </View>
+                </>
               )}
             </View>
+          )}
+
+          {hasTime && activeTab === 'time' && (
+            <View style={[styles.pickerRow, { gap: pickerGap }]}>
+              {Platform.OS === 'android' ? (
+                <>
+                  <AndroidPickerRow
+                    label="Tiempo"
+                    options={Array.from({ length: 60 }, (_, i) => i + 1)}
+                    selectedValue={timeAmount}
+                    onValueChange={(v) => setTimeAmount(Number(v))}
+                    valueToLabel={(n) => String(n)}
+                    isDark={isDark}
+                  />
+                  <AndroidPickerRow
+                    label="Unidad"
+                    options={['seconds', 'minutes'] as const}
+                    selectedValue={timeUnit}
+                    onValueChange={(v) =>
+                      setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
+                    }
+                    valueToLabel={(u) =>
+                      u === 'seconds' ? 'Segundos' : 'Minutos'
+                    }
+                    isDark={isDark}
+                  />
+                </>
+              ) : (
+                <>
+                  <View
+                    style={[
+                      styles.pickerBlock,
+                      {
+                        width: pickerColumnWidth,
+                        maxWidth: pickerColumnWidth,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                      Tiempo
+                    </Text>
+                    <View style={styles.pickerWrap}>
+                      <Picker
+                        selectedValue={timeAmount}
+                        onValueChange={(v) => setTimeAmount(Number(v))}
+                        style={[styles.picker, { color: pickerColor }]}
+                        itemStyle={{ color: pickerColor }}
+                        prompt="Tiempo"
+                      >
+                        {Array.from({ length: 60 }, (_, i) => i + 1).map(
+                          (n) => (
+                            <Picker.Item key={n} label={String(n)} value={n} />
+                          )
+                        )}
+                      </Picker>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.pickerBlock,
+                      {
+                        width: pickerColumnWidth,
+                        maxWidth: pickerColumnWidth,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                      Unidad
+                    </Text>
+                    <View style={styles.pickerWrap}>
+                      <Picker
+                        selectedValue={timeUnit}
+                        onValueChange={(v) =>
+                          setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
+                        }
+                        style={[styles.picker, { color: pickerColor }]}
+                        itemStyle={{ color: pickerColor }}
+                        prompt="Unidad de tiempo"
+                      >
+                        <Picker.Item label="Segundos" value="seconds" />
+                        <Picker.Item label="Minutos" value="minutes" />
+                      </Picker>
+                    </View>
+                  </View>
+                </>
+              )}
+            </View>
+          )}
+          <View style={[styles.toggleRow, { marginTop: 16 }]}>
+            <Text style={[styles.toggleLabel, { color: textColor }]}>
+              Aplicar a todos los sets del ejercicio
+            </Text>
+            <Switch
+              value={applyToAllSets}
+              onValueChange={setApplyToAllSets}
+              trackColor={{
+                false: isDark ? '#3f3f46' : '#e4e4e7',
+                true: isDark ? '#3b82f6' : '#2563eb',
+              }}
+              thumbColor="#fff"
+            />
           </View>
-        )}
-
-        {activeTab === 'load' && (
-          <View style={[styles.pickerRow, { gap: pickerGap }]}>
-            <View
-              style={[
-                styles.pickerBlock,
-                { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-              ]}
-            >
-              <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                Repeticiones
-              </Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={reps}
-                  onValueChange={(v) => setReps(Number(v))}
-                  style={[styles.picker, { color: pickerColor }]}
-                  itemStyle={
-                    Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                  }
-                  mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                  prompt="Repeticiones"
-                >
-                  {REPS_OPTIONS.map((n) => (
-                    <Picker.Item key={n} label={String(n)} value={n} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.pickerBlock,
-                { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-              ]}
-            >
-              <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                Peso (kg)
-              </Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={weightKg}
-                  onValueChange={(v) => setWeightKg(Number(v))}
-                  style={[styles.picker, { color: pickerColor }]}
-                  itemStyle={
-                    Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                  }
-                  mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                  prompt="Peso en kilos"
-                >
-                  {WEIGHT_OPTIONS.map((n) => (
-                    <Picker.Item
-                      key={n}
-                      label={n % 1 === 0 ? `${n}.0` : String(n)}
-                      value={n}
-                    />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {hasTime && activeTab === 'time' && (
-          <View style={[styles.pickerRow, { gap: pickerGap }]}>
-            <View
-              style={[
-                styles.pickerBlock,
-                { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-              ]}
-            >
-              <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                Tiempo
-              </Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={timeAmount}
-                  onValueChange={(v) => setTimeAmount(Number(v))}
-                  style={[styles.picker, { color: pickerColor }]}
-                  itemStyle={
-                    Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                  }
-                  mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                  prompt="Tiempo"
-                >
-                  {Array.from({ length: 60 }, (_, i) => i + 1).map((n) => (
-                    <Picker.Item key={n} label={String(n)} value={n} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.pickerBlock,
-                { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-              ]}
-            >
-              <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                Unidad
-              </Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={timeUnit}
-                  onValueChange={(v) =>
-                    setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
-                  }
-                  style={[styles.picker, { color: pickerColor }]}
-                  itemStyle={
-                    Platform.OS === 'ios' ? { color: pickerColor } : undefined
-                  }
-                  mode={Platform.OS === 'android' ? 'dropdown' : undefined}
-                  prompt="Unidad de tiempo"
-                >
-                  <Picker.Item label="Segundos" value="seconds" />
-                  <Picker.Item label="Minutos" value="minutes" />
-                </Picker>
-              </View>
-            </View>
-          </View>
-        )}
-        <View style={[styles.toggleRow, { marginTop: 16 }]}>
-          <Text style={[styles.toggleLabel, { color: textColor }]}>
-            Aplicar a todos los sets del ejercicio
-          </Text>
-          <Switch
-            value={applyToAllSets}
-            onValueChange={setApplyToAllSets}
-            trackColor={{
-              false: isDark ? '#3f3f46' : '#e4e4e7',
-              true: isDark ? '#3b82f6' : '#2563eb',
-            }}
-            thumbColor="#fff"
-          />
         </View>
-      </View>
 
-      <View
-        style={[
-          styles.footer,
-          {
-            paddingBottom: insets.bottom + 16,
-          },
-        ]}
-      >
-        <ThemedPressable
-          onPress={handleLog}
-          lightColor="#000"
-          darkColor="#fff"
-          style={styles.saveButton}
+        <View
+          style={[
+            styles.footer,
+            {
+              paddingBottom: insets.bottom + 16,
+            },
+          ]}
         >
-          <Text
-            style={[styles.saveButtonText, { color: isDark ? '#000' : '#fff' }]}
+          <ThemedPressable
+            onPress={handleLog}
+            lightColor="#000"
+            darkColor="#fff"
+            style={styles.saveButton}
           >
-            Guardar
-          </Text>
-        </ThemedPressable>
+            <Text
+              style={[
+                styles.saveButtonText,
+                { color: isDark ? '#000' : '#fff' },
+              ]}
+            >
+              Guardar
+            </Text>
+          </ThemedPressable>
+        </View>
       </View>
     </View>
   )
@@ -433,6 +649,27 @@ export default function LogSetScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  sheetOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  sheetInner: {
+    flex: 1,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 8,
+    right: 24,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   titleBlock: {
     paddingHorizontal: 24,

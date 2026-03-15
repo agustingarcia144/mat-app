@@ -460,6 +460,8 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: 44,
     height: 44,
+    // borderRadius on the Image is required for Android to clip to circle; parent overflow is not enough
+    borderRadius: 22,
   },
   avatarPlaceholder: {
     fontSize: 18,

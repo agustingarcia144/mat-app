@@ -307,6 +307,49 @@ export const createOrgCreationCodeInternal = internalMutation({
   },
 })
 
+/**
+ * Create an org creation code from a plain code string. Use this when you have
+ * a specific code value (e.g. from dashboard). The code is normalized and hashed
+ * the same way as during validation, so the same string (any casing/spaces) will
+ * validate successfully.
+ * Do NOT pass the raw code to createOrgCreationCodeInternal as codeHash — that
+ * stores the plain string and validation will fail (it looks up by hash).
+ */
+export const createOrgCreationCodeFromPlainCodeInternal = internalAction({
+  args: {
+    code: v.string(),
+    maxUses: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
+    createdBy: v.optional(v.string()),
+    metadata: v.optional(
+      v.object({
+        label: v.optional(v.string()),
+        notes: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const normalizedCode = normalizeInviteCode(args.code)
+    if (!normalizedCode) {
+      throw new Error('El codigo no puede estar vacio despues de normalizar')
+    }
+    const codeHash = await ctx.runAction(internal.orgCreationCodesNode.hashInviteCode, {
+      code: normalizedCode,
+    })
+    const codeId = await ctx.runMutation(internal.orgCreationCodes.createOrgCreationCodeInternal, {
+      codeHash,
+      maxUses: Math.max(1, args.maxUses ?? 1),
+      expiresAt: args.expiresAt,
+      createdBy: args.createdBy,
+      metadata: args.metadata,
+    })
+    return {
+      codeId,
+      code: normalizedCode,
+    }
+  },
+})
+
 export const issueOrgCreationCode: ReturnType<typeof internalAction> = internalAction({
   args: {
     maxUses: v.optional(v.number()),

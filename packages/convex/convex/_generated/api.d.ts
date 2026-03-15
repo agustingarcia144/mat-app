@@ -29,6 +29,8 @@ import type * as permissions from "../permissions.js";
 import type * as planificationAssignments from "../planificationAssignments.js";
 import type * as planificationRevisionHelpers from "../planificationRevisionHelpers.js";
 import type * as planifications from "../planifications.js";
+import type * as pushNotifications from "../pushNotifications.js";
+import type * as pushNotificationsNode from "../pushNotificationsNode.js";
 import type * as scheduleBatchUtils from "../scheduleBatchUtils.js";
 import type * as scheduleBatches from "../scheduleBatches.js";
 import type * as seedExercises from "../seedExercises.js";
@@ -68,6 +70,8 @@ declare const fullApi: ApiFromModules<{
   planificationAssignments: typeof planificationAssignments;
   planificationRevisionHelpers: typeof planificationRevisionHelpers;
   planifications: typeof planifications;
+  pushNotifications: typeof pushNotifications;
+  pushNotificationsNode: typeof pushNotificationsNode;
   scheduleBatchUtils: typeof scheduleBatchUtils;
   scheduleBatches: typeof scheduleBatches;
   seedExercises: typeof seedExercises;

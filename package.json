@@ -9,7 +9,8 @@
     "convex:deploy": "pnpm --filter convex deploy",
     "convex:codegen": "pnpm --filter convex codegen",
     "android": "pnpm --filter mobile run android",
-    "ios": "pnpm --filter mobile run ios"
+    "ios": "pnpm --filter mobile run ios",
+    "testflight": "pnpm --filter mobile run testflight"
   },
   "devDependencies": {
     "prettier": "^3.1.1",
@@ -37,5 +38,5 @@
     "node": ">=18"
   },
   "name": "mat-app",
-  "packageManager": "pnpm@10.29.3"
+  "packageManager": "pnpm@10.32.1"
 }

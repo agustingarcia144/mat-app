@@ -489,7 +489,8 @@ export default defineSchema({
     .index('by_class_time', ['classId', 'startTime'])
     .index('by_organization', ['organizationId'])
     .index('by_organization_time', ['organizationId', 'startTime'])
-    .index('by_start_time', ['startTime']),
+    .index('by_start_time', ['startTime'])
+    .index('by_end_time', ['endTime']),
 
   // Class Reservations - Member bookings
   classReservations: defineTable({
@@ -536,4 +537,47 @@ export default defineSchema({
     ])
     .index('by_user', ['userId'])
     .index('by_organization_user', ['organizationId', 'userId']),
+
+  // Push tokens - stores Expo push tokens per user/device
+  pushTokens: defineTable({
+    userId: v.string(), // Clerk user ID
+    token: v.string(), // Expo push token
+    platform: v.union(v.literal('ios'), v.literal('android')),
+    deviceId: v.optional(v.string()),
+    active: v.boolean(),
+    lastSeenAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_token', ['token'])
+    .index('by_user_active', ['userId', 'active']),
+
+  // Notification events - idempotency + delivery status
+  notificationEvents: defineTable({
+    eventKey: v.string(),
+    type: v.union(
+      v.literal('class_cancelled'),
+      v.literal('class_start_reminder'),
+      v.literal('attendance_reminder')
+    ),
+    userId: v.string(),
+    scheduleId: v.id('classSchedules'),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('sent'),
+      v.literal('failed'),
+      v.literal('skipped')
+    ),
+    attempts: v.number(),
+    tokenCount: v.optional(v.number()),
+    lastAttemptAt: v.optional(v.number()),
+    sentAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_event_key', ['eventKey'])
+    .index('by_user_created_at', ['userId', 'createdAt'])
+    .index('by_status_created_at', ['status', 'createdAt']),
 })
