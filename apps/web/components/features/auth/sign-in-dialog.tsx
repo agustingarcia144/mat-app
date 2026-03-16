@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-const REDIRECT_URL_COMPLETE = '/dashboard'
+const REDIRECT_URL_COMPLETE = '/select-organization'
 
 type Props = {
   open: boolean

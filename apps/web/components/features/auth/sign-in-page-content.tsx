@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-const DEFAULT_REDIRECT = '/dashboard'
+const DEFAULT_REDIRECT = '/select-organization'
 
 function getSafeRedirectUrl(redirectUrl: string | null): string {
   if (!redirectUrl || typeof redirectUrl !== 'string') return DEFAULT_REDIRECT
@@ -51,10 +51,13 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
     (strategy: 'oauth_google') => {
       if (!signIn || !isLoaded) return
       setIsOAuthLoading(true)
+      const callbackRedirect = `/sign-in/sso-callback?redirect_url=${encodeURIComponent(
+        redirectUrlComplete
+      )}`
       signIn
         .authenticateWithRedirect({
           strategy,
-          redirectUrl: `${window.location.origin}/sign-in/sso-callback`,
+          redirectUrl: `${window.location.origin}${callbackRedirect}`,
           redirectUrlComplete,
         })
         .catch((err) => {

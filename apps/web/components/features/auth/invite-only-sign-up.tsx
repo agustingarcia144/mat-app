@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 
-const DASHBOARD_REDIRECT = '/dashboard'
+const STAFF_REDIRECT = '/select-organization'
 
 function InvitationStatusCard({
   title,
@@ -52,7 +52,7 @@ export default function InviteOnlySignUp() {
 
   useEffect(() => {
     if (isSignedIn && !ticket) {
-      router.replace(DASHBOARD_REDIRECT)
+      router.replace(STAFF_REDIRECT)
     }
   }, [isSignedIn, router, ticket])
 
@@ -81,7 +81,7 @@ export default function InviteOnlySignUp() {
 
         await setActive({
           session: attempt.createdSessionId,
-          navigate: () => router.replace(DASHBOARD_REDIRECT),
+          navigate: () => router.replace(STAFF_REDIRECT),
         })
       })
       .catch(async (error: unknown) => {
@@ -160,7 +160,7 @@ export default function InviteOnlySignUp() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <SignUp forceRedirectUrl={DASHBOARD_REDIRECT} signInUrl="/sign-in" />
+      <SignUp forceRedirectUrl={STAFF_REDIRECT} signInUrl="/sign-in" />
     </div>
   )
 }
