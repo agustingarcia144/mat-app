@@ -26,7 +26,7 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   return chunks
 }
 
-export const sendExpoPushForEvent = internalAction({
+export const sendExpoPushForEvent: ReturnType<typeof internalAction> = internalAction({
   args: {
     eventKey: v.string(),
     type: v.union(
