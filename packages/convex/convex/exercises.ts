@@ -65,11 +65,11 @@ export const update = mutation({
       throw new Error('Exercise not found')
     }
 
-    await requireAdminOrTrainer(ctx, exercise.organizationId)
-
     if (exercise.isStandard) {
       throw new Error('No se puede editar un ejercicio estándar')
     }
+
+    await requireAdminOrTrainer(ctx, exercise.organizationId)
 
     const { id, ...updates } = args
 
@@ -95,11 +95,11 @@ export const remove = mutation({
       throw new Error('Exercise not found')
     }
 
-    await requireAdminOrTrainer(ctx, exercise.organizationId)
-
     if (exercise.isStandard) {
       throw new Error('No se puede eliminar un ejercicio estándar')
     }
+
+    await requireAdminOrTrainer(ctx, exercise.organizationId)
 
     // Check if exercise is used in any day exercises
     const usedInDays = await ctx.db
@@ -126,14 +126,25 @@ export const getByOrganization = query({
     await requireAuth(ctx)
     const membership = await requireCurrentOrganizationMembership(ctx)
 
-    const exercises = await ctx.db
+    const orgExercises = await ctx.db
       .query('exercises')
       .withIndex('by_organization', (q) =>
         q.eq('organizationId', membership.organizationId)
       )
       .collect()
 
-    return exercises.sort((a, b) => a.name.localeCompare(b.name))
+    const standardExercises = await ctx.db
+      .query('exercises')
+      .filter((q) => q.eq(q.field('isStandard'), true))
+      .collect()
+
+    const exercisesById = new Map(
+      [...orgExercises, ...standardExercises].map((e) => [e._id, e])
+    )
+
+    return Array.from(exercisesById.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
   },
 })
 
@@ -150,12 +161,21 @@ export const search = query({
     await requireAuth(ctx)
     const membership = await requireCurrentOrganizationMembership(ctx)
 
-    let exercises = await ctx.db
+    const orgExercises = await ctx.db
       .query('exercises')
       .withIndex('by_organization', (q) =>
         q.eq('organizationId', membership.organizationId)
       )
       .collect()
+    const standardExercises = await ctx.db
+      .query('exercises')
+      .filter((q) => q.eq(q.field('isStandard'), true))
+      .collect()
+
+    const exercisesById = new Map(
+      [...orgExercises, ...standardExercises].map((e) => [e._id, e])
+    )
+    let exercises = Array.from(exercisesById.values())
     // Filter by category if provided
     const categories = args.category
       ? Array.isArray(args.category)
@@ -205,12 +225,21 @@ export const listFacets = query({
     await requireAuth(ctx)
     const membership = await requireCurrentOrganizationMembership(ctx)
 
-    const exercises = await ctx.db
+    const orgExercises = await ctx.db
       .query('exercises')
       .withIndex('by_organization', (q) =>
         q.eq('organizationId', membership.organizationId)
       )
       .collect()
+    const standardExercises = await ctx.db
+      .query('exercises')
+      .filter((q) => q.eq(q.field('isStandard'), true))
+      .collect()
+
+    const exercisesById = new Map(
+      [...orgExercises, ...standardExercises].map((e) => [e._id, e])
+    )
+    const exercises = Array.from(exercisesById.values())
 
     const categories = Array.from(
       new Set(
@@ -242,7 +271,9 @@ export const getById = query({
     const exercise = await ctx.db.get(args.id)
     if (!exercise) return null
 
-    await requireOrganizationMembership(ctx, exercise.organizationId)
+    if (!exercise.isStandard) {
+      await requireOrganizationMembership(ctx, exercise.organizationId)
+    }
     return exercise
   },
 })
