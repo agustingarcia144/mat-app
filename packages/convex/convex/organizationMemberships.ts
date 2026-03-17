@@ -29,6 +29,7 @@ async function resolveLogoUrl(
 export const getOrganizationMemberships = query({
   args: {
     organizationId: v.optional(v.id('organizations')),
+    includeInactive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const currentMembership = await requireCurrentOrganizationMembership(ctx)
@@ -45,13 +46,17 @@ export const getOrganizationMemberships = query({
     }
 
     // Get all memberships for this organization
-    const allMemberships = await ctx.db
+    const membershipsQuery = ctx.db
       .query('organizationMemberships')
       .withIndex('by_organization', (q) =>
         q.eq('organizationId', organizationId)
       )
-      .filter((q) => q.eq(q.field('status'), 'active'))
-      .collect()
+
+    const allMemberships = args.includeInactive
+      ? await membershipsQuery.collect()
+      : await membershipsQuery
+          .filter((q) => q.eq(q.field('status'), 'active'))
+          .collect()
 
     // Fetch user data for each membership
     const membershipsWithUsers = await Promise.all(
@@ -70,6 +75,8 @@ export const getOrganizationMemberships = query({
           status: membership.status,
           createdAt: membership.createdAt,
           joinedAt: membership.joinedAt,
+          updatedAt: membership.updatedAt,
+          lastActiveAt: membership.lastActiveAt,
           // Include user fields if user exists
           firstName: user?.firstName,
           lastName: user?.lastName,

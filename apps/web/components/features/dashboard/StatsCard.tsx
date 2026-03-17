@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card'
 import type { LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
 
 type Props = {
   title: string
@@ -21,6 +22,7 @@ type Props = {
   actionLabel?: string
   actionHref?: string
   actionIcon?: LucideIcon
+  className?: string
 }
 
 export default function StatsCard({
@@ -35,21 +37,18 @@ export default function StatsCard({
   actionLabel,
   actionHref,
   actionIcon: ActionIcon,
+  className,
 }: Props) {
   const isList = variant === 'list'
 
   return (
     <Card
-      className={[
-        'rounded-2xl border bg-background/60 hover:shadow-md transition p-4 flex flex-col',
-
-        !isList && 'w-[200px] h-[180px] justify-between',
-
-        isList &&
-          (compact
-            ? 'w-[340px] h-[180px]'
-            : 'w-[340px] h-[200px]'),
-      ].join(' ')}
+      className={cn(
+        'rounded-2xl border bg-background/60 p-4 transition hover:shadow-md flex flex-col',
+        !isList && 'h-[180px] w-[200px] justify-between',
+        isList && (compact ? 'h-[180px] w-[340px]' : 'h-[200px] w-[340px]'),
+        className
+      )}
     >
       <div className="flex items-start justify-between">
         <span className="text-sm text-muted-foreground">{title}</span>

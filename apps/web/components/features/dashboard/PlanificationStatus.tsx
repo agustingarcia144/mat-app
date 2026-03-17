@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useMemo } from 'react'
 import { useQueries, useQuery } from 'convex/react'
@@ -96,29 +96,117 @@ export default function PlanificationStatus() {
 
   const assignmentsByUser = useQueries(queries)
 
-  const membersWithIssues = useMemo(() => {
+  const membersWithStatuses = useMemo(() => {
     if (!members.length) return []
 
-    return members
-      .map((m: any) => {
-        const res = assignmentsByUser[m.id]
-        const assignments = res instanceof Error ? undefined : res
+    return members.map((m: any) => {
+      const res = assignmentsByUser[m.id]
+      const assignments = res instanceof Error ? undefined : res
 
-        const activeAssignment = assignments?.find(
-          (a: any) => a.status === 'active'
-        )
-
-        const planStatus = computePlanStatus(activeAssignment)
-
-        return { ...m, planStatus }
-      })
-      .filter(
-        (m: any) =>
-          m.planStatus.status === 'none' ||
-          m.planStatus.status === 'expired' ||
-          m.planStatus.status === 'expiring_soon'
+      const activeAssignment = assignments?.find(
+        (a: any) => a.status === 'active'
       )
+
+      const planStatus = computePlanStatus(activeAssignment)
+
+      return { ...m, planStatus }
+    })
   }, [members, assignmentsByUser])
+
+  const membersWithIssues = useMemo(() => {
+    return membersWithStatuses.filter(
+      (m: any) =>
+        m.planStatus.status === 'none' ||
+        m.planStatus.status === 'expired' ||
+        m.planStatus.status === 'expiring_soon'
+    )
+  }, [membersWithStatuses])
+
+  const summary = useMemo(() => {
+    const total = membersWithStatuses.length
+
+    const assigned = membersWithStatuses.filter(
+      (member: any) => member.planStatus.status === 'active'
+    ).length
+    const expiringSoon = membersWithStatuses.filter(
+      (member: any) => member.planStatus.status === 'expiring_soon'
+    ).length
+    const expired = membersWithStatuses.filter(
+      (member: any) => member.planStatus.status === 'expired'
+    ).length
+    const unassigned = membersWithStatuses.filter(
+      (member: any) =>
+        member.planStatus.status === 'none' ||
+        member.planStatus.status === 'not_started'
+    ).length
+
+    const toPercent = (value: number) =>
+      total > 0 ? Math.round((value / total) * 100) : 0
+
+    return {
+      total,
+      assigned,
+      expiringSoon,
+      expired,
+      unassigned,
+      assignedPct: toPercent(assigned),
+      expiringSoonPct: toPercent(expiringSoon),
+      expiredPct: toPercent(expired),
+      unassignedPct: toPercent(unassigned),
+    }
+  }, [membersWithStatuses])
+
+  const planSegments = [
+    {
+      label: 'Asignadas',
+      count: summary.assigned,
+      pct: summary.assignedPct,
+      color: 'rgb(34 197 94)',
+      tone: 'bg-green-500',
+    },
+    {
+      label: 'Por vencer',
+      count: summary.expiringSoon,
+      pct: summary.expiringSoonPct,
+      color: 'rgb(234 179 8)',
+      tone: 'bg-yellow-500',
+    },
+    {
+      label: 'Vencidas',
+      count: summary.expired,
+      pct: summary.expiredPct,
+      color: 'rgb(239 68 68)',
+      tone: 'bg-red-500',
+    },
+    {
+      label: 'Sin asignar',
+      count: summary.unassigned,
+      pct: summary.unassignedPct,
+      color: 'rgb(107 114 128)',
+      tone: 'bg-gray-500',
+    },
+  ]
+
+  const donutBackground = (() => {
+    const validSegments = planSegments.filter((segment) => segment.count > 0)
+    if (validSegments.length === 0) {
+      return 'conic-gradient(rgba(107, 114, 128, 0.18) 0deg 360deg)'
+    }
+
+    let currentDeg = 0
+    const stops = validSegments.map((segment) => {
+      const nextDeg = currentDeg + (segment.pct / 100) * 360
+      const stop = `${segment.color} ${currentDeg}deg ${nextDeg}deg`
+      currentDeg = nextDeg
+      return stop
+    })
+
+    if (currentDeg < 360) {
+      stops.push(`rgba(107, 114, 128, 0.18) ${currentDeg}deg 360deg`)
+    }
+
+    return `conic-gradient(${stops.join(', ')})`
+  })()
 
   if (!memberships) return null
 
@@ -127,10 +215,46 @@ export default function PlanificationStatus() {
       title="Estado de Planificaciones"
       variant="list"
       compact
+      className="min-h-[360px] w-full max-w-none flex-1 xl:min-h-0 xl:h-full"
       actionLabel="Ver mas +"
       actionHref="/dashboard/planifications"
       actionIcon={Dumbbell}
     >
+      <div className="mb-4 rounded-xl border bg-background/30 p-4">
+        <div className="flex items-center justify-between gap-6 pl-8">
+          <div
+            className="relative flex h-24 w-24 items-center justify-center rounded-full"
+            style={{ background: donutBackground }}
+          >
+            <div className="absolute inset-[10px] rounded-full bg-background/95" />
+            <div className="relative z-10 text-center">
+              <p className="text-xl font-semibold leading-none">
+                {summary.assignedPct}%
+              </p>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                Activas
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-1 justify-center">
+            <div className="grid gap-2 text-sm text-muted-foreground">
+              {planSegments.map((segment) => (
+                <div
+                  key={segment.label}
+                  className="flex items-center gap-2"
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full ${segment.tone}`} />
+                  <span>
+                    {segment.label}: {segment.pct}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {membersWithIssues.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center space-y-2 text-center">
           <p className="text-sm text-muted-foreground">
