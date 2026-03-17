@@ -1,12 +1,19 @@
 'use client'
 import Link from 'next/link'
 import { Logo } from '@/components/features/landing/logo'
-import { Menu, X } from 'lucide-react'
+import { ChevronsUpDown, LogOut, Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import React from 'react'
 import { cn } from '@/lib/utils'
 import { Authenticated, Unauthenticated } from 'convex/react'
 import { SignInDialog } from '@/components/features/auth/sign-in-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useClerk, useUser } from '@clerk/nextjs'
 
 const menuItems = [
   { name: 'Funcionalidades', href: '#link', visible: false },
@@ -19,6 +26,8 @@ export const HeroHeader = () => {
   const [menuState, setMenuState] = React.useState(false)
   const [isScrolled, setIsScrolled] = React.useState(false)
   const [signInOpen, setSignInOpen] = React.useState(false)
+  const { signOut } = useClerk()
+  const { user } = useUser()
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -118,7 +127,7 @@ export const HeroHeader = () => {
                   </Button>
                 </Unauthenticated>
                 <Authenticated>
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-2">
                     <Button
                       asChild
                       size="sm"
@@ -128,6 +137,28 @@ export const HeroHeader = () => {
                         <span>Dashboard</span>
                       </Link>
                     </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs font-medium shadow-sm">
+                          <span className="flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
+                            {user?.fullName?.charAt(0).toUpperCase() ||
+                              user?.emailAddresses?.[0]?.emailAddress
+                                ?.charAt(0)
+                                .toUpperCase() ||
+                              'U'}
+                          </span>
+                          <ChevronsUpDown className="size-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem
+                          onClick={() => signOut({ redirectUrl: '/' })}
+                        >
+                          <LogOut className="mr-2 size-4" />
+                          Cerrar sesión
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </Authenticated>
               </div>

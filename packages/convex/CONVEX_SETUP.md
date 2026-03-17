@@ -23,6 +23,12 @@ pnpm --filter @repo/convex dev
 - Web: `NEXT_PUBLIC_CONVEX_URL`
 - Mobile: `EXPO_PUBLIC_CONVEX_URL`
 - Convex (push notifications): `EXPO_ACCESS_TOKEN` (optional but recommended for Expo Push API)
+- Convex (staff invitation emails via Resend):
+  - `RESEND_API_KEY`
+  - `RESEND_FROM_EMAIL` (example: `Mat App <no-reply@tu-dominio.com>`)
+  - `INVITATION_APP_URL` (example: `https://app.tu-dominio.com`)
+  - `INVITATION_TTL_HOURS` (optional, default: `72`)
+  - `RESEND_REPLY_TO` (optional)
 
 ## Data model ownership
 

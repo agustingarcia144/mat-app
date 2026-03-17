@@ -37,7 +37,7 @@ export const DASHBOARD_NAV_ITEMS = [
   {
     label: 'Usuarios',
     icon: UserCog,
-    url: '/usuarios',
+    url: '/users',
     adminOnly: true,
   },
 ] as const satisfies readonly {

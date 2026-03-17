@@ -177,6 +177,13 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
           <Button type="submit" disabled={!isLoaded || isSubmitting}>
             {isSubmitting ? 'Entrando…' : 'Continuar'}
           </Button>
+
+          <div
+            id="clerk-captcha"
+            data-cl-theme="auto"
+            data-cl-size="flexible"
+            className="min-h-0"
+          />
         </form>
 
         <p className="text-center text-sm text-muted-foreground">

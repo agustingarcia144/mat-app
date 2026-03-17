@@ -16,6 +16,17 @@ import {
 
 const STAFF_REDIRECT = '/select-organization'
 
+function getSafeRedirectUrl(value: string | null, fallback: string) {
+  if (!value) return fallback
+  try {
+    const decoded = decodeURIComponent(value)
+    if (decoded.startsWith('/')) return decoded
+  } catch {
+    // Ignore malformed redirect values.
+  }
+  return fallback
+}
+
 function InvitationStatusCard({
   title,
   description,
@@ -46,15 +57,21 @@ export default function InviteOnlySignUp() {
   const { isSignedIn } = useUser()
   const ticket = searchParams.get('__clerk_ticket')
   const accountStatus = searchParams.get('__clerk_status')
+  const inviteToken = searchParams.get('invite_token')
+  const redirectUrl = searchParams.get('redirect_url')
+  const fallbackRedirect = inviteToken
+    ? `/invitations/accept?token=${encodeURIComponent(inviteToken)}`
+    : STAFF_REDIRECT
+  const postSignUpRedirect = getSafeRedirectUrl(redirectUrl, fallbackRedirect)
   const attemptedRef = useRef(false)
   const [retryKey, setRetryKey] = useState(0)
   const [signInError, setSignInError] = useState<string | null>(null)
 
   useEffect(() => {
     if (isSignedIn && !ticket) {
-      router.replace(STAFF_REDIRECT)
+      router.replace(postSignUpRedirect)
     }
-  }, [isSignedIn, router, ticket])
+  }, [isSignedIn, postSignUpRedirect, router, ticket])
 
   useEffect(() => {
     if (
@@ -105,7 +122,7 @@ export default function InviteOnlySignUp() {
       })
   }, [accountStatus, isLoaded, retryKey, router, setActive, signIn, signOut, ticket])
 
-  if (!ticket) {
+  if (!ticket && !inviteToken) {
     return (
       <InvitationStatusCard
         title="Acceso solo por invitación"
@@ -160,7 +177,8 @@ export default function InviteOnlySignUp() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <SignUp forceRedirectUrl={STAFF_REDIRECT} signInUrl="/sign-in" />
+      <div id="clerk-captcha" data-cl-theme="auto" data-cl-size="flexible" />
+      <SignUp forceRedirectUrl={postSignUpRedirect} signInUrl="/sign-in" />
     </div>
   )
 }

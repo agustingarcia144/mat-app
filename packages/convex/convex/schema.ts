@@ -101,12 +101,17 @@ export default defineSchema({
       v.literal('revoked')
     ),
     invitedBy: v.string(),
+    tokenHash: v.optional(v.string()),
+    expiresAt: v.optional(v.number()),
+    acceptedAt: v.optional(v.number()),
+    acceptedByUserId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_organization', ['organizationId'])
     .index('by_organization_status', ['organizationId', 'status'])
-    .index('by_organization_email', ['organizationId', 'email']),
+    .index('by_organization_email', ['organizationId', 'email'])
+    .index('by_token_hash', ['tokenHash']),
 
   // Internal invite codes used to bootstrap brand-new organizations.
   // This is separate from member join links/tokens.
