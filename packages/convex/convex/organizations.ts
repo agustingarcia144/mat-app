@@ -31,26 +31,30 @@ async function resolveLogoUrl(
 export const getCurrentOrganization = query({
   args: {},
   handler: async (ctx) => {
-    const membership = await requireCurrentOrganizationMembership(ctx)
-    const organization = await ctx.db.get(membership.organizationId)
-    if (!organization) {
-      throw new Error('Organization not found')
-    }
-    const resolvedLogoUrl = await resolveLogoUrl(
-      ctx,
-      organization.logoStorageId,
-      organization.logoUrl
-    )
-    return {
-      _id: organization._id,
-      name: organization.name,
-      slug: organization.slug,
-      address: organization.address ?? '',
-      phone: organization.phone ?? '',
-      email: organization.email ?? '',
-      logoUrl: resolvedLogoUrl,
-      logoStorageId: organization.logoStorageId ?? null,
-      role: membership.role,
+    try {
+      const membership = await requireCurrentOrganizationMembership(ctx)
+      const organization = await ctx.db.get(membership.organizationId)
+      if (!organization) {
+        return null
+      }
+      const resolvedLogoUrl = await resolveLogoUrl(
+        ctx,
+        organization.logoStorageId,
+        organization.logoUrl
+      )
+      return {
+        _id: organization._id,
+        name: organization.name,
+        slug: organization.slug,
+        address: organization.address ?? '',
+        phone: organization.phone ?? '',
+        email: organization.email ?? '',
+        logoUrl: resolvedLogoUrl,
+        logoStorageId: organization.logoStorageId ?? null,
+        role: membership.role,
+      }
+    } catch {
+      return null
     }
   },
 })

@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useMutation, useQuery } from 'convex/react'
+import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -39,6 +39,7 @@ const EMPTY_STATE: FormState = {
 
 export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
   const router = useRouter()
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth()
   const currentOrganization = useQuery(api.organizations.getCurrentOrganization)
   const updateOrganization = useMutation(
     api.organizations.updateCurrentOrganization
@@ -51,7 +52,7 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
   const [initialForm, setInitialForm] = useState<FormState>(EMPTY_STATE)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
-  const isLoaded = currentOrganization !== undefined
+  const isLoaded = !isAuthLoading && currentOrganization !== undefined
 
   const canEdit = useMemo(
     () => isOrgAdminRole(currentOrganization?.role),
@@ -75,6 +76,13 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
     setLogoFile(null)
     setLogoPreviewUrl(null)
   }, [open, currentOrganization])
+
+  useEffect(() => {
+    if (isAuthLoading || !isAuthenticated) return
+    if (currentOrganization === null) {
+      router.replace('/access-denied')
+    }
+  }, [currentOrganization, isAuthenticated, isAuthLoading, router])
 
   useEffect(() => {
     return () => {
