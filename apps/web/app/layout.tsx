@@ -2,6 +2,11 @@ import '../styles/global.css'
 import Providers from '@/components/providers/providers'
 
 export const metadata = {
+  title: {
+    default: 'Mat - Control y Orden para tu Gimnasio',
+    template: '%s | Mat',
+  },
+  description: 'Planificá clases, seguí el progreso de tus alumnos y llevá tu gimnasio al siguiente nivel.',
   manifest: '/manifest.json',
   // iOS: home screen icon (Safari uses this when “Add to Home Screen”)
   icons: {

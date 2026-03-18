@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Mat",
+    "name": "Mat Gestion",
     "slug": "mat-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,9 +17,7 @@
         "NSUserNotificationsUsageDescription": "Mat te enviara recordatorios y avisos importantes sobre tus clases reservadas."
       },
       "icon": "./assets/app.icon",
-      "associatedDomains": [
-        "applinks:mat-app-web.vercel.app"
-      ]
+      "associatedDomains": ["applinks:matgestion.app"]
     },
     "android": {
       "adaptiveIcon": {
@@ -36,14 +34,11 @@
           "data": [
             {
               "scheme": "https",
-              "host": "mat-app-web.vercel.app",
+              "host": "matgestion.app",
               "pathPrefix": "/join"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
         }
       ]
     },
