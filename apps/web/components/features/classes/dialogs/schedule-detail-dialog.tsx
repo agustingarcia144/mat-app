@@ -410,6 +410,14 @@ export default function ScheduleDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="sr-only">
+          <DialogTitle>
+            {schedule?.class?.name ?? 'Detalle del turno'}
+          </DialogTitle>
+          <DialogDescription>
+            Información y reservas del turno seleccionado.
+          </DialogDescription>
+        </DialogHeader>
         {!schedule || !reservations ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
