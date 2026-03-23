@@ -58,7 +58,7 @@ export function JoinRequestsCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Usuarios que escanearon el código QR del gimnasio y esperan tu aprobación.
+          Usuarios que escanearon el QR o ingresaron el código manual y esperan tu aprobación.
         </p>
         <ul className="space-y-2">
           {pending.map((req: PendingJoinRequest) => {

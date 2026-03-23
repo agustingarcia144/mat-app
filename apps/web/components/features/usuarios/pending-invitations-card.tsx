@@ -40,7 +40,7 @@ export function PendingInvitationsCard({ refreshKey }: Props) {
   const [isRevoking, setIsRevoking] = useState(false)
   const invitations = useMemo(
     () => (invitationList ?? []) as StaffInvitation[],
-    [invitationList, refreshKey]
+    [invitationList]
   )
 
   const handleRevoke = async () => {

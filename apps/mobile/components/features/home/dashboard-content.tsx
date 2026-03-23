@@ -188,6 +188,18 @@ export default function DashboardContent() {
     [reservationsForWeek]
   )
 
+  const daysWithAttendedClasses = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (reservationsForWeek ?? [])
+            .filter((r) => r.schedule != null && r.status === 'attended')
+            .map((r) => format(new Date(r.schedule!.startTime), 'yyyy-MM-dd'))
+        )
+      ),
+    [reservationsForWeek]
+  )
+
   const reservedClassesItems = useMemo(
     () =>
       reservationsForDay?.filter(
@@ -348,6 +360,7 @@ export default function DashboardContent() {
                 | undefined) ?? []
             }
             daysWithClasses={daysWithClasses}
+            daysWithAttendedClasses={daysWithAttendedClasses}
           />
         </View>
 

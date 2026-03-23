@@ -69,12 +69,6 @@ export default function NextClassCard({ onOpenDetail }: Props) {
     currentPage * pageSize + pageSize
   )
 
-  useEffect(() => {
-    if (pageIndex > totalPages - 1) {
-      setPageIndex(Math.max(0, totalPages - 1))
-    }
-  }, [pageIndex, totalPages])
-
   const next = () => {
     if (currentPage < totalPages - 1) {
       setPageIndex(currentPage + 1)
@@ -152,7 +146,7 @@ export default function NextClassCard({ onOpenDetail }: Props) {
       </div>
 
       <div className="mt-4 space-y-4">
-        {visibleClasses.map((schedule) => {
+        {visibleClasses.map((schedule: (typeof enriched)[number]) => {
           const start = new Date(schedule.startTime)
           const end = new Date(schedule.endTime)
 

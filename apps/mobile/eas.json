@@ -16,6 +16,10 @@
       "distribution": "internal",
       "environment": "preview"
     },
+    "testflight": {
+      "autoIncrement": true,
+      "environment": "preview"
+    },
     "production": {
       "autoIncrement": true,
       "environment": "production"
@@ -30,6 +34,7 @@
     }
   },
   "submit": {
+    "testflight": {},
     "production": {}
   }
 }

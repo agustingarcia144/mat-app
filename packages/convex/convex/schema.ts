@@ -141,6 +141,23 @@ export default defineSchema({
     .index('by_codeHash', ['codeHash'])
     .index('by_status', ['status']),
 
+  // Persistent member invite code per organization (manual fallback for join flow).
+  organizationMemberInviteCodes: defineTable({
+    organizationId: v.id('organizations'),
+    code: v.string(),
+    codeHash: v.string(),
+    joinToken: v.string(),
+    status: v.union(v.literal('active'), v.literal('revoked')),
+    createdBy: v.string(),
+    revokedAt: v.optional(v.number()),
+    revokedBy: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_codeHash', ['codeHash'])
+    .index('by_status', ['status']),
+
   // Clerk webhook processing ledger for idempotency, replay defense, and auditing.
   webhookEvents: defineTable({
     svixId: v.string(),

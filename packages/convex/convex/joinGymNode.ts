@@ -69,3 +69,33 @@ export const verifyJoinToken = internalAction({
   },
 })
 
+/**
+ * Create a signed join token for an organization.
+ * Used to produce long-lived QR/deep-link URLs managed from the dashboard.
+ */
+export const createJoinToken = internalAction({
+  args: {
+    organizationId: v.string(),
+    expiresInSeconds: v.optional(v.number()),
+  },
+  handler: async (_ctx, args): Promise<{ token: string; exp: number }> => {
+    const { createHmac } = await import('node:crypto')
+    const secret = process.env.JOIN_LINK_SECRET
+    if (!secret) {
+      throw new Error('JOIN_LINK_SECRET is not configured')
+    }
+
+    const ttl = Math.max(60, args.expiresInSeconds ?? 10 * 365 * 24 * 60 * 60)
+    const exp = Math.floor(Date.now() / 1000) + ttl
+    const payload = JSON.stringify({ o: args.organizationId, exp })
+    const payloadB64 = base64UrlEncode(Buffer.from(payload, 'utf-8'))
+    const sig = createHmac('sha256', secret).update(payloadB64).digest()
+    const sigB64 = base64UrlEncode(sig)
+
+    return {
+      token: `${payloadB64}.${sigB64}`,
+      exp,
+    }
+  },
+})
+

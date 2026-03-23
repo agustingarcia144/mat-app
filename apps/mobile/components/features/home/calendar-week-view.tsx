@@ -51,6 +51,8 @@ type CalendarWeekViewProps = {
   }[]
   /** YMD strings (yyyy-MM-dd) for days that have at least one reserved class */
   daysWithClasses?: string[]
+  /** YMD strings (yyyy-MM-dd) for days that have at least one attended class */
+  daysWithAttendedClasses?: string[]
 }
 
 export function CalendarWeekView({
@@ -60,6 +62,7 @@ export function CalendarWeekView({
   weekSessions,
   workoutDays,
   daysWithClasses,
+  daysWithAttendedClasses,
 }: CalendarWeekViewProps) {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
@@ -82,10 +85,14 @@ export function CalendarWeekView({
 
   const selectedYmd = format(selectedDate, 'yyyy-MM-dd')
 
-  const completedForDay = (ymd: string) =>
-    weekSessions?.some(
-      (s) => s.performedOn === ymd && s.status === 'completed'
-    ) ?? false
+  const completedForDay = (ymd: string) => {
+    const completedWorkout =
+      weekSessions?.some(
+        (s) => s.performedOn === ymd && s.status === 'completed'
+      ) ?? false
+    const completedClass = daysWithAttendedClasses?.includes(ymd) ?? false
+    return completedWorkout || completedClass
+  }
 
   const inProgressForDay = (ymd: string) =>
     weekSessions?.some(

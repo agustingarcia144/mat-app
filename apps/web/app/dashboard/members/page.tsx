@@ -11,6 +11,7 @@ import DataTableSkeleton from '@/components/ui/data-table-skeleton'
 import { Input } from '@/components/ui/input'
 import MemberDetailDialog from '@/components/features/members/table/member-detail-dialog'
 import { JoinRequestsCard } from '@/components/features/members/join-requests-card'
+import { MemberInviteQrDialog } from '@/components/features/members/member-invite-qr-dialog'
 import { Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import StatusBadge from '@/components/shared/badges/status-badge'
@@ -64,15 +65,18 @@ export default function MembersPage() {
   return (
     <DashboardPageContainer className='space-y-4 py-6 md:py-10'>
       <JoinRequestsCard />
-      <div className='relative w-full md:max-w-xs'>
-        <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+      <div className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+        <div className='relative w-full md:max-w-xs'>
+          <Search className='pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
 
-        <Input
-          placeholder='Buscar por nombre o email...'
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className='h-10 pl-10'
-        />
+          <Input
+            placeholder='Buscar por nombre o email...'
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className='h-10 pl-10'
+          />
+        </div>
+        <MemberInviteQrDialog />
       </div>
 
       {isMobile ? (

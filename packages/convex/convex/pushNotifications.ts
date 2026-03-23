@@ -2,9 +2,11 @@ import { v } from 'convex/values'
 import {
   internalMutation,
   internalQuery,
+  type MutationCtx,
   mutation,
 } from './_generated/server'
 import { internal } from './_generated/api'
+import type { Id } from './_generated/dataModel'
 import { requireAuth } from './permissions'
 
 function buildPreClassReminderCopy(className: string) {
@@ -19,6 +21,26 @@ function buildAttendanceReminderCopy(className: string) {
     title: 'Marcar asistencia',
     body: `Ya paso 1 hora desde ${className}. Marca tu asistencia para mantener tu historial al dia.`,
   }
+}
+
+async function getClassNameCached(
+  ctx: MutationCtx,
+  classId: Id<'classes'>,
+  classNameById: Map<string, string>
+) {
+  const key = classId as string
+  const cached = classNameById.get(key)
+  if (cached) {
+    return cached
+  }
+
+  const classTemplate = await ctx.db.get(classId)
+  if (!classTemplate) {
+    return null
+  }
+
+  classNameById.set(key, classTemplate.name)
+  return classTemplate.name
 }
 
 export const registerDeviceToken = mutation({
@@ -250,18 +272,26 @@ export const sendPreClassReminders = internalMutation({
       .filter((q) =>
         q.and(
           q.lte(q.field('startTime'), windowEnd),
-          q.eq(q.field('status'), 'scheduled')
+          q.eq(q.field('status'), 'scheduled'),
+          q.gt(q.field('currentReservations'), 0)
         )
       )
       .take(scheduleLimit)
 
     let enqueued = 0
+    const classNameById = new Map<string, string>()
 
     for (const schedule of schedules) {
-      const classTemplate = await ctx.db.get(schedule.classId)
-      if (!classTemplate) {
+      const className = await getClassNameCached(
+        ctx,
+        schedule.classId,
+        classNameById
+      )
+      if (!className) {
         continue
       }
+
+      const copy = buildPreClassReminderCopy(className)
 
       const reservations = await ctx.db
         .query('classReservations')
@@ -272,7 +302,6 @@ export const sendPreClassReminders = internalMutation({
 
       for (const reservation of reservations) {
         const eventKey = `class_start_reminder:${schedule._id}:${reservation.userId}`
-        const copy = buildPreClassReminderCopy(classTemplate.name)
 
         await ctx.scheduler.runAfter(0, internal.pushNotificationsNode.sendExpoPushForEvent, {
           eventKey,
@@ -323,18 +352,26 @@ export const sendAttendanceReminders = internalMutation({
       .filter((q) =>
         q.and(
           q.lte(q.field('endTime'), windowEnd),
-          q.neq(q.field('status'), 'cancelled')
+          q.neq(q.field('status'), 'cancelled'),
+          q.gt(q.field('currentReservations'), 0)
         )
       )
       .take(scheduleLimit)
 
     let enqueued = 0
+    const classNameById = new Map<string, string>()
 
     for (const schedule of schedules) {
-      const classTemplate = await ctx.db.get(schedule.classId)
-      if (!classTemplate) {
+      const className = await getClassNameCached(
+        ctx,
+        schedule.classId,
+        classNameById
+      )
+      if (!className) {
         continue
       }
+
+      const copy = buildAttendanceReminderCopy(className)
 
       const reservations = await ctx.db
         .query('classReservations')
@@ -345,7 +382,6 @@ export const sendAttendanceReminders = internalMutation({
 
       for (const reservation of reservations) {
         const eventKey = `attendance_reminder:${schedule._id}:${reservation.userId}`
-        const copy = buildAttendanceReminderCopy(classTemplate.name)
 
         await ctx.scheduler.runAfter(0, internal.pushNotificationsNode.sendExpoPushForEvent, {
           eventKey,

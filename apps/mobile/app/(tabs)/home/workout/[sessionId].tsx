@@ -615,6 +615,26 @@ function WorkoutContent() {
   }
 
   const isCompleted = !isNewSession && session?.status === 'completed'
+  const hasLoggedDataForExercise = (dayExId: string) => {
+    const hasPersistedLog = !!logsByDayExercise[dayExId]
+    const hasQuickCompletedSets =
+      Object.keys(quickCompletedSetsByDayEx[dayExId] ?? {}).length > 0
+    const hasLocalLoggedValues =
+      localValues[dayExId]?.some(
+        (set) =>
+          (set?.reps?.trim()?.length ?? 0) > 0 ||
+          (set?.weight?.trim()?.length ?? 0) > 0
+      ) ?? false
+    const hasLocalLoggedTime =
+      localTimeValues[dayExId]?.some((seconds) => (seconds ?? 0) > 0) ?? false
+
+    return (
+      hasPersistedLog ||
+      hasQuickCompletedSets ||
+      hasLocalLoggedValues ||
+      hasLocalLoggedTime
+    )
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -641,6 +661,7 @@ function WorkoutContent() {
               values={getValuesFor(dayEx)}
               timeValues={getTimeValuesFor(dayEx)}
               supportsTime={(dayEx.timeSeconds ?? 0) > 0}
+              hasLoggedData={hasLoggedDataForExercise(dayEx._id)}
               saving={savingId === dayEx._id}
               isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
               onToggleExpand={() => toggleSetsExpanded(dayEx._id)}
@@ -701,6 +722,7 @@ function WorkoutContent() {
                           values={getValuesFor(dayEx)}
                           timeValues={getTimeValuesFor(dayEx)}
                           supportsTime={(dayEx.timeSeconds ?? 0) > 0}
+                          hasLoggedData={hasLoggedDataForExercise(dayEx._id)}
                           saving={savingId === dayEx._id}
                           isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
                           onToggleExpand={() => toggleSetsExpanded(dayEx._id)}

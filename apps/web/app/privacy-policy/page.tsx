@@ -14,14 +14,16 @@ export const metadata = {
 export default function PrivacyPolicyPage() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-10">
-      <Card>
+      <Card className="bg-zinc-50 dark:bg-zinc-950 border-zinc-200/70 dark:border-zinc-800">
         <CardHeader>
-          <CardTitle>Privacy Policy</CardTitle>
-          <CardDescription>Last updated: March 17, 2026</CardDescription>
+          <CardTitle className="text-zinc-900 dark:text-zinc-100">Privacy Policy</CardTitle>
+          <CardDescription className="text-zinc-600 dark:text-zinc-400">
+            Last updated: March 17, 2026
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6 text-sm leading-6 text-zinc-700">
+        <CardContent className="space-y-6 text-base leading-7 text-zinc-800 dark:text-zinc-100">
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-zinc-900">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               1. Overview
             </h2>
             <p>
@@ -34,10 +36,10 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-zinc-900">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               2. Information we collect
             </h2>
-            <p className="text-zinc-700">
+            <p>
               Depending on how you use the App, we may collect the following
               categories of information:
             </p>
@@ -73,7 +75,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-zinc-900">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               3. How we use your information
             </h2>
             <p>
@@ -94,7 +96,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-zinc-900">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               4. Sharing of information
             </h2>
             <p>
@@ -128,7 +130,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-zinc-900">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               5. Data retention
             </h2>
             <p>
@@ -139,7 +141,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-zinc-900">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               6. Security
             </h2>
             <p>
@@ -150,7 +152,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-zinc-900">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               7. Your rights
             </h2>
             <p>
@@ -162,7 +164,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-semibold text-zinc-900">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
               8. Contact us
             </h2>
             <p>

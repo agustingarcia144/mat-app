@@ -9,6 +9,7 @@ import {
   requireOrganizationMembership,
 } from './permissions'
 import { assignFixedSlotsToSchedule } from './fixedClassSlots'
+import { createBatchWithSchedules, type ClassScheduleInsert } from './scheduleBatchUtils'
 
 async function getReservationsForSchedule(
   ctx: MutationCtx,
@@ -394,5 +395,118 @@ export const getAllByOrganization = query({
         q.eq('organizationId', membership.organizationId)
       )
       .collect()
+  },
+})
+
+/**
+ * Copy the "model week" pattern (derived from schedules in the selected week + fixed slots)
+ * into one or more target weeks, preserving start/end times for each block.
+ *
+ * Fixed-slot-only blocks will be generated using the duration computed client-side
+ * (fallback is the UI default).
+ */
+export const copyModelWeekToDateRange = mutation({
+  args: {
+    sourceWeekStartDate: v.number(), // ms at the start of the source week (client computed)
+    templates: v.array(
+      v.object({
+        classId: v.id('classes'),
+        startTime: v.number(),
+        endTime: v.number(),
+        capacity: v.number(),
+        notes: v.optional(v.string()),
+      })
+    ),
+    targetWeekStarts: v.array(v.number()), // ms at the start of each target week
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx)
+
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error('Not authenticated')
+
+    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAdminOrTrainer(ctx, membership.organizationId)
+
+    if (args.templates.length === 0) {
+      throw new Error('No hay turnos para duplicar.')
+    }
+    if (args.targetWeekStarts.length === 0) {
+      throw new Error('Seleccioná al menos una semana de destino.')
+    }
+
+    const now = Date.now()
+
+    // Group templates by classId (scheduleBatches are per-class).
+    type CopyModelTemplate = (typeof args.templates)[number]
+    const templatesByClass = new Map<Id<'classes'>, CopyModelTemplate[]>()
+    for (const t of args.templates) {
+      const list = templatesByClass.get(t.classId) ?? []
+      list.push(t as CopyModelTemplate)
+      templatesByClass.set(t.classId, list)
+    }
+
+    const batchResults: Array<{ batchId: Id<'scheduleBatches'>; count: number }> = []
+    const classIds: Id<'classes'>[] = []
+    templatesByClass.forEach((_, classId) => {
+      classIds.push(classId)
+    })
+
+    for (const classId of classIds) {
+      const classTemplates = templatesByClass.get(classId) ?? []
+      const schedules: ClassScheduleInsert[] = []
+
+      const durationMinutes = Math.max(
+        1,
+        Math.round(
+          (classTemplates[0]!.endTime - classTemplates[0]!.startTime) / 60000
+        )
+      )
+
+      for (const targetWeekStart of args.targetWeekStarts) {
+        const delta = targetWeekStart - args.sourceWeekStartDate
+        for (const tpl of classTemplates) {
+          const newStart = tpl.startTime + delta
+          const newEnd = tpl.endTime + delta
+          if (newEnd <= newStart) continue
+
+          schedules.push({
+            classId,
+            organizationId: membership.organizationId,
+            startTime: newStart,
+            endTime: newEnd,
+            capacity: tpl.capacity,
+            currentReservations: 0,
+            status: 'scheduled',
+            notes: tpl.notes,
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
+      }
+
+      if (schedules.length === 0) continue
+
+      const first = [...schedules].sort((a, b) => a.startTime - b.startTime)[0]!
+
+      const result = await createBatchWithSchedules(ctx, {
+        organizationId: membership.organizationId,
+        classId,
+        sourceType: 'single',
+        sourceConfig: {
+          mode: 'single',
+          startTime: first.startTime,
+          endTime: first.endTime,
+          durationMinutes,
+        },
+        createdBy: identity.subject,
+        schedules,
+      })
+
+      batchResults.push({ batchId: result.batchId, count: result.count })
+    }
+
+    const createdCount = batchResults.reduce((acc, r) => acc + r.count, 0)
+    return { createdSchedules: createdCount, batchesCreated: batchResults.length }
   },
 })

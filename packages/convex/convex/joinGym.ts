@@ -119,9 +119,13 @@ type JoinGymResult = {
   message: string
 }
 
-/** Internal: db logic for join by token. */
-export const joinGymByTokenInternal = internalMutation({
-  args: { organizationId: v.id('organizations'), userId: v.string() },
+/** Internal: db logic for creating/reusing a pending join request. */
+export const submitJoinRequestInternal = internalMutation({
+  args: {
+    organizationId: v.id('organizations'),
+    userId: v.string(),
+    source: v.optional(v.string()),
+  },
   handler: async (ctx, args): Promise<JoinGymResult> => {
     const org = await ctx.db.get(args.organizationId)
 
@@ -171,7 +175,7 @@ export const joinGymByTokenInternal = internalMutation({
       userId: args.userId,
       status: 'pending',
       requestedAt: now,
-      source: 'qr',
+      source: args.source ?? 'unknown',
     })
 
     return {
@@ -181,6 +185,18 @@ export const joinGymByTokenInternal = internalMutation({
       pending: true,
       message: 'request_submitted',
     }
+  },
+})
+
+/** Internal: db logic for join by token. */
+export const joinGymByTokenInternal = internalMutation({
+  args: { organizationId: v.id('organizations'), userId: v.string() },
+  handler: async (ctx, args): Promise<JoinGymResult> => {
+    return await ctx.runMutation(internal.joinGym.submitJoinRequestInternal, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      source: 'qr',
+    })
   },
 })
 

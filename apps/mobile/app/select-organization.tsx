@@ -5,8 +5,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  TextInput,
+  ScrollView,
 } from 'react-native'
-import { useMutation, useQuery } from 'convex/react'
+import { useClerk } from '@clerk/clerk-expo'
+import { useAction, useMutation, useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import { useRouter } from 'expo-router'
 import { useColorScheme } from '@/hooks/use-color-scheme'
@@ -29,12 +34,19 @@ export default function SelectOrganizationScreen() {
   const setActiveOrganization = useMutation(
     api.organizationMemberships.setActiveOrganization
   )
+  const redeemMemberInviteCode = useAction(
+    api.memberInviteCodes.redeemMemberInviteCode
+  )
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
   const { resetApp } = useAppReset()
+  const { signOut } = useClerk()
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [inviteCode, setInviteCode] = useState('')
+  const [inviteFeedback, setInviteFeedback] = useState<string | null>(null)
+  const [inviteLoading, setInviteLoading] = useState(false)
   const [lastSelectedOrgId, setLastSelectedOrgId] = useState<string | null>(null)
   const hasAttemptedAutoSelect = useRef(false)
   const isLoaded = organizations !== undefined && currentMembership !== undefined
@@ -104,19 +116,138 @@ export default function SelectOrganizationScreen() {
   }
 
   if (validOrganizations.length === 0) {
+    const redeemInviteCode = async () => {
+      const code = inviteCode.trim()
+      if (!code) {
+        setError('Ingresa un código de invitación para continuar.')
+        return
+      }
+
+      setInviteLoading(true)
+      setError(null)
+      setInviteFeedback(null)
+      try {
+        const result = await redeemMemberInviteCode({ code })
+        if (result.message === 'already_member') {
+          setInviteFeedback(
+            `Ya tienes acceso a ${result.organizationName}. Abre el selector cuando se actualice tu cuenta.`
+          )
+        } else if (result.message === 'request_pending') {
+          setInviteFeedback(
+            `Ya existe una solicitud pendiente para ${result.organizationName}.`
+          )
+        } else {
+          setInviteFeedback(
+            `Solicitud enviada a ${result.organizationName}. Un administrador debe aprobarla.`
+          )
+        }
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'No pudimos validar el código. Intenta nuevamente.'
+        )
+      } finally {
+        setInviteLoading(false)
+      }
+    }
+
     return (
-      <View
+      <KeyboardAvoidingView
         style={[
           styles.container,
-          styles.centered,
           { backgroundColor: isDark ? '#000' : '#fff' },
         ]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <EmptyState
-          title="No se encontraron organizaciones"
-          description="Necesitas ser invitado a una organización"
-        />
-      </View>
+        <ScrollView
+          contentContainerStyle={styles.noOrgScrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.noOrgWrapper}>
+            <EmptyState
+              title="No se encontraron organizaciones"
+              description="Ingresa un código de invitación para solicitar acceso."
+            />
+            <View style={styles.codeCard}>
+              <Text
+                style={[
+                  styles.codeTitle,
+                  { color: isDark ? '#fff' : '#000' },
+                ]}
+              >
+                Código de invitación
+              </Text>
+              <TextInput
+                style={[
+                  styles.codeInput,
+                  {
+                    backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                    color: isDark ? '#fff' : '#000',
+                    borderColor: isDark ? '#27272a' : '#e4e4e7',
+                  },
+                ]}
+                placeholder="MEM-XXXX-XXXX-XX"
+                placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                value={inviteCode}
+                editable={!inviteLoading}
+                onChangeText={setInviteCode}
+              />
+              {inviteFeedback ? (
+                <Text style={styles.successText}>{inviteFeedback}</Text>
+              ) : null}
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              <ThemedPressable
+                type="primary"
+                lightColor="#18181b"
+                darkColor="#f4f4f5"
+                style={styles.primaryButton}
+                onPress={() => {
+                  void redeemInviteCode()
+                }}
+                disabled={inviteLoading}
+              >
+                {inviteLoading ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={isDark ? '#000' : '#fff'}
+                  />
+                ) : (
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      { color: isDark ? '#000' : '#fff' },
+                    ]}
+                  >
+                    Enviar solicitud
+                  </Text>
+                )}
+              </ThemedPressable>
+              <ThemedPressable
+                type="secondary"
+                lightColor="#f4f4f5"
+                darkColor="#18181b"
+                style={styles.secondaryButton}
+                onPress={async () => {
+                  await signOut()
+                }}
+                disabled={inviteLoading}
+              >
+                <Text
+                  style={[
+                    styles.buttonText,
+                    { color: isDark ? '#fff' : '#000' },
+                  ]}
+                >
+                  Cerrar sesión
+                </Text>
+              </ThemedPressable>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     )
   }
 
@@ -215,6 +346,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 80,
   },
+  noOrgScrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 40,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+  },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
@@ -223,6 +362,51 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     marginBottom: 32,
+  },
+  noOrgWrapper: {
+    width: '100%',
+    gap: 20,
+    maxWidth: 420,
+  },
+  codeCard: {
+    borderWidth: 1,
+    borderColor: '#e4e4e7',
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  codeTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  codeInput: {
+    height: 48,
+    borderRadius: 9999,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
+  primaryButton: {
+    minHeight: 48,
+    borderRadius: 9999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButton: {
+    minHeight: 48,
+    borderRadius: 9999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  buttonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  successText: {
+    color: '#16a34a',
+    fontSize: 13,
   },
   errorContainer: {
     borderRadius: 12,
@@ -234,7 +418,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#ef4444',
-    fontSize: 14,
+    fontSize: 13,
   },
   retryButton: {
     alignSelf: 'flex-start',

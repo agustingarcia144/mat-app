@@ -326,100 +326,80 @@ export default function LogSetScreen() {
       <View
         style={[
           styles.sheetInner,
+          { backgroundColor },
           Platform.OS === 'android' && {
             marginTop: screenHeight * 0.25,
             height: screenHeight * 0.75,
-            backgroundColor,
           },
         ]}
       >
-        <View style={[styles.titleBlock, { paddingTop: headerClearance }]}>
-          {Platform.OS === 'android' && (
-            <Pressable
-              style={styles.closeButton}
-              onPress={() => router.back()}
-              hitSlop={12}
-              accessibilityLabel="Cerrar"
-            >
-              <IconSymbol
-                name="xmark"
-                size={22}
-                color={isDark ? '#fff' : '#000'}
-              />
-            </Pressable>
-          )}
-          <Text style={[styles.title, { color: textColor }]}>Reps y peso</Text>
-          <Text style={[styles.subtitle, { color: mutedColor }]}>
-            Registrá repeticiones y peso en kg
-          </Text>
-          {notesParam ? (
-            <Text style={[styles.commentsText, { color: mutedColor }]}>
-              Comentarios: {notesParam}
+        <View style={styles.mainContent}>
+          <View style={[styles.titleBlock, { paddingTop: headerClearance }]}>
+            {Platform.OS === 'android' && (
+              <Pressable
+                style={styles.closeButton}
+                onPress={() => router.back()}
+                hitSlop={12}
+                accessibilityLabel="Cerrar"
+              >
+                <IconSymbol
+                  name="xmark"
+                  size={22}
+                  color={isDark ? '#fff' : '#000'}
+                />
+              </Pressable>
+            )}
+            <Text style={[styles.title, { color: textColor }]}>Reps y peso</Text>
+            <Text style={[styles.subtitle, { color: mutedColor }]}>
+              Registrá repeticiones y peso en kg
             </Text>
-          ) : null}
-        </View>
+            {notesParam ? (
+              <Text style={[styles.commentsText, { color: mutedColor }]}>
+                Comentarios: {notesParam}
+              </Text>
+            ) : null}
+          </View>
 
-        <View
-          style={[
-            styles.content,
-            {
-              paddingHorizontal: contentPadding,
-            },
-          ]}
-        >
-          {/* Tabs for Load vs Time */}
-          {hasTime && (
-            <View
-              style={[
-                styles.tabs,
-                {
-                  backgroundColor: isDark ? '#171717' : '#f4f4f5',
-                  borderColor: isDark
-                    ? 'rgba(255,255,255,0.1)'
-                    : 'rgba(0,0,0,0.08)',
-                },
-              ]}
-            >
+          <View
+            style={[
+              styles.content,
+              {
+                paddingHorizontal: contentPadding,
+              },
+            ]}
+          >
+            {/* Tabs for Load vs Time */}
+            {hasTime && (
               <View
                 style={[
-                  styles.tabPill,
+                  styles.tabs,
                   {
-                    backgroundColor: isDark ? '#27272a' : '#ffffff',
-                    left: activeTab === 'load' ? TAB_PADDING : undefined,
-                    right: activeTab === 'time' ? TAB_PADDING : undefined,
+                    backgroundColor: isDark ? '#171717' : '#f4f4f5',
+                    borderColor: isDark
+                      ? 'rgba(255,255,255,0.1)'
+                      : 'rgba(0,0,0,0.08)',
                   },
                 ]}
-              />
-              <View style={styles.tabButtons}>
-                <View style={styles.tabButton}>
-                  <Text
-                    onPress={() => setActiveTab('load')}
-                    style={[
-                      styles.tabText,
-                      {
-                        color:
-                          activeTab === 'load'
-                            ? isDark
-                              ? '#fafafa'
-                              : '#18181b'
-                            : isDark
-                              ? '#a1a1aa'
-                              : '#71717a',
-                      },
-                    ]}
-                  >
-                    Reps y peso
-                  </Text>
-                </View>
-                {hasTime && (
+              >
+                <View
+                  style={[
+                    styles.tabPill,
+                    {
+                      backgroundColor: isDark ? '#27272a' : '#ffffff',
+                      left: activeTab === 'load' ? TAB_PADDING : undefined,
+                      right: activeTab === 'time' ? TAB_PADDING : undefined,
+                    },
+                  ]}
+                />
+                <View style={styles.tabButtons}>
                   <View style={styles.tabButton}>
                     <Text
-                      onPress={() => setActiveTab('time')}
+                      onPress={() => setActiveTab('load')}
                       style={[
                         styles.tabText,
                         {
                           color:
-                            activeTab === 'time'
+                            activeTab === 'load'
                               ? isDark
                                 ? '#fafafa'
                                 : '#18181b'
@@ -429,191 +409,213 @@ export default function LogSetScreen() {
                         },
                       ]}
                     >
-                      Tiempo
+                      Reps y peso
                     </Text>
                   </View>
+                  {hasTime && (
+                    <View style={styles.tabButton}>
+                      <Text
+                        onPress={() => setActiveTab('time')}
+                        style={[
+                          styles.tabText,
+                          {
+                            color:
+                              activeTab === 'time'
+                                ? isDark
+                                  ? '#fafafa'
+                                  : '#18181b'
+                                : isDark
+                                  ? '#a1a1aa'
+                                  : '#71717a',
+                          },
+                        ]}
+                      >
+                        Tiempo
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {activeTab === 'load' && (
+              <View style={[styles.pickerRow, { gap: pickerGap }]}>
+                {Platform.OS === 'android' ? (
+                  <>
+                    <AndroidPickerRow
+                      label="Repeticiones"
+                      options={REPS_OPTIONS}
+                      selectedValue={reps}
+                      onValueChange={(v) => setReps(Number(v))}
+                      valueToLabel={(n) => String(n)}
+                      isDark={isDark}
+                    />
+                    <AndroidPickerRow
+                      label="Peso (kg)"
+                      options={WEIGHT_OPTIONS}
+                      selectedValue={weightKg}
+                      onValueChange={(v) => setWeightKg(Number(v))}
+                      valueToLabel={(n) => (n % 1 === 0 ? `${n}.0` : String(n))}
+                      isDark={isDark}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <View
+                      style={[
+                        styles.pickerBlock,
+                        { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+                      ]}
+                    >
+                      <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                        Repeticiones
+                      </Text>
+                      <View style={styles.pickerWrap}>
+                        <Picker
+                          selectedValue={reps}
+                          onValueChange={(v) => setReps(Number(v))}
+                          style={[styles.picker, { color: pickerColor }]}
+                          itemStyle={{ color: pickerColor }}
+                          prompt="Repeticiones"
+                        >
+                          {REPS_OPTIONS.map((n) => (
+                            <Picker.Item key={n} label={String(n)} value={n} />
+                          ))}
+                        </Picker>
+                      </View>
+                    </View>
+                    <View
+                      style={[
+                        styles.pickerBlock,
+                        { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
+                      ]}
+                    >
+                      <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                        Peso (kg)
+                      </Text>
+                      <View style={styles.pickerWrap}>
+                        <Picker
+                          selectedValue={weightKg}
+                          onValueChange={(v) => setWeightKg(Number(v))}
+                          style={[styles.picker, { color: pickerColor }]}
+                          itemStyle={{ color: pickerColor }}
+                          prompt="Peso en kilos"
+                        >
+                          {WEIGHT_OPTIONS.map((n) => (
+                            <Picker.Item
+                              key={n}
+                              label={n % 1 === 0 ? `${n}.0` : String(n)}
+                              value={n}
+                            />
+                          ))}
+                        </Picker>
+                      </View>
+                    </View>
+                  </>
                 )}
               </View>
-            </View>
-          )}
+            )}
 
-          {activeTab === 'load' && (
-            <View style={[styles.pickerRow, { gap: pickerGap }]}>
-              {Platform.OS === 'android' ? (
-                <>
-                  <AndroidPickerRow
-                    label="Repeticiones"
-                    options={REPS_OPTIONS}
-                    selectedValue={reps}
-                    onValueChange={(v) => setReps(Number(v))}
-                    valueToLabel={(n) => String(n)}
-                    isDark={isDark}
-                  />
-                  <AndroidPickerRow
-                    label="Peso (kg)"
-                    options={WEIGHT_OPTIONS}
-                    selectedValue={weightKg}
-                    onValueChange={(v) => setWeightKg(Number(v))}
-                    valueToLabel={(n) => (n % 1 === 0 ? `${n}.0` : String(n))}
-                    isDark={isDark}
-                  />
-                </>
-              ) : (
-                <>
-                  <View
-                    style={[
-                      styles.pickerBlock,
-                      { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-                    ]}
-                  >
-                    <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                      Repeticiones
-                    </Text>
-                    <View style={styles.pickerWrap}>
-                      <Picker
-                        selectedValue={reps}
-                        onValueChange={(v) => setReps(Number(v))}
-                        style={[styles.picker, { color: pickerColor }]}
-                        itemStyle={{ color: pickerColor }}
-                        prompt="Repeticiones"
-                      >
-                        {REPS_OPTIONS.map((n) => (
-                          <Picker.Item key={n} label={String(n)} value={n} />
-                        ))}
-                      </Picker>
+            {hasTime && activeTab === 'time' && (
+              <View style={[styles.pickerRow, { gap: pickerGap }]}>
+                {Platform.OS === 'android' ? (
+                  <>
+                    <AndroidPickerRow
+                      label="Tiempo"
+                      options={Array.from({ length: 60 }, (_, i) => i + 1)}
+                      selectedValue={timeAmount}
+                      onValueChange={(v) => setTimeAmount(Number(v))}
+                      valueToLabel={(n) => String(n)}
+                      isDark={isDark}
+                    />
+                    <AndroidPickerRow
+                      label="Unidad"
+                      options={['seconds', 'minutes'] as const}
+                      selectedValue={timeUnit}
+                      onValueChange={(v) =>
+                        setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
+                      }
+                      valueToLabel={(u) =>
+                        u === 'seconds' ? 'Segundos' : 'Minutos'
+                      }
+                      isDark={isDark}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <View
+                      style={[
+                        styles.pickerBlock,
+                        {
+                          width: pickerColumnWidth,
+                          maxWidth: pickerColumnWidth,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                        Tiempo
+                      </Text>
+                      <View style={styles.pickerWrap}>
+                        <Picker
+                          selectedValue={timeAmount}
+                          onValueChange={(v) => setTimeAmount(Number(v))}
+                          style={[styles.picker, { color: pickerColor }]}
+                          itemStyle={{ color: pickerColor }}
+                          prompt="Tiempo"
+                        >
+                          {Array.from({ length: 60 }, (_, i) => i + 1).map(
+                            (n) => (
+                              <Picker.Item key={n} label={String(n)} value={n} />
+                            )
+                          )}
+                        </Picker>
+                      </View>
                     </View>
-                  </View>
-                  <View
-                    style={[
-                      styles.pickerBlock,
-                      { width: pickerColumnWidth, maxWidth: pickerColumnWidth },
-                    ]}
-                  >
-                    <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                      Peso (kg)
-                    </Text>
-                    <View style={styles.pickerWrap}>
-                      <Picker
-                        selectedValue={weightKg}
-                        onValueChange={(v) => setWeightKg(Number(v))}
-                        style={[styles.picker, { color: pickerColor }]}
-                        itemStyle={{ color: pickerColor }}
-                        prompt="Peso en kilos"
-                      >
-                        {WEIGHT_OPTIONS.map((n) => (
-                          <Picker.Item
-                            key={n}
-                            label={n % 1 === 0 ? `${n}.0` : String(n)}
-                            value={n}
-                          />
-                        ))}
-                      </Picker>
+                    <View
+                      style={[
+                        styles.pickerBlock,
+                        {
+                          width: pickerColumnWidth,
+                          maxWidth: pickerColumnWidth,
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.pickerLabel, { color: mutedColor }]}>
+                        Unidad
+                      </Text>
+                      <View style={styles.pickerWrap}>
+                        <Picker
+                          selectedValue={timeUnit}
+                          onValueChange={(v) =>
+                            setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
+                          }
+                          style={[styles.picker, { color: pickerColor }]}
+                          itemStyle={{ color: pickerColor }}
+                          prompt="Unidad de tiempo"
+                        >
+                          <Picker.Item label="Segundos" value="seconds" />
+                          <Picker.Item label="Minutos" value="minutes" />
+                        </Picker>
+                      </View>
                     </View>
-                  </View>
-                </>
-              )}
+                  </>
+                )}
+              </View>
+            )}
+            <View style={[styles.toggleRow, { marginTop: 16 }]}>
+              <Text style={[styles.toggleLabel, { color: textColor }]}>
+                Aplicar a todos los sets del ejercicio
+              </Text>
+              <Switch
+                value={applyToAllSets}
+                onValueChange={setApplyToAllSets}
+                trackColor={{
+                  false: isDark ? '#3f3f46' : '#e4e4e7',
+                  true: isDark ? '#3b82f6' : '#2563eb',
+                }}
+                thumbColor="#fff"
+              />
             </View>
-          )}
-
-          {hasTime && activeTab === 'time' && (
-            <View style={[styles.pickerRow, { gap: pickerGap }]}>
-              {Platform.OS === 'android' ? (
-                <>
-                  <AndroidPickerRow
-                    label="Tiempo"
-                    options={Array.from({ length: 60 }, (_, i) => i + 1)}
-                    selectedValue={timeAmount}
-                    onValueChange={(v) => setTimeAmount(Number(v))}
-                    valueToLabel={(n) => String(n)}
-                    isDark={isDark}
-                  />
-                  <AndroidPickerRow
-                    label="Unidad"
-                    options={['seconds', 'minutes'] as const}
-                    selectedValue={timeUnit}
-                    onValueChange={(v) =>
-                      setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
-                    }
-                    valueToLabel={(u) =>
-                      u === 'seconds' ? 'Segundos' : 'Minutos'
-                    }
-                    isDark={isDark}
-                  />
-                </>
-              ) : (
-                <>
-                  <View
-                    style={[
-                      styles.pickerBlock,
-                      {
-                        width: pickerColumnWidth,
-                        maxWidth: pickerColumnWidth,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                      Tiempo
-                    </Text>
-                    <View style={styles.pickerWrap}>
-                      <Picker
-                        selectedValue={timeAmount}
-                        onValueChange={(v) => setTimeAmount(Number(v))}
-                        style={[styles.picker, { color: pickerColor }]}
-                        itemStyle={{ color: pickerColor }}
-                        prompt="Tiempo"
-                      >
-                        {Array.from({ length: 60 }, (_, i) => i + 1).map(
-                          (n) => (
-                            <Picker.Item key={n} label={String(n)} value={n} />
-                          )
-                        )}
-                      </Picker>
-                    </View>
-                  </View>
-                  <View
-                    style={[
-                      styles.pickerBlock,
-                      {
-                        width: pickerColumnWidth,
-                        maxWidth: pickerColumnWidth,
-                      },
-                    ]}
-                  >
-                    <Text style={[styles.pickerLabel, { color: mutedColor }]}>
-                      Unidad
-                    </Text>
-                    <View style={styles.pickerWrap}>
-                      <Picker
-                        selectedValue={timeUnit}
-                        onValueChange={(v) =>
-                          setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
-                        }
-                        style={[styles.picker, { color: pickerColor }]}
-                        itemStyle={{ color: pickerColor }}
-                        prompt="Unidad de tiempo"
-                      >
-                        <Picker.Item label="Segundos" value="seconds" />
-                        <Picker.Item label="Minutos" value="minutes" />
-                      </Picker>
-                    </View>
-                  </View>
-                </>
-              )}
-            </View>
-          )}
-          <View style={[styles.toggleRow, { marginTop: 16 }]}>
-            <Text style={[styles.toggleLabel, { color: textColor }]}>
-              Aplicar a todos los sets del ejercicio
-            </Text>
-            <Switch
-              value={applyToAllSets}
-              onValueChange={setApplyToAllSets}
-              trackColor={{
-                false: isDark ? '#3f3f46' : '#e4e4e7',
-                true: isDark ? '#3b82f6' : '#2563eb',
-              }}
-              thumbColor="#fff"
-            />
           </View>
         </View>
 
@@ -658,6 +660,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   sheetInner: {
+    flex: 1,
+  },
+  mainContent: {
     flex: 1,
   },
   closeButton: {
@@ -738,7 +743,7 @@ const styles = StyleSheet.create({
   footer: {
     paddingTop: 8,
     alignSelf: 'stretch',
-    marginVertical: 20,
+    marginTop: 12,
     paddingHorizontal: 24,
   },
   saveButton: {

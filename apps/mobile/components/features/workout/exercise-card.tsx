@@ -48,6 +48,7 @@ export interface ExerciseCardProps {
   values: { reps: string; weight: string }[]
   timeValues?: number[]
   supportsTime?: boolean
+  hasLoggedData: boolean
   saving: boolean
   isExpanded: boolean
   onToggleExpand: () => void
@@ -68,6 +69,7 @@ export function ExerciseCard({
   values,
   timeValues,
   supportsTime = false,
+  hasLoggedData,
   saving,
   isExpanded,
   onToggleExpand,
@@ -97,6 +99,7 @@ export function ExerciseCard({
     supportsTime || (timeValues?.some((value) => value != null && value > 0) ?? false)
 
   const isExerciseCompleted =
+    hasLoggedData &&
     values.length >= dayEx.sets &&
     values.every(
       (set) => set.reps?.trim().length > 0 && set.weight?.trim().length > 0
@@ -203,10 +206,16 @@ export function ExerciseCard({
                 const setTimeSeconds = Math.max(0, timeValues?.[setIndex] ?? 0)
                 const formattedSetTime = formatTime(setTimeSeconds)
                 const setWasQuickCompleted = !!isSetQuickCompleted?.(setIndex)
+                const hasLoggedSetData =
+                  hasLoggedData &&
+                  (setWasQuickCompleted ||
+                    setValues.reps?.trim().length > 0 ||
+                    setValues.weight?.trim().length > 0)
                 const isSetCompleted =
-                  setWasQuickCompleted ||
-                  setValues.reps?.trim().length > 0 &&
-                    setValues.weight?.trim().length > 0
+                  hasLoggedSetData &&
+                  (setWasQuickCompleted ||
+                    (setValues.reps?.trim().length > 0 &&
+                      setValues.weight?.trim().length > 0))
                 return (
                   <View key={`set-${setIndex}`} style={styles.setRow}>
                     <View

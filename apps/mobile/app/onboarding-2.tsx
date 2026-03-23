@@ -10,7 +10,9 @@ import {
   ScrollView,
   Image,
   Modal,
+  Pressable,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Picker } from '@react-native-picker/picker'
 import { useRouter } from 'expo-router'
 import { useMutation, Authenticated } from 'convex/react'
@@ -25,6 +27,7 @@ function Onboarding2Content() {
   const router = useRouter()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
+  const insets = useSafeAreaInsets()
 
   const completeOnboarding2 = useMutation(api.users.completeOnboarding2)
 
@@ -189,11 +192,18 @@ function Onboarding2Content() {
               animationType="slide"
               onRequestClose={() => setActivePicker(null)}
             >
-              <View style={styles.sheetBackdrop}>
+              <Pressable
+                style={styles.sheetBackdrop}
+                onPress={() => setActivePicker(null)}
+              >
                 <View
                   style={[
                     styles.sheet,
-                    { backgroundColor: isDark ? '#000' : '#fff' },
+                  {
+                    backgroundColor: isDark ? '#000' : '#fff',
+                    // Keep content above Android nav bar.
+                    paddingBottom: 96 + insets.bottom,
+                  },
                   ]}
                 >
                   <Text
@@ -225,7 +235,13 @@ function Onboarding2Content() {
                   )}
                   <ThemedPressable
                     onPress={() => setActivePicker(null)}
-                    style={styles.sheetDone}
+                    hitSlop={12}
+                    style={[
+                      styles.sheetDone,
+                      {
+                        bottom: 16 + insets.bottom,
+                      },
+                    ]}
                   >
                     <Text
                       style={[
@@ -237,7 +253,7 @@ function Onboarding2Content() {
                     </Text>
                   </ThemedPressable>
                 </View>
-              </View>
+              </Pressable>
             </Modal>
 
             <ThemedPressable
@@ -376,7 +392,7 @@ const styles = StyleSheet.create({
   sheet: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 24,
+    paddingBottom: 96,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
   },
@@ -386,8 +402,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sheetDone: {
-    marginTop: 12,
+    position: 'absolute',
+    right: 16,
+    // bottom is overridden from component with safe area inset.
+    bottom: 16,
     alignSelf: 'flex-end',
+    zIndex: 50,
+    elevation: 50,
   },
   sheetDoneText: {
     fontSize: 16,

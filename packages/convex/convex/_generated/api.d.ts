@@ -20,6 +20,8 @@ import type * as folders from "../folders.js";
 import type * as http from "../http.js";
 import type * as joinGym from "../joinGym.js";
 import type * as joinGymNode from "../joinGymNode.js";
+import type * as memberInviteCodes from "../memberInviteCodes.js";
+import type * as memberInviteCodesNode from "../memberInviteCodesNode.js";
 import type * as migrations from "../migrations.js";
 import type * as orgCreationCodes from "../orgCreationCodes.js";
 import type * as orgCreationCodesNode from "../orgCreationCodesNode.js";
@@ -62,6 +64,8 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   joinGym: typeof joinGym;
   joinGymNode: typeof joinGymNode;
+  memberInviteCodes: typeof memberInviteCodes;
+  memberInviteCodesNode: typeof memberInviteCodesNode;
   migrations: typeof migrations;
   orgCreationCodes: typeof orgCreationCodes;
   orgCreationCodesNode: typeof orgCreationCodesNode;
