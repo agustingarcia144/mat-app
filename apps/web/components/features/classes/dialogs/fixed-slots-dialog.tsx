@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Doc, Id } from '@/convex/_generated/dataModel'
@@ -14,6 +14,19 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -21,7 +34,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { mapMembershipsToMembers } from '@repo/core/utils'
-import { Clock, Plus, RefreshCw, Trash2, Users } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import {
+  Check,
+  ChevronDown,
+  Clock,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Users,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
@@ -52,7 +74,8 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const [classFilter, setClassFilter] = useState<string>('all')
   const [addOpen, setAddOpen] = useState(false)
-  const [addUserId, setAddUserId] = useState<string>('')
+  const [memberSearchOpen, setMemberSearchOpen] = useState(false)
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
   const [addClassId, setAddClassId] = useState<Id<'classes'> | ''>('')
   const [addDaysOfWeek, setAddDaysOfWeek] = useState<number[]>([1])
   const [addHour, setAddHour] = useState(9)
@@ -61,7 +84,12 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
   const fixedSlots = useQuery(
     api.fixedClassSlots.listByOrganizationAndClass,
     open && canQueryCurrentOrganization
-      ? { classId: classFilter === 'all' ? undefined : (classFilter as Id<'classes'>) }
+      ? {
+          classId:
+            classFilter === 'all'
+              ? undefined
+              : (classFilter as Id<'classes'>),
+        }
       : 'skip'
   )
   const classes = useQuery(
@@ -79,14 +107,19 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
   )
   const [backfilling, setBackfilling] = useState(false)
 
-  const members = memberships
-    ? mapMembershipsToMembers(memberships).filter(
-        (m) => normalize(m.role) === 'member' || normalize(m.role) === 'miembro'
-      )
-    : []
+  const members = useMemo(
+    () =>
+      memberships
+        ? mapMembershipsToMembers(memberships).filter(
+            (m) =>
+              normalize(m.role) === 'member' || normalize(m.role) === 'miembro'
+          )
+        : [],
+    [memberships]
+  )
 
   const handleAdd = async () => {
-    if (!addUserId || !addClassId) {
+    if (selectedUserIds.length === 0 || !addClassId) {
       toast.error('Seleccioná miembro y clase')
       return
     }
@@ -94,25 +127,36 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
       toast.error('Seleccioná al menos un día')
       return
     }
+
     const startTimeMinutes = addHour * 60 + addMinute
-    const timezone = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : undefined
+    const timezone =
+      typeof Intl !== 'undefined'
+        ? Intl.DateTimeFormat().resolvedOptions().timeZone
+        : undefined
+
     try {
-      for (const dayOfWeek of addDaysOfWeek) {
-        await createFixedSlot({
-          userId: addUserId,
-          classId: addClassId as Id<'classes'>,
-          dayOfWeek,
-          startTimeMinutes,
-          timezone,
-        })
+      for (const userId of selectedUserIds) {
+        for (const dayOfWeek of addDaysOfWeek) {
+          await createFixedSlot({
+            userId,
+            classId: addClassId as Id<'classes'>,
+            dayOfWeek,
+            startTimeMinutes,
+            timezone,
+          })
+        }
       }
+
+      const totalCreated = selectedUserIds.length * addDaysOfWeek.length
+
       toast.success(
-        addDaysOfWeek.length === 1
+        totalCreated === 1
           ? 'Turno fijo agregado'
-          : `${addDaysOfWeek.length} turnos fijos agregados`
+          : `${totalCreated} turnos fijos agregados`
       )
       setAddOpen(false)
-      setAddUserId('')
+      setSelectedUserIds([])
+      setMemberSearchOpen(false)
       setAddClassId('')
       setAddDaysOfWeek([1])
       setAddHour(9)
@@ -178,35 +222,35 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-            <div className="flex gap-2 ml-auto">
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1"
-                onClick={handleBackfill}
-                disabled={backfilling || (fixedSlots?.length ?? 0) === 0}
-                title="Aplicar miembros con turno fijo a los horarios ya creados"
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${backfilling ? 'animate-spin' : ''}`}
-                />
-                Aplicar a turnos existentes
-              </Button>
-              <Button
-                size="sm"
-                className="gap-1"
-                onClick={() => setAddOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Agregar
-              </Button>
+              <div className="flex gap-2 ml-auto">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  onClick={handleBackfill}
+                  disabled={backfilling || (fixedSlots?.length ?? 0) === 0}
+                  title="Aplicar miembros con turno fijo a los horarios ya creados"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${backfilling ? 'animate-spin' : ''}`}
+                  />
+                  Aplicar a turnos existentes
+                </Button>
+                <Button
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => setAddOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar
+                </Button>
+              </div>
             </div>
-          </div>
 
             <div className="border rounded-lg overflow-auto flex-1 min-h-[200px]">
               {fixedSlots === undefined ? (
                 <div className="p-4 text-sm text-muted-foreground">
-                  Cargando…
+                  Cargando...
                 </div>
               ) : fixedSlots.length === 0 ? (
                 <div className="p-6 text-center text-sm text-muted-foreground">
@@ -226,33 +270,42 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {fixedSlots.map((slot: Doc<'fixedClassSlots'> & { className: string | null; userFullName: string }) => (
-                      <tr
-                        key={slot._id}
-                        className="border-t border-border hover:bg-muted/30"
-                      >
-                        <td className="p-3">{slot.userFullName ?? slot.userId}</td>
-                        <td className="p-3">{slot.className ?? '-'}</td>
-                        <td className="p-3">
-                          {DAYS_OF_WEEK.find((d) => d.value === slot.dayOfWeek)
-                            ?.label ?? slot.dayOfWeek}
-                        </td>
-                        <td className="p-3 flex items-center gap-1">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          {formatSlotTime(slot.startTimeMinutes)}
-                        </td>
-                        <td className="p-3">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            onClick={() => handleRemove(slot._id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {fixedSlots.map(
+                      (
+                        slot: Doc<'fixedClassSlots'> & {
+                          className: string | null
+                          userFullName: string
+                        }
+                      ) => (
+                        <tr
+                          key={slot._id}
+                          className="border-t border-border hover:bg-muted/30"
+                        >
+                          <td className="p-3">
+                            {slot.userFullName ?? slot.userId}
+                          </td>
+                          <td className="p-3">{slot.className ?? '-'}</td>
+                          <td className="p-3">
+                            {DAYS_OF_WEEK.find((d) => d.value === slot.dayOfWeek)
+                              ?.label ?? slot.dayOfWeek}
+                          </td>
+                          <td className="p-3 flex items-center gap-1">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            {formatSlotTime(slot.startTimeMinutes)}
+                          </td>
+                          <td className="p-3">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => handleRemove(slot._id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
               )}
@@ -261,27 +314,92 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Add fixed slot dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(nextOpen) => {
+          setAddOpen(nextOpen)
+          if (!nextOpen) {
+            setMemberSearchOpen(false)
+          }
+        }}
+      >
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Agregar turno fijo</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label>Miembro</Label>
-              <Select value={addUserId} onValueChange={setAddUserId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar miembro" />
-                </SelectTrigger>
-                <SelectContent>
-                  {members.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Miembros</Label>
+              <Popover open={memberSearchOpen} onOpenChange={setMemberSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={memberSearchOpen}
+                    className={cn(
+                      'w-full justify-between',
+                      selectedUserIds.length === 0 && 'text-muted-foreground'
+                    )}
+                    type="button"
+                  >
+                    {selectedUserIds.length === 0
+                      ? 'Seleccionar miembros'
+                      : selectedUserIds.length === 1
+                        ? members.find((member) => member.id === selectedUserIds[0])
+                            ?.name ?? '1 miembro seleccionado'
+                        : `${selectedUserIds.length} miembros seleccionados`}
+                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar miembro..." />
+                    <CommandList>
+                      <CommandEmpty>No se encontraron miembros.</CommandEmpty>
+                      <CommandGroup>
+                        {members.map((member) => {
+                          const isSelected = selectedUserIds.includes(member.id)
+
+                          return (
+                            <CommandItem
+                              key={member.id}
+                              value={`${member.name} ${member.email ?? ''}`}
+                              onSelect={() => {
+                                setSelectedUserIds((prev) =>
+                                  isSelected
+                                    ? prev.filter((id) => id !== member.id)
+                                    : [...prev, member.id]
+                                )
+                              }}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                className="pointer-events-none mr-2"
+                              />
+                              <div className="flex min-w-0 flex-1 flex-col">
+                                <span className="truncate font-medium">
+                                  {member.name}
+                                </span>
+                                {member.email && (
+                                  <span className="truncate text-xs text-muted-foreground">
+                                    {member.email}
+                                  </span>
+                                )}
+                              </div>
+                              <Check
+                                className={cn(
+                                  'ml-2 h-4 w-4',
+                                  isSelected ? 'opacity-100' : 'opacity-0'
+                                )}
+                              />
+                            </CommandItem>
+                          )
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label>Clase</Label>
