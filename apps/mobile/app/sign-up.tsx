@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native'
-import { useSSO } from "@clerk/expo";
-import { useSignUp } from "@clerk/expo/legacy";
+import { useSSO } from '@clerk/expo'
+import { useSignUp } from '@clerk/expo/legacy'
 import { useRouter } from 'expo-router'
 import {
   useMutation,
@@ -75,8 +75,8 @@ function SignUpForm() {
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
 
       setVerifying(true)
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Error al registrarse')
+    } catch {
+      setError('Error al registrarse')
     } finally {
       setLoading(false)
     }
@@ -96,8 +96,8 @@ function SignUpForm() {
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId })
       }
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Error al verificar el correo')
+    } catch {
+      setError('Error al verificar el correo')
       setLoading(false)
     }
   }
@@ -113,9 +113,8 @@ function SignUpForm() {
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId })
       }
-    } catch (err: any) {
-      console.error('Google SSO sign-up error:', err)
-      setError(err.errors?.[0]?.message || 'Error al registrarse con Google')
+    } catch {
+      setError('Error al registrarse con Google')
     } finally {
       setLoading(false)
     }

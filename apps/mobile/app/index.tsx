@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { OtpInput } from 'react-native-otp-entry'
-import { useSSO } from "@clerk/expo";
-import { useSignIn } from "@clerk/expo/legacy";
+import { useSSO } from '@clerk/expo'
+import { useSignIn } from '@clerk/expo/legacy'
 import { useRouter } from 'expo-router'
 import {
   useMutation,
@@ -112,8 +112,8 @@ function SignInForm() {
       }
 
       setError('Completá los pasos requeridos para iniciar sesión.')
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Error al iniciar sesión')
+    } catch {
+      setError('Error al iniciar sesión')
     } finally {
       setLoading(false)
     }
@@ -141,8 +141,8 @@ function SignInForm() {
       } else {
         setError('Código inválido o vencido. Revisá e intentá de nuevo.')
       }
-    } catch (err: any) {
-      setError(err.errors?.[0]?.message || 'Error al verificar el código')
+    } catch {
+      setError('Error al verificar el código')
     } finally {
       setOtpLoading(false)
     }
@@ -166,9 +166,8 @@ function SignInForm() {
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId })
       }
-    } catch (err: any) {
-      console.error('Google SSO error:', err)
-      setError(err.errors?.[0]?.message || 'Error al iniciar sesión con Google')
+    } catch {
+      setError('Error al iniciar sesión con Google')
     } finally {
       setLoading(false)
     }
@@ -201,10 +200,7 @@ function SignInForm() {
             {otpTitle}
           </Text>
           <Text
-            style={[
-              styles.subtitle,
-              { color: isDark ? '#a1a1aa' : '#71717a' },
-            ]}
+            style={[styles.subtitle, { color: isDark ? '#a1a1aa' : '#71717a' }]}
           >
             {otpSubtitle}
           </Text>
@@ -260,9 +256,7 @@ function SignInForm() {
             </ThemedPressable>
 
             <ThemedPressable onPress={onBackFromOtp}>
-              <Text
-                style={[styles.link, { color: isDark ? '#fff' : '#000' }]}
-              >
+              <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
                 Volver a inicio de sesión
               </Text>
             </ThemedPressable>
