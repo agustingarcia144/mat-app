@@ -40,7 +40,10 @@ export const create = mutation({
     if (!exercise) {
       throw new Error('Exercise not found')
     }
-    if (exercise.organizationId !== planification.organizationId) {
+    if (
+      exercise.organizationId !== planification.organizationId &&
+      !exercise.isStandard
+    ) {
       throw new Error('Exercise does not belong to this organization')
     }
 
@@ -48,7 +51,9 @@ export const create = mutation({
     if (args.blockId) {
       const block = await ctx.db.get(args.blockId)
       if (!block || block.workoutDayId !== args.workoutDayId) {
-        throw new Error('Invalid block ID or block does not belong to workout day')
+        throw new Error(
+          'Invalid block ID or block does not belong to workout day'
+        )
       }
     }
 
@@ -107,7 +112,9 @@ export const update = mutation({
     if (args.blockId !== undefined && args.blockId !== null) {
       const block = await ctx.db.get(args.blockId)
       if (!block || block.workoutDayId !== dayExercise.workoutDayId) {
-        throw new Error('Invalid block ID or block does not belong to workout day')
+        throw new Error(
+          'Invalid block ID or block does not belong to workout day'
+        )
       }
     }
 
@@ -319,7 +326,9 @@ export const getByPlanification = query({
       ? await ctx.db
           .query('workoutDays')
           .withIndex('by_planification_revision', (q) =>
-            q.eq('planificationId', args.planificationId).eq('revisionId', revisionId)
+            q
+              .eq('planificationId', args.planificationId)
+              .eq('revisionId', revisionId)
           )
           .collect()
       : await ctx.db

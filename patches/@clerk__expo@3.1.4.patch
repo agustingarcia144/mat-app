@@ -1,0 +1,17 @@
+diff --git a/src/specs/NativeClerkModule.ts b/src/specs/NativeClerkModule.ts
+index ad1464ebdc59e4ea7aba24ad841ef1cd12dcf312..1c38d2c1f92f714852db68a027ed54122fc575f0 100644
+--- a/src/specs/NativeClerkModule.ts
++++ b/src/specs/NativeClerkModule.ts
+@@ -11,4 +11,4 @@ export interface Spec extends TurboModule {
+   signOut(): Promise<void>;
+ }
+ 
+-export default TurboModuleRegistry?.get<Spec>('ClerkExpo') ?? null;
++export default TurboModuleRegistry.get<Spec>('ClerkExpo');
+diff --git a/src/specs/NativeClerkModule.web.ts b/src/specs/NativeClerkModule.web.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..7646bbd17d04a03488f955ff0984971bca8f6e20
+--- /dev/null
++++ b/src/specs/NativeClerkModule.web.ts
+@@ -0,0 +1 @@
++export default null;

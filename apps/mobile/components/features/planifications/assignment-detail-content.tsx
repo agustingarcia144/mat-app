@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { View, ScrollView, ActivityIndicator } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useUser } from '@clerk/clerk-expo'
+import { useUser } from "@clerk/expo"
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from 'convex/react'
 import { api } from '@repo/convex'

@@ -9,7 +9,7 @@ import {
   Platform,
   Linking,
 } from 'react-native'
-import { useAuth } from '@clerk/clerk-expo'
+import { useAuth } from "@clerk/expo"
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery, useMutation } from 'convex/react'

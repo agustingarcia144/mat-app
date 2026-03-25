@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { OtpInput } from 'react-native-otp-entry'
-import { useSignIn, useSSO } from '@clerk/clerk-expo'
+import { useSSO } from "@clerk/expo";
+import { useSignIn } from "@clerk/expo/legacy";
 import { useRouter } from 'expo-router'
 import {
   useMutation,
@@ -166,6 +167,7 @@ function SignInForm() {
         await oauthSetActive!({ session: createdSessionId })
       }
     } catch (err: any) {
+      console.error('Google SSO error:', err)
       setError(err.errors?.[0]?.message || 'Error al iniciar sesión con Google')
     } finally {
       setLoading(false)

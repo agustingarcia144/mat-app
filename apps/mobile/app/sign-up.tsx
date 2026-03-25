@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native'
-import { useSignUp, useSSO } from '@clerk/clerk-expo'
+import { useSSO } from "@clerk/expo";
+import { useSignUp } from "@clerk/expo/legacy";
 import { useRouter } from 'expo-router'
 import {
   useMutation,
@@ -113,6 +114,7 @@ function SignUpForm() {
         await oauthSetActive!({ session: createdSessionId })
       }
     } catch (err: any) {
+      console.error('Google SSO sign-up error:', err)
       setError(err.errors?.[0]?.message || 'Error al registrarse con Google')
     } finally {
       setLoading(false)

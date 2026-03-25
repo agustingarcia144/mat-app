@@ -194,7 +194,12 @@ function Onboarding2Content() {
             >
               <Pressable
                 style={styles.sheetBackdrop}
-                onPress={() => setActivePicker(null)}
+                // Android pickers often don't behave well with iOS-style dismissal UX.
+                // Restrict backdrop dismissal to Android so iOS Picker interactions don't
+                // inadvertently bubble up and close the sheet.
+                onPress={() => {
+                  if (Platform.OS === 'android') setActivePicker(null)
+                }}
               >
                 <View
                   style={[

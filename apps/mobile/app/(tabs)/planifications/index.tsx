@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useUser } from '@clerk/clerk-expo'
+import { useUser } from "@clerk/expo"
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { useQuery, Authenticated, AuthLoading } from 'convex/react'

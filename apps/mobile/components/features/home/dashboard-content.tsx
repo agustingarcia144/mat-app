@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useUser } from '@clerk/clerk-expo'
+import { useUser } from "@clerk/expo"
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { useQuery } from 'convex/react'

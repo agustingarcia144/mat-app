@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useSignIn } from '@clerk/nextjs'
+import { useSignIn } from "@clerk/nextjs/legacy"
 import { toast } from 'sonner'
 import {
   Dialog,

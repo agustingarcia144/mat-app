@@ -1,9 +1,9 @@
-'use client'
-
+'use client';
 import Link from 'next/link'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { SignUp, useClerk, useSignIn, useUser } from '@clerk/nextjs'
+import { SignUp, useClerk, useUser } from "@clerk/nextjs";
+import { useSignIn } from "@clerk/nextjs/legacy";
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {

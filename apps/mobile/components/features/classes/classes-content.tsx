@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import type { Href } from 'expo-router'
 import { FlashList } from '@shopify/flash-list'
-import { useAuth } from '@clerk/clerk-expo'
+import { useAuth } from "@clerk/expo"
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@repo/convex'
 import { format } from 'date-fns'
@@ -667,7 +667,7 @@ export default function ClassesContent() {
     () =>
       activeTab === 'upcoming' ? (
         // Upcoming empty state is already shown by ClassesNextUpcomingCard in the header
-        <View style={{ paddingBottom: insets.bottom + 40 }} />
+        (<View style={{ paddingBottom: insets.bottom + 40 }} />)
       ) : (
         <ClassesEmptyState
           paddingBottom={insets.bottom + 40}

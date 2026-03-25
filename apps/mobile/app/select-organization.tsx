@@ -10,7 +10,7 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native'
-import { useClerk } from '@clerk/clerk-expo'
+import { useClerk } from "@clerk/expo"
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import { useRouter } from 'expo-router'

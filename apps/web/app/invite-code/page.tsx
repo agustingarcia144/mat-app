@@ -23,7 +23,7 @@ function getReasonMessage(reason: ValidationReason) {
 }
 
 function normalizeCode(value: string) {
-  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
 function InviteCodeContent() {

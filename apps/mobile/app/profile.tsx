@@ -9,7 +9,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useUser, useClerk } from '@clerk/clerk-expo'
+import { useUser, useClerk } from "@clerk/expo"
 import { Authenticated, AuthLoading, useMutation, useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'

@@ -1,5 +1,6 @@
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
+import * as WebBrowser from 'expo-web-browser'
 import 'react-native-reanimated'
 import { useEffect, useRef } from 'react'
 import { useColorScheme } from 'react-native'
@@ -10,6 +11,8 @@ import { Colors } from '@/constants/theme'
 import HeaderCloseButton from '@/components/ui/header-close-button'
 import { usePendingJoin } from '@/contexts/pending-join-context'
 import { registerForPushNotificationsAsync } from '@/lib/push-notifications'
+
+WebBrowser.maybeCompleteAuthSession()
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useConvexAuth()

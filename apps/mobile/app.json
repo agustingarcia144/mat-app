@@ -11,7 +11,6 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.agusstingarcia144.matapp",
-      "deploymentTarget": "15.1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationsUsageDescription": "Mat te enviara recordatorios y avisos importantes sobre tus clases reservadas."
@@ -63,7 +62,8 @@
         }
       ],
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "@clerk/expo"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -73,7 +73,8 @@
       "router": {},
       "eas": {
         "projectId": "6989a53a-345c-43a7-9a11-74e15d9901bf"
-      }
+      },
+      "EXPO_PUBLIC_CLERK_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.262169558391-8660larnefktthvsgp1e2bkq989i2gev"
     }
   }
 }
