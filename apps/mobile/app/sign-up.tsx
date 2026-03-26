@@ -23,6 +23,7 @@ import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
 import LoadingScreen from '@/components/shared/screens/loading-screen'
+import AntDesign from '@expo/vector-icons/AntDesign'
 
 function AuthenticatedRedirect() {
   const getOrCreateUser = useMutation(api.users.getOrCreateCurrentUser)
@@ -115,6 +116,24 @@ function SignUpForm() {
       }
     } catch {
       setError('Error al registrarse con Google')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const onAppleSignUp = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const { createdSessionId, setActive: oauthSetActive } =
+        await startSSOFlow({ strategy: 'oauth_apple' })
+
+      if (createdSessionId) {
+        await oauthSetActive!({ session: createdSessionId })
+      }
+    } catch {
+      setError('Error al registrarse con Apple')
     } finally {
       setLoading(false)
     }
@@ -360,6 +379,11 @@ function SignUpForm() {
               onPress={onGoogleSignUp}
               disabled={loading}
             >
+              <AntDesign
+                name="google"
+                size={22}
+                color={isDark ? '#fff' : '#000'}
+              />
               <Text
                 style={[
                   styles.oauthButtonText,
@@ -369,6 +393,34 @@ function SignUpForm() {
                 Continuar con Google
               </Text>
             </ThemedPressable>
+
+            {Platform.OS === 'ios' ? (
+              <ThemedPressable
+                type="secondary"
+                lightColor="#f4f4f5"
+                darkColor="#18181b"
+                style={[
+                  styles.oauthButton,
+                  { borderColor: isDark ? '#27272a' : '#e4e4e7' },
+                ]}
+                onPress={onAppleSignUp}
+                disabled={loading}
+              >
+                <AntDesign
+                  name="apple"
+                  size={22}
+                  color={isDark ? '#fff' : '#000'}
+                />
+                <Text
+                  style={[
+                    styles.oauthButtonText,
+                    { color: isDark ? '#fff' : '#000' },
+                  ]}
+                >
+                  Continuar con Apple
+                </Text>
+              </ThemedPressable>
+            ) : null}
 
             <ThemedPressable onPress={() => router.push('/sign-in')}>
               <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
@@ -488,6 +540,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
   },
   oauthButtonText: {
     fontSize: 16,

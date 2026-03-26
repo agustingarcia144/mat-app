@@ -173,6 +173,24 @@ function SignInForm() {
     }
   }
 
+  const onAppleSignIn = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const { createdSessionId, setActive: oauthSetActive } =
+        await startSSOFlow({ strategy: 'oauth_apple' })
+
+      if (createdSessionId) {
+        await oauthSetActive!({ session: createdSessionId })
+      }
+    } catch {
+      setError('Error al iniciar sesión con Apple')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (showOtpScreen && secondFactorStrategy) {
     const otpTitle =
       secondFactorStrategy === 'email_code'
@@ -396,6 +414,34 @@ function SignInForm() {
               Continuar con Google
             </Text>
           </ThemedPressable>
+
+          {Platform.OS === 'ios' ? (
+            <ThemedPressable
+              type="secondary"
+              lightColor="#f4f4f5"
+              darkColor="#18181b"
+              style={[
+                styles.oauthButton,
+                { borderColor: isDark ? '#27272a' : '#e4e4e7' },
+              ]}
+              onPress={onAppleSignIn}
+              disabled={loading}
+            >
+              <AntDesign
+                name="apple"
+                size={22}
+                color={isDark ? '#fff' : '#000'}
+              />
+              <Text
+                style={[
+                  styles.oauthButtonText,
+                  { color: isDark ? '#fff' : '#000' },
+                ]}
+              >
+                Continuar con Apple
+              </Text>
+            </ThemedPressable>
+          ) : null}
 
           <ThemedPressable onPress={() => router.push('/sign-up')}>
             <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>

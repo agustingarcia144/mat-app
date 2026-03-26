@@ -48,3 +48,34 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Apple Guideline 4.8 checklist
+
+This app now includes `Sign in with Apple` in both auth entry points:
+
+- `app/index.tsx` (sign-in)
+- `app/sign-up.tsx` (sign-up)
+
+### Provider setup (Clerk + Apple)
+
+1. In Clerk Dashboard, enable Apple as a social login provider for the environment used by iOS builds.
+2. In Apple Developer, enable the `Sign In with Apple` capability for bundle id `com.agusstingarcia144.matapp`.
+3. In Clerk provider settings, configure Apple credentials/IDs and callback values exactly as requested by Clerk.
+4. Build and run an iOS build after configuration (EAS internal or TestFlight profile).
+
+### iOS QA checklist
+
+- New account creation via Apple from `sign-up`.
+- Existing account login via Apple from `sign-in`.
+- Cancel Apple flow from native sheet and verify user-facing error behavior.
+- App relaunch keeps active session.
+- Sign out and sign in again with Apple.
+- Regression check for email/password and Google login.
+
+### App Store Connect updates
+
+- Upload at least one screenshot showing `Continuar con Apple` on the auth screen.
+- Keep metadata screenshots aligned with current login UI.
+- Add this note in App Review:
+
+  "We implemented an equivalent login option using Sign in with Apple on the iOS login and sign-up flows. Users can access it from the initial authentication screens. This option satisfies Guideline 4.8 requirements and is available for App Review testing."
