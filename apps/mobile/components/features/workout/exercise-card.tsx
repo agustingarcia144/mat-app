@@ -99,11 +99,13 @@ export function ExerciseCard({
     supportsTime || (timeValues?.some((value) => value != null && value > 0) ?? false)
 
   const isExerciseCompleted =
-    hasLoggedData &&
     values.length >= dayEx.sets &&
-    values.every(
-      (set) => set.reps?.trim().length > 0 && set.weight?.trim().length > 0
-    )
+    Array.from({ length: dayEx.sets }).every((_, setIndex) => {
+      if (isSetQuickCompleted?.(setIndex)) return true
+      const set = values[setIndex]
+      if (!set) return false
+      return set.reps?.trim().length > 0 && set.weight?.trim().length > 0
+    })
 
   return (
     <View style={[styles.exerciseCard, { borderColor }]}>

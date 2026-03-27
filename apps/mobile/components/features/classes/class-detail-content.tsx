@@ -601,7 +601,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 48,
+    bottom: Platform.OS === 'android' ? 64 : 48,
     paddingHorizontal: SPACING.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
   },

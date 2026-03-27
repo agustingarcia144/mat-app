@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "64189599008",
+    "project_id": "mat-app-4edf6",
+    "storage_bucket": "mat-app-4edf6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:64189599008:android:c0a76768df3fcb75a71b45",
+        "android_client_info": {
+          "package_name": "com.agusstingarcia144.matapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkcp1ba6d6_ziZ9JLEiwsCJouuyH4ErUw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

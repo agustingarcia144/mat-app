@@ -492,22 +492,21 @@ function WorkoutContent() {
   const allExercisesFilled = useMemo(() => {
     if (!dayExercises?.length) return false
     return dayExercises.every((dayEx) => {
-      // Check if user has entered values (local state or saved logs)
-      const hasLocalValues =
-        localValues[dayEx._id] && localValues[dayEx._id].length === dayEx.sets
-      const hasLog = !!logsByDayExercise[dayEx._id]
-
-      // If no user input exists, exercise is not filled
-      if (!hasLocalValues && !hasLog) return false
-
-      // If user has entered values, check all sets have reps AND weight filled
-      // (matching the completion icon logic)
+      // Match completion icon logic: a set is complete if quick-completed
+      // or if both reps and weight are filled.
       const values = getValuesFor(dayEx)
-      return values.every(
-        (set) => set.reps.trim().length > 0 && set.weight.trim().length > 0
-      )
+      const quickCompletedSets = quickCompletedSetsByDayEx[dayEx._id] ?? {}
+
+      if (values.length < dayEx.sets) return false
+
+      return Array.from({ length: dayEx.sets }).every((_, setIndex) => {
+        if (quickCompletedSets[setIndex]) return true
+        const set = values[setIndex]
+        if (!set) return false
+        return set.reps.trim().length > 0 && set.weight.trim().length > 0
+      })
     })
-  }, [dayExercises, getValuesFor, localValues, logsByDayExercise])
+  }, [dayExercises, getValuesFor, quickCompletedSetsByDayEx])
 
   const handleComplete = async () => {
     if (isNewSession || !sessionId || session?.status === 'completed') return
@@ -774,7 +773,7 @@ function WorkoutContent() {
           completing={completing}
           onStartWorkout={handleStartWorkout}
           onComplete={handleComplete}
-          paddingBottom={insets.bottom + 60}
+          paddingBottom={insets.bottom + (Platform.OS === 'android' ? 88 : 60)}
           isDark={isDark}
           colorScheme={colorScheme ?? 'light'}
         />
