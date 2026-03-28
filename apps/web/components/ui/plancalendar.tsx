@@ -49,22 +49,22 @@ export default function PlanCalendar({ startDate, endDate }: Props) {
 
       {/* HEADER */}
 
-      <div className="flex items-center justify-between text-xs">
+      <div className="flex items-center justify-between text-[11px] sm:text-xs">
 
         <button
           onClick={() => setMonth(subMonths(month, 1))}
-          className="p-1 rounded hover:bg-muted"
+          className="rounded p-1 hover:bg-muted sm:p-1"
         >
           <ChevronLeft size={16} />
         </button>
 
-        <span className="font-bold uppercase tracking-wide">
+        <span className="text-center font-bold uppercase tracking-wide">
           {format(month, 'MMMM yyyy', { locale: es })}
         </span>
 
         <button
           onClick={() => setMonth(addMonths(month, 1))}
-          className="p-1 rounded hover:bg-muted"
+          className="rounded p-1 hover:bg-muted sm:p-1"
         >
           <ChevronRight size={16} />
         </button>
@@ -73,7 +73,7 @@ export default function PlanCalendar({ startDate, endDate }: Props) {
 
       {/* WEEK DAYS */}
 
-      <div className="grid grid-cols-7 text-[10px] text-muted-foreground">
+      <div className="grid grid-cols-7 text-[10px] text-muted-foreground sm:text-[10px]">
 
         {['Lu','Ma','Mi','Ju','Vi','Sa','Do'].map((d) => (
           <div key={d} className="text-center">
@@ -110,9 +110,9 @@ export default function PlanCalendar({ startDate, endDate }: Props) {
             <div
               key={date.toISOString()}
               className={`
-                h-8
+                h-7 sm:h-8
                 flex items-center justify-center
-                text-xs
+                text-[11px] sm:text-xs
                 rounded
                 ${bg}
                 ${isToday(date) ? 'border border-white' : ''}

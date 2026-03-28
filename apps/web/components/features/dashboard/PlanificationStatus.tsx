@@ -215,15 +215,15 @@ export default function PlanificationStatus() {
       title="Estado de Planificaciones"
       variant="list"
       compact
-      className="min-h-[360px] w-full max-w-none flex-1 xl:min-h-0 xl:h-full"
+      className="min-h-[360px] w-full min-w-0 max-w-none flex-1 xl:min-h-0 xl:h-full"
       actionLabel="Ver mas +"
       actionHref="/dashboard/planifications"
       actionIcon={Dumbbell}
     >
-      <div className="mb-4 rounded-xl border bg-background/30 p-4">
-        <div className="flex items-center justify-between gap-6 pl-8">
+      <div className="mb-4 rounded-xl border bg-background/30 p-3 md:p-4">
+        <div className="flex flex-col items-center gap-4 md:flex-row md:items-center md:justify-between md:gap-6 md:pl-8">
           <div
-            className="relative flex h-24 w-24 items-center justify-center rounded-full"
+            className="relative flex h-20 w-20 items-center justify-center rounded-full md:h-24 md:w-24"
             style={{ background: donutBackground }}
           >
             <div className="absolute inset-[10px] rounded-full bg-background/95" />
@@ -237,8 +237,8 @@ export default function PlanificationStatus() {
             </div>
           </div>
 
-          <div className="flex flex-1 justify-center">
-            <div className="grid gap-2 text-sm text-muted-foreground">
+          <div className="flex w-full flex-1 justify-center md:justify-center">
+            <div className="grid w-full gap-2 text-sm text-muted-foreground md:w-auto">
               {planSegments.map((segment) => (
                 <div
                   key={segment.label}
@@ -267,13 +267,13 @@ export default function PlanificationStatus() {
             key={m.id}
             className="flex flex-col border-b pb-2 text-sm last:border-b-0"
           >
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
               <span className="min-w-0 flex-1 truncate font-medium">
                 {m.fullName || m.name}
               </span>
 
               {m.planStatus.status === 'none' && (
-                <span className="shrink-0 text-muted-foreground">
+                <span className="shrink-0 text-sm text-muted-foreground">
                   Sin planificación
                 </span>
               )}
@@ -281,7 +281,7 @@ export default function PlanificationStatus() {
               {m.planStatus.status === 'expired' && (
                 <Badge
                   variant="outline"
-                  className="shrink-0 gap-2 rounded-full border border-red-300 bg-red-100 text-red-700 dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-400"
+                  className="max-w-full shrink-0 gap-2 rounded-2xl border border-red-300 bg-red-100 px-3 py-1 text-left whitespace-normal text-red-700 dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-400 md:rounded-full"
                 >
                   <XCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
                   Vencida
@@ -297,7 +297,7 @@ export default function PlanificationStatus() {
               {m.planStatus.status === 'expiring_soon' && (
                 <Badge
                   variant="outline"
-                  className="shrink-0 gap-2 rounded-full border border-yellow-300 bg-yellow-100 text-yellow-700 dark:border-yellow-500/40 dark:bg-yellow-500/20 dark:text-yellow-400"
+                  className="max-w-full shrink-0 gap-2 rounded-2xl border border-yellow-300 bg-yellow-100 px-3 py-1 text-left whitespace-normal text-yellow-700 dark:border-yellow-500/40 dark:bg-yellow-500/20 dark:text-yellow-400 md:rounded-full"
                 >
                   <AlertTriangle className="h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
                   Por vencer

@@ -44,20 +44,23 @@ export default function StatsCard({
   return (
     <Card
       className={cn(
-        'rounded-2xl border bg-background/60 p-4 transition hover:shadow-md flex flex-col',
-        !isList && 'h-[180px] w-[200px] justify-between',
-        isList && (compact ? 'h-[180px] w-[340px]' : 'h-[200px] w-[340px]'),
+        'flex min-w-0 flex-col rounded-2xl border bg-background/60 p-4 transition hover:shadow-md',
+        !isList && 'min-h-[180px] w-full justify-between md:h-[180px] md:w-[200px]',
+        isList &&
+          (compact
+            ? 'min-h-[180px] w-full md:h-[180px]'
+            : 'min-h-[200px] w-full md:h-[200px]'),
         className
       )}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <span className="text-sm text-muted-foreground">{title}</span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {actionLabel && actionHref && (
             <Link
               href={actionHref}
-              className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs hover:bg-accent/40 transition"
+              className="inline-flex max-w-full items-center gap-2 rounded-md border px-3 py-1.5 text-xs transition hover:bg-accent/40"
             >
               {ActionIcon && <ActionIcon className="h-4 w-4" />}
               {actionLabel}
@@ -88,9 +91,9 @@ export default function StatsCard({
       ) : (
         <div
           className={[
-            'flex-1 mt-2 pr-1',
+            'mt-2 flex-1 pr-1',
             children
-              ? 'overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent'
+              ? 'space-y-2 overflow-visible md:overflow-y-auto md:scrollbar-thin md:scrollbar-thumb-muted md:scrollbar-track-transparent'
               : 'flex items-center justify-center',
           ].join(' ')}
         >

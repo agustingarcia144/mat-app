@@ -26,8 +26,8 @@ export default function Page() {
   }
 
   return (
-    <div className="relative p-6 space-y-6 w-full max-w-[1400px] mx-auto">
-      <div className="pointer-events-none fixed left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2">
+    <div className="relative mx-auto w-full max-w-[1400px] space-y-4 p-4 md:space-y-6 md:p-6">
+      <div className="pointer-events-none fixed left-1/2 top-1/2 z-0 hidden -translate-x-1/2 -translate-y-1/2 md:block">
         <Image
           src={wolfiBg}
           alt="Wolf de fondo"
@@ -37,14 +37,14 @@ export default function Page() {
       </div>
 
       <div className="relative z-10">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <h1 className="text-2xl font-bold md:text-3xl">Dashboard</h1>
         <p className="text-sm text-muted-foreground">
           Resumen general de la organización
         </p>
       </div>
 
-      <div className="relative z-10 grid gap-6 xl:grid-cols-[560px_minmax(520px,1fr)] xl:items-stretch">
-        <div className="flex flex-col gap-6 xl:h-full">
+      <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[560px_minmax(520px,1fr)] xl:items-stretch">
+        <div className="flex min-w-0 flex-col gap-4 md:gap-6 xl:h-full">
           <ActiveMembers />
           <PlanificationStatus />
         </div>
