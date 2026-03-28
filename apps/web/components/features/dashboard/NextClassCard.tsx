@@ -18,6 +18,7 @@ type Props = {
 
 export default function NextClassCard({ onOpenDetail }: Props) {
   const pageSize = 3
+  const upcomingWindowMs = 7 * 24 * 60 * 60 * 1000
   const canQuery = useCanQueryCurrentOrganization()
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now())
   const [pageIndex, setPageIndex] = useState(0)
@@ -35,13 +36,13 @@ export default function NextClassCard({ onOpenDetail }: Props) {
   const enriched = useMemo(() => {
     if (!schedules || !classes) return []
 
-    const next48hs = nowTimestamp + 48 * 60 * 60 * 1000
+    const next7Days = nowTimestamp + upcomingWindowMs
 
     return schedules
       .filter(
         (schedule: Doc<'classSchedules'>) =>
           schedule.startTime >= nowTimestamp &&
-          schedule.startTime <= next48hs &&
+          schedule.startTime <= next7Days &&
           schedule.status !== 'cancelled'
       )
       .map((schedule: Doc<'classSchedules'>) => ({
@@ -52,7 +53,7 @@ export default function NextClassCard({ onOpenDetail }: Props) {
         (a: { startTime: number }, b: { startTime: number }) =>
           a.startTime - b.startTime
       )
-  }, [classes, nowTimestamp, schedules])
+  }, [classes, nowTimestamp, schedules, upcomingWindowMs])
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -112,7 +113,7 @@ export default function NextClassCard({ onOpenDetail }: Props) {
   if (visibleClasses.length === 0) {
     return (
       <div className="flex h-[180px] w-full items-center justify-center rounded-xl border p-5">
-        No hay clases programadas en las próximas 48 horas.
+        No hay clases programadas en los próximos 7 días.
       </div>
     )
   }

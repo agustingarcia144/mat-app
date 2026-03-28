@@ -39,14 +39,14 @@ export default function ActiveMembers() {
   if (!memberships) return null
 
   return (
-    <Card className="flex h-[220px] w-full max-w-none flex-col rounded-2xl border bg-background/60 p-5">
+    <Card className="flex min-h-[220px] w-full max-w-none flex-col rounded-2xl border bg-background/60 p-4 md:h-[220px] md:p-5">
       <div className="text-sm text-muted-foreground">Miembros activos</div>
 
-      <div className="flex flex-1 items-center justify-center">
-        <div className="flex w-full max-w-[460px] items-center justify-center gap-12">
+      <div className="flex flex-1 items-center justify-center py-2 md:py-0">
+        <div className="flex w-full max-w-[460px] flex-col items-center justify-center gap-5 md:flex-row md:gap-12">
           <div className="flex flex-col items-center gap-3">
             <div
-              className="relative flex h-28 w-28 items-center justify-center rounded-full"
+              className="relative flex h-24 w-24 items-center justify-center rounded-full md:h-28 md:w-28"
               style={{
                 background: `conic-gradient(rgb(34 197 94) ${progressAngle}deg, rgba(34, 197, 94, 0.12) ${progressAngle}deg)`,
               }}
@@ -59,16 +59,16 @@ export default function ActiveMembers() {
             </div>
           </div>
 
-          <div className="space-y-3 text-center">
-            <p className="text-5xl font-semibold leading-none">{activeCount}</p>
+          <div className="space-y-2 text-center md:space-y-3">
+            <p className="text-4xl font-semibold leading-none md:text-5xl">{activeCount}</p>
             <div className="flex justify-center">
-              <Badge variant="outline" className="gap-2">
+              <Badge variant="outline" className="gap-2 px-3">
                 <CheckCircle className="h-4 w-4 shrink-0 text-green-500" />
                 Activos
               </Badge>
             </div>
 
-            <div className="space-y-1 text-sm text-muted-foreground">
+            <div className="space-y-1 text-sm leading-relaxed text-muted-foreground">
               <p>{totalMembers} miembros totales</p>
               <p>{newMembersLast30Days} nuevos en 30 días</p>
               <p>{growthLabel}</p>

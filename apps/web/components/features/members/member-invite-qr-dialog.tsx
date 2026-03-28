@@ -7,6 +7,7 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { toast } from 'sonner'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ export function MemberInviteQrDialog() {
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [inviteData, setInviteData] = useState<InviteData | null>(null)
+  const isDesktop = useMediaQuery('(min-width: 640px)')
 
   const joinUrl = useMemo(() => {
     if (!inviteData || typeof window === 'undefined') return null
@@ -129,8 +131,8 @@ export function MemberInviteQrDialog() {
           QR de ingreso
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="top-[max(1rem,env(safe-area-inset-top))] max-h-[88vh] w-[min(96vw,32rem)] translate-y-0 overflow-y-auto rounded-lg p-4 pt-8 sm:top-[50%] sm:max-h-none sm:w-full sm:max-w-lg sm:translate-y-[-50%] sm:overflow-visible sm:p-6">
+        <DialogHeader className="pr-8">
           <DialogTitle>QR y código de invitación</DialogTitle>
           <DialogDescription>
             Este código es persistente para la organización. Compartilo para que nuevos miembros soliciten ingreso.
@@ -143,24 +145,25 @@ export function MemberInviteQrDialog() {
           </div>
         ) : inviteData && joinUrl ? (
           <div className="space-y-4">
-            <div className="flex justify-center rounded-lg border p-4">
+            <div className="flex justify-center rounded-lg border p-3 sm:p-4">
               <QRCodeCanvas
                 id="member-join-qr-canvas"
                 value={joinUrl}
-                size={260}
+                size={isDesktop ? 260 : 220}
                 includeMargin
+                className="h-auto max-w-full"
               />
             </div>
 
             <div className="space-y-2 rounded-lg border p-3">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Código manual</p>
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-mono text-base font-semibold">{inviteData.code}</p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="break-all font-mono text-base font-semibold">{inviteData.code}</p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="gap-2"
+                  className="gap-2 self-start sm:self-auto"
                   onClick={() => void copyText(inviteData.code, 'Código')}
                 >
                   <Copy className="size-4" />
@@ -173,13 +176,13 @@ export function MemberInviteQrDialog() {
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 URL (web)
               </p>
-              <div className="flex items-center gap-2">
-                <p className="break-all text-xs text-muted-foreground">{joinUrl}</p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <p className="min-w-0 break-all text-xs text-muted-foreground">{joinUrl}</p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="shrink-0 gap-2"
+                  className="shrink-0 gap-2 self-start sm:self-auto"
                   onClick={() => void copyText(joinUrl, 'Link')}
                 >
                   <Copy className="size-4" />
@@ -198,18 +201,18 @@ export function MemberInviteQrDialog() {
           <Button
             type="button"
             variant="outline"
-            className="gap-2"
+            className="w-full gap-2 sm:w-auto"
             onClick={() => void loadData()}
             disabled={isLoading}
           >
             <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
             Actualizar
           </Button>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex">
             <Button
               type="button"
               variant="outline"
-              className="gap-2"
+              className="w-full gap-2 sm:w-auto"
               onClick={downloadQr}
               disabled={!inviteData || isLoading}
             >
@@ -218,7 +221,7 @@ export function MemberInviteQrDialog() {
             </Button>
             <Button
               type="button"
-              className="gap-2"
+              className="w-full gap-2 sm:w-auto"
               onClick={printQr}
               disabled={!inviteData || isLoading}
             >

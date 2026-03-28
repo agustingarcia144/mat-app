@@ -241,25 +241,27 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl">
-        <DialogHeader>
+      <DialogContent className="top-[max(1rem,env(safe-area-inset-top))] max-h-[88vh] w-[min(96vw,32rem)] translate-y-0 overflow-y-auto rounded-lg p-4 pt-8 sm:top-[50%] sm:max-h-[90vh] sm:w-full sm:max-w-5xl sm:translate-y-[-50%] sm:p-6">
+        <DialogHeader className="pr-8">
           <DialogTitle>Detalle del miembro</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
           {/* LEFT */}
-          <div className="space-y-6">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <Avatar className="h-14 w-14 sm:h-16 sm:w-16">
                 {member.imageUrl && <AvatarImage src={member.imageUrl} />}
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
 
-              <div className="flex-1">
-                <p className="text-xl font-semibold">{member.name}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-lg font-semibold sm:text-xl">
+                  {member.name}
+                </p>
 
                 {member.email && (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="truncate text-sm text-muted-foreground">
                     {member.email}
                   </p>
                 )}
@@ -272,7 +274,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
               <div>
                 <p className="text-muted-foreground">Estado</p>
                 <StatusBadge
@@ -295,7 +297,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 </p>
               </div>
 
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <p className="text-muted-foreground">Fecha de nacimiento</p>
                 <p>
                   {birthDate && age !== null
@@ -307,13 +309,13 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
             {/* TURNOS */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">Turnos fijos</p>
 
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1"
+                  className="gap-1 self-start sm:self-auto"
                   onClick={() => setAddFixedSlotOpen(true)}
                 >
                   <Plus className="h-4 w-4" />
@@ -321,7 +323,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 </Button>
               </div>
 
-              <div className="border rounded-lg p-4 space-y-2">
+              <div className="space-y-2 rounded-lg border p-3">
                 {fixedSlots === undefined ? (
                   <p className="text-sm text-muted-foreground">Cargando…</p>
                 ) : fixedSlots.length === 0 ? (
@@ -330,56 +332,61 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                     cada clase que coincida con el horario asignado.
                   </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {fixedSlots.map(
-                      (
-                        slot: Doc<'fixedClassSlots'> & {
-                          className?: string | null
-                        }
-                      ) => (
-                        <li
-                          key={slot._id}
-                          className="flex items-center justify-between gap-2 text-sm py-1 border-b border-border/50 last:border-0"
-                        >
-                          <span className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      {fixedSlots.length} turno{fixedSlots.length === 1 ? '' : 's'}
+                    </p>
 
-                            <span className="font-medium">
-                              {slot.className ?? '-'}
-                            </span>
+                    <div className="h-[108px] overflow-y-auto pr-1 sm:pr-2">
+                      <ul className="space-y-1.5">
+                        {fixedSlots.map(
+                          (
+                            slot: Doc<'fixedClassSlots'> & {
+                              className?: string | null
+                            }
+                          ) => (
+                            <li
+                              key={slot._id}
+                              className="flex items-center justify-between gap-2 rounded-md border border-border/50 px-2.5 py-2 text-sm"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate font-medium leading-none">
+                                  {slot.className ?? '-'}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {DAYS_OF_WEEK.find(
+                                    (d) => d.value === slot.dayOfWeek
+                                  )?.label ?? slot.dayOfWeek}{' '}
+                                  {formatSlotTime(slot.startTimeMinutes)}
+                                </p>
+                              </div>
 
-                            <span className="text-muted-foreground">
-                              {DAYS_OF_WEEK.find(
-                                (d) => d.value === slot.dayOfWeek
-                              )?.label ?? slot.dayOfWeek}{' '}
-                              {formatSlotTime(slot.startTimeMinutes)}
-                            </span>
-                          </span>
-
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                            onClick={() => handleRemoveFixedSlot(slot._id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </li>
-                      )
-                    )}
-                  </ul>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 shrink-0 p-0 text-destructive/80 hover:text-destructive"
+                                onClick={() => handleRemoveFixedSlot(slot._id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </li>
+                          )
+                        )}
+                      </ul>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
           </div>
 
           {/* RIGHT */}
-          <div className="border rounded-lg p-4 flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
+          <div className="flex flex-col gap-4 rounded-lg border p-3 sm:p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <div className="min-w-0 space-y-1">
                 {assignment ? (
                   <>
-                    <div className="font-semibold">
+                    <div className="truncate font-semibold">
                       {assignment.planification?.name}
                     </div>
 
@@ -426,12 +433,13 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 )}
               </div>
 
-              <div className="flex gap-2">
+              <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap">
                 {assignment && (
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={handleViewPlan}
+                    className="w-full sm:w-auto"
                   >
                     <Eye className="h-4 w-4 mr-1" />
                     Ver
@@ -443,7 +451,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                     size="sm"
                     variant="outline"
                     onClick={handleAssign}
-                    className="flex items-center gap-2"
+                    className="flex w-full items-center gap-2 sm:w-auto"
                   >
                     <Users className="h-4 w-4" />
                     Asignar
@@ -452,7 +460,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
               </div>
             </div>
 
-            <div className="flex-1 flex items-start justify-center">
+            <div className="flex min-h-[200px] flex-1 items-start justify-center overflow-x-auto rounded-md bg-muted/20 p-2 sm:min-h-[220px] sm:p-3">
               {assignment?.startDate && assignment?.endDate ? (
                 <PlanCalendar
                   startDate={safeDate(assignment.startDate)!}
