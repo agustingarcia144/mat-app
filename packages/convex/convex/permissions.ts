@@ -189,6 +189,20 @@ export async function requireActiveOrgContext(ctx: Ctx) {
   }
 }
 
+/** Same as requireActiveOrgContext but returns null on OrgAccessError (e.g. purged user, signed out). */
+export async function tryActiveOrgContext(
+  ctx: Ctx
+): Promise<Awaited<ReturnType<typeof requireActiveOrgContext>> | null> {
+  try {
+    return await requireActiveOrgContext(ctx)
+  } catch (e) {
+    if (e instanceof OrgAccessError) {
+      return null
+    }
+    throw e
+  }
+}
+
 /**
  * Get active organization for the current user
  */

@@ -6,6 +6,7 @@ import {
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
   requireOrganizationMembership,
+  tryActiveOrgContext,
 } from './permissions'
 
 /**
@@ -195,12 +196,11 @@ export const listByUser = query({
     organizationId: v.optional(v.id('organizations')),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error('Not authenticated')
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
     }
-
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    const { identity, membership } = orgCtx
     const organizationId = membership.organizationId
     if (args.organizationId && args.organizationId !== organizationId) {
         // Stale client org context (e.g. fast org switch); avoid leaking data.
@@ -213,8 +213,6 @@ export const listByUser = query({
         // Avoid surfacing authorization errors in the UI; just hide others' data.
         return []
       }
-    } else {
-      await requireOrganizationMembership(ctx, organizationId)
     }
 
     const slots = await ctx.db

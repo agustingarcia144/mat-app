@@ -37,7 +37,7 @@ function formatLoad(
   const parts: string[] = []
   if (weight?.trim()) parts.push(weight.trim())
   if (prPercentage != null && prPercentage > 0)
-    parts.push(`${prPercentage}% PR`)
+    parts.push(`${prPercentage}% RM`)
   const time = formatTime(timeSeconds)
   if (time) parts.push(time)
   return parts.join(' · ')
@@ -96,7 +96,8 @@ export function ExerciseCard({
   )
   const notesLabel = dayEx.notes?.trim()
   const hasTime =
-    supportsTime || (timeValues?.some((value) => value != null && value > 0) ?? false)
+    supportsTime ||
+    (timeValues?.some((value) => value != null && value > 0) ?? false)
 
   const isExerciseCompleted =
     values.length >= dayEx.sets &&

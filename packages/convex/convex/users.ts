@@ -1,3 +1,4 @@
+import { internal } from './_generated/api'
 import { internalMutation, internalQuery, mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { requireCurrentOrganizationMembership } from './permissions'
@@ -86,14 +87,9 @@ export const deleteFromClerk = internalMutation({
     clerkUserId: v.string(),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query('users')
-      .withIndex('by_externalId', (q) => q.eq('externalId', args.clerkUserId))
-      .first()
-
-    if (existing) {
-      await ctx.db.delete(existing._id)
-    }
+    await ctx.runMutation(internal.userDeletion.purgeUserDataForClerkId, {
+      clerkUserId: args.clerkUserId,
+    })
   },
 })
 

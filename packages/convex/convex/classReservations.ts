@@ -5,6 +5,7 @@ import {
   requireAuth,
   requireAdminOrTrainer,
   requireOrganizationMembership,
+  tryActiveOrgContext,
 } from './permissions'
 import { getDayAndMinutesInZone } from './fixedClassSlots'
 
@@ -423,7 +424,11 @@ export const getByScheduleWithUsers = query({
 export const getByUser = query({
   args: {},
   handler: async (ctx) => {
-    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { identity, organizationId } = orgCtx
 
     const reservations = await ctx.db
       .query('classReservations')
@@ -440,7 +445,11 @@ export const getByUser = query({
 export const getUpcomingByUser = query({
   args: {},
   handler: async (ctx) => {
-    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { identity, organizationId } = orgCtx
     const now = Date.now()
 
     // Get user's confirmed reservations
@@ -484,7 +493,11 @@ export const getUpcomingByUser = query({
 export const getReservationsInCheckInWindow = query({
   args: {},
   handler: async (ctx) => {
-    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { identity, organizationId } = orgCtx
     const now = Date.now()
     const opensBeforeMs = 20 * 60 * 1000
     const closesAfterMs = 6 * 60 * 60 * 1000
@@ -528,7 +541,11 @@ export const getReservationsInCheckInWindow = query({
 export const getPastByUser = query({
   args: {},
   handler: async (ctx) => {
-    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { identity, organizationId } = orgCtx
     const now = Date.now()
 
     const reservations = await ctx.db
@@ -568,7 +585,11 @@ export const getByUserForDate = query({
     endOfDay: v.number(),
   },
   handler: async (ctx, args) => {
-    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { identity, organizationId } = orgCtx
 
     const reservations = await ctx.db
       .query('classReservations')
@@ -612,7 +633,11 @@ export const getByUserForDateRange = query({
     endOfRange: v.number(),
   },
   handler: async (ctx, args) => {
-    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { identity, organizationId } = orgCtx
 
     const reservations = await ctx.db
       .query('classReservations')

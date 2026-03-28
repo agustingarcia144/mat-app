@@ -6,6 +6,7 @@ import {
   requireAdminOrTrainer,
   requireOrganizationMembership,
   isAdminOrTrainer,
+  tryActiveOrgContext,
 } from './permissions'
 import { ensureCurrentRevisionForPlanification } from './planificationRevisionHelpers'
 
@@ -152,7 +153,11 @@ export const getByUser = query({
     organizationId: v.optional(v.id('organizations')),
   },
   handler: async (ctx, args) => {
-    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { identity, organizationId } = orgCtx
     if (args.organizationId && args.organizationId !== organizationId) {
         // Stale client org context (e.g. fast org switch); avoid cross-org flashes.
         return []
@@ -247,7 +252,11 @@ export const getByPlanification = query({
 export const organizationUsesPlanifications = query({
   args: {},
   handler: async (ctx) => {
-    const { organizationId } = await requireActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return false
+    }
+    const { organizationId } = orgCtx
 
     const planification = await ctx.db
       .query('planifications')

@@ -1,6 +1,10 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
-import { requireActiveOrgContext, requireAuth } from './permissions'
+import {
+  requireActiveOrgContext,
+  requireAuth,
+  tryActiveOrgContext,
+} from './permissions'
 
 const sessionStatus = v.union(
   v.literal('started'),
@@ -112,7 +116,11 @@ export const getMyWeekSessions = query({
     endOn: v.string(), // YYYY-MM-DD
   },
   handler: async (ctx, args) => {
-    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { identity, organizationId } = orgCtx
 
     const sessions = await ctx.db
       .query('workoutDaySessions')

@@ -76,8 +76,9 @@ function SignUpForm() {
       await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
 
       setVerifying(true)
-    } catch {
+    } catch (error) {
       setError('Error al registrarse')
+      console.error('Error al registrarse:', error)
     } finally {
       setLoading(false)
     }

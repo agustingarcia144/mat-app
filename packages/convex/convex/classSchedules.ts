@@ -7,6 +7,7 @@ import {
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
   requireOrganizationMembership,
+  tryActiveOrgContext,
 } from './permissions'
 import { assignFixedSlotsToSchedule } from './fixedClassSlots'
 import { createBatchWithSchedules, type ClassScheduleInsert } from './scheduleBatchUtils'
@@ -337,7 +338,11 @@ export const getUpcoming = query({
     classId: v.optional(v.id('classes')),
   },
   handler: async (ctx, args) => {
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { membership } = orgCtx
 
     const now = Date.now()
     const limit = args.limit ?? 10

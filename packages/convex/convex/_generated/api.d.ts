@@ -38,6 +38,7 @@ import type * as scheduleBatchUtils from "../scheduleBatchUtils.js";
 import type * as scheduleBatches from "../scheduleBatches.js";
 import type * as seedExercises from "../seedExercises.js";
 import type * as sessionExerciseLogs from "../sessionExerciseLogs.js";
+import type * as userDeletion from "../userDeletion.js";
 import type * as users from "../users.js";
 import type * as webhookEvents from "../webhookEvents.js";
 import type * as webhooks from "../webhooks.js";
@@ -82,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   scheduleBatches: typeof scheduleBatches;
   seedExercises: typeof seedExercises;
   sessionExerciseLogs: typeof sessionExerciseLogs;
+  userDeletion: typeof userDeletion;
   users: typeof users;
   webhookEvents: typeof webhookEvents;
   webhooks: typeof webhooks;

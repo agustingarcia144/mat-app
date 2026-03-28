@@ -8,7 +8,7 @@ import { PressableScale } from 'pressto'
 
 function formatLoad(weight?: string, prPercentage?: number) {
   if (weight?.trim()) return weight.trim()
-  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% PR`
+  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% RM`
   return ''
 }
 

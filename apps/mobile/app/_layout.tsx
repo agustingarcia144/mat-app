@@ -35,7 +35,8 @@ function RootLayoutNav() {
     if (isLoading) return
 
     const inAuthGroup = segments[0] === '(tabs)'
-    const inModal = segments[0] === 'profile'
+    const topSegment = segments[0] as string | undefined
+    const inSettings = topSegment === 'profile'
     const inOnboarding =
       segments[0] === 'onboarding-notifications' ||
       segments[0] === 'onboarding' ||
@@ -48,7 +49,13 @@ function RootLayoutNav() {
       segments[0] === 'sign-up'
 
     if (!isAuthenticated) {
-      if (inAuthGroup || inModal || inOnboarding || inOrgSelection || inJoinConfirm) {
+      if (
+        inAuthGroup ||
+        inSettings ||
+        inOnboarding ||
+        inOrgSelection ||
+        inJoinConfirm
+      ) {
         router.replace('/')
       }
       return
@@ -106,7 +113,7 @@ function RootLayoutNav() {
       return
     }
 
-    if (!inAuthGroup && !inModal) {
+    if (!inAuthGroup && !inSettings) {
       router.replace('/(tabs)/home')
     }
   }, [

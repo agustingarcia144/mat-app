@@ -34,7 +34,7 @@ function formatTimeSeconds(seconds: number): string {
 
 function formatLoad(weight?: string, prPercentage?: number): string | null {
   if (weight?.trim()) return weight.trim()
-  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% PR`
+  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% RM`
   return null
 }
 
@@ -132,9 +132,7 @@ export default function WorkoutDayCard({
       ) : (
         <div
           className={
-            compact
-              ? 'space-y-2 max-h-72 overflow-y-auto pr-1'
-              : 'space-y-4'
+            compact ? 'space-y-2 max-h-72 overflow-y-auto pr-1' : 'space-y-4'
           }
         >
           {/* Exercises grouped by blocks */}
@@ -178,9 +176,7 @@ export default function WorkoutDayCard({
                           {hasReps && (
                             <>
                               {hasSets && (
-                                <span className="text-muted-foreground">
-                                  ×
-                                </span>
+                                <span className="text-muted-foreground">×</span>
                               )}
                               <span className="font-medium">{ex.reps}</span>
                             </>
@@ -188,9 +184,7 @@ export default function WorkoutDayCard({
                           {loadLabel && (
                             <>
                               {(hasSets || hasReps) && (
-                                <span className="text-muted-foreground">
-                                  x
-                                </span>
+                                <span className="text-muted-foreground">x</span>
                               )}
                               <span className="font-medium">{loadLabel}</span>
                             </>

@@ -48,7 +48,8 @@ function formatSetsRepsWeight(
   const main = parts.join(' ')
   let suffix = ''
   if (weight?.trim()) suffix = ` · ${weight.trim()} kg`
-  else if (prPercentage != null && prPercentage > 0) suffix = ` · ${prPercentage}% PR`
+  else if (prPercentage != null && prPercentage > 0)
+    suffix = ` · ${prPercentage}% RM`
   if (timeSeconds != null && timeSeconds > 0) {
     const mins = Math.floor(timeSeconds / 60)
     const secs = timeSeconds % 60
@@ -128,8 +129,7 @@ export default function ExerciseFormCard({
   const handleSave = () => {
     setSaveError(null)
     const setsTrimmed = localSets?.trim() ?? ''
-    const setsNum =
-      setsTrimmed === '' ? NaN : parseInt(setsTrimmed, 10)
+    const setsNum = setsTrimmed === '' ? NaN : parseInt(setsTrimmed, 10)
     const repsTrimmed = localReps?.trim() ?? ''
     const weightTrimmed = localWeight?.trim() ?? ''
     const prTrimmed = localPrPercentage?.trim() ?? ''
@@ -144,11 +144,9 @@ export default function ExerciseFormCard({
       errors.load = 'Usa peso o % de PR, no ambos'
     } else if (
       hasPrPercentage &&
-      (
-        prPercentageValue == null ||
+      (prPercentageValue == null ||
         Number.isNaN(prPercentageValue) ||
-        prPercentageValue <= 0
-      )
+        prPercentageValue <= 0)
     ) {
       errors.load = 'Ingresa un porcentaje válido'
     }
@@ -167,9 +165,13 @@ export default function ExerciseFormCard({
     }
     form.setValue(`${basePath}.sets` as any, setsNum, { shouldDirty: true })
     form.setValue(`${basePath}.reps` as any, repsTrimmed, { shouldDirty: true })
-    form.setValue(`${basePath}.weight` as any, hasPrPercentage ? '' : weightTrimmed, {
-      shouldDirty: true,
-    })
+    form.setValue(
+      `${basePath}.weight` as any,
+      hasPrPercentage ? '' : weightTrimmed,
+      {
+        shouldDirty: true,
+      }
+    )
     form.setValue(
       `${basePath}.prPercentage` as any,
       hasPrPercentage ? prPercentageValue : undefined,
@@ -177,8 +179,7 @@ export default function ExerciseFormCard({
         shouldDirty: true,
       }
     )
-    const timeSecondsToSave =
-      hasTime ? mins * 60 + secs : undefined
+    const timeSecondsToSave = hasTime ? mins * 60 + secs : undefined
     form.setValue(`${basePath}.timeSeconds` as any, timeSecondsToSave, {
       shouldDirty: true,
     })
@@ -251,7 +252,9 @@ export default function ExerciseFormCard({
           <h4 className="font-medium text-[11px] truncate mb-0.5">
             {exercise?.exerciseName}
           </h4>
-          <p className="text-[10px] text-muted-foreground leading-tight">{summaryText}</p>
+          <p className="text-[10px] text-muted-foreground leading-tight">
+            {summaryText}
+          </p>
         </div>
       </div>
 

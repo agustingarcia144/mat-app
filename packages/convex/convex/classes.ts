@@ -6,6 +6,7 @@ import {
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
   requireOrganizationMembership,
+  tryActiveOrgContext,
 } from './permissions'
 import {
   createBatchWithSchedules,
@@ -228,7 +229,11 @@ export const getByOrganization = query({
     activeOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) {
+      return []
+    }
+    const { membership } = orgCtx
 
     if (args.activeOnly) {
       return await ctx.db

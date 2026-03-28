@@ -11,10 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from 'convex/react'
 import { api } from '@repo/convex'
-import {
-  getYoutubeVideoId,
-  getVideoThumbnailUrl,
-} from '@repo/core/utils'
+import { getYoutubeVideoId, getVideoThumbnailUrl } from '@repo/core/utils'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
@@ -25,7 +22,7 @@ const HEADER_BG = { light: '#e5e5e5', dark: '#262626' }
 
 function formatLoad(weight?: string, prPercentage?: number) {
   if (weight?.trim()) return weight.trim()
-  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% PR`
+  if (prPercentage != null && prPercentage > 0) return `${prPercentage}% RM`
   return ''
 }
 
@@ -94,7 +91,14 @@ export default function ExerciseDetailContent() {
         ...(dayExerciseId ? { dayExerciseId } : {}),
       },
     })
-  }, [assignmentId, dayExerciseId, exerciseId, openVideo, router, youtubeVideoId])
+  }, [
+    assignmentId,
+    dayExerciseId,
+    exerciseId,
+    openVideo,
+    router,
+    youtubeVideoId,
+  ])
 
   useEffect(() => {
     if (useEmbed) {

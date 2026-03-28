@@ -6,11 +6,21 @@ import {
   ScrollView,
   Image,
   Platform,
+  Modal,
+  Pressable,
+  Alert,
+  ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
-import { useUser, useClerk } from "@clerk/expo"
-import { Authenticated, AuthLoading, useMutation, useQuery } from 'convex/react'
+import { useUser, useClerk } from '@clerk/expo'
+import {
+  Authenticated,
+  AuthLoading,
+  useMutation,
+  useQuery,
+  useAction,
+} from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedText } from '@/components/ui/themed-text'
@@ -18,6 +28,168 @@ import { ThemedPressable } from '@/components/ui/themed-pressable'
 import { Colors } from '@/constants/theme'
 import LoadingScreen from '@/components/shared/screens/loading-screen'
 import { useAppReset } from '@/components/providers/providers'
+
+type DeleteAccountModalProps = {
+  visible: boolean
+  onClose: () => void
+  isDark: boolean
+  modalSurfaceColor: string
+  buttonBg: string
+}
+
+function DeleteAccountModal({
+  visible,
+  onClose,
+  isDark,
+  modalSurfaceColor,
+  buttonBg,
+}: DeleteAccountModalProps) {
+  const { signOut } = useClerk()
+  const deleteMyAccount = useAction(api.userDeletion.deleteMyAccount)
+  const insets = useSafeAreaInsets()
+  const [pending, setPending] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!visible) {
+      setError(null)
+      setPending(false)
+    }
+  }, [visible])
+
+  const runDelete = React.useCallback(async () => {
+    setPending(true)
+    setError(null)
+    try {
+      await deleteMyAccount({})
+      await signOut()
+      // Do not call router.replace here: it races the navigator and throws
+      // "navigate before mounting Root Layout". Root _layout redirects unauthenticated
+      // users from profile (inSettings) to `/` via useEffect.
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : 'No se pudo eliminar la cuenta.'
+      setError(msg)
+      Alert.alert('Error', msg)
+    } finally {
+      setPending(false)
+    }
+  }, [deleteMyAccount, signOut])
+
+  const onPressDelete = React.useCallback(() => {
+    Alert.alert(
+      '¿Eliminar cuenta permanentemente?',
+      'Se eliminarán tu cuenta de acceso y tus datos personales en la app. Si tienes una suscripción en App Store, cancélala en Ajustes > Apple ID > Suscripciones. Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            void runDelete()
+          },
+        },
+      ]
+    )
+  }, [runDelete])
+
+  const handleClose = React.useCallback(() => {
+    if (!pending) onClose()
+  }, [pending, onClose])
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      onRequestClose={handleClose}
+      accessibilityViewIsModal
+    >
+      <View style={styles.modalRoot} pointerEvents="box-none">
+        <Pressable
+          style={styles.modalBackdrop}
+          onPress={handleClose}
+          accessibilityLabel="Cerrar"
+          accessibilityRole="button"
+        />
+        <View
+          style={[
+            styles.modalCard,
+            {
+              backgroundColor: modalSurfaceColor,
+              paddingBottom: Math.max(insets.bottom, 20),
+            },
+          ]}
+        >
+          <View style={styles.modalHandleArea}>
+            <View
+              style={[
+                styles.modalHandle,
+                { backgroundColor: isDark ? '#555' : '#ccc' },
+              ]}
+            />
+          </View>
+          <ThemedText type="title" style={styles.modalTitle}>
+            Eliminar cuenta
+          </ThemedText>
+          <ThemedText style={styles.modalBody}>
+            Puedes eliminar tu cuenta de forma permanente. Perderás el acceso a
+            tus gimnasios, entrenamientos y reservas asociados a esta cuenta.
+          </ThemedText>
+          {error ? (
+            <Text style={styles.modalError} accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          ) : null}
+          <ThemedPressable
+            type="secondary"
+            lightColor="transparent"
+            darkColor="transparent"
+            disabled={pending}
+            style={[
+              styles.modalDeleteButton,
+              {
+                borderColor: '#ef4444',
+                backgroundColor: 'transparent',
+                opacity: pending ? 0.6 : 1,
+              },
+            ]}
+            onPress={onPressDelete}
+            accessibilityRole="button"
+            accessibilityLabel="Eliminar mi cuenta permanentemente"
+          >
+            {pending ? (
+              <ActivityIndicator color="#ef4444" />
+            ) : (
+              <Text style={styles.modalDeleteButtonText}>
+                Eliminar mi cuenta permanentemente
+              </Text>
+            )}
+          </ThemedPressable>
+          <ThemedPressable
+            type="secondary"
+            lightColor={buttonBg}
+            darkColor={buttonBg}
+            style={[styles.modalCancelButton, { marginTop: 12 }]}
+            onPress={handleClose}
+            disabled={pending}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar"
+          >
+            <Text
+              style={[
+                styles.modalCancelButtonText,
+                { color: isDark ? '#fff' : '#000' },
+              ]}
+            >
+              Volver
+            </Text>
+          </ThemedPressable>
+        </View>
+      </View>
+    </Modal>
+  )
+}
 
 function ProfileContent() {
   const router = useRouter()
@@ -38,6 +210,8 @@ function ProfileContent() {
     null
   )
   const [orgError, setOrgError] = React.useState<string | null>(null)
+  const [deleteAccountModalVisible, setDeleteAccountModalVisible] =
+    React.useState(false)
 
   const primaryEmail =
     user?.emailAddresses?.[0]?.emailAddress ??
@@ -63,6 +237,7 @@ function ProfileContent() {
 
   const buttonBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'
   const backgroundColor = Colors[colorScheme ?? 'light'].background
+  const modalSurfaceColor = Colors[colorScheme ?? 'light'].background
 
   const handleOrganizationSwitch = React.useCallback(
     async (selectedOrgId: string) => {
@@ -200,7 +375,45 @@ function ProfileContent() {
             Cerrar sesión
           </Text>
         </ThemedPressable>
+
+        <View style={styles.dangerSection} accessibilityRole="none">
+          <Text
+            style={[
+              styles.dangerSectionTitle,
+              { color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)' },
+            ]}
+          >
+            Zona peligrosa
+          </Text>
+          <ThemedPressable
+            type="secondary"
+            lightColor="transparent"
+            darkColor="transparent"
+            style={[
+              styles.deleteAccountButton,
+              {
+                borderColor: '#ef4444',
+                backgroundColor: 'transparent',
+              },
+            ]}
+            onPress={() => setDeleteAccountModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Eliminar cuenta permanentemente"
+          >
+            <Text style={[styles.deleteAccountButtonText, { color: '#ef4444' }]}>
+              Eliminar cuenta permanentemente
+            </Text>
+          </ThemedPressable>
+        </View>
       </ScrollView>
+
+      <DeleteAccountModal
+        visible={deleteAccountModalVisible}
+        onClose={() => setDeleteAccountModalVisible(false)}
+        isDark={isDark}
+        modalSurfaceColor={modalSurfaceColor}
+        buttonBg={buttonBg}
+      />
     </View>
   )
 }
@@ -298,6 +511,94 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   buttonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  dangerSection: {
+    width: '100%',
+    marginTop: 28,
+    gap: 10,
+  },
+  dangerSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  deleteAccountButton: {
+    height: 48,
+    borderRadius: 9999,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  deleteAccountButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  modalCard: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    maxHeight: '88%',
+  },
+  modalHandleArea: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  modalBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    opacity: 0.9,
+    marginBottom: 24,
+  },
+  modalError: {
+    color: '#ef4444',
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  modalDeleteButton: {
+    height: 48,
+    borderRadius: 9999,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  modalDeleteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ef4444',
+  },
+  modalCancelButton: {
+    height: 48,
+    borderRadius: 9999,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    marginBottom: 8,
+  },
+  modalCancelButtonText: {
     fontSize: 16,
     fontWeight: '500',
   },
