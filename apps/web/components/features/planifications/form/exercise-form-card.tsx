@@ -235,6 +235,7 @@ export default function ExerciseFormCard({
               fill
               className="object-cover"
               sizes="192px"
+              unoptimized
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-muted/50 p-4">
@@ -274,6 +275,7 @@ export default function ExerciseFormCard({
                   fill
                   className="object-cover"
                   sizes="(max-width: 512px) 100vw, 28rem"
+                  unoptimized
                 />
               </div>
             )}

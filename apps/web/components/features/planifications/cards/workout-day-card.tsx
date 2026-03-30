@@ -239,6 +239,7 @@ export default function WorkoutDayCard({
                                   fill
                                   className="object-cover"
                                   sizes="40px"
+                                  unoptimized={Boolean(thumbnailUrl)}
                                 />
                               </button>
                               {setsRepsEl}
@@ -272,6 +273,7 @@ export default function WorkoutDayCard({
                               fill
                               className="object-cover"
                               sizes="64px"
+                              unoptimized={Boolean(thumbnailUrl)}
                             />
                           </button>
                           <div className="flex-1 min-w-0 overflow-hidden">
@@ -391,6 +393,7 @@ export default function WorkoutDayCard({
                               fill
                               className="object-cover"
                               sizes="40px"
+                              unoptimized={Boolean(thumbnailUrl)}
                             />
                           </button>
                           {setsRepsEl}
@@ -424,6 +427,7 @@ export default function WorkoutDayCard({
                           fill
                           className="object-cover"
                           sizes="64px"
+                          unoptimized={Boolean(thumbnailUrl)}
                         />
                       </button>
                       <div className="flex-1 min-w-0 overflow-hidden">

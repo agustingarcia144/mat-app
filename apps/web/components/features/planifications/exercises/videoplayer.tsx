@@ -41,6 +41,8 @@ export default function VideoPlayer({ videoUrl, title }: Props) {
             alt={title}
             fill
             className="object-cover"
+            sizes="(max-width: 768px) 100vw, 50vw"
+            unoptimized
           />
         )}
       </div>
