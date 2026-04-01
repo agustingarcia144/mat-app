@@ -100,6 +100,8 @@ async function buildBatchSummary(ctx: MutationCtx | QueryCtx, batch: BatchDoc) {
   let scheduledCount = 0
   let cancelledCount = 0
   let completedCount = 0
+  let editableSchedulesCount = 0
+  let protectedSchedulesCount = 0
 
   schedules.forEach((schedule, index) => {
     if (schedule.status === 'scheduled') scheduledCount++
@@ -120,6 +122,18 @@ async function buildBatchSummary(ctx: MutationCtx | QueryCtx, batch: BatchDoc) {
       isScheduleEditableOrDeletable(schedule, reservationsBySchedule[index])
     )
 
+  schedules.forEach((schedule, index) => {
+    const canManageSchedule = isScheduleEditableOrDeletable(
+      schedule,
+      reservationsBySchedule[index]
+    )
+    if (canManageSchedule) {
+      editableSchedulesCount++
+    } else {
+      protectedSchedulesCount++
+    }
+  })
+
   return {
     ...batch,
     className: classTemplate?.name ?? 'Clase eliminada',
@@ -131,6 +145,8 @@ async function buildBatchSummary(ctx: MutationCtx | QueryCtx, batch: BatchDoc) {
     cancelledReservations,
     attendedReservations,
     noShowReservations,
+    editableSchedulesCount,
+    protectedSchedulesCount,
     canEdit: canManage,
     canDelete: canManage,
   }
@@ -664,5 +680,52 @@ export const remove = mutation({
 
     await deleteBatchData(ctx, batch)
     return { success: true }
+  },
+})
+
+export const removeEditableSchedules = mutation({
+  args: {
+    batchId: v.id('scheduleBatches'),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx)
+
+    const batch = await getBatchOrThrow(ctx, args.batchId)
+    await requireAdminOrTrainer(ctx, batch.organizationId)
+
+    const schedules = await getSchedulesForBatch(ctx, batch._id)
+    if (schedules.length === 0) {
+      throw new Error('El lote no tiene turnos para eliminar.')
+    }
+
+    const editableSchedules: ScheduleDoc[] = []
+
+    for (const schedule of schedules) {
+      const reservations = await getReservationsForSchedule(ctx, schedule._id)
+      if (isScheduleEditableOrDeletable(schedule, reservations)) {
+        for (const reservation of reservations) {
+          await ctx.db.delete(reservation._id)
+        }
+        editableSchedules.push(schedule)
+      }
+    }
+
+    if (editableSchedules.length === 0) {
+      throw new Error(
+        'No hay turnos editables en este lote. Solo contiene turnos bloqueados.'
+      )
+    }
+
+    await deleteSchedulesByIds(
+      ctx,
+      editableSchedules.map((schedule) => schedule._id)
+    )
+
+    const remainingSchedules = await syncBatchMetadata(ctx, batch._id)
+    return {
+      removedCount: editableSchedules.length,
+      remainingCount: remainingSchedules?.length ?? 0,
+      batchDeleted: remainingSchedules === null,
+    }
   },
 })
