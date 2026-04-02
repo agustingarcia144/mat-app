@@ -560,6 +560,30 @@ export default defineSchema({
     .index('by_user', ['userId'])
     .index('by_organization_user', ['organizationId', 'userId']),
 
+  // Model week slots - defines the recurring class schedule template (which classes run on which day/time).
+  // This is the "ideal week" used for planning; separate from actual schedules and from member-specific
+  // fixed slots (fixedClassSlots). Applying this template to a date range generates real classSchedules.
+  modelWeekSlots: defineTable({
+    organizationId: v.id('organizations'),
+    classId: v.id('classes'),
+    dayOfWeek: v.number(), // 0-6, Sunday = 0 (same convention as fixedClassSlots)
+    startTimeMinutes: v.number(), // 0-1439, e.g. 540 = 09:00
+    durationMinutes: v.number(), // Default 60
+    capacity: v.optional(v.number()), // Overrides class capacity when set
+    notes: v.optional(v.string()),
+    createdBy: v.string(), // Clerk user ID
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_class', ['organizationId', 'classId'])
+    .index('by_organization_slot', [
+      'organizationId',
+      'classId',
+      'dayOfWeek',
+      'startTimeMinutes',
+    ]),
+
   // Push tokens - stores Expo push tokens per user/device
   pushTokens: defineTable({
     userId: v.string(), // Clerk user ID
