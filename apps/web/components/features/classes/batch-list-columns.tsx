@@ -34,9 +34,11 @@ export type BatchRow = {
 
 type BatchListColumnsProps = {
   deletingId: Id<'scheduleBatches'> | null
+  removingEditableId: Id<'scheduleBatches'> | null
   onView: (batchId: Id<'scheduleBatches'>) => void
   onEdit: (batchId: Id<'scheduleBatches'>) => void
   onDuplicate: (batchId: Id<'scheduleBatches'>) => void
+  onRemoveEditable: (batchId: Id<'scheduleBatches'>) => void
   onDelete: (batchId: Id<'scheduleBatches'>) => void
 }
 
@@ -58,9 +60,11 @@ function getEligibilityBadge(batch: BatchRow) {
 
 export function getBatchListColumns({
   deletingId,
+  removingEditableId,
   onView,
   onEdit,
   onDuplicate,
+  onRemoveEditable,
   onDelete,
 }: BatchListColumnsProps): ColumnDef<BatchRow>[] {
   return [
@@ -141,7 +145,8 @@ export function getBatchListColumns({
       id: 'actions',
       cell: ({ row }) => {
         const batch = row.original
-        const isDeleting = deletingId === batch._id
+        const isMutating =
+          deletingId === batch._id || removingEditableId === batch._id
 
         return (
           <DropdownMenu>
@@ -149,7 +154,7 @@ export function getBatchListColumns({
               <Button
                 variant='ghost'
                 className='h-8 w-8 p-0'
-                disabled={isDeleting}
+                disabled={isMutating}
               >
                 <span className='sr-only'>Abrir menú</span>
                 <MoreHorizontal className='h-4 w-4' />
@@ -170,6 +175,14 @@ export function getBatchListColumns({
               <DropdownMenuItem onClick={() => onDuplicate(batch._id)}>
                 <Copy className='mr-2 h-4 w-4' />
                 Duplicar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onRemoveEditable(batch._id)}
+                disabled={batch.canDelete}
+                className='text-destructive'
+              >
+                <Trash2 className='mr-2 h-4 w-4' />
+                Eliminar editables
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => onDelete(batch._id)}

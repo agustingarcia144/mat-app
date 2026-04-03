@@ -54,6 +54,8 @@ type BatchScheduleDetail = {
     attended: number
     noShow: number
   }
+  canEdit?: boolean
+  canDelete?: boolean
 }
 
 type BatchDetails = BatchRow & {
@@ -144,6 +146,9 @@ export default function BatchList() {
   const updateBatch = useMutation(api.scheduleBatches.update)
   const duplicateBatch = useMutation(api.scheduleBatches.duplicate)
   const removeBatch = useMutation(api.scheduleBatches.remove)
+  const removeEditableSchedules = useMutation(
+    (api.scheduleBatches as any).removeEditableSchedules
+  )
 
   const [viewingBatchId, setViewingBatchId] =
     useState<Id<'scheduleBatches'> | null>(null)
@@ -152,6 +157,8 @@ export default function BatchList() {
   const [duplicatingBatchId, setDuplicatingBatchId] =
     useState<Id<'scheduleBatches'> | null>(null)
   const [deletingBatchId, setDeletingBatchId] =
+    useState<Id<'scheduleBatches'> | null>(null)
+  const [removingEditableBatchId, setRemovingEditableBatchId] =
     useState<Id<'scheduleBatches'> | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [editCapacity, setEditCapacity] = useState('')
@@ -176,7 +183,8 @@ export default function BatchList() {
     viewingBatchId ??
     editingBatchId ??
     duplicatingBatchId ??
-    deletingBatchId
+    deletingBatchId ??
+    removingEditableBatchId
 
   const selectedBatch = useQuery(
     api.scheduleBatches.getDetails,
@@ -251,12 +259,14 @@ export default function BatchList() {
     () =>
       getBatchListColumns({
         deletingId: deletingBatchId,
+        removingEditableId: removingEditableBatchId,
         onView: setViewingBatchId,
         onEdit: setEditingBatchId,
         onDuplicate: setDuplicatingBatchId,
+        onRemoveEditable: setRemovingEditableBatchId,
         onDelete: setDeletingBatchId,
       }),
-    [deletingBatchId]
+    [deletingBatchId, removingEditableBatchId]
   )
 
   const duplicateDateRange: DateRange | undefined =
@@ -437,6 +447,50 @@ export default function BatchList() {
       setActionLoading(false)
     }
   }
+
+  const handleRemoveEditableSubmit = async () => {
+    if (!removingEditableBatchId) return
+
+    setActionLoading(true)
+    try {
+      const result = (await removeEditableSchedules({
+        batchId: removingEditableBatchId,
+      })) as {
+        removedCount: number
+        remainingCount: number
+        batchDeleted: boolean
+      }
+      if (result.batchDeleted) {
+        toast.success(
+          `Se eliminaron ${result.removedCount} turnos editables. El lote quedó vacío y se eliminó.`
+        )
+      } else {
+        toast.success(
+          `Se eliminaron ${result.removedCount} turnos editables. Quedaron ${result.remainingCount} turnos bloqueados.`
+        )
+      }
+      setRemovingEditableBatchId(null)
+    } catch (error) {
+      console.error('Error removing editable schedules:', error)
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Error al eliminar turnos editables del lote'
+      )
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const editableCount =
+    selectedBatch && selectedBatch._id === removingEditableBatchId
+      ? selectedBatch.schedules.filter((schedule) => Boolean(schedule.canDelete))
+          .length
+      : 0
+  const protectedCount =
+    selectedBatch && selectedBatch._id === removingEditableBatchId
+      ? selectedBatch.schedules.length - editableCount
+      : 0
 
   if (batches === undefined) {
     return (
@@ -873,6 +927,62 @@ export default function BatchList() {
               }
             >
               Eliminar lote
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={removingEditableBatchId !== null}
+        onOpenChange={(open) => {
+          if (!open) setRemovingEditableBatchId(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar turnos editables</DialogTitle>
+            <DialogDescription>
+              Esta acción elimina solo los turnos sin reservas activas ni
+              asistencias, y conserva los turnos bloqueados.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!selectedBatch || selectedBatch._id !== removingEditableBatchId ? (
+            <p className='text-sm text-muted-foreground'>Cargando lote...</p>
+          ) : (
+            <div className='space-y-3'>
+              <p className='text-sm text-muted-foreground'>
+                En <strong>{selectedBatch.className}</strong> se eliminarán{' '}
+                <strong>{editableCount}</strong> turnos editables y quedarán{' '}
+                <strong>{protectedCount}</strong> turnos bloqueados.
+              </p>
+              {editableCount === 0 ? (
+                <div className='rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-muted-foreground'>
+                  No hay turnos editables para eliminar en este lote.
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setRemovingEditableBatchId(null)}
+              disabled={actionLoading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant='destructive'
+              onClick={handleRemoveEditableSubmit}
+              disabled={
+                actionLoading ||
+                !selectedBatch ||
+                selectedBatch._id !== removingEditableBatchId ||
+                editableCount === 0
+              }
+            >
+              Eliminar editables
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,8 +1,8 @@
 module.exports = {
   reactStrictMode: true,
   images: {
-    deviceSizes: [640, 768, 1024, 1280],
-    imageSizes: [32, 40, 64, 96, 128, 192, 256, 384, 512],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384, 512],
     qualities: [60, 75],
     minimumCacheTTL: 2678400,
     formats: ['image/webp'],

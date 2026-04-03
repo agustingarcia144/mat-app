@@ -33,11 +33,11 @@ import ClassFormDialog from '@/components/features/classes/dialogs/class-form-di
 import GenerateSchedulesDialog from '@/components/features/classes/dialogs/generate-schedules-dialog'
 import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule-detail-dialog'
 import FixedSlotsDialog from '@/components/features/classes/dialogs/fixed-slots-dialog'
-import FixedSlotScheduleDetailDialog from '@/components/features/classes/dialogs/fixed-slot-schedule-detail-dialog'
-import CopyModelWeekDialog, {
-  type ModelScheduleTemplate,
-} from '@/components/features/classes/dialogs/copy-model-week-dialog'
-import ModelWeeklyTimeline from '@/components/features/classes/calendar/fixed-slots-weekly-timeline'
+import ModelWeekTimeline, {
+  type ModelWeekSlotDoc,
+} from '@/components/features/classes/calendar/model-week-timeline'
+import ModelWeekSlotDialog from '@/components/features/classes/dialogs/model-week-slot-dialog'
+import ApplyModelWeekDialog from '@/components/features/classes/dialogs/apply-model-week-dialog'
 import WeeklyTimeline from '@/components/features/classes/calendar/weekly-timeline'
 import ClassList from '@/components/features/classes/class-list'
 import BatchList from '@/components/features/classes/batch-list'
@@ -62,9 +62,8 @@ export default function ClassesPage() {
   const canQueryOrgData = useCanQueryCurrentOrganization()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedView, setSelectedView] = useState<
-    'calendar' | 'list' | 'batches'
+    'calendar' | 'list' | 'batches' | 'model'
   >('calendar')
-  const [calendarTab, setCalendarTab] = useState<'actual' | 'model'>('actual')
   const [classFormOpen, setClassFormOpen] = useState(false)
   const [editingClassId, setEditingClassId] = useState<
     Id<'classes'> | undefined
@@ -80,16 +79,15 @@ export default function ClassesPage() {
     name: string
   } | null>(null)
   const [fixedSlotsOpen, setFixedSlotsOpen] = useState(false)
-  const [modelFixedSlotDialogOpen, setModelFixedSlotDialogOpen] =
-    useState(false)
-  const [selectedModelFixedSlot, setSelectedModelFixedSlot] = useState<{
-    classId: Id<'classes'>
-    dayOfWeek: number
-    startTimeMinutes: number
-  } | null>(null)
-  const showModelCalendar =
-    selectedView === 'calendar' && calendarTab === 'model'
-  const [copyModelWeekOpen, setCopyModelWeekOpen] = useState(false)
+  const [applyModelWeekOpen, setApplyModelWeekOpen] = useState(false)
+  const [modelSlotDialogOpen, setModelSlotDialogOpen] = useState(false)
+  const [selectedModelSlotId, setSelectedModelSlotId] = useState<
+    Id<'modelWeekSlots'> | undefined
+  >()
+  const [initialSlotDay, setInitialSlotDay] = useState<number | undefined>()
+  const [initialSlotMinutes, setInitialSlotMinutes] = useState<
+    number | undefined
+  >()
 
   const classes = useQuery(
     api.classes.getByOrganization,
@@ -116,14 +114,14 @@ export default function ClassesPage() {
       : 'skip'
   )
 
-  const modelFixedSlots = useQuery(
+  const modelWeekSlots = useQuery(
+    api.modelWeekSlots.listByOrganization,
+    selectedView === 'model' && canQueryOrgData ? {} : 'skip'
+  )
+
+  const fixedSlotsForModel = useQuery(
     api.fixedClassSlots.listByOrganizationAndClass,
-    showModelCalendar && canQueryOrgData
-      ? {
-          classId:
-            classFilter === 'all' ? undefined : (classFilter as Id<'classes'>),
-        }
-      : 'skip'
+    selectedView === 'model' && canQueryOrgData ? {} : 'skip'
   )
 
   // Enrich schedules with class data
@@ -161,123 +159,7 @@ export default function ClassesPage() {
     setSelectedScheduleId(undefined)
   }
 
-  const handleModelFixedSlotClick = (slot: {
-    classId: Id<'classes'>
-    dayOfWeek: number
-    startTimeMinutes: number
-  }) => {
-    setSelectedModelFixedSlot(slot)
-    setModelFixedSlotDialogOpen(true)
-  }
 
-  const handleModelFixedSlotDialogClose = () => {
-    setModelFixedSlotDialogOpen(false)
-    setSelectedModelFixedSlot(null)
-  }
-
-  const selectedFixedSlotsForModelDialog = useMemo(() => {
-    if (!selectedModelFixedSlot) return undefined
-    if (!modelFixedSlots) return undefined
-    return modelFixedSlots.filter(
-      (s) =>
-        s.classId === selectedModelFixedSlot.classId &&
-        s.dayOfWeek === selectedModelFixedSlot.dayOfWeek &&
-        s.startTimeMinutes === selectedModelFixedSlot.startTimeMinutes
-    )
-  }, [modelFixedSlots, selectedModelFixedSlot])
-
-  const slotInfoFallbackForModelDialog = useMemo(() => {
-    if (!selectedModelFixedSlot) return undefined
-    const classItem = classes?.find(
-      (c: Doc<'classes'>) => c._id === selectedModelFixedSlot.classId
-    )
-    return {
-      className: classItem?.name ?? null,
-      dayOfWeek: selectedModelFixedSlot.dayOfWeek,
-      startTimeMinutes: selectedModelFixedSlot.startTimeMinutes,
-    }
-  }, [classes, selectedModelFixedSlot])
-
-  const HOURS_IN_VIEW = useMemo(
-    () => Array.from({ length: 17 }, (_, i) => i + 6),
-    []
-  )
-  const DEFAULT_FIXED_SLOT_DURATION_MINUTES = 60
-
-  const modelTemplatesForCopy = useMemo((): ModelScheduleTemplate[] | null => {
-    if (
-      classes === undefined ||
-      schedules === undefined ||
-      modelFixedSlots === undefined
-    ) {
-      return null
-    }
-
-    const hoursSet = new Set(HOURS_IN_VIEW)
-    const templates: ModelScheduleTemplate[] = []
-    const scheduleKeySet = new Set<string>()
-
-    // 1) Schedules visible in the current week (even if they don't have fixed slots).
-    for (const sched of enrichedSchedules) {
-      const start = new Date(sched.startTime)
-      const blockHour = start.getHours()
-      if (!hoursSet.has(blockHour)) continue
-
-      const dayOfWeek = start.getDay() // 0-6, Sunday=0
-      const startTimeMinutes = start.getHours() * 60 + start.getMinutes()
-      const key = `${sched.classId}-${dayOfWeek}-${startTimeMinutes}`
-
-      scheduleKeySet.add(key)
-      templates.push({
-        classId: sched.classId,
-        startTime: sched.startTime,
-        endTime: sched.endTime,
-        capacity: sched.capacity,
-        notes: sched.notes,
-      })
-    }
-
-    // 2) Fixed-slot-only blocks (no schedule occurrence in the week).
-    const fixedSlotOnlyKeySet = new Set<string>()
-    for (const slot of modelFixedSlots) {
-      const slotHour = Math.floor(slot.startTimeMinutes / 60)
-      if (!hoursSet.has(slotHour)) continue
-
-      const key = `${slot.classId}-${slot.dayOfWeek}-${slot.startTimeMinutes}`
-      if (scheduleKeySet.has(key)) continue
-      if (fixedSlotOnlyKeySet.has(key)) continue
-      fixedSlotOnlyKeySet.add(key)
-
-      const classTemplate = classes.find(
-        (c: Doc<'classes'>) => c._id === slot.classId
-      )
-      if (!classTemplate) continue
-
-      const dayOffset = (slot.dayOfWeek + 6) % 7 // Week starts on Monday.
-      const dayDate = addDays(weekStart, dayOffset)
-      const start = new Date(dayDate)
-      const minutes = slot.startTimeMinutes % 60
-      start.setHours(slotHour, minutes, 0, 0)
-
-      const startTime = start.getTime()
-      templates.push({
-        classId: slot.classId,
-        startTime,
-        endTime: startTime + DEFAULT_FIXED_SLOT_DURATION_MINUTES * 60 * 1000,
-        capacity: classTemplate.capacity,
-      })
-    }
-
-    templates.sort((a, b) => a.startTime - b.startTime)
-    return templates
-  }, [
-    HOURS_IN_VIEW,
-    classes,
-    schedules,
-    modelFixedSlots,
-    enrichedSchedules,
-    weekStart,
-  ])
 
   const handleOpenGenerateTurnos = (classItem?: {
     _id: Id<'classes'>
@@ -333,7 +215,7 @@ export default function ClassesPage() {
         <Tabs
           value={selectedView}
           onValueChange={(v) =>
-            setSelectedView(v as 'calendar' | 'list' | 'batches')
+            setSelectedView(v as 'calendar' | 'list' | 'batches' | 'model')
           }
         >
           <TabsList>
@@ -344,6 +226,14 @@ export default function ClassesPage() {
             >
               <Calendar className="h-4 w-4" />
               <span className="sr-only md:not-sr-only">Calendario</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="model"
+              className="gap-0 md:gap-2"
+              aria-label="Vista semana modelo"
+            >
+              <Layers3 className="h-4 w-4" />
+              <span className="sr-only md:not-sr-only">Semana Modelo</span>
             </TabsTrigger>
             <TabsTrigger
               value="list"
@@ -412,39 +302,15 @@ export default function ClassesPage() {
                 <ChevronRight className="h-4 w-4" aria-hidden />
               </Button>
             </div>
-            <div className="flex flex-wrap items-center gap-3 md:gap-4">
-              <Tabs
-                value={calendarTab}
-                onValueChange={(v) => setCalendarTab(v as 'actual' | 'model')}
-              >
-                <TabsList>
-                  <TabsTrigger value="actual">Calendario Real</TabsTrigger>
-                  <TabsTrigger value="model">Calendario Modelo</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              {calendarTab === 'model' && (
-                <Button
-                  variant="outline"
-                  onClick={() => setCopyModelWeekOpen(true)}
-                  disabled={
-                    modelTemplatesForCopy == null ||
-                    modelTemplatesForCopy.length === 0
-                  }
-                >
-                  Copiar semana (modelo)
-                </Button>
-              )}
-              <h2 className="text-base font-semibold md:text-lg">
-                {format(weekStart, 'd', { locale: es })} -{' '}
-                {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", {
-                  locale: es,
-                })}
-              </h2>
-            </div>
+            <h2 className="text-base font-semibold md:text-lg">
+              {format(weekStart, 'd', { locale: es })} -{' '}
+              {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", {
+                locale: es,
+              })}
+            </h2>
           </div>
 
-          {(calendarTab === 'actual' && schedules === undefined) ||
-          (calendarTab === 'model' && modelFixedSlots === undefined) ? (
+          {schedules === undefined ? (
             <div className="overflow-hidden rounded-lg border">
               <div className="overflow-x-auto">
                 <div className="min-w-[800px]">
@@ -476,7 +342,7 @@ export default function ClassesPage() {
                 </div>
               </div>
             </div>
-          ) : calendarTab === 'actual' ? (
+          ) : (
             <WeeklyTimeline
               schedules={enrichedSchedules}
               currentDate={currentDate}
@@ -484,14 +350,71 @@ export default function ClassesPage() {
               onScheduleClick={handleScheduleClick}
               showWeekNavigation={false}
             />
+          )}
+        </div>
+      ) : selectedView === 'model' ? (
+        <div className="space-y-4 rounded-lg border p-3 md:p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold md:text-lg">
+              Semana Modelo
+            </h2>
+            <Button
+              variant="outline"
+              onClick={() => setApplyModelWeekOpen(true)}
+              disabled={!modelWeekSlots || modelWeekSlots.length === 0}
+            >
+              Aplicar semana modelo
+            </Button>
+          </div>
+
+          {modelWeekSlots === undefined ? (
+            <div className="overflow-hidden rounded-lg border">
+              <div className="overflow-x-auto">
+                <div className="min-w-[800px]">
+                  {/* Day headers */}
+                  <div className="grid grid-cols-8 bg-muted">
+                    <Skeleton className="h-14 rounded-none border-r border-b border-border" />
+                    {Array.from({ length: 7 }).map((_, i) => (
+                      <Skeleton
+                        key={i}
+                        className="h-14 rounded-none border-r border-b border-border"
+                      />
+                    ))}
+                  </div>
+                  {/* Time rows */}
+                  {Array.from({ length: 12 }).map((_, rowIndex) => (
+                    <div
+                      key={rowIndex}
+                      className="grid grid-cols-8 border-b border-border last:border-b-0"
+                    >
+                      <Skeleton className="h-[60px] rounded-none border-r border-border" />
+                      {Array.from({ length: 7 }).map((_, colIndex) => (
+                        <Skeleton
+                          key={colIndex}
+                          className="h-[60px] rounded-none border-r border-border"
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           ) : (
-            <ModelWeeklyTimeline
-              fixedSlots={modelFixedSlots ?? []}
-              currentDate={currentDate}
-              schedules={enrichedSchedules}
-              onDateChange={setCurrentDate}
-              onFixedSlotClick={handleModelFixedSlotClick}
-              showWeekNavigation={false}
+            <ModelWeekTimeline
+              modelSlots={(modelWeekSlots ?? []) as ModelWeekSlotDoc[]}
+              fixedSlots={fixedSlotsForModel ?? []}
+              onSlotClick={(slotId) => {
+                setSelectedModelSlotId(slotId)
+                setInitialSlotDay(undefined)
+                setInitialSlotMinutes(undefined)
+                setModelSlotDialogOpen(true)
+              }}
+              onEmptyCellClick={(dayOfWeek, startTimeMinutes) => {
+                setSelectedModelSlotId(undefined)
+                setInitialSlotDay(dayOfWeek)
+                setInitialSlotMinutes(startTimeMinutes)
+                setModelSlotDialogOpen(true)
+              }}
             />
           )}
         </div>
@@ -566,21 +489,30 @@ export default function ClassesPage() {
         onOpenChange={setFixedSlotsOpen}
       />
 
-      <CopyModelWeekDialog
-        open={copyModelWeekOpen}
-        onOpenChange={setCopyModelWeekOpen}
-        sourceWeekStartDate={weekStart.getTime()}
-        templates={modelTemplatesForCopy ?? []}
+      <ApplyModelWeekDialog
+        open={applyModelWeekOpen}
+        onOpenChange={setApplyModelWeekOpen}
       />
 
-      {modelFixedSlotDialogOpen && selectedModelFixedSlot && (
-        <FixedSlotScheduleDetailDialog
-          open={modelFixedSlotDialogOpen}
-          onOpenChange={handleModelFixedSlotDialogClose}
-          fixedSlots={selectedFixedSlotsForModelDialog}
-          slotInfoFallback={slotInfoFallbackForModelDialog}
-        />
-      )}
+      <ModelWeekSlotDialog
+        open={modelSlotDialogOpen}
+        onOpenChange={(open) => {
+          setModelSlotDialogOpen(open)
+          if (!open) {
+            setSelectedModelSlotId(undefined)
+            setInitialSlotDay(undefined)
+            setInitialSlotMinutes(undefined)
+          }
+        }}
+        slot={
+          modelWeekSlots?.find(
+            (s) => s._id === selectedModelSlotId
+          ) as ModelWeekSlotDoc | undefined
+        }
+        initialDayOfWeek={initialSlotDay}
+        initialStartTimeMinutes={initialSlotMinutes}
+        classes={classes ?? []}
+      />
     </DashboardPageContainer>
   )
 }

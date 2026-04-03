@@ -468,6 +468,46 @@ export function getDayAndMinutesInZone(startTime: number, timezone: string): { d
 }
 
 /**
+ * List all fixed-slot members for a specific model week slot (classId + dayOfWeek + startTimeMinutes).
+ * Used by the model week slot dialog to show and manage members for a single slot.
+ */
+export const listBySlot = query({
+  args: {
+    classId: v.id('classes'),
+    dayOfWeek: v.number(),
+    startTimeMinutes: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAdminOrTrainer(ctx, membership.organizationId)
+
+    const slots = await ctx.db
+      .query('fixedClassSlots')
+      .withIndex('by_organization_class_slot', (q) =>
+        q
+          .eq('organizationId', membership.organizationId)
+          .eq('classId', args.classId)
+          .eq('dayOfWeek', args.dayOfWeek)
+          .eq('startTimeMinutes', args.startTimeMinutes)
+      )
+      .collect()
+
+    return await Promise.all(
+      slots.map(async (slot) => {
+        const user = await ctx.db
+          .query('users')
+          .withIndex('by_externalId', (q) => q.eq('externalId', slot.userId))
+          .first()
+        return {
+          ...slot,
+          userFullName: user?.fullName ?? user?.email ?? slot.userId,
+        }
+      })
+    )
+  },
+})
+
+/**
  * Helper: assign fixed-slot members to a newly created schedule.
  * Call from classSchedules.create and from classes.generateSchedules / generateSchedulesFromTimeWindow.
  * Derives dayOfWeek and startTimeMinutes from the schedule's startTime in the

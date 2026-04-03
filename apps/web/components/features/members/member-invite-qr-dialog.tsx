@@ -24,6 +24,9 @@ type InviteData = {
   createdAt: number
 }
 
+const INVITATION_APP_URL =
+  process.env.NEXT_PUBLIC_INVITATION_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL
+
 export function MemberInviteQrDialog() {
   const getOrCreateCode = useAction(api.memberInviteCodes.getOrCreateOrganizationMemberInviteCode)
   const [open, setOpen] = useState(false)
@@ -33,7 +36,11 @@ export function MemberInviteQrDialog() {
 
   const joinUrl = useMemo(() => {
     if (!inviteData || typeof window === 'undefined') return null
-    return `${window.location.origin}/join/${inviteData.joinToken}`
+    const baseUrl =
+      INVITATION_APP_URL && INVITATION_APP_URL.trim().length > 0
+        ? INVITATION_APP_URL
+        : window.location.origin
+    return `${baseUrl.replace(/\/+$/, '')}/join/${inviteData.joinToken}`
   }, [inviteData])
 
   const loadData = useCallback(async () => {

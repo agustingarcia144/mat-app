@@ -23,6 +23,7 @@ import type * as joinGymNode from "../joinGymNode.js";
 import type * as memberInviteCodes from "../memberInviteCodes.js";
 import type * as memberInviteCodesNode from "../memberInviteCodesNode.js";
 import type * as migrations from "../migrations.js";
+import type * as modelWeekSlots from "../modelWeekSlots.js";
 import type * as orgCreationCodes from "../orgCreationCodes.js";
 import type * as orgCreationCodesNode from "../orgCreationCodesNode.js";
 import type * as organizationMemberships from "../organizationMemberships.js";
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   memberInviteCodes: typeof memberInviteCodes;
   memberInviteCodesNode: typeof memberInviteCodesNode;
   migrations: typeof migrations;
+  modelWeekSlots: typeof modelWeekSlots;
   orgCreationCodes: typeof orgCreationCodes;
   orgCreationCodesNode: typeof orgCreationCodesNode;
   organizationMemberships: typeof organizationMemberships;
