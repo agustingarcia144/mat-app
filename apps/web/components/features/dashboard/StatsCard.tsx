@@ -44,7 +44,7 @@ export default function StatsCard({
   return (
     <Card
       className={cn(
-        'flex min-w-0 flex-col rounded-2xl border bg-background/60 p-4 transition hover:shadow-md',
+        'flex min-w-0 min-h-0 flex-col overflow-hidden rounded-2xl border bg-background/60 p-4 transition hover:shadow-md',
         !isList && 'min-h-[180px] w-full justify-between md:h-[180px] md:w-[200px]',
         isList &&
           (compact
@@ -91,7 +91,7 @@ export default function StatsCard({
       ) : (
         <div
           className={[
-            'mt-2 flex-1 pr-1',
+            'mt-2 min-h-0 flex-1 pr-1',
             children
               ? 'space-y-2 overflow-visible md:overflow-y-auto md:scrollbar-thin md:scrollbar-thumb-muted md:scrollbar-track-transparent'
               : 'flex items-center justify-center',
