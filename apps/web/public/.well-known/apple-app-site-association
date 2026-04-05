@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "CS3547232L.com.agusstingarcia144.matapp"
+        ],
+        "components": [
+          {
+            "/": "/join/*",
+            "comment": "Matches any join invite link"
+          }
+        ]
+      }
+    ]
+  }
+}

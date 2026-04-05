@@ -66,15 +66,20 @@ function SignUpForm() {
     setError('')
 
     try {
-      await signUp.create({
+      const result = await signUp.create({
         emailAddress: email,
         password,
         firstName,
         lastName,
       })
 
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId })
+        return
+      }
 
+      // Email verification required
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
       setVerifying(true)
     } catch (error) {
       setError('Error al registrarse')

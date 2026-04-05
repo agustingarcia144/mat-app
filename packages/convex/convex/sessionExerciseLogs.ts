@@ -67,6 +67,58 @@ export const setLog = mutation({
 })
 
 /**
+ * Get historical progress entries for a specific exercise across all completed sessions.
+ * Returns one entry per completed session where this exercise was logged, sorted by date ascending.
+ */
+export const getProgressByExercise = query({
+  args: { exerciseId: v.id('exercises') },
+  handler: async (ctx, args) => {
+    const { identity, organizationId } = await requireActiveOrgContext(ctx)
+
+    const dayExercises = await ctx.db
+      .query('dayExercises')
+      .withIndex('by_exercise', (q) => q.eq('exerciseId', args.exerciseId))
+      .collect()
+
+    if (dayExercises.length === 0) return []
+
+    const entries: {
+      performedOn: string
+      reps?: string
+      weight?: string
+      timeSeconds?: string
+      sets: number
+    }[] = []
+
+    for (const dayEx of dayExercises) {
+      const logs = await ctx.db
+        .query('sessionExerciseLogs')
+        .withIndex('by_dayExercise', (q) => q.eq('dayExerciseId', dayEx._id))
+        .collect()
+
+      for (const log of logs) {
+        const session = await ctx.db.get(log.sessionId)
+        if (!session) continue
+        if (session.userId !== identity.subject) continue
+        if (session.organizationId !== organizationId) continue
+        if (session.status !== 'completed') continue
+
+        entries.push({
+          performedOn: session.performedOn,
+          reps: log.reps,
+          weight: log.weight,
+          timeSeconds: log.timeSeconds,
+          sets: log.sets,
+        })
+      }
+    }
+
+    entries.sort((a, b) => a.performedOn.localeCompare(b.performedOn))
+    return entries
+  },
+})
+
+/**
  * Get all exercise logs for a session (member only; own session).
  */
 export const getBySession = query({

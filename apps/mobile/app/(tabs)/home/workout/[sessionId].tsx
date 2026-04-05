@@ -13,12 +13,13 @@ import { useFocusEffect } from '@react-navigation/native'
 import { PressableScale } from 'pressto'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { Href } from 'expo-router'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
+import { IconSymbol } from '@/components/ui/icon-symbol'
 import { setLogSetSaveCallback } from '@/lib/log-set-bridge'
 import {
   ExerciseCard,
@@ -64,6 +65,15 @@ function WorkoutContent() {
     api.sessionExerciseLogs.getBySession,
     !isNewSession && sessionId ? { sessionId: sessionId as any } : 'skip'
   )
+
+  const workoutDay = useQuery(
+    api.workoutDays.getById,
+    resolvedWorkoutDayId ? { id: resolvedWorkoutDayId } : 'skip'
+  )
+
+  const resolvedAssignmentId = isNewSession
+    ? (paramAssignmentId as string | undefined)
+    : session?.assignmentId
 
   const setLog = useMutation(api.sessionExerciseLogs.setLog)
   const setSessionStatus = useMutation(api.workoutDaySessions.setStatus)
@@ -637,6 +647,30 @@ function WorkoutContent() {
 
   return (
     <ThemedView style={styles.container}>
+      <Stack.Screen
+        options={{
+          title: workoutDay?.name ?? '',
+          headerRight: resolvedAssignmentId
+            ? () => (
+                <PressableScale
+                  onPress={() =>
+                    router.push(
+                      `/home/planification/${resolvedAssignmentId}` as Href
+                    )
+                  }
+                  hitSlop={12}
+                  style={styles.headerButton}
+                >
+                  <IconSymbol
+                    name="calendar"
+                    size={22}
+                    color={isDark ? '#fff' : '#000'}
+                  />
+                </PressableScale>
+              )
+            : undefined,
+        }}
+      />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -827,5 +861,12 @@ const styles = StyleSheet.create({
     width: Dimensions.get('window').width * 0.72,
     maxWidth: 320,
     marginRight: 12,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 })

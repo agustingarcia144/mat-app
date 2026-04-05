@@ -14,6 +14,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     username: v.optional(v.string()),
+    nickname: v.optional(v.string()),
     // App-specific fields not stored in Clerk
     birthday: v.optional(v.string()),
     phone: v.optional(v.string()),
@@ -400,6 +401,7 @@ export default defineSchema({
   })
     .index('by_session', ['sessionId'])
     .index('by_revision', ['revisionId'])
+    .index('by_dayExercise', ['dayExerciseId'])
     .index('by_session_dayExercise', ['sessionId', 'dayExerciseId']),
 
   // Classes - Class templates and configurations

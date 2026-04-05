@@ -65,6 +65,16 @@ export default function InicioLayout() {
           headerShadowVisible: false,
         }}
       />
+      <Stack.Screen
+        name="planification/[assignmentId]"
+        options={{
+          headerShown: true,
+          headerTransparent: true,
+          title: '',
+          headerLeft: () => <HeaderBackButton />,
+          headerShadowVisible: false,
+        }}
+      />
     </Stack>
   )
 }

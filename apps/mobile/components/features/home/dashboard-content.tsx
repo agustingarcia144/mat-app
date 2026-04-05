@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useUser } from "@clerk/expo"
+import { useUser } from '@clerk/expo'
 import type { Href } from 'expo-router'
 import { useRouter } from 'expo-router'
 import { useQuery } from 'convex/react'
@@ -30,6 +30,7 @@ const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const }
 
 export default function DashboardContent() {
   const { user } = useUser()
+  const convexUser = useQuery(api.users.getCurrentUser)
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { width: windowWidth } = useWindowDimensions()
@@ -113,7 +114,8 @@ export default function DashboardContent() {
     if (!weekSessions || !activeAssignment) return []
     return weekSessions.filter(
       (session) =>
-        session.assignmentId !== activeAssignment._id && session.status === 'completed'
+        session.assignmentId !== activeAssignment._id &&
+        session.status === 'completed'
     )
   }, [weekSessions, activeAssignment])
   const weekSessionsForDisplay = useMemo(
@@ -230,12 +232,19 @@ export default function DashboardContent() {
           s.performedOn === selectedYmd &&
           s.workoutDayId === scheduledWorkoutDay?._id
       ) ??
-      weekSessionsForActiveAssignment.find((s) => s.performedOn === selectedYmd) ??
+      weekSessionsForActiveAssignment.find(
+        (s) => s.performedOn === selectedYmd
+      ) ??
       weekSessionsForDisplay.find(
         (s) => s.status === 'completed' && s.performedOn === selectedYmd
       ) ??
       null,
-    [weekSessionsForActiveAssignment, weekSessionsForDisplay, selectedYmd, scheduledWorkoutDay?._id]
+    [
+      weekSessionsForActiveAssignment,
+      weekSessionsForDisplay,
+      selectedYmd,
+      scheduledWorkoutDay?._id,
+    ]
   )
 
   const historicalWorkoutDay = useQuery(
@@ -244,10 +253,13 @@ export default function DashboardContent() {
       ? { id: sessionForSelected.workoutDayId }
       : 'skip'
   )
-  const workoutDayToDisplay = scheduledWorkoutDay ?? historicalWorkoutDay ?? null
+  const workoutDayToDisplay =
+    scheduledWorkoutDay ?? historicalWorkoutDay ?? null
   const blocksForDisplayDay = useQuery(
     api.exerciseBlocks.getByWorkoutDay,
-    workoutDayToDisplay?._id ? { workoutDayId: workoutDayToDisplay._id } : 'skip'
+    workoutDayToDisplay?._id
+      ? { workoutDayId: workoutDayToDisplay._id }
+      : 'skip'
   )
 
   const { statusBadgeLabel, statusBadgeVariant } = useMemo(() => {
@@ -310,7 +322,11 @@ export default function DashboardContent() {
       >
         <View style={styles.headerRow}>
           <ThemedText type="title" style={styles.welcome}>
-            ¡Hola, {user?.firstName || user?.emailAddresses[0]?.emailAddress}!
+            ¡Hola,{' '}
+            {convexUser?.nickname ||
+              user?.firstName ||
+              user?.emailAddresses[0]?.emailAddress}
+            !
           </ThemedText>
           <ThemedPressable
             type="secondary"
@@ -413,10 +429,7 @@ export default function DashboardContent() {
       </View>
       {showNoActivePlanAlert && (
         <View
-          style={[
-            styles.alertOverlay,
-            { bottom: alertBottomOffset },
-          ]}
+          style={[styles.alertOverlay, { bottom: alertBottomOffset }]}
           pointerEvents="box-none"
         >
           <NoActivePlanAlert
