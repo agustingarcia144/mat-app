@@ -138,8 +138,8 @@ function PersonalInfoModal({
       transparent
       onRequestClose={() => !loading && onClose()}
     >
-      <View style={styles.modalRoot} pointerEvents="box-none">
-        <Pressable style={styles.modalBackdrop} onPress={() => !loading && onClose()} />
+      <View style={styles.modalRoot}>
+        <Pressable style={styles.modalFlexBackdrop} onPress={() => !loading && onClose()} />
         <View
           style={[
             styles.modalCard,
@@ -227,11 +227,12 @@ function PersonalInfoModal({
               </Pressable>
             </View>
 
-            <ThemedPressable
-              type="primary"
-              lightColor="#000"
-              darkColor="#fff"
-              style={[styles.modalSaveButton, loading && { opacity: 0.5 }]}
+            <Pressable
+              style={[
+                styles.modalSaveButton,
+                { backgroundColor: isDark ? '#fff' : '#000' },
+                loading && { opacity: 0.5 },
+              ]}
               onPress={handleSave}
               disabled={loading}
             >
@@ -242,26 +243,19 @@ function PersonalInfoModal({
                   Guardar
                 </Text>
               )}
-            </ThemedPressable>
+            </Pressable>
           </ScrollView>
         </View>
       </View>
 
       {/* Date picker overlay — absolutely positioned inside the same Modal (nested Modal breaks on iOS) */}
       {showDatePicker && (
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-          <Pressable
-            style={[styles.modalBackdrop, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
-            onPress={() => setShowDatePicker(false)}
-          />
+        <View style={styles.pickerOverlay}>
+          <Pressable style={styles.modalFlexBackdrop} onPress={() => setShowDatePicker(false)} />
           <View
             style={[
               styles.pickerSheet,
               {
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                right: 0,
                 backgroundColor: isDark ? '#1c1c1e' : '#fff',
                 paddingBottom: Math.max(insets.bottom + 16, 32),
               },
@@ -274,13 +268,16 @@ function PersonalInfoModal({
               value={birthdayDate ?? new Date(2000, 0, 1)}
               mode="date"
               display="spinner"
-              onChange={(_event, selectedDate) => { if (selectedDate) setBirthdayDate(selectedDate) }}
+              onChange={(_event, selectedDate) => {
+              if (Platform.OS === 'android') setShowDatePicker(false)
+              if (selectedDate) setBirthdayDate(selectedDate)
+            }}
               maximumDate={new Date()}
               minimumDate={new Date(1900, 0, 1)}
               locale="es-ES"
               style={{ width: '100%' }}
             />
-            <ThemedPressable
+            <Pressable
               onPress={() => setShowDatePicker(false)}
               hitSlop={12}
               style={styles.pickerSheetDoneInline}
@@ -288,7 +285,7 @@ function PersonalInfoModal({
               <Text style={[styles.pickerSheetDoneText, { color: isDark ? '#fff' : '#000' }]}>
                 Listo
               </Text>
-            </ThemedPressable>
+            </Pressable>
           </View>
         </View>
       )}
@@ -367,8 +364,8 @@ function PhysicalInfoModal({
       transparent
       onRequestClose={() => !loading && !activePicker && onClose()}
     >
-      <View style={styles.modalRoot} pointerEvents="box-none">
-        <Pressable style={styles.modalBackdrop} onPress={() => !loading && !activePicker && onClose()} />
+      <View style={styles.modalRoot}>
+        <Pressable style={styles.modalFlexBackdrop} onPress={() => !loading && !activePicker && onClose()} />
         <View
           style={[
             styles.modalCard,
@@ -432,11 +429,12 @@ function PhysicalInfoModal({
               />
             </View>
 
-            <ThemedPressable
-              type="primary"
-              lightColor="#000"
-              darkColor="#fff"
-              style={[styles.modalSaveButton, loading && { opacity: 0.5 }]}
+            <Pressable
+              style={[
+                styles.modalSaveButton,
+                { backgroundColor: isDark ? '#fff' : '#000' },
+                loading && { opacity: 0.5 },
+              ]}
               onPress={handleSave}
               disabled={loading}
             >
@@ -447,17 +445,14 @@ function PhysicalInfoModal({
                   Guardar
                 </Text>
               )}
-            </ThemedPressable>
+            </Pressable>
           </ScrollView>
         </View>
 
         {/* Picker overlay — absolutely positioned inside the same Modal (nested Modal breaks on iOS) */}
         {activePicker !== null && (
-          <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-            <Pressable
-              style={[styles.modalBackdrop, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
-              onPress={() => setActivePicker(null)}
-            />
+          <View style={styles.pickerOverlay}>
+            <Pressable style={styles.modalFlexBackdrop} onPress={() => setActivePicker(null)} />
             <View
               style={[
                 styles.pickerSheet,
@@ -466,6 +461,7 @@ function PhysicalInfoModal({
                   bottom: 0,
                   left: 0,
                   right: 0,
+                  elevation: 24,
                   backgroundColor: isDark ? '#1c1c1e' : '#fff',
                   paddingBottom: Math.max(insets.bottom + 16, 32),
                 },
@@ -487,7 +483,7 @@ function PhysicalInfoModal({
                   ))}
                 </Picker>
               )}
-              <ThemedPressable
+              <Pressable
                 onPress={() => setActivePicker(null)}
                 hitSlop={12}
                 style={styles.pickerSheetDoneInline}
@@ -495,7 +491,7 @@ function PhysicalInfoModal({
                 <Text style={[styles.pickerSheetDoneText, { color: isDark ? '#fff' : '#000' }]}>
                   Listo
                 </Text>
-              </ThemedPressable>
+              </Pressable>
             </View>
           </View>
         )}
@@ -580,9 +576,9 @@ function DeleteAccountModal({
       onRequestClose={handleClose}
       accessibilityViewIsModal
     >
-      <View style={styles.modalRoot} pointerEvents="box-none">
+      <View style={styles.modalRoot}>
         <Pressable
-          style={styles.modalBackdrop}
+          style={styles.modalFlexBackdrop}
           onPress={handleClose}
           accessibilityLabel="Cerrar"
           accessibilityRole="button"
@@ -1160,9 +1156,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+  // Flex-based backdrop: fills space above the card without overlapping it.
+  // Avoids Android touch-dispatch issues caused by absoluteFillObject + pointerEvents.
+  modalFlexBackdrop: {
+    flex: 1,
     backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  // Same pattern for picker overlays inside modals.
+  pickerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
   },
   modalCard: {
     borderTopLeftRadius: 16,
