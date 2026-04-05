@@ -32,7 +32,8 @@ export const sendExpoPushForEvent: ReturnType<typeof internalAction> = internalA
     type: v.union(
       v.literal('class_cancelled'),
       v.literal('class_start_reminder'),
-      v.literal('attendance_reminder')
+      v.literal('attendance_reminder'),
+      v.literal('class_spot_available')
     ),
     userId: v.string(),
     scheduleId: v.id('classSchedules'),

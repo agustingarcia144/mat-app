@@ -8,10 +8,11 @@ import {
   Alert,
   Platform,
   Linking,
+  TouchableOpacity,
 } from 'react-native'
 import { useAuth } from "@clerk/expo"
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '@repo/convex'
 import { format } from 'date-fns'
@@ -46,6 +47,12 @@ export default function ClassDetailContent() {
   const reserve = useMutation(api.classReservations.reserve)
   const cancelReservation = useMutation(api.classReservations.cancel)
   const checkInSelf = useMutation(api.classReservations.checkInSelf)
+  const myAlert = useQuery(
+    api.classAlerts.getMyAlert,
+    scheduleId ? { scheduleId: scheduleId as any } : 'skip'
+  )
+  const subscribeAlert = useMutation(api.classAlerts.subscribe)
+  const unsubscribeAlert = useMutation(api.classAlerts.unsubscribe)
   const fixedSlots = useQuery(
     api.fixedClassSlots.listByUser,
     userId ? { userId } : 'skip'
@@ -111,6 +118,19 @@ export default function ClassDetailContent() {
         s.startTimeMinutes === mins
     )
   }, [reservation, scheduleWithDetails, fixedSlots])
+
+  const handleToggleAlert = useCallback(async () => {
+    if (!scheduleId) return
+    if (myAlert) {
+      await unsubscribeAlert({ scheduleId: scheduleId as any })
+    } else {
+      await subscribeAlert({ scheduleId: scheduleId as any })
+      Alert.alert(
+        'Alertas activadas',
+        'Te avisaremos si se libera un lugar o si la clase es cancelada.'
+      )
+    }
+  }, [scheduleId, myAlert, subscribeAlert, unsubscribeAlert])
 
   const handleReserve = useCallback(() => {
     if (!scheduleId) return
@@ -245,8 +265,30 @@ export default function ClassDetailContent() {
   const cardBg = isDark ? '#1c1c1e' : '#f4f4f5'
   const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
 
+  const isUpcoming = startTime > Date.now() && scheduleWithDetails.status === 'scheduled'
+  const isAlertActive = Boolean(myAlert)
+
   return (
     <ThemedView style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerRight: isUpcoming
+            ? () => (
+                <TouchableOpacity
+                  onPress={handleToggleAlert}
+                  style={styles.alertButton}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <IconSymbol
+                    name={isAlertActive ? 'bell.fill' : 'bell'}
+                    size={22}
+                    color={isAlertActive ? '#f59e0b' : muted}
+                  />
+                </TouchableOpacity>
+              )
+            : undefined,
+        }}
+      />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
@@ -628,5 +670,8 @@ const styles = StyleSheet.create({
   },
   backBtn: {
     padding: SPACING.md,
+  },
+  alertButton: {
+    paddingHorizontal: SPACING.sm,
   },
 })

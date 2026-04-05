@@ -696,13 +696,13 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 16,
-    overflow: 'hidden',
+    overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
   },
   pickerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'stretch',
-    overflow: 'hidden',
+    overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
   },
   pickerBlock: {
     overflow: 'hidden',

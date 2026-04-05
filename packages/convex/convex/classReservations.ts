@@ -1,5 +1,13 @@
-import { internalMutation, mutation, query } from './_generated/server'
+import {
+  internalMutation,
+  mutation,
+  query,
+  type QueryCtx,
+  type MutationCtx,
+} from './_generated/server'
 import { v } from 'convex/values'
+import type { Id } from './_generated/dataModel'
+import { internal } from './_generated/api'
 import {
   requireActiveOrgContext,
   requireAuth,
@@ -73,6 +81,40 @@ export const reserve = mutation({
 
     if (existing) {
       throw new Error('You have already reserved this class')
+    }
+
+    // Plan enforcement: check suspension and weekly class limit
+    const subscription = await ctx.db
+      .query('memberPlanSubscriptions')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', schedule.organizationId)
+          .eq('userId', identity.subject)
+      )
+      .filter((q) => q.neq(q.field('status'), 'cancelled'))
+      .first()
+
+    if (subscription) {
+      if (subscription.status === 'suspended') {
+        throw new Error(
+          'Tu plan está suspendido por falta de pago. Realizá el pago para poder reservar.'
+        )
+      }
+
+      const plan = await ctx.db.get(subscription.planId)
+      if (plan) {
+        const weeklyCount = await countWeeklyReservations(
+          ctx,
+          schedule.organizationId,
+          identity.subject,
+          schedule.startTime
+        )
+        if (weeklyCount >= plan.weeklyClassLimit) {
+          throw new Error(
+            `Alcanzaste tu límite de ${plan.weeklyClassLimit} clase${plan.weeklyClassLimit === 1 ? '' : 's'} por semana.`
+          )
+        }
+      }
     }
 
     // Re-fetch schedule to avoid TOCTOU race condition
@@ -166,6 +208,7 @@ export const cancel = mutation({
     }
 
     const now = Date.now()
+    const wasFull = schedule.currentReservations >= schedule.capacity
 
     // Update reservation status
     await ctx.db.patch(args.id, {
@@ -179,6 +222,14 @@ export const cancel = mutation({
       currentReservations: Math.max(0, schedule.currentReservations - 1),
       updatedAt: now,
     })
+
+    // Notify alert subscribers that a spot opened up
+    if (wasFull && schedule.startTime > now && schedule.status === 'scheduled') {
+      await ctx.runMutation(internal.pushNotifications.sendSpotAvailableAlerts, {
+        scheduleId: reservation.scheduleId,
+        className: classTemplate.name,
+      })
+    }
   },
 })
 
@@ -712,3 +763,149 @@ export const autoMarkNoShows = internalMutation({
     }
   },
 })
+
+/**
+ * Count non-cancelled reservations for a user during the Mon–Sun week
+ * that contains `referenceTimestamp`, using the org's IANA timezone.
+ */
+export async function countWeeklyReservations(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: Id<'organizations'>,
+  userId: string,
+  referenceTimestamp: number
+): Promise<number> {
+  const organization = await ctx.db.get(organizationId)
+  const timezone =
+    organization?.timezone && organization.timezone.trim() !== ''
+      ? organization.timezone
+      : 'UTC'
+
+  // Determine the Monday 00:00 and Sunday 23:59:59.999 of the week in org timezone
+  const { weekStartMs, weekEndMs } = getWeekBoundsInTimezone(
+    referenceTimestamp,
+    timezone
+  )
+
+  // Get schedules in that time range for the org
+  const schedules = await ctx.db
+    .query('classSchedules')
+    .withIndex('by_organization_time', (q) =>
+      q
+        .eq('organizationId', organizationId)
+        .gte('startTime', weekStartMs)
+        .lte('startTime', weekEndMs)
+    )
+    .collect()
+
+  let count = 0
+  for (const schedule of schedules) {
+    const reservation = await ctx.db
+      .query('classReservations')
+      .withIndex('by_schedule', (q) => q.eq('scheduleId', schedule._id))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('userId'), userId),
+          q.neq(q.field('status'), 'cancelled')
+        )
+      )
+      .first()
+
+    if (reservation) count++
+  }
+
+  return count
+}
+
+/**
+ * Get the current user's weekly class usage and plan limit.
+ * Returns null if the user has no active subscription.
+ */
+export const getMyWeeklyClassCount = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgCtx = await tryActiveOrgContext(ctx)
+    if (!orgCtx) return null
+
+    const { identity, membership } = orgCtx
+
+    const subscription = await ctx.db
+      .query('memberPlanSubscriptions')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', membership.organizationId)
+          .eq('userId', identity.subject)
+      )
+      .filter((q) => q.neq(q.field('status'), 'cancelled'))
+      .first()
+
+    if (!subscription) return null
+
+    const plan = await ctx.db.get(subscription.planId)
+    if (!plan) return null
+
+    const now = Date.now()
+    const used = await countWeeklyReservations(
+      ctx,
+      membership.organizationId,
+      identity.subject,
+      now
+    )
+
+    return {
+      used,
+      limit: plan.weeklyClassLimit,
+      subscriptionStatus: subscription.status,
+    }
+  },
+})
+
+/**
+ * Compute the Monday 00:00:00 and Sunday 23:59:59.999 timestamps
+ * for the week containing `timestamp` in the given IANA timezone.
+ */
+function getWeekBoundsInTimezone(
+  timestamp: number,
+  timezone: string
+): { weekStartMs: number; weekEndMs: number } {
+  const d = new Date(timestamp)
+
+  // Get the local date parts in the target timezone
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'short',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+  const parts = formatter.formatToParts(d)
+  const partMap = Object.fromEntries(parts.map((p) => [p.type, p.value]))
+
+  const WEEKDAY_OFFSET: Record<string, number> = {
+    Mon: 0,
+    Tue: 1,
+    Wed: 2,
+    Thu: 3,
+    Fri: 4,
+    Sat: 5,
+    Sun: 6,
+  }
+
+  const dayOffset = WEEKDAY_OFFSET[partMap.weekday!] ?? 0
+  const hour = parseInt(partMap.hour!, 10)
+  const minute = parseInt(partMap.minute!, 10)
+  const second = parseInt(partMap.second!, 10)
+
+  // Go back to Monday 00:00:00 in local time
+  const msToSubtract =
+    dayOffset * 86400000 + hour * 3600000 + minute * 60000 + second * 1000
+  const weekStartMs = timestamp - msToSubtract
+
+  // Sunday 23:59:59.999 = Monday 00:00 + 7 days - 1ms
+  const weekEndMs = weekStartMs + 7 * 86400000 - 1
+
+  return { weekStartMs, weekEndMs }
+}

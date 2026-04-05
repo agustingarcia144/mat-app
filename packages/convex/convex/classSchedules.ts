@@ -199,6 +199,13 @@ export const cancel = mutation({
         className,
       })
     }
+
+    // Notify alert subscribers who didn't have a reservation
+    await ctx.runMutation(internal.pushNotifications.sendCancelledToAlertSubscribers, {
+      scheduleId: args.id,
+      className,
+      excludeUserIds: affectedUserIds,
+    })
   },
 })
 

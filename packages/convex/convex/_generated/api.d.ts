@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as classAlerts from "../classAlerts.js";
 import type * as classReservations from "../classReservations.js";
 import type * as classSchedules from "../classSchedules.js";
 import type * as classes from "../classes.js";
@@ -22,6 +23,8 @@ import type * as joinGym from "../joinGym.js";
 import type * as joinGymNode from "../joinGymNode.js";
 import type * as memberInviteCodes from "../memberInviteCodes.js";
 import type * as memberInviteCodesNode from "../memberInviteCodesNode.js";
+import type * as memberPlanSubscriptions from "../memberPlanSubscriptions.js";
+import type * as membershipPlans from "../membershipPlans.js";
 import type * as migrations from "../migrations.js";
 import type * as modelWeekSlots from "../modelWeekSlots.js";
 import type * as orgCreationCodes from "../orgCreationCodes.js";
@@ -30,6 +33,7 @@ import type * as organizationMemberships from "../organizationMemberships.js";
 import type * as organizations from "../organizations.js";
 import type * as organizationsNode from "../organizationsNode.js";
 import type * as permissions from "../permissions.js";
+import type * as planPayments from "../planPayments.js";
 import type * as planificationAssignments from "../planificationAssignments.js";
 import type * as planificationRevisionHelpers from "../planificationRevisionHelpers.js";
 import type * as planifications from "../planifications.js";
@@ -54,6 +58,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  classAlerts: typeof classAlerts;
   classReservations: typeof classReservations;
   classSchedules: typeof classSchedules;
   classes: typeof classes;
@@ -68,6 +73,8 @@ declare const fullApi: ApiFromModules<{
   joinGymNode: typeof joinGymNode;
   memberInviteCodes: typeof memberInviteCodes;
   memberInviteCodesNode: typeof memberInviteCodesNode;
+  memberPlanSubscriptions: typeof memberPlanSubscriptions;
+  membershipPlans: typeof membershipPlans;
   migrations: typeof migrations;
   modelWeekSlots: typeof modelWeekSlots;
   orgCreationCodes: typeof orgCreationCodes;
@@ -76,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   organizations: typeof organizations;
   organizationsNode: typeof organizationsNode;
   permissions: typeof permissions;
+  planPayments: typeof planPayments;
   planificationAssignments: typeof planificationAssignments;
   planificationRevisionHelpers: typeof planificationRevisionHelpers;
   planifications: typeof planifications;

@@ -599,13 +599,24 @@ export default defineSchema({
     .index('by_token', ['token'])
     .index('by_user_active', ['userId', 'active']),
 
+  // Class alerts - users who want to be notified when a full class opens a spot or gets cancelled
+  classAlerts: defineTable({
+    userId: v.string(),
+    scheduleId: v.id('classSchedules'),
+    organizationId: v.id('organizations'),
+    createdAt: v.number(),
+  })
+    .index('by_user_schedule', ['userId', 'scheduleId'])
+    .index('by_schedule', ['scheduleId']),
+
   // Notification events - idempotency + delivery status
   notificationEvents: defineTable({
     eventKey: v.string(),
     type: v.union(
       v.literal('class_cancelled'),
       v.literal('class_start_reminder'),
-      v.literal('attendance_reminder')
+      v.literal('attendance_reminder'),
+      v.literal('class_spot_available')
     ),
     userId: v.string(),
     scheduleId: v.id('classSchedules'),
@@ -626,4 +637,90 @@ export default defineSchema({
     .index('by_event_key', ['eventKey'])
     .index('by_user_created_at', ['userId', 'createdAt'])
     .index('by_status_created_at', ['status', 'createdAt']),
+
+  // Membership plans - subscription tiers with weekly class limits and payment windows
+  membershipPlans: defineTable({
+    organizationId: v.id('organizations'),
+    name: v.string(), // "Plan Básico", "2 veces/semana"
+    description: v.optional(v.string()),
+    priceArs: v.number(), // Price in ARS (whole pesos)
+    weeklyClassLimit: v.number(), // Max classes per week (Mon-Sun)
+    paymentWindowStartDay: v.number(), // Day of month payment opens (1-28)
+    paymentWindowEndDay: v.number(), // Day of month payment closes (1-28)
+    // Interest tiers applied cumulatively when payment is late
+    // If any tiers are set, auto-suspension is disabled for this plan
+    interestTiers: v.optional(v.array(v.object({
+      daysAfterWindowEnd: v.number(), // tier activates this many days after paymentWindowEndDay
+      type: v.union(v.literal('percentage'), v.literal('fixed')),
+      value: v.number(), // % or fixed ARS amount
+    }))),
+    isActive: v.boolean(),
+    createdBy: v.string(), // Clerk user ID
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_active', ['organizationId', 'isActive']),
+
+  // Member plan subscriptions - one active plan per member per org
+  memberPlanSubscriptions: defineTable({
+    organizationId: v.id('organizations'),
+    userId: v.string(), // Clerk user ID
+    planId: v.id('membershipPlans'),
+    status: v.union(
+      v.literal('active'),
+      v.literal('suspended'),
+      v.literal('cancelled')
+    ),
+    activatedAt: v.number(),
+    suspendedAt: v.optional(v.number()),
+    cancelledAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_user', ['organizationId', 'userId'])
+    .index('by_organization_status', ['organizationId', 'status'])
+    .index('by_user', ['userId']),
+
+  // Plan payments - monthly payment records with proof upload and admin review
+  planPayments: defineTable({
+    organizationId: v.id('organizations'),
+    userId: v.string(), // Clerk user ID
+    subscriptionId: v.id('memberPlanSubscriptions'),
+    planId: v.id('membershipPlans'), // Denormalized for queries
+    billingPeriod: v.string(), // "YYYY-MM" format
+    amountArs: v.number(), // Base plan price at time of creation
+    // Interest calculated at proof-upload time
+    interestApplied: v.optional(v.array(v.object({
+      daysAfterWindowEnd: v.number(),
+      type: v.union(v.literal('percentage'), v.literal('fixed')),
+      value: v.number(),
+      amountArs: v.number(),
+    }))),
+    interestTotalArs: v.optional(v.number()),
+    totalAmountArs: v.optional(v.number()), // amountArs + interestTotalArs
+    // Proof of payment
+    proofStorageId: v.optional(v.id('_storage')),
+    proofFileName: v.optional(v.string()),
+    proofContentType: v.optional(v.string()),
+    proofUploadedAt: v.optional(v.number()),
+    // Review workflow
+    status: v.union(
+      v.literal('pending'), // Awaiting proof upload
+      v.literal('in_review'), // Proof uploaded, waiting admin review
+      v.literal('approved'), // Admin approved
+      v.literal('declined') // Admin declined, member can re-upload
+    ),
+    reviewedBy: v.optional(v.string()), // Clerk user ID of reviewer
+    reviewedAt: v.optional(v.number()),
+    reviewNotes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_organization', ['organizationId'])
+    .index('by_organization_status', ['organizationId', 'status'])
+    .index('by_organization_user', ['organizationId', 'userId'])
+    .index('by_subscription', ['subscriptionId'])
+    .index('by_subscription_period', ['subscriptionId', 'billingPeriod']),
 })

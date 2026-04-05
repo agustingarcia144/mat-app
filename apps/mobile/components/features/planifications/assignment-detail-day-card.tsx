@@ -16,7 +16,7 @@ interface AssignmentDetailDayCardProps {
   muted: string
   cardBg: string
   cardBorder: string
-  onExercisePress: (ex: DayExerciseWithDetails) => void
+  onExercisePress?: (ex: DayExerciseWithDetails) => void
 }
 
 export function AssignmentDetailDayCard({
@@ -117,7 +117,7 @@ export function AssignmentDetailDayCard({
                       ex={ex}
                       isDark={isDark}
                       muted={muted}
-                      onPress={() => onExercisePress(ex)}
+                      onPress={onExercisePress ? () => onExercisePress(ex) : undefined}
                     />
                   ))}
                 </View>
@@ -151,7 +151,7 @@ export function AssignmentDetailDayCard({
                     ex={ex}
                     isDark={isDark}
                     muted={muted}
-                    onPress={() => onExercisePress(ex)}
+                    onPress={onExercisePress ? () => onExercisePress(ex) : undefined}
                   />
                 ))}
               </View>

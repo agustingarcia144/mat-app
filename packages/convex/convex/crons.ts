@@ -34,4 +34,11 @@ crons.interval(
   }
 )
 
+crons.interval(
+  'auto-suspend-unpaid-subscriptions',
+  { hours: 1 },
+  internal.memberPlanSubscriptions.autoSuspendUnpaid,
+  {}
+)
+
 export default crons

@@ -16,7 +16,7 @@ interface AssignmentDetailWeekSectionProps {
   muted: string
   cardBg: string
   cardBorder: string
-  onExercisePress: (ex: DayExerciseWithDetails) => void
+  onExercisePress?: (ex: DayExerciseWithDetails) => void
   /** Initial expanded state. Default true. */
   defaultExpanded?: boolean
 }
