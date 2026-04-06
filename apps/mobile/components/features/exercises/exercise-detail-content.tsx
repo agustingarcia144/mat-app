@@ -8,6 +8,7 @@ import {
   Pressable,
   Dimensions,
   Text,
+  Platform,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -87,12 +88,6 @@ function buildBars(
     labelTextStyle: { fontSize: 9, color: labelColor },
     barWidth: 32,
     spacing: 20,
-    topLabelComponentHeight: 0,
-    topLabelComponent: () => (
-      <Text style={{ fontSize: 11, color: valueColor, fontWeight: '600', marginBottom: 2 }}>
-        {val}
-      </Text>
-    ),
   }))
 }
 
@@ -365,25 +360,42 @@ export default function ExerciseDetailContent() {
               )}
 
               <View style={styles.chartWrap}>
-                <BarChart
-                  data={bars}
-                  width={CHART_WIDTH}
-                  height={150}
-                  initialSpacing={8}
-                  maxValue={maxValue}
-                  noOfSections={noOfSections}
-                  stepValue={step}
-                  yAxisLabelWidth={36}
-                  yAxisTextStyle={{ color: textColor, fontSize: 10 }}
-                  xAxisLabelTextStyle={{ color: labelColor, fontSize: 9 }}
-                  rulesColor={ruleColor}
-                  yAxisColor={axisColor}
-                  xAxisColor={axisColor}
-                  hideRules={false}
-                  isAnimated
-                  animationDuration={400}
-                  barBorderRadius={3}
-                />
+                {Platform.OS === 'ios' ? (
+                  <BarChart
+                    data={bars}
+                    width={CHART_WIDTH}
+                    height={150}
+                    initialSpacing={8}
+                    maxValue={maxValue}
+                    noOfSections={noOfSections}
+                    stepValue={step}
+                    yAxisLabelWidth={36}
+                    yAxisTextStyle={{ color: textColor, fontSize: 10 }}
+                    xAxisLabelTextStyle={{ color: labelColor, fontSize: 9 }}
+                    rulesColor={ruleColor}
+                    yAxisColor={axisColor}
+                    xAxisColor={axisColor}
+                    hideRules={false}
+                    showValuesAsTopLabel
+                    topLabelTextStyle={{ fontSize: 11, color: valueColor, fontWeight: '600' }}
+                    isAnimated
+                    animationDuration={400}
+                    barBorderRadius={3}
+                  />
+                ) : (
+                  <View style={styles.androidProgressList}>
+                    {bars.map((bar, i) => (
+                      <View key={i} style={styles.androidProgressRow}>
+                        <Text style={[styles.androidProgressLabel, { color: textColor }]}>
+                          {bar.label}
+                        </Text>
+                        <Text style={[styles.androidProgressValue, { color: valueColor }]}>
+                          {bar.value} {unitLabel}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             </View>
           )
@@ -488,5 +500,21 @@ const styles = StyleSheet.create({
   },
   chartWrap: {
     marginLeft: -6,
+  },
+  androidProgressList: {
+    gap: 10,
+  },
+  androidProgressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  androidProgressLabel: {
+    fontSize: 13,
+    opacity: 0.7,
+  },
+  androidProgressValue: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 })

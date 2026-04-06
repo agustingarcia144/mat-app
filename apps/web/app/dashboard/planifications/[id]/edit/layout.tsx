@@ -43,13 +43,7 @@ function EditFormShell({
     planificationId: planificationId as any,
   })
 
-  const updatePlanification = useMutation(api.planifications.update)
-  const createPlanificationRevision = useMutation(api.planifications.createRevision)
-  const createWorkoutWeek = useMutation(api.workoutWeeks.create)
-  const createWorkoutDay = useMutation(api.workoutDays.create)
-  const createExerciseBlock = useMutation(api.exerciseBlocks.create)
-  const createDayExercise = useMutation(api.dayExercises.create)
-  const removeWorkoutWeek = useMutation(api.workoutWeeks.remove)
+  const saveFull = useMutation(api.planifications.saveFull)
 
   const fullWeeksData = useMemo(() => {
     if (!workoutWeeks || !workoutDays || !allExercises) return null
@@ -202,123 +196,66 @@ function EditFormShell({
     async (data: PlanificationFormType) => {
       setIsSaving(true)
       try {
-        const shouldCreateRevision = !!planification?.hasEverBeenAssigned
-        let targetRevisionId: string | undefined = undefined
+        // Flatten form data into the shape expected by saveFull.
+        // Exercises must be pre-ordered: block exercises first (in block
+        // order), then unblocked exercises — matching the previous
+        // sequential-save behaviour.
+        const workoutWeeks = data.workoutWeeks.map((week) => ({
+          name: week.name,
+          workoutDays: ((week as any).workoutDays || []).map((day: any) => {
+            const realBlocks = (day.blocks || []).filter(
+              (b: any) => b.id !== SIN_BLOQUE_ID
+            )
 
-        if (shouldCreateRevision) {
-          targetRevisionId = await createPlanificationRevision({
-            id: planificationId as any,
-            name: data.name,
-            description: data.description || undefined,
-            folderId: data.folderId as any,
-            isTemplate: data.isTemplate,
-          })
-        } else {
-          await updatePlanification({
-            id: planificationId as any,
-            name: data.name,
-            description: data.description || undefined,
-            folderId: data.folderId as any,
-            isTemplate: data.isTemplate,
-          })
+            // Build ordered exercises list: block exercises in block order, then unblocked
+            const orderedExercises: any[] = []
+            const exerciseList: any[] = day.exercises || []
 
-          const originalWeekIds = (fullWeeksData || []).map((w: any) => w.id)
-          for (const weekId of originalWeekIds) {
-            await removeWorkoutWeek({ id: weekId as any })
-          }
-        }
-
-        for (let i = 0; i < data.workoutWeeks.length; i++) {
-          const week = data.workoutWeeks[i]
-          const weekId = await createWorkoutWeek({
-            planificationId: planificationId as any,
-            revisionId: targetRevisionId as any,
-            name: week.name,
-            order: i,
-            notes: undefined,
-          })
-
-          for (let j = 0; j < week.workoutDays.length; j++) {
-            const day = week.workoutDays[j] as any
-            const dayId = await createWorkoutDay({
-              weekId,
-              planificationId: planificationId as any,
-              revisionId: targetRevisionId as any,
-              name: day.name,
-              order: j,
-              dayOfWeek: day.dayOfWeek,
-              notes: undefined,
-            })
-
-            const blockIdMap = new Map<string, string>()
-            if (day.blocks && day.blocks.length > 0) {
-              let blockOrder = 0
-              for (let b = 0; b < day.blocks.length; b++) {
-                const block = day.blocks[b]
-                if (block.id === SIN_BLOQUE_ID) continue
-                const realBlockId = await createExerciseBlock({
-                  workoutDayId: dayId,
-                  name: block.name,
-                  order: blockOrder++,
-                  notes: block.notes,
-                })
-                blockIdMap.set(block.id, realBlockId)
-              }
-            }
-
-            const exercisesByBlock = new Map<string | null, any[]>()
-            const unblockedExercises: any[] = []
-
-            ;(day.exercises || []).forEach((ex: any) => {
-              if (ex.blockId === SIN_BLOQUE_ID || !ex.blockId) {
-                unblockedExercises.push(ex)
-              } else if (blockIdMap.has(ex.blockId)) {
-                const blockExercises = exercisesByBlock.get(ex.blockId) || []
-                blockExercises.push(ex)
-                exercisesByBlock.set(ex.blockId, blockExercises)
-              } else {
-                unblockedExercises.push(ex)
-              }
-            })
-
-            let globalOrder = 0
-
-            if (day.blocks) {
-              for (const block of day.blocks) {
-                if (block.id === SIN_BLOQUE_ID) continue
-                const blockExercises = exercisesByBlock.get(block.id) || []
-                for (const exercise of blockExercises) {
-                  await createDayExercise({
-                    workoutDayId: dayId,
-                    exerciseId: exercise.exerciseId as any,
-                    blockId: blockIdMap.get(block.id) as any,
-                    order: globalOrder++,
-                    sets: exercise.sets,
-                    reps: exercise.reps,
-                    weight: exercise.weight,
-                    prPercentage: exercise.prPercentage,
-                    timeSeconds: exercise.timeSeconds,
-                    notes: exercise.notes,
-                  })
+            for (const block of realBlocks) {
+              for (const ex of exerciseList) {
+                if (ex.blockId === block.id) {
+                  orderedExercises.push({ ...ex, blockClientId: block.id })
                 }
               }
             }
-
-            for (const exercise of unblockedExercises) {
-              await createDayExercise({
-                workoutDayId: dayId,
-                exerciseId: exercise.exerciseId as any,
-                order: globalOrder++,
-                sets: exercise.sets,
-                reps: exercise.reps,
-                weight: exercise.weight,
-                prPercentage: exercise.prPercentage,
-                timeSeconds: exercise.timeSeconds,
-                notes: exercise.notes,
-              })
+            for (const ex of exerciseList) {
+              if (!ex.blockId || ex.blockId === SIN_BLOQUE_ID) {
+                orderedExercises.push({ ...ex, blockClientId: undefined })
+              } else if (!realBlocks.some((b: any) => b.id === ex.blockId)) {
+                orderedExercises.push({ ...ex, blockClientId: undefined })
+              }
             }
-          }
-        }
+
+            return {
+              name: day.name,
+              dayOfWeek: day.dayOfWeek,
+              blocks: realBlocks.map((b: any) => ({
+                clientId: b.id,
+                name: b.name,
+                notes: b.notes,
+              })),
+              exercises: orderedExercises.map((ex: any) => ({
+                exerciseId: ex.exerciseId,
+                blockClientId: ex.blockClientId,
+                sets: ex.sets,
+                reps: ex.reps,
+                weight: ex.weight,
+                prPercentage: ex.prPercentage,
+                timeSeconds: ex.timeSeconds,
+                notes: ex.notes,
+              })),
+            }
+          }),
+        }))
+
+        await saveFull({
+          id: planificationId as any,
+          name: data.name,
+          description: data.description || undefined,
+          folderId: data.folderId as any,
+          isTemplate: data.isTemplate,
+          workoutWeeks,
+        })
 
         setIsSaving(false)
         form.reset(data, { keepDefaultValues: false })
@@ -336,17 +273,9 @@ function EditFormShell({
     },
     [
       planificationId,
-      planification,
-      fullWeeksData,
       form,
       redirectAfterSave,
-      updatePlanification,
-      createPlanificationRevision,
-      removeWorkoutWeek,
-      createWorkoutWeek,
-      createWorkoutDay,
-      createExerciseBlock,
-      createDayExercise,
+      saveFull,
       allowNextNavigation,
       router,
     ]

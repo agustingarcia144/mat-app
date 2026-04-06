@@ -159,8 +159,6 @@ export default function ClassesPage() {
     setSelectedScheduleId(undefined)
   }
 
-
-
   const handleOpenGenerateTurnos = (classItem?: {
     _id: Id<'classes'>
     name: string
@@ -196,10 +194,6 @@ export default function ClassesPage() {
               <DropdownMenuItem onClick={() => handleOpenGenerateTurnos()}>
                 <CalendarPlus className="mr-2 h-4 w-4" aria-hidden />
                 Crear turnos
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setSelectedView('batches')}>
-                <Layers3 className="mr-2 h-4 w-4" aria-hidden />
-                Lotes de turnos
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleNewClass}>
                 <Plus className="mr-2 h-4 w-4" aria-hidden />
@@ -505,9 +499,9 @@ export default function ClassesPage() {
           }
         }}
         slot={
-          modelWeekSlots?.find(
-            (s) => s._id === selectedModelSlotId
-          ) as ModelWeekSlotDoc | undefined
+          modelWeekSlots?.find((s) => s._id === selectedModelSlotId) as
+            | ModelWeekSlotDoc
+            | undefined
         }
         initialDayOfWeek={initialSlotDay}
         initialStartTimeMinutes={initialSlotMinutes}

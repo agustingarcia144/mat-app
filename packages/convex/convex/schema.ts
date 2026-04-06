@@ -693,6 +693,12 @@ export default defineSchema({
     planId: v.id('membershipPlans'), // Denormalized for queries
     billingPeriod: v.string(), // "YYYY-MM" format
     amountArs: v.number(), // Base plan price at time of creation
+    // How the payment was made. Absent on legacy rows (treated as proof_upload).
+    paymentMethod: v.optional(
+      v.union(v.literal('cash'), v.literal('bank_transfer'), v.literal('proof_upload'))
+    ),
+    // Clerk user ID of admin/trainer who recorded the payment (admin-created payments only)
+    recordedBy: v.optional(v.string()),
     // Interest calculated at proof-upload time
     interestApplied: v.optional(v.array(v.object({
       daysAfterWindowEnd: v.number(),

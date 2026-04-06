@@ -379,6 +379,112 @@ export const decline = mutation({
 })
 
 /**
+ * Admin/trainer records a payment on behalf of a member (cash or bank transfer).
+ * The payment is created as approved immediately — no review step needed.
+ * For bank transfers the admin may optionally attach proof.
+ */
+export const recordPayment = mutation({
+  args: {
+    subscriptionId: v.id('memberPlanSubscriptions'),
+    billingPeriod: v.string(), // "YYYY-MM"
+    paymentMethod: v.union(v.literal('cash'), v.literal('bank_transfer')),
+    amountArs: v.optional(v.number()), // Override; defaults to plan price
+    notes: v.optional(v.string()),
+    // Optional proof (bank transfer only)
+    proofStorageId: v.optional(v.id('_storage')),
+    proofFileName: v.optional(v.string()),
+    proofContentType: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAdminOrTrainer(ctx, membership.organizationId)
+
+    const subscription = await ctx.db.get(args.subscriptionId)
+    if (
+      !subscription ||
+      subscription.organizationId !== membership.organizationId
+    ) {
+      throw new Error('Suscripción no encontrada')
+    }
+
+    const plan = await ctx.db.get(subscription.planId)
+    if (!plan) throw new Error('Plan no encontrado')
+
+    // Validate billing period format
+    if (!/^\d{4}-\d{2}$/.test(args.billingPeriod)) {
+      throw new Error('Período de facturación inválido (esperado YYYY-MM)')
+    }
+
+    // Check for duplicate payment in the same period
+    const existing = await ctx.db
+      .query('planPayments')
+      .withIndex('by_subscription_period', (q) =>
+        q
+          .eq('subscriptionId', args.subscriptionId)
+          .eq('billingPeriod', args.billingPeriod)
+      )
+      .first()
+    if (existing && existing.status === 'approved') {
+      throw new Error('Ya existe un pago aprobado para este período')
+    }
+
+    const now = Date.now()
+    const amountArs = args.amountArs ?? plan.priceArs
+
+    if (existing) {
+      // Update the existing pending/declined/in_review payment
+      await ctx.db.patch(existing._id, {
+        status: 'approved',
+        amountArs,
+        totalAmountArs: amountArs,
+        paymentMethod: args.paymentMethod,
+        recordedBy: identity.subject,
+        reviewedBy: identity.subject,
+        reviewedAt: now,
+        reviewNotes: args.notes?.trim() || undefined,
+        proofStorageId: args.proofStorageId,
+        proofFileName: args.proofFileName,
+        proofContentType: args.proofContentType,
+        proofUploadedAt: args.proofStorageId ? now : undefined,
+        updatedAt: now,
+      })
+    } else {
+      await ctx.db.insert('planPayments', {
+        organizationId: membership.organizationId,
+        userId: subscription.userId,
+        subscriptionId: args.subscriptionId,
+        planId: subscription.planId,
+        billingPeriod: args.billingPeriod,
+        amountArs,
+        totalAmountArs: amountArs,
+        paymentMethod: args.paymentMethod,
+        recordedBy: identity.subject,
+        status: 'approved',
+        reviewedBy: identity.subject,
+        reviewedAt: now,
+        reviewNotes: args.notes?.trim() || undefined,
+        proofStorageId: args.proofStorageId,
+        proofFileName: args.proofFileName,
+        proofContentType: args.proofContentType,
+        proofUploadedAt: args.proofStorageId ? now : undefined,
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+
+    // Reactivate subscription if it was suspended
+    if (subscription.status === 'suspended') {
+      await ctx.db.patch(subscription._id, {
+        status: 'active',
+        suspendedAt: undefined,
+        updatedAt: now,
+      })
+    }
+  },
+})
+
+/**
  * Enrich payments with user and plan details.
  */
 async function enrichPayments(

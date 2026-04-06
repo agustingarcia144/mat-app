@@ -38,7 +38,7 @@ export const DASHBOARD_NAV_ITEMS = [
   {
     label: 'Pagos',
     icon: CreditCard,
-    url: '/pagos',
+    url: '/payments',
     adminOnly: true,
   },
   {

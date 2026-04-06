@@ -215,10 +215,24 @@ export default function DashboardContent() {
     [reservationsForDay]
   )
 
-  const scheduledWorkoutDay = useMemo(
-    () => workoutDays?.find((d) => d.dayOfWeek === selectedISOWeekday) ?? null,
-    [workoutDays, selectedISOWeekday]
-  )
+  const scheduledWorkoutDay = useMemo(() => {
+    if (!workoutDays) return null
+    // Only show the planned workout if the selected date falls within the
+    // active assignment's date range — otherwise the workout didn't exist yet.
+    if (activeAssignment?.startDate) {
+      const start = new Date(activeAssignment.startDate)
+      start.setHours(0, 0, 0, 0)
+      const sel = new Date(selectedDate)
+      sel.setHours(0, 0, 0, 0)
+      if (sel < start) return null
+    }
+    if (activeAssignment?.endDate) {
+      const end = new Date(activeAssignment.endDate)
+      end.setHours(23, 59, 59, 999)
+      if (selectedDate > end) return null
+    }
+    return workoutDays.find((d) => d.dayOfWeek === selectedISOWeekday) ?? null
+  }, [workoutDays, selectedISOWeekday, activeAssignment?.startDate, activeAssignment?.endDate, selectedDate])
   const sessionForSelected = useMemo(
     () =>
       weekSessionsForActiveAssignment.find(

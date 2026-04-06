@@ -100,6 +100,7 @@ export function ExerciseCard({
     (timeValues?.some((value) => value != null && value > 0) ?? false)
 
   const isExerciseCompleted =
+    !isNewSession &&
     values.length >= dayEx.sets &&
     Array.from({ length: dayEx.sets }).every((_, setIndex) => {
       if (isSetQuickCompleted?.(setIndex)) return true

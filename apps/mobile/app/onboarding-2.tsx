@@ -13,12 +13,12 @@ import {
   Pressable,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Picker } from '@react-native-picker/picker'
 import { useRouter } from 'expo-router'
 import { useMutation, Authenticated } from 'convex/react'
 import { api } from '@repo/convex'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
+import { Picker } from '@react-native-picker/picker'
 
 const HEIGHT_CM = Array.from({ length: 151 }, (_, i) => 100 + i) // 100–250 cm
 const WEIGHT_KG = Array.from({ length: 171 }, (_, i) => 30 + i) // 30–200 kg
@@ -33,6 +33,8 @@ function Onboarding2Content() {
 
   const [heightCm, setHeightCm] = useState<number | null>(null)
   const [weightKg, setWeightKg] = useState<number | null>(null)
+  const [heightText, setHeightText] = useState(String(HEIGHT_CM[50]))
+  const [weightText, setWeightText] = useState(String(WEIGHT_KG[40]))
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -112,54 +114,104 @@ function Onboarding2Content() {
               <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
                 Altura (cm)
               </Text>
-              <ThemedPressable
-                onPress={() => !loading && setActivePicker('height')}
-                style={[
-                  styles.input,
-                  styles.pickerInput,
-                  {
-                    backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                    borderColor: isDark ? '#27272a' : '#e4e4e7',
-                  },
-                ]}
-                disabled={loading}
-              >
-                <Text
+              {Platform.OS === 'android' ? (
+                <TextInput
                   style={[
-                    styles.pickerInputText,
-                    { color: isDark ? '#fff' : '#000' },
+                    styles.input,
+                    {
+                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                      color: isDark ? '#fff' : '#000',
+                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    },
                   ]}
+                  keyboardType="number-pad"
+                  value={heightText}
+                  onChangeText={setHeightText}
+                  onBlur={() => {
+                    const n = parseInt(heightText, 10)
+                    const clamped = isNaN(n) ? HEIGHT_CM[50] : Math.min(250, Math.max(100, n))
+                    setHeightCm(clamped)
+                    setHeightText(String(clamped))
+                  }}
+                  placeholder="170"
+                  placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                  editable={!loading}
+                />
+              ) : (
+                <ThemedPressable
+                  onPress={() => !loading && setActivePicker('height')}
+                  style={[
+                    styles.input,
+                    styles.pickerInput,
+                    {
+                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    },
+                  ]}
+                  disabled={loading}
                 >
-                  {`${selectedHeight} cm`}
-                </Text>
-              </ThemedPressable>
+                  <Text
+                    style={[
+                      styles.pickerInputText,
+                      { color: isDark ? '#fff' : '#000' },
+                    ]}
+                  >
+                    {`${selectedHeight} cm`}
+                  </Text>
+                </ThemedPressable>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
                 Peso (kg)
               </Text>
-              <ThemedPressable
-                onPress={() => !loading && setActivePicker('weight')}
-                style={[
-                  styles.input,
-                  styles.pickerInput,
-                  {
-                    backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                    borderColor: isDark ? '#27272a' : '#e4e4e7',
-                  },
-                ]}
-                disabled={loading}
-              >
-                <Text
+              {Platform.OS === 'android' ? (
+                <TextInput
                   style={[
-                    styles.pickerInputText,
-                    { color: isDark ? '#fff' : '#000' },
+                    styles.input,
+                    {
+                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                      color: isDark ? '#fff' : '#000',
+                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    },
                   ]}
+                  keyboardType="number-pad"
+                  value={weightText}
+                  onChangeText={setWeightText}
+                  onBlur={() => {
+                    const n = parseInt(weightText, 10)
+                    const clamped = isNaN(n) ? WEIGHT_KG[40] : Math.min(200, Math.max(30, n))
+                    setWeightKg(clamped)
+                    setWeightText(String(clamped))
+                  }}
+                  placeholder="70"
+                  placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                  editable={!loading}
+                />
+              ) : (
+                <ThemedPressable
+                  onPress={() => !loading && setActivePicker('weight')}
+                  style={[
+                    styles.input,
+                    styles.pickerInput,
+                    {
+                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    },
+                  ]}
+                  disabled={loading}
                 >
-                  {`${selectedWeight} kg`}
-                </Text>
-              </ThemedPressable>
+                  <Text
+                    style={[
+                      styles.pickerInputText,
+                      { color: isDark ? '#fff' : '#000' },
+                    ]}
+                  >
+                    {`${selectedWeight} kg`}
+                  </Text>
+                </ThemedPressable>
+              )}
             </View>
 
             <View style={styles.inputGroup}>
@@ -186,80 +238,76 @@ function Onboarding2Content() {
               />
             </View>
 
-            <Modal
-              visible={activePicker !== null}
-              transparent
-              animationType="slide"
-              onRequestClose={() => setActivePicker(null)}
-            >
-              <Pressable
-                style={styles.sheetBackdrop}
-                // Android pickers often don't behave well with iOS-style dismissal UX.
-                // Restrict backdrop dismissal to Android so iOS Picker interactions don't
-                // inadvertently bubble up and close the sheet.
-                onPress={() => {
-                  if (Platform.OS === 'android') setActivePicker(null)
-                }}
+            {Platform.OS === 'ios' && (
+              <Modal
+                visible={activePicker !== null}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setActivePicker(null)}
               >
-                <View
-                  style={[
-                    styles.sheet,
-                  {
-                    backgroundColor: isDark ? '#000' : '#fff',
-                    // Keep content above Android nav bar.
-                    paddingBottom: 96 + insets.bottom,
-                  },
-                  ]}
+                <Pressable
+                  style={styles.sheetBackdrop}
+                  onPress={() => {}}
                 >
-                  <Text
+                  <View
                     style={[
-                      styles.sheetTitle,
-                      { color: isDark ? '#fff' : '#000' },
-                    ]}
-                  >
-                    {activePicker === 'height' ? 'Altura (cm)' : 'Peso (kg)'}
-                  </Text>
-                  {activePicker === 'height' ? (
-                    <Picker
-                      selectedValue={selectedHeight}
-                      onValueChange={(v) => setHeightCm(v as number)}
-                    >
-                      {HEIGHT_CM.map((cm) => (
-                        <Picker.Item key={cm} label={`${cm} cm`} value={cm} />
-                      ))}
-                    </Picker>
-                  ) : (
-                    <Picker
-                      selectedValue={selectedWeight}
-                      onValueChange={(v) => setWeightKg(v as number)}
-                    >
-                      {WEIGHT_KG.map((kg) => (
-                        <Picker.Item key={kg} label={`${kg} kg`} value={kg} />
-                      ))}
-                    </Picker>
-                  )}
-                  <ThemedPressable
-                    onPress={() => setActivePicker(null)}
-                    hitSlop={12}
-                    style={[
-                      styles.sheetDone,
-                      {
-                        bottom: 16 + insets.bottom,
-                      },
+                      styles.sheet,
+                    {
+                      backgroundColor: isDark ? '#000' : '#fff',
+                      paddingBottom: 96 + insets.bottom,
+                    },
                     ]}
                   >
                     <Text
                       style={[
-                        styles.sheetDoneText,
+                        styles.sheetTitle,
                         { color: isDark ? '#fff' : '#000' },
                       ]}
                     >
-                      Listo
+                      {activePicker === 'height' ? 'Altura (cm)' : 'Peso (kg)'}
                     </Text>
-                  </ThemedPressable>
-                </View>
-              </Pressable>
-            </Modal>
+                    {activePicker === 'height' ? (
+                      <Picker
+                        selectedValue={selectedHeight}
+                        onValueChange={(v: number) => setHeightCm(v)}
+                      >
+                        {HEIGHT_CM.map((cm: number) => (
+                          <Picker.Item key={cm} label={`${cm} cm`} value={cm} />
+                        ))}
+                      </Picker>
+                    ) : (
+                      <Picker
+                        selectedValue={selectedWeight}
+                        onValueChange={(v: number) => setWeightKg(v)}
+                      >
+                        {WEIGHT_KG.map((kg: number) => (
+                          <Picker.Item key={kg} label={`${kg} kg`} value={kg} />
+                        ))}
+                      </Picker>
+                    )}
+                    <ThemedPressable
+                      onPress={() => setActivePicker(null)}
+                      hitSlop={12}
+                      style={[
+                        styles.sheetDone,
+                        {
+                          bottom: 16 + insets.bottom,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.sheetDoneText,
+                          { color: isDark ? '#fff' : '#000' },
+                        ]}
+                      >
+                        Listo
+                      </Text>
+                    </ThemedPressable>
+                  </View>
+                </Pressable>
+              </Modal>
+            )}
 
             <ThemedPressable
               type="primary"

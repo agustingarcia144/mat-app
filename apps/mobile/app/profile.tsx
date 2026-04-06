@@ -13,7 +13,6 @@ import {
   TextInput,
 } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
-import { Picker } from '@react-native-picker/picker'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useUser, useClerk } from '@clerk/expo'
@@ -32,6 +31,7 @@ import { ThemedPressable } from '@/components/ui/themed-pressable'
 import { Colors } from '@/constants/theme'
 import LoadingScreen from '@/components/shared/screens/loading-screen'
 import { useAppReset } from '@/components/providers/providers'
+import { Picker } from '@react-native-picker/picker'
 
 const HEIGHT_CM = Array.from({ length: 151 }, (_, i) => 100 + i)
 const WEIGHT_KG = Array.from({ length: 171 }, (_, i) => 30 + i)
@@ -65,7 +65,11 @@ function PersonalInfoModal({
   const [phone, setPhone] = React.useState(initialData.phone ?? '')
   const [birthdayDate, setBirthdayDate] = React.useState<Date | null>(() => {
     if (!initialData.birthday) return null
-    try { return parseISO(initialData.birthday) } catch { return null }
+    try {
+      return parseISO(initialData.birthday)
+    } catch {
+      return null
+    }
   })
   const [showDatePicker, setShowDatePicker] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
@@ -79,19 +83,18 @@ function PersonalInfoModal({
       setPhone(initialData.phone ?? '')
       setBirthdayDate(() => {
         if (!initialData.birthday) return null
-        try { return parseISO(initialData.birthday) } catch { return null }
+        try {
+          return parseISO(initialData.birthday)
+        } catch {
+          return null
+        }
       })
       setError('')
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
 
   const displayBirthday = birthdayDate ? format(birthdayDate, 'dd/MM/yyyy') : ''
-
-  const onBirthdayChange = (_event: unknown, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios')
-    if (selectedDate) setBirthdayDate(selectedDate)
-  }
 
   const handleSave = async () => {
     setLoading(true)
@@ -108,7 +111,9 @@ function PersonalInfoModal({
           firstName: firstName.trim() || undefined,
           lastName: lastName.trim() || undefined,
           nickname: nickname.trim() || undefined,
-          birthday: birthdayDate ? format(birthdayDate, 'yyyy-MM-dd') : undefined,
+          birthday: birthdayDate
+            ? format(birthdayDate, 'yyyy-MM-dd')
+            : undefined,
           phone: phone.trim() || undefined,
         }),
       ])
@@ -129,7 +134,10 @@ function PersonalInfoModal({
     },
   ]
 
-  const labelStyle = [styles.settingInputLabel, { color: isDark ? '#a1a1aa' : '#71717a' }]
+  const labelStyle = [
+    styles.settingInputLabel,
+    { color: isDark ? '#a1a1aa' : '#71717a' },
+  ]
 
   return (
     <Modal
@@ -139,7 +147,10 @@ function PersonalInfoModal({
       onRequestClose={() => !loading && onClose()}
     >
       <View style={styles.modalRoot}>
-        <Pressable style={styles.modalFlexBackdrop} onPress={() => !loading && onClose()} />
+        <Pressable
+          style={styles.modalFlexBackdrop}
+          onPress={() => !loading && onClose()}
+        />
         <View
           style={[
             styles.modalCard,
@@ -150,7 +161,12 @@ function PersonalInfoModal({
           ]}
         >
           <View style={styles.modalHandleArea}>
-            <View style={[styles.modalHandle, { backgroundColor: isDark ? '#555' : '#ccc' }]} />
+            <View
+              style={[
+                styles.modalHandle,
+                { backgroundColor: isDark ? '#555' : '#ccc' },
+              ]}
+            />
           </View>
           <ScrollView
             keyboardShouldPersistTaps="handled"
@@ -221,7 +237,18 @@ function PersonalInfoModal({
                 style={[inputStyle, { justifyContent: 'center' }]}
                 onPress={() => !loading && setShowDatePicker(true)}
               >
-                <Text style={{ color: displayBirthday ? (isDark ? '#fff' : '#000') : (isDark ? '#52525b' : '#a1a1aa'), fontSize: 16 }}>
+                <Text
+                  style={{
+                    color: displayBirthday
+                      ? isDark
+                        ? '#fff'
+                        : '#000'
+                      : isDark
+                        ? '#52525b'
+                        : '#a1a1aa',
+                    fontSize: 16,
+                  }}
+                >
                   {displayBirthday || 'DD/MM/AAAA'}
                 </Text>
               </Pressable>
@@ -239,7 +266,12 @@ function PersonalInfoModal({
               {loading ? (
                 <ActivityIndicator color={isDark ? '#000' : '#fff'} />
               ) : (
-                <Text style={[styles.modalSaveButtonText, { color: isDark ? '#000' : '#fff' }]}>
+                <Text
+                  style={[
+                    styles.modalSaveButtonText,
+                    { color: isDark ? '#000' : '#fff' },
+                  ]}
+                >
                   Guardar
                 </Text>
               )}
@@ -251,7 +283,10 @@ function PersonalInfoModal({
       {/* Date picker overlay — absolutely positioned inside the same Modal (nested Modal breaks on iOS) */}
       {showDatePicker && (
         <View style={styles.pickerOverlay}>
-          <Pressable style={styles.modalFlexBackdrop} onPress={() => setShowDatePicker(false)} />
+          <Pressable
+            style={styles.modalFlexBackdrop}
+            onPress={() => setShowDatePicker(false)}
+          />
           <View
             style={[
               styles.pickerSheet,
@@ -261,7 +296,12 @@ function PersonalInfoModal({
               },
             ]}
           >
-            <Text style={[styles.pickerSheetTitle, { color: isDark ? '#fff' : '#000' }]}>
+            <Text
+              style={[
+                styles.pickerSheetTitle,
+                { color: isDark ? '#fff' : '#000' },
+              ]}
+            >
               Fecha de nacimiento
             </Text>
             <DateTimePicker
@@ -269,9 +309,9 @@ function PersonalInfoModal({
               mode="date"
               display="spinner"
               onChange={(_event, selectedDate) => {
-              if (Platform.OS === 'android') setShowDatePicker(false)
-              if (selectedDate) setBirthdayDate(selectedDate)
-            }}
+                if (Platform.OS === 'android') setShowDatePicker(false)
+                if (selectedDate) setBirthdayDate(selectedDate)
+              }}
               maximumDate={new Date()}
               minimumDate={new Date(1900, 0, 1)}
               locale="es-ES"
@@ -282,7 +322,12 @@ function PersonalInfoModal({
               hitSlop={12}
               style={styles.pickerSheetDoneInline}
             >
-              <Text style={[styles.pickerSheetDoneText, { color: isDark ? '#fff' : '#000' }]}>
+              <Text
+                style={[
+                  styles.pickerSheetDoneText,
+                  { color: isDark ? '#fff' : '#000' },
+                ]}
+              >
                 Listo
               </Text>
             </Pressable>
@@ -313,21 +358,39 @@ function PhysicalInfoModal({
   const insets = useSafeAreaInsets()
   const updatePhysicalInfo = useMutation(api.users.updatePhysicalInfo)
 
-  const [heightCm, setHeightCm] = React.useState<number>(initialData.height ?? HEIGHT_CM[50])
-  const [weightKg, setWeightKg] = React.useState<number>(initialData.weight ?? WEIGHT_KG[40])
-  const [description, setDescription] = React.useState(initialData.description ?? '')
-  const [activePicker, setActivePicker] = React.useState<'height' | 'weight' | null>(null)
+  const [heightCm, setHeightCm] = React.useState<number>(
+    initialData.height ?? HEIGHT_CM[50]
+  )
+  const [weightKg, setWeightKg] = React.useState<number>(
+    initialData.weight ?? WEIGHT_KG[40]
+  )
+  const [heightText, setHeightText] = React.useState(
+    String(initialData.height ?? HEIGHT_CM[50])
+  )
+  const [weightText, setWeightText] = React.useState(
+    String(initialData.weight ?? WEIGHT_KG[40])
+  )
+  const [description, setDescription] = React.useState(
+    initialData.description ?? ''
+  )
+  const [activePicker, setActivePicker] = React.useState<
+    'height' | 'weight' | null
+  >(null)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState('')
 
   React.useEffect(() => {
     if (visible) {
-      setHeightCm(initialData.height ?? HEIGHT_CM[50])
-      setWeightKg(initialData.weight ?? WEIGHT_KG[40])
+      const h = initialData.height ?? HEIGHT_CM[50]
+      const w = initialData.weight ?? WEIGHT_KG[40]
+      setHeightCm(h)
+      setWeightKg(w)
+      setHeightText(String(h))
+      setWeightText(String(w))
       setDescription(initialData.description ?? '')
       setError('')
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
 
   const handleSave = async () => {
@@ -347,7 +410,10 @@ function PhysicalInfoModal({
     }
   }
 
-  const labelStyle = [styles.settingInputLabel, { color: isDark ? '#a1a1aa' : '#71717a' }]
+  const labelStyle = [
+    styles.settingInputLabel,
+    { color: isDark ? '#a1a1aa' : '#71717a' },
+  ]
   const pickerInputStyle = [
     styles.settingInput,
     {
@@ -365,7 +431,10 @@ function PhysicalInfoModal({
       onRequestClose={() => !loading && !activePicker && onClose()}
     >
       <View style={styles.modalRoot}>
-        <Pressable style={styles.modalFlexBackdrop} onPress={() => !loading && !activePicker && onClose()} />
+        <Pressable
+          style={styles.modalFlexBackdrop}
+          onPress={() => !loading && !activePicker && onClose()}
+        />
         <View
           style={[
             styles.modalCard,
@@ -376,7 +445,12 @@ function PhysicalInfoModal({
           ]}
         >
           <View style={styles.modalHandleArea}>
-            <View style={[styles.modalHandle, { backgroundColor: isDark ? '#555' : '#ccc' }]} />
+            <View
+              style={[
+                styles.modalHandle,
+                { backgroundColor: isDark ? '#555' : '#ccc' },
+              ]}
+            />
           </View>
           <ScrollView
             keyboardShouldPersistTaps="handled"
@@ -391,20 +465,72 @@ function PhysicalInfoModal({
 
             <View style={styles.settingInputGroup}>
               <Text style={labelStyle}>Altura (cm)</Text>
-              <Pressable style={pickerInputStyle} onPress={() => !loading && setActivePicker('height')}>
-                <Text style={{ fontSize: 16, color: isDark ? '#fff' : '#000' }}>
-                  {heightCm} cm
-                </Text>
-              </Pressable>
+              {Platform.OS === 'android' ? (
+                <TextInput
+                  style={[
+                    styles.settingInput,
+                    {
+                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                      color: isDark ? '#fff' : '#000',
+                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    },
+                  ]}
+                  keyboardType="number-pad"
+                  value={heightText}
+                  onChangeText={setHeightText}
+                  onBlur={() => {
+                    const n = parseInt(heightText, 10)
+                    const clamped = isNaN(n) ? HEIGHT_CM[50] : Math.min(250, Math.max(100, n))
+                    setHeightCm(clamped)
+                    setHeightText(String(clamped))
+                  }}
+                  editable={!loading}
+                />
+              ) : (
+                <Pressable
+                  style={pickerInputStyle}
+                  onPress={() => !loading && setActivePicker('height')}
+                >
+                  <Text style={{ fontSize: 16, color: isDark ? '#fff' : '#000' }}>
+                    {heightCm} cm
+                  </Text>
+                </Pressable>
+              )}
             </View>
 
             <View style={styles.settingInputGroup}>
               <Text style={labelStyle}>Peso (kg)</Text>
-              <Pressable style={pickerInputStyle} onPress={() => !loading && setActivePicker('weight')}>
-                <Text style={{ fontSize: 16, color: isDark ? '#fff' : '#000' }}>
-                  {weightKg} kg
-                </Text>
-              </Pressable>
+              {Platform.OS === 'android' ? (
+                <TextInput
+                  style={[
+                    styles.settingInput,
+                    {
+                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                      color: isDark ? '#fff' : '#000',
+                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    },
+                  ]}
+                  keyboardType="number-pad"
+                  value={weightText}
+                  onChangeText={setWeightText}
+                  onBlur={() => {
+                    const n = parseInt(weightText, 10)
+                    const clamped = isNaN(n) ? WEIGHT_KG[40] : Math.min(200, Math.max(30, n))
+                    setWeightKg(clamped)
+                    setWeightText(String(clamped))
+                  }}
+                  editable={!loading}
+                />
+              ) : (
+                <Pressable
+                  style={pickerInputStyle}
+                  onPress={() => !loading && setActivePicker('weight')}
+                >
+                  <Text style={{ fontSize: 16, color: isDark ? '#fff' : '#000' }}>
+                    {weightKg} kg
+                  </Text>
+                </Pressable>
+              )}
             </View>
 
             <View style={styles.settingInputGroup}>
@@ -441,7 +567,12 @@ function PhysicalInfoModal({
               {loading ? (
                 <ActivityIndicator color={isDark ? '#000' : '#fff'} />
               ) : (
-                <Text style={[styles.modalSaveButtonText, { color: isDark ? '#000' : '#fff' }]}>
+                <Text
+                  style={[
+                    styles.modalSaveButtonText,
+                    { color: isDark ? '#000' : '#fff' },
+                  ]}
+                >
                   Guardar
                 </Text>
               )}
@@ -449,10 +580,13 @@ function PhysicalInfoModal({
           </ScrollView>
         </View>
 
-        {/* Picker overlay — absolutely positioned inside the same Modal (nested Modal breaks on iOS) */}
-        {activePicker !== null && (
+        {/* Picker overlay — iOS only (on Android we use inline TextInput) */}
+        {Platform.OS === 'ios' && activePicker !== null && (
           <View style={styles.pickerOverlay}>
-            <Pressable style={styles.modalFlexBackdrop} onPress={() => setActivePicker(null)} />
+            <Pressable
+              style={styles.modalFlexBackdrop}
+              onPress={() => setActivePicker(null)}
+            />
             <View
               style={[
                 styles.pickerSheet,
@@ -467,18 +601,29 @@ function PhysicalInfoModal({
                 },
               ]}
             >
-              <Text style={[styles.pickerSheetTitle, { color: isDark ? '#fff' : '#000' }]}>
+              <Text
+                style={[
+                  styles.pickerSheetTitle,
+                  { color: isDark ? '#fff' : '#000' },
+                ]}
+              >
                 {activePicker === 'height' ? 'Altura (cm)' : 'Peso (kg)'}
               </Text>
               {activePicker === 'height' ? (
-                <Picker selectedValue={heightCm} onValueChange={(v) => setHeightCm(v as number)}>
-                  {HEIGHT_CM.map((cm) => (
+                <Picker
+                  selectedValue={heightCm}
+                  onValueChange={(v: number) => setHeightCm(v)}
+                >
+                  {HEIGHT_CM.map((cm: number) => (
                     <Picker.Item key={cm} label={`${cm} cm`} value={cm} />
                   ))}
                 </Picker>
               ) : (
-                <Picker selectedValue={weightKg} onValueChange={(v) => setWeightKg(v as number)}>
-                  {WEIGHT_KG.map((kg) => (
+                <Picker
+                  selectedValue={weightKg}
+                  onValueChange={(v: number) => setWeightKg(v)}
+                >
+                  {WEIGHT_KG.map((kg: number) => (
                     <Picker.Item key={kg} label={`${kg} kg`} value={kg} />
                   ))}
                 </Picker>
@@ -488,7 +633,12 @@ function PhysicalInfoModal({
                 hitSlop={12}
                 style={styles.pickerSheetDoneInline}
               >
-                <Text style={[styles.pickerSheetDoneText, { color: isDark ? '#fff' : '#000' }]}>
+                <Text
+                  style={[
+                    styles.pickerSheetDoneText,
+                    { color: isDark ? '#fff' : '#000' },
+                  ]}
+                >
                   Listo
                 </Text>
               </Pressable>
@@ -746,9 +896,7 @@ function ProfileContent() {
           styles.scrollContent,
           {
             // Extra top padding on Android so avatar isn't cut off by the transparent header/title
-            paddingTop:
-              insets.top +
-              (Platform.OS === 'android' ? 64 : 44),
+            paddingTop: insets.top + (Platform.OS === 'android' ? 64 : 44),
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -839,26 +987,55 @@ function ProfileContent() {
         ) : null}
 
         <View style={styles.settingsSection}>
-          <Text style={[styles.settingsSectionTitle, { color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)' }]}>
+          <Text
+            style={[
+              styles.settingsSectionTitle,
+              { color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)' },
+            ]}
+          >
             Ajustes
           </Text>
           <Pressable
             style={[styles.settingsRow, { backgroundColor: buttonBg }]}
             onPress={() => setPersonalInfoModalVisible(true)}
           >
-            <Text style={[styles.settingsRowText, { color: isDark ? '#fff' : '#000' }]}>
+            <Text
+              style={[
+                styles.settingsRowText,
+                { color: isDark ? '#fff' : '#000' },
+              ]}
+            >
               Información personal
             </Text>
-            <Text style={[styles.settingsRowChevron, { color: isDark ? '#71717a' : '#a1a1aa' }]}>›</Text>
+            <Text
+              style={[
+                styles.settingsRowChevron,
+                { color: isDark ? '#71717a' : '#a1a1aa' },
+              ]}
+            >
+              ›
+            </Text>
           </Pressable>
           <Pressable
             style={[styles.settingsRow, { backgroundColor: buttonBg }]}
             onPress={() => setPhysicalInfoModalVisible(true)}
           >
-            <Text style={[styles.settingsRowText, { color: isDark ? '#fff' : '#000' }]}>
+            <Text
+              style={[
+                styles.settingsRowText,
+                { color: isDark ? '#fff' : '#000' },
+              ]}
+            >
               Información física
             </Text>
-            <Text style={[styles.settingsRowChevron, { color: isDark ? '#71717a' : '#a1a1aa' }]}>›</Text>
+            <Text
+              style={[
+                styles.settingsRowChevron,
+                { color: isDark ? '#71717a' : '#a1a1aa' },
+              ]}
+            >
+              ›
+            </Text>
           </Pressable>
         </View>
 
@@ -901,7 +1078,9 @@ function ProfileContent() {
             accessibilityRole="button"
             accessibilityLabel="Eliminar cuenta permanentemente"
           >
-            <Text style={[styles.deleteAccountButtonText, { color: '#ef4444' }]}>
+            <Text
+              style={[styles.deleteAccountButtonText, { color: '#ef4444' }]}
+            >
               Eliminar cuenta permanentemente
             </Text>
           </ThemedPressable>
