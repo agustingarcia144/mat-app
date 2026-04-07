@@ -191,6 +191,88 @@ export const listExternalIdsBatch = internalQuery({
 })
 
 /**
+ * Update personal info (name, nickname, birthday, phone).
+ */
+export const updatePersonalInfo = mutation({
+  args: {
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    nickname: v.optional(v.string()),
+    birthday: v.optional(v.string()),
+    phone: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error('Not authenticated')
+
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_externalId', (q) => q.eq('externalId', identity.subject))
+      .first()
+    if (!user) throw new Error('User not found')
+
+    const firstName = args.firstName?.trim() || undefined
+    const lastName = args.lastName?.trim() || undefined
+    const fullName =
+      firstName && lastName
+        ? `${firstName} ${lastName}`
+        : firstName || lastName || user.fullName
+
+    await ctx.db.patch(user._id, {
+      firstName,
+      lastName,
+      fullName,
+      nickname: args.nickname?.trim() || undefined,
+      birthday: args.birthday || undefined,
+      phone: args.phone?.trim() || undefined,
+      updatedAt: Date.now(),
+    })
+
+    return await ctx.db.get(user._id)
+  },
+})
+
+/**
+ * Update physical info (height, weight, membership description).
+ */
+export const updatePhysicalInfo = mutation({
+  args: {
+    height: v.optional(v.number()),
+    weight: v.optional(v.number()),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error('Not authenticated')
+
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_externalId', (q) => q.eq('externalId', identity.subject))
+      .first()
+    if (!user) throw new Error('User not found')
+
+    const now = Date.now()
+    await ctx.db.patch(user._id, {
+      height: args.height,
+      weight: args.weight,
+      updatedAt: now,
+    })
+
+    try {
+      const membership = await requireCurrentOrganizationMembership(ctx)
+      await ctx.db.patch(membership._id, {
+        description: args.description?.trim() || undefined,
+        updatedAt: now,
+      })
+    } catch {
+      // No active membership — skip description
+    }
+
+    return await ctx.db.get(user._id)
+  },
+})
+
+/**
  * Complete onboarding step 1 (birthday, phone). Does not set onboardingCompleted;
  * user is sent to onboarding-2 next.
  */

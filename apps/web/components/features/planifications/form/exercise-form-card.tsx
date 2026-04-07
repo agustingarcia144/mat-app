@@ -260,13 +260,13 @@ export default function ExerciseFormCard({
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Editar ejercicio</DialogTitle>
             <DialogDescription>{exercise?.exerciseName}</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 overflow-y-auto flex-1 min-h-0">
             {thumbnailUrl && (
               <div className="relative h-64 w-full rounded-md overflow-hidden bg-muted">
                 <Image

@@ -200,7 +200,51 @@ export const generateTurnosTimeWindowSchema = z
     { message: 'La hora fin debe ser posterior a la hora inicio', path: ['timeWindowEnd'] }
   )
 
+// Membership plan schema
+const interestTierSchema = z.object({
+  daysAfterWindowEnd: z.coerce
+    .number()
+    .int()
+    .min(1, 'Debe ser al menos 1 día después del cierre'),
+  type: z.enum(['percentage', 'fixed']),
+  value: z.coerce.number().positive('El valor debe ser mayor a 0'),
+})
+
+export const membershipPlanSchema = z
+  .object({
+    name: z.string().min(1, 'El nombre es requerido').trim(),
+    description: z.string().optional(),
+    priceArs: z.coerce
+      .number()
+      .int('El precio debe ser un número entero')
+      .min(1, 'El precio debe ser al menos $1'),
+    weeklyClassLimit: z.coerce
+      .number()
+      .int('El límite debe ser un número entero')
+      .min(1, 'El límite debe ser al menos 1 clase'),
+    paymentWindowStartDay: z.coerce
+      .number()
+      .int()
+      .min(1, 'El día debe ser entre 1 y 28')
+      .max(28, 'El día debe ser entre 1 y 28'),
+    paymentWindowEndDay: z.coerce
+      .number()
+      .int()
+      .min(1, 'El día debe ser entre 1 y 28')
+      .max(28, 'El día debe ser entre 1 y 28'),
+    interestTiers: z.array(interestTierSchema).default([]),
+  })
+  .refine(
+    (data) => data.paymentWindowEndDay >= data.paymentWindowStartDay,
+    {
+      message:
+        'El día de cierre debe ser igual o posterior al día de apertura',
+      path: ['paymentWindowEndDay'],
+    }
+  )
+
 // Type exports
+export type MembershipPlanForm = z.infer<typeof membershipPlanSchema>
 export type PlanificationBasicInfo = z.infer<
   typeof planificationBasicInfoSchema
 >

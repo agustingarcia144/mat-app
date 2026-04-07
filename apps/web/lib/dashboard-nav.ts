@@ -5,6 +5,7 @@ import {
   Dumbbell,
   ListChecks,
   CalendarDays,
+  CreditCard,
   UserCog,
 } from 'lucide-react'
 
@@ -33,6 +34,12 @@ export const DASHBOARD_NAV_ITEMS = [
     label: 'Clases',
     icon: CalendarDays,
     url: '/classes',
+  },
+  {
+    label: 'Pagos',
+    icon: CreditCard,
+    url: '/payments',
+    adminOnly: true,
   },
   {
     label: 'Usuarios',

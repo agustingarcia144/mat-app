@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet, Platform } from 'react-native'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import { scheduleOnRN } from 'react-native-worklets'
 import Animated, {
@@ -334,10 +334,10 @@ const styles = StyleSheet.create({
   weekStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Platform.select({ android: 4, default: 8 }),
   },
   dayCell: {
-    width: 38,
+    width: Platform.select({ android: 36, default: 38 }),
     height: 56,
     borderRadius: 20,
     alignItems: 'center',
@@ -353,7 +353,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.9,
     lineHeight: 13,
-    height: 13,
+    // Android font metrics include larger ascenders — removing the fixed height
+    // prevents tall glyphs like 'l' and 'j' from being clipped at the top
+    height: Platform.select({ android: undefined, default: 13 }),
   },
   dayCellNum: {
     fontSize: 16,

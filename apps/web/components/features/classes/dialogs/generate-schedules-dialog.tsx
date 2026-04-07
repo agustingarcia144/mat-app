@@ -80,11 +80,11 @@ function parseTimeHHmm(value: string | undefined): { hour: string; minute: strin
   }
 }
 
-type Mode = 'timeWindow' | 'single'
+type Mode = 'timeWindow' | 'single' | 'modelWeek'
 
 const generateTurnosFormSchema = z
   .object({
-    mode: z.enum(['timeWindow', 'single']),
+    mode: z.enum(['timeWindow', 'single', 'modelWeek']),
     classId: z.string().min(1, 'Selecciona una clase'),
     duration: z.coerce
       .number()
@@ -111,6 +111,20 @@ const generateTurnosFormSchema = z
       }
       if (!data.startTime) {
         ctx.addIssue({ code: 'custom', path: ['startTime'], message: 'Hora requerida' })
+      }
+    }
+    if (data.mode === 'modelWeek') {
+      if (!data.daysOfWeek || data.daysOfWeek.length === 0) {
+        ctx.addIssue({ code: 'custom', path: ['daysOfWeek'], message: 'Seleccioná al menos un día' })
+      }
+      if (!data.timeWindowStart) {
+        ctx.addIssue({ code: 'custom', path: ['timeWindowStart'], message: 'Hora inicio requerida' })
+      }
+      if (!data.timeWindowEnd) {
+        ctx.addIssue({ code: 'custom', path: ['timeWindowEnd'], message: 'Hora fin requerida' })
+      }
+      if (data.timeWindowStart && data.timeWindowEnd && data.timeWindowStart >= data.timeWindowEnd) {
+        ctx.addIssue({ code: 'custom', path: ['timeWindowEnd'], message: 'La hora fin debe ser mayor a la hora inicio' })
       }
     }
     if (data.mode === 'timeWindow') {
@@ -181,6 +195,7 @@ export default function GenerateSchedulesDialog({
   const classes = useQuery(api.classes.getByOrganization, open ? { activeOnly: false } : 'skip')
   const generateSchedules = useMutation(api.classes.generateSchedules)
   const generateFromTimeWindow = useMutation(api.classes.generateSchedulesFromTimeWindow)
+  const createModelWeekSlot = useMutation(api.modelWeekSlots.create)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const submitInProgress = useRef(false)
 
@@ -262,17 +277,21 @@ export default function GenerateSchedulesDialog({
   todayStart.setHours(0, 0, 0, 0)
 
   const approximateCount =
-    mode === 'timeWindow' &&
-    rangeStartDate &&
-    rangeEndDate &&
+    (mode === 'timeWindow' || mode === 'modelWeek') &&
     timeWindowStart &&
     timeWindowEnd &&
     slotIntervalMinutes != null
       ? (() => {
           const [sh, sm] = timeWindowStart.split(':').map(Number)
           const [eh, em] = timeWindowEnd.split(':').map(Number)
-          const startMins = sh * 60 + sm
-          const endMins = eh * 60 + em
+          const startMins = (sh ?? 0) * 60 + (sm ?? 0)
+          const endMins = (eh ?? 0) * 60 + (em ?? 0)
+          if (endMins <= startMins) return 0
+          const slotsPerDay = Math.floor((endMins - startMins) / slotIntervalMinutes)
+          if (mode === 'modelWeek') {
+            return (daysOfWeek?.length ?? 0) * slotsPerDay
+          }
+          if (!rangeStartDate || !rangeEndDate) return null
           return approximateTimeWindowCount(
             rangeStartDate,
             rangeEndDate,
@@ -329,6 +348,26 @@ export default function GenerateSchedulesDialog({
           daysOfWeek: data.daysOfWeek && data.daysOfWeek.length > 0 ? data.daysOfWeek : undefined,
         })
         toast.success(`Se generaron ${result.count} turnos correctamente`)
+      } else if (data.mode === 'modelWeek' && data.timeWindowStart && data.timeWindowEnd && data.slotIntervalMinutes != null && data.daysOfWeek && data.daysOfWeek.length > 0) {
+        const [sh, sm] = data.timeWindowStart.split(':').map(Number)
+        const [eh, em] = data.timeWindowEnd.split(':').map(Number)
+        const startMins = (sh ?? 0) * 60 + (sm ?? 0)
+        const endMins = (eh ?? 0) * 60 + (em ?? 0)
+        let created = 0
+        for (const dayOfWeek of data.daysOfWeek) {
+          let current = startMins
+          while (current < endMins) {
+            await createModelWeekSlot({
+              classId: classIdArg,
+              dayOfWeek,
+              startTimeMinutes: current,
+              durationMinutes: data.duration,
+            })
+            created++
+            current += data.slotIntervalMinutes
+          }
+        }
+        toast.success(`Se agregaron ${created} slots a la semana modelo`)
       }
       onOpenChange(false)
       onSuccess?.()
@@ -408,6 +447,12 @@ export default function GenerateSchedulesDialog({
                     <RadioGroupItem value="single" id="mode-single" />
                     <Label htmlFor="mode-single" className="font-normal">
                       Un solo turno
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="modelWeek" id="mode-modelWeek" />
+                    <Label htmlFor="mode-modelWeek" className="font-normal">
+                      Semana modelo (agrega slots como plantilla recurrente)
                     </Label>
                   </div>
                 </RadioGroup>
@@ -653,6 +698,131 @@ export default function GenerateSchedulesDialog({
             </>
           )}
 
+          {mode === 'modelWeek' && (
+            <>
+              <Field>
+                <FieldLabel>Días de la semana</FieldLabel>
+                <FieldDescription>
+                  Los slots se agregarán a la semana modelo para los días seleccionados.
+                </FieldDescription>
+                <div className="flex flex-wrap gap-3 pt-1">
+                  {DAYS_OF_WEEK.map((day) => (
+                    <div key={day.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`mw-dow-${day.value}`}
+                        checked={(daysOfWeek ?? []).includes(day.value)}
+                        onCheckedChange={(checked) => {
+                          const current = daysOfWeek ?? []
+                          const next = checked
+                            ? [...current, day.value].sort((a, b) => a - b)
+                            : current.filter((d: number) => d !== day.value)
+                          setValue('daysOfWeek', next.length > 0 ? next : undefined)
+                        }}
+                      />
+                      <Label htmlFor={`mw-dow-${day.value}`} className="text-sm font-normal">
+                        {day.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                {errors.daysOfWeek && (
+                  <FieldError>{errors.daysOfWeek.message}</FieldError>
+                )}
+              </Field>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field>
+                  <FieldLabel>Hora inicio (por día)</FieldLabel>
+                  <Controller
+                    name="timeWindowStart"
+                    control={form.control}
+                    render={({ field }) => {
+                      const { hour, minute } = parseTimeHHmm(field.value)
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Select value={hour} onValueChange={(h) => field.onChange(`${h}:${minute}`)}>
+                            <SelectTrigger className="flex-1"><SelectValue placeholder="Hora" /></SelectTrigger>
+                            <SelectContent>
+                              {HOUR_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-muted-foreground">:</span>
+                          <Select value={minute} onValueChange={(m) => field.onChange(`${hour}:${m}`)}>
+                            <SelectTrigger className="flex-1"><SelectValue placeholder="Min" /></SelectTrigger>
+                            <SelectContent>
+                              {MINUTE_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    }}
+                  />
+                  {errors.timeWindowStart && <FieldError>{errors.timeWindowStart.message}</FieldError>}
+                </Field>
+                <Field>
+                  <FieldLabel>Hora fin (por día)</FieldLabel>
+                  <Controller
+                    name="timeWindowEnd"
+                    control={form.control}
+                    render={({ field }) => {
+                      const { hour, minute } = parseTimeHHmm(field.value)
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Select value={hour} onValueChange={(h) => field.onChange(`${h}:${minute}`)}>
+                            <SelectTrigger className="flex-1"><SelectValue placeholder="Hora" /></SelectTrigger>
+                            <SelectContent>
+                              {HOUR_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-muted-foreground">:</span>
+                          <Select value={minute} onValueChange={(m) => field.onChange(`${hour}:${m}`)}>
+                            <SelectTrigger className="flex-1"><SelectValue placeholder="Min" /></SelectTrigger>
+                            <SelectContent>
+                              {MINUTE_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    }}
+                  />
+                  {errors.timeWindowEnd && <FieldError>{errors.timeWindowEnd.message}</FieldError>}
+                </Field>
+              </div>
+
+              <Field>
+                <FieldLabel>Frecuencia dentro del día</FieldLabel>
+                <Controller
+                  name="slotIntervalMinutes"
+                  control={form.control}
+                  render={({ field }) => (
+                    <Select value={String(field.value ?? 60)} onValueChange={(v) => field.onChange(Number(v))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {SLOT_INTERVAL_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </Field>
+
+              {approximateCount != null && approximateCount >= 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Se agregarán aproximadamente <strong>{approximateCount}</strong> slots a la semana modelo.
+                </p>
+              )}
+            </>
+          )}
+
           <Field>
             <FieldLabel>Duración (minutos)</FieldLabel>
             <Input
@@ -683,7 +853,8 @@ export default function GenerateSchedulesDialog({
                 isSubmitting ||
                 (mode === 'timeWindow' &&
                   approximateCount != null &&
-                  approximateCount > MAX_SLOTS_PER_GENERATION)
+                  approximateCount > MAX_SLOTS_PER_GENERATION) ||
+                (mode === 'modelWeek' && (approximateCount === 0 || approximateCount === null))
               }
             >
               {isSubmitting ? 'Generando...' : 'Generar turnos'}

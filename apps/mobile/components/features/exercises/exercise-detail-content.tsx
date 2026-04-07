@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useCallback } from 'react'
+import React, { useMemo, useEffect, useCallback, useState } from 'react'
 import {
   View,
   StyleSheet,
@@ -6,6 +6,9 @@ import {
   Image,
   Linking,
   Pressable,
+  Dimensions,
+  Text,
+  Platform,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -17,8 +20,76 @@ import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
 import ParallaxScrollView from '@/components/ui/parallax-scroll-view'
 import { useExerciseVideo } from '@/contexts/exercise-video-context'
+import { BarChart } from 'react-native-gifted-charts'
+import { format, parseISO } from 'date-fns'
+import { es } from 'date-fns/locale'
 
 const HEADER_BG = { light: '#e5e5e5', dark: '#262626' }
+const CHART_WIDTH = Dimensions.get('window').width - 48 - 36 // card padding - y-axis area
+
+type Metric = 'weight' | 'reps' | 'time'
+
+function parseNums(raw: string | undefined): number[] {
+  if (!raw) return []
+  return raw
+    .split(',')
+    .map((s) => {
+      const t = s.trim()
+      if (t === '-' || t === '') return 0
+      const n = parseFloat(t)
+      return isNaN(n) ? 0 : n
+    })
+}
+
+function hasPositive(nums: number[]): boolean {
+  return nums.some((n) => n > 0)
+}
+
+function buildBars(
+  entries: { performedOn: string; reps?: string; weight?: string; timeSeconds?: string }[],
+  metric: Metric,
+  barColor: string,
+  labelColor: string,
+  valueColor: string,
+) {
+  // Step 1: one representative value per session (max of positive set values)
+  const sessionValues: { performedOn: string; value: number }[] = []
+  for (const entry of entries) {
+    const nums =
+      metric === 'weight'
+        ? parseNums(entry.weight)
+        : metric === 'reps'
+          ? parseNums(entry.reps)
+          : parseNums(entry.timeSeconds)
+    const positives = nums.filter((n) => n > 0)
+    if (positives.length === 0) continue
+    sessionValues.push({
+      performedOn: entry.performedOn,
+      value: Math.max(...positives),
+    })
+  }
+
+  if (sessionValues.length === 0) return []
+
+  // Step 2: run-length encode — collapse consecutive sessions with the same value
+  const groups: { value: number; firstDate: string }[] = []
+  for (const sv of sessionValues) {
+    const last = groups[groups.length - 1]
+    if (last && last.value === sv.value) continue // same streak, skip
+    groups.push({ value: sv.value, firstDate: sv.performedOn })
+  }
+
+  // Step 3: one bar per group
+  return groups.map(({ value: val, firstDate }) => ({
+    value: val,
+    frontColor: barColor,
+    label: format(parseISO(firstDate), 'd MMM', { locale: es }),
+    labelWidth: 44,
+    labelTextStyle: { fontSize: 9, color: labelColor },
+    barWidth: 32,
+    spacing: 20,
+  }))
+}
 
 function formatLoad(weight?: string, prPercentage?: number) {
   if (weight?.trim()) return weight.trim()
@@ -36,6 +107,7 @@ export default function ExerciseDetailContent() {
   const insets = useSafeAreaInsets()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
+  const [activeMetric, setActiveMetric] = useState<Metric>('weight')
 
   const exercise = useQuery(
     api.exercises.getById,
@@ -44,6 +116,10 @@ export default function ExerciseDetailContent() {
   const dayExercise = useQuery(
     api.dayExercises.getById,
     dayExerciseId ? { id: dayExerciseId as any } : 'skip'
+  )
+  const progress = useQuery(
+    api.sessionExerciseLogs.getProgressByExercise,
+    exerciseId ? { exerciseId: exerciseId as any } : 'skip'
   )
 
   const youtubeVideoId = useMemo(() => {
@@ -214,6 +290,116 @@ export default function ExerciseDetailContent() {
             <ThemedText style={styles.body}>{dayExercise!.notes}</ThemedText>
           </View>
         )}
+
+        {progress != null && progress.length > 0 && (() => {
+          const barColor = isDark ? '#60a5fa' : '#3b82f6'
+          const labelColor = isDark ? '#71717a' : '#71717a'
+          const valueColor = isDark ? '#e4e4e7' : '#18181b'
+          const ruleColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'
+          const axisColor = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)'
+          const textColor = isDark ? '#a1a1aa' : '#71717a'
+
+          const hasWeight = progress.some((e) => hasPositive(parseNums(e.weight)))
+          const hasReps = progress.some((e) => hasPositive(parseNums(e.reps)))
+          const hasTime = progress.some((e) => hasPositive(parseNums(e.timeSeconds)))
+
+          const availableMetrics: { key: Metric; label: string }[] = []
+          if (hasWeight) availableMetrics.push({ key: 'weight', label: 'Peso' })
+          if (hasReps) availableMetrics.push({ key: 'reps', label: 'Reps' })
+          if (hasTime) availableMetrics.push({ key: 'time', label: 'Tiempo' })
+
+          if (availableMetrics.length === 0) return null
+
+          const metric = availableMetrics.some((m) => m.key === activeMetric)
+            ? activeMetric
+            : availableMetrics[0].key
+
+          const unitLabel = metric === 'weight' ? 'kg' : metric === 'reps' ? 'rep' : 's'
+          const bars = buildBars(progress, metric, barColor, labelColor, valueColor)
+          const dataMax = bars.reduce((m, b) => Math.max(m, b.value), 0)
+          // Round up to a clean multiple so Y-axis labels are integers
+          const step = dataMax <= 10 ? 2 : dataMax <= 30 ? 5 : dataMax <= 100 ? 10 : 20
+          const maxValue = Math.ceil((dataMax * 1.25) / step) * step
+          const noOfSections = maxValue / step
+
+          return (
+            <View
+              style={[
+                styles.section,
+                { borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' },
+              ]}
+            >
+              <ThemedText style={styles.sectionLabel}>
+                Progreso{unitLabel ? ` (${unitLabel})` : ''}
+              </ThemedText>
+
+              {availableMetrics.length > 1 && (
+                <View style={styles.metricTabs}>
+                  {availableMetrics.map(({ key, label }) => (
+                    <Pressable
+                      key={key}
+                      onPress={() => setActiveMetric(key)}
+                      style={[
+                        styles.metricTab,
+                        metric === key && {
+                          backgroundColor: isDark ? '#3b82f6' : '#3b82f6',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.metricTabText,
+                          { color: metric === key ? '#fff' : textColor },
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              <View style={styles.chartWrap}>
+                {Platform.OS === 'ios' ? (
+                  <BarChart
+                    data={bars}
+                    width={CHART_WIDTH}
+                    height={150}
+                    initialSpacing={8}
+                    maxValue={maxValue}
+                    noOfSections={noOfSections}
+                    stepValue={step}
+                    yAxisLabelWidth={36}
+                    yAxisTextStyle={{ color: textColor, fontSize: 10 }}
+                    xAxisLabelTextStyle={{ color: labelColor, fontSize: 9 }}
+                    rulesColor={ruleColor}
+                    yAxisColor={axisColor}
+                    xAxisColor={axisColor}
+                    hideRules={false}
+                    showValuesAsTopLabel
+                    topLabelTextStyle={{ fontSize: 11, color: valueColor, fontWeight: '600' }}
+                    isAnimated
+                    animationDuration={400}
+                    barBorderRadius={3}
+                  />
+                ) : (
+                  <View style={styles.androidProgressList}>
+                    {bars.map((bar, i) => (
+                      <View key={i} style={styles.androidProgressRow}>
+                        <Text style={[styles.androidProgressLabel, { color: textColor }]}>
+                          {bar.label}
+                        </Text>
+                        <Text style={[styles.androidProgressValue, { color: valueColor }]}>
+                          {bar.value} {unitLabel}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          )
+        })()}
       </ParallaxScrollView>
     </ThemedView>
   )
@@ -296,5 +482,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     opacity: 0.8,
     textDecorationLine: 'underline',
+  },
+  metricTabs: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  metricTab: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(128,128,128,0.12)',
+  },
+  metricTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  chartWrap: {
+    marginLeft: -6,
+  },
+  androidProgressList: {
+    gap: 10,
+  },
+  androidProgressRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  androidProgressLabel: {
+    fontSize: 13,
+    opacity: 0.7,
+  },
+  androidProgressValue: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 })

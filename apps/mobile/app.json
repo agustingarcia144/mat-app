@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mat Gestion",
     "slug": "mat-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mat-app",
@@ -65,6 +65,13 @@
       ],
       "expo-web-browser",
       "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mat necesita acceso a tu galería para subir comprobantes de pago.",
+          "cameraPermission": "Mat necesita acceso a tu cámara para tomar fotos de comprobantes de pago."
+        }
+      ],
       "@react-native-community/datetimepicker",
       "@clerk/expo"
     ],

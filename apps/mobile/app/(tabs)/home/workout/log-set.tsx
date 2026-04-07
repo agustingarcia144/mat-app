@@ -2,13 +2,12 @@ import React, { useState, useMemo, useEffect } from 'react'
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   Platform,
   useWindowDimensions,
   Switch,
-  Modal,
   Pressable,
-  ScrollView,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
@@ -19,95 +18,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol'
 import { Colors } from '@/constants/theme'
 import { invokeLogSetSaveCallback } from '@/lib/log-set-bridge'
 
-/** Android fallback: native Picker often doesn't render (e.g. in form sheet). Use a modal list instead. */
-function AndroidPickerRow<T extends string | number>({
-  label,
-  options,
-  selectedValue,
-  onValueChange,
-  valueToLabel,
-  isDark,
-}: {
-  label: string
-  options: T[]
-  selectedValue: T
-  onValueChange: (v: T) => void
-  valueToLabel: (v: T) => string
-  isDark: boolean
-}) {
-  const [visible, setVisible] = useState(false)
-  const bg = isDark ? '#1c1c1e' : '#f4f4f5'
-  const textColor = isDark ? '#fafafa' : '#18181b'
-  const muted = isDark ? '#a1a1aa' : '#71717a'
-
-  return (
-    <>
-      <View style={androidPickerStyles.block}>
-        <Text style={[androidPickerStyles.label, { color: muted }]}>
-          {label}
-        </Text>
-        <Pressable
-          style={[androidPickerStyles.trigger, { backgroundColor: bg }]}
-          onPress={() => setVisible(true)}
-        >
-          <Text style={[androidPickerStyles.triggerText, { color: textColor }]}>
-            {valueToLabel(selectedValue)}
-          </Text>
-        </Pressable>
-      </View>
-      <Modal
-        visible={visible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setVisible(false)}
-      >
-        <Pressable
-          style={androidPickerStyles.modalOverlay}
-          onPress={() => setVisible(false)}
-        >
-          <View
-            style={[
-              androidPickerStyles.modalContent,
-              { backgroundColor: isDark ? '#171717' : '#fff' },
-            ]}
-            onStartShouldSetResponder={() => true}
-          >
-            <ScrollView
-              style={androidPickerStyles.modalList}
-              keyboardShouldPersistTaps="handled"
-            >
-              {options.map((value) => (
-                <Pressable
-                  key={String(value)}
-                  style={[
-                    androidPickerStyles.modalOption,
-                    selectedValue === value &&
-                      androidPickerStyles.modalOptionSelected,
-                  ]}
-                  onPress={() => {
-                    onValueChange(value)
-                    setVisible(false)
-                  }}
-                >
-                  <Text
-                    style={[
-                      androidPickerStyles.modalOptionText,
-                      { color: selectedValue === value ? textColor : muted },
-                    ]}
-                  >
-                    {valueToLabel(value)}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        </Pressable>
-      </Modal>
-    </>
-  )
-}
-
-const androidPickerStyles = StyleSheet.create({
+const androidInputStyles = StyleSheet.create({
   block: { flex: 1, minWidth: 0 },
   label: {
     fontSize: 13,
@@ -117,32 +28,19 @@ const androidPickerStyles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
-  trigger: {
+  input: {
     minHeight: 48,
     borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingHorizontal: 12,
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  triggerText: { fontSize: 16, fontWeight: '500' },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 24,
+  toggleText: {
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  modalContent: {
-    maxHeight: 320,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  modalList: { maxHeight: 320 },
-  modalOption: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-  },
-  modalOptionSelected: { backgroundColor: 'rgba(59, 130, 246, 0.15)' },
-  modalOptionText: { fontSize: 16 },
 })
 
 const REPS_MIN = 1
@@ -229,6 +127,8 @@ export default function LogSetScreen() {
   const [activeTab, setActiveTab] = useState<TabId>('load')
   const [reps, setReps] = useState(initialReps)
   const [weightKg, setWeightKg] = useState(initialWeight)
+  const [repsText, setRepsText] = useState(String(initialReps))
+  const [weightText, setWeightText] = useState(String(initialWeight))
   const [applyToAllSets, setApplyToAllSets] = useState(false)
 
   const initialTimeSeconds = useMemo(
@@ -256,13 +156,17 @@ export default function LogSetScreen() {
   )
   const [timeAmount, setTimeAmount] = useState(initialTimePicker.amount)
   const [timeUnit, setTimeUnit] = useState<TimeUnit>(initialTimePicker.unit)
+  const [timeAmountText, setTimeAmountText] = useState(String(initialTimePicker.amount))
 
   useEffect(() => {
     setReps(initialReps)
     setWeightKg(initialWeight)
+    setRepsText(String(initialReps))
+    setWeightText(String(initialWeight))
     if (hasTime) {
       setTimeAmount(initialTimePicker.amount)
       setTimeUnit(initialTimePicker.unit)
+      setTimeAmountText(String(initialTimePicker.amount))
     }
   }, [
     params.dayExId,
@@ -442,22 +346,55 @@ export default function LogSetScreen() {
               <View style={[styles.pickerRow, { gap: pickerGap }]}>
                 {Platform.OS === 'android' ? (
                   <>
-                    <AndroidPickerRow
-                      label="Repeticiones"
-                      options={REPS_OPTIONS}
-                      selectedValue={reps}
-                      onValueChange={(v) => setReps(Number(v))}
-                      valueToLabel={(n) => String(n)}
-                      isDark={isDark}
-                    />
-                    <AndroidPickerRow
-                      label="Peso (kg)"
-                      options={WEIGHT_OPTIONS}
-                      selectedValue={weightKg}
-                      onValueChange={(v) => setWeightKg(Number(v))}
-                      valueToLabel={(n) => (n % 1 === 0 ? `${n}.0` : String(n))}
-                      isDark={isDark}
-                    />
+                    <View style={androidInputStyles.block}>
+                      <Text style={[androidInputStyles.label, { color: mutedColor }]}>
+                        Repeticiones
+                      </Text>
+                      <TextInput
+                        style={[
+                          androidInputStyles.input,
+                          {
+                            backgroundColor: isDark ? '#1c1c1e' : '#f4f4f5',
+                            color: isDark ? '#fafafa' : '#18181b',
+                          },
+                        ]}
+                        keyboardType="number-pad"
+                        value={repsText}
+                        onChangeText={setRepsText}
+                        onBlur={() => {
+                          const n = parseInt(repsText, 10)
+                          const clamped = isNaN(n) ? REPS_MIN : Math.min(REPS_MAX, Math.max(REPS_MIN, n))
+                          setReps(clamped)
+                          setRepsText(String(clamped))
+                        }}
+                        selectTextOnFocus
+                      />
+                    </View>
+                    <View style={androidInputStyles.block}>
+                      <Text style={[androidInputStyles.label, { color: mutedColor }]}>
+                        Peso (kg)
+                      </Text>
+                      <TextInput
+                        style={[
+                          androidInputStyles.input,
+                          {
+                            backgroundColor: isDark ? '#1c1c1e' : '#f4f4f5',
+                            color: isDark ? '#fafafa' : '#18181b',
+                          },
+                        ]}
+                        keyboardType="decimal-pad"
+                        value={weightText}
+                        onChangeText={setWeightText}
+                        onBlur={() => {
+                          const n = parseFloat(weightText)
+                          const snapped = isNaN(n) ? WEIGHT_KG_MIN : Math.round(n * 2) / 2
+                          const clamped = Math.min(WEIGHT_KG_MAX, Math.max(WEIGHT_KG_MIN, snapped))
+                          setWeightKg(clamped)
+                          setWeightText(String(clamped))
+                        }}
+                        selectTextOnFocus
+                      />
+                    </View>
                   </>
                 ) : (
                   <>
@@ -520,26 +457,58 @@ export default function LogSetScreen() {
               <View style={[styles.pickerRow, { gap: pickerGap }]}>
                 {Platform.OS === 'android' ? (
                   <>
-                    <AndroidPickerRow
-                      label="Tiempo"
-                      options={Array.from({ length: 60 }, (_, i) => i + 1)}
-                      selectedValue={timeAmount}
-                      onValueChange={(v) => setTimeAmount(Number(v))}
-                      valueToLabel={(n) => String(n)}
-                      isDark={isDark}
-                    />
-                    <AndroidPickerRow
-                      label="Unidad"
-                      options={['seconds', 'minutes'] as const}
-                      selectedValue={timeUnit}
-                      onValueChange={(v) =>
-                        setTimeUnit(v === 'seconds' ? 'seconds' : 'minutes')
-                      }
-                      valueToLabel={(u) =>
-                        u === 'seconds' ? 'Segundos' : 'Minutos'
-                      }
-                      isDark={isDark}
-                    />
+                    <View style={androidInputStyles.block}>
+                      <Text style={[androidInputStyles.label, { color: mutedColor }]}>
+                        Tiempo
+                      </Text>
+                      <TextInput
+                        style={[
+                          androidInputStyles.input,
+                          {
+                            backgroundColor: isDark ? '#1c1c1e' : '#f4f4f5',
+                            color: isDark ? '#fafafa' : '#18181b',
+                          },
+                        ]}
+                        keyboardType="number-pad"
+                        value={timeAmountText}
+                        onChangeText={setTimeAmountText}
+                        onBlur={() => {
+                          const n = parseInt(timeAmountText, 10)
+                          const clamped = isNaN(n) ? 1 : Math.min(60, Math.max(1, n))
+                          setTimeAmount(clamped)
+                          setTimeAmountText(String(clamped))
+                        }}
+                        selectTextOnFocus
+                      />
+                    </View>
+                    <View style={androidInputStyles.block}>
+                      <Text style={[androidInputStyles.label, { color: mutedColor }]}>
+                        Unidad
+                      </Text>
+                      <Pressable
+                        style={[
+                          androidInputStyles.input,
+                          {
+                            backgroundColor: isDark ? '#1c1c1e' : '#f4f4f5',
+                            justifyContent: 'center',
+                          },
+                        ]}
+                        onPress={() =>
+                          setTimeUnit((u) =>
+                            u === 'seconds' ? 'minutes' : 'seconds'
+                          )
+                        }
+                      >
+                        <Text
+                          style={[
+                            androidInputStyles.toggleText,
+                            { color: isDark ? '#fafafa' : '#18181b' },
+                          ]}
+                        >
+                          {timeUnit === 'seconds' ? 'Segundos' : 'Minutos'}
+                        </Text>
+                      </Pressable>
+                    </View>
                   </>
                 ) : (
                   <>
@@ -696,13 +665,13 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 16,
-    overflow: 'hidden',
+    overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
   },
   pickerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'stretch',
-    overflow: 'hidden',
+    overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
   },
   pickerBlock: {
     overflow: 'hidden',

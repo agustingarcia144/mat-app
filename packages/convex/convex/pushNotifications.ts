@@ -128,7 +128,8 @@ export const createNotificationEventIfMissing = internalMutation({
     type: v.union(
       v.literal('class_cancelled'),
       v.literal('class_start_reminder'),
-      v.literal('attendance_reminder')
+      v.literal('attendance_reminder'),
+      v.literal('class_spot_available')
     ),
     userId: v.string(),
     scheduleId: v.id('classSchedules'),
@@ -406,6 +407,76 @@ export const sendAttendanceReminders = internalMutation({
       windowStart,
       windowEnd,
     }
+  },
+})
+
+export const sendSpotAvailableAlerts = internalMutation({
+  args: {
+    scheduleId: v.id('classSchedules'),
+    className: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const alerts = await ctx.db
+      .query('classAlerts')
+      .withIndex('by_schedule', (q) => q.eq('scheduleId', args.scheduleId))
+      .collect()
+
+    let enqueued = 0
+    for (const alert of alerts) {
+      const eventKey = `class_spot_available:${args.scheduleId}:${alert.userId}`
+      await ctx.scheduler.runAfter(0, internal.pushNotificationsNode.sendExpoPushForEvent, {
+        eventKey,
+        type: 'class_spot_available',
+        userId: alert.userId,
+        scheduleId: args.scheduleId,
+        title: '¡Lugar disponible!',
+        body: `Se liberó un lugar en ${args.className}. Reservá antes de que se llene.`,
+        data: {
+          scheduleId: args.scheduleId,
+          type: 'class_spot_available',
+        },
+      })
+      enqueued += 1
+    }
+
+    return { enqueued }
+  },
+})
+
+export const sendCancelledToAlertSubscribers = internalMutation({
+  args: {
+    scheduleId: v.id('classSchedules'),
+    className: v.string(),
+    excludeUserIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const alerts = await ctx.db
+      .query('classAlerts')
+      .withIndex('by_schedule', (q) => q.eq('scheduleId', args.scheduleId))
+      .collect()
+
+    let enqueued = 0
+    for (const alert of alerts) {
+      // Skip users already notified via reservation cancellation
+      if (args.excludeUserIds.includes(alert.userId)) continue
+
+      const eventKey = `class_cancelled:${args.scheduleId}:${alert.userId}`
+      await ctx.scheduler.runAfter(0, internal.pushNotificationsNode.sendExpoPushForEvent, {
+        eventKey,
+        type: 'class_cancelled',
+        userId: alert.userId,
+        scheduleId: args.scheduleId,
+        title: 'Clase cancelada',
+        body: `${args.className} fue cancelada.`,
+        data: {
+          scheduleId: args.scheduleId,
+          type: 'class_cancelled',
+        },
+      })
+      enqueued += 1
+    }
+
+    return { enqueued }
   },
 })
 

@@ -6,10 +6,18 @@ const PLAY_STORE_URL = process.env.NEXT_PUBLIC_PLAY_STORE_URL ?? 'https://play.g
 type JoinPreview = { name: string; logoUrl?: string }
 type JoinError = { error: string }
 
+function resolveConvexHttpUrl(): string | null {
+  if (process.env.CONVEX_HTTP_URL) return process.env.CONVEX_HTTP_URL
+  // Derive from the API URL: *.convex.cloud → *.convex.site (HTTP actions endpoint)
+  const apiUrl = process.env.NEXT_PUBLIC_CONVEX_URL
+  if (apiUrl) return apiUrl.replace(/\.convex\.cloud(\/.*)?$/, '.convex.site$1')
+  return null
+}
+
 async function getJoinPreview(token: string): Promise<JoinPreview | JoinError | null> {
-  const base = process.env.CONVEX_HTTP_URL
+  const base = resolveConvexHttpUrl()
   if (!base) {
-    console.error('CONVEX_HTTP_URL is not set')
+    console.error('Neither CONVEX_HTTP_URL nor NEXT_PUBLIC_CONVEX_URL is set')
     return null
   }
   const url = `${base.replace(/\/$/, '')}/join/${encodeURIComponent(token)}`
@@ -89,6 +97,8 @@ export default async function JoinPage({
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 h-12 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-medium"
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/appstore.svg" alt="" className="h-5 w-5 invert dark:invert-0" aria-hidden="true" />
             Descargar en App Store
           </a>
           <a
@@ -97,6 +107,8 @@ export default async function JoinPage({
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 h-12 rounded-xl border border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 font-medium"
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/googleplay.svg" alt="" className="h-5 w-5 dark:invert" aria-hidden="true" />
             Descargar en Google Play
           </a>
         </div>

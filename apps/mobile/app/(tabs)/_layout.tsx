@@ -53,6 +53,15 @@ export default function TabLayout() {
               }
             />
           </NativeTabs.Trigger>
+          <NativeTabs.Trigger name="plan">
+            <Label>Mi Plan</Label>
+            <Icon
+              sf="creditcard.fill"
+              androidSrc={
+                <VectorIcon family={MaterialIcons} name="credit-card" />
+              }
+            />
+          </NativeTabs.Trigger>
           <NativeTabs.Trigger name="planifications">
             <Label>Planificaciones</Label>
             <Icon

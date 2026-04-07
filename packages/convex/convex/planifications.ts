@@ -622,6 +622,216 @@ export const createFromTemplate = mutation({
 })
 
 /**
+ * Save an entire planification (metadata + weeks/days/blocks/exercises) in a
+ * single server-side transaction.  Replaces the previous approach of ~100
+ * sequential round-trip mutations from the browser.
+ *
+ * When the planification has been assigned (`hasEverBeenAssigned`), a new
+ * immutable revision is created and active assignments are pointed to it.
+ * Otherwise the existing content is replaced in-place.
+ */
+export const saveFull = mutation({
+  args: {
+    id: v.id('planifications'),
+    name: v.string(),
+    description: v.optional(v.string()),
+    folderId: v.optional(v.id('folders')),
+    isTemplate: v.boolean(),
+    workoutWeeks: v.array(
+      v.object({
+        name: v.string(),
+        workoutDays: v.array(
+          v.object({
+            name: v.string(),
+            dayOfWeek: v.optional(v.number()),
+            blocks: v.array(
+              v.object({
+                clientId: v.string(), // temporary client-side ID for mapping exercises
+                name: v.string(),
+                notes: v.optional(v.string()),
+              })
+            ),
+            exercises: v.array(
+              v.object({
+                exerciseId: v.id('exercises'),
+                blockClientId: v.optional(v.string()), // matches blocks[].clientId
+                sets: v.number(),
+                reps: v.optional(v.string()),
+                weight: v.optional(v.string()),
+                prPercentage: v.optional(v.number()),
+                timeSeconds: v.optional(v.number()),
+                notes: v.optional(v.string()),
+              })
+            ),
+          })
+        ),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx)
+
+    const planification = await ctx.db.get(args.id)
+    if (!planification) throw new Error('Planification not found')
+    await requireAdminOrTrainer(ctx, planification.organizationId)
+
+    const now = Date.now()
+    const shouldCreateRevision = !!planification.hasEverBeenAssigned
+    const isTemplate = args.isTemplate
+    const folderId = isTemplate ? undefined : args.folderId
+    let revisionId: Id<'planificationRevisions'> | undefined
+
+    if (shouldCreateRevision) {
+      // ── Create a new immutable revision ──────────────────────────────
+      const supersedesRevisionId = await ensureCurrentRevisionForPlanification(
+        ctx,
+        args.id,
+        identity.subject
+      )
+      const latestRevision = await getLatestRevisionForPlanification(ctx, args.id)
+      const revisionNumber = (latestRevision?.revisionNumber ?? 0) + 1
+
+      revisionId = await ctx.db.insert('planificationRevisions', {
+        planificationId: args.id,
+        revisionNumber,
+        name: args.name,
+        description: args.description,
+        createdBy: identity.subject,
+        supersedesRevisionId,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      await ctx.db.patch(args.id, {
+        name: args.name,
+        description: args.description,
+        folderId,
+        isTemplate,
+        currentRevisionId: revisionId,
+        updatedAt: now,
+      })
+
+      // Point active assignments to the new revision
+      const assignments = await ctx.db
+        .query('planificationAssignments')
+        .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
+        .collect()
+      for (const assignment of assignments) {
+        if (assignment.status !== 'active') continue
+        if (assignment.revisionId === revisionId) continue
+        await ctx.db.patch(assignment._id, { revisionId, updatedAt: now })
+      }
+    } else {
+      // ── Update in-place: patch metadata, delete old content ─────────
+      await ctx.db.patch(args.id, {
+        name: args.name,
+        description: args.description,
+        folderId,
+        isTemplate,
+        updatedAt: now,
+      })
+
+      const oldWeeks = await ctx.db
+        .query('workoutWeeks')
+        .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
+        .collect()
+
+      for (const week of oldWeeks) {
+        const days = await ctx.db
+          .query('workoutDays')
+          .withIndex('by_week', (q) => q.eq('weekId', week._id))
+          .collect()
+        for (const day of days) {
+          const exercises = await ctx.db
+            .query('dayExercises')
+            .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
+            .collect()
+          for (const ex of exercises) await ctx.db.delete(ex._id)
+
+          const blocks = await ctx.db
+            .query('exerciseBlocks')
+            .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
+            .collect()
+          for (const block of blocks) await ctx.db.delete(block._id)
+
+          await ctx.db.delete(day._id)
+        }
+        await ctx.db.delete(week._id)
+      }
+
+      revisionId = await resolveRevisionIdForPlanification(ctx, args.id)
+    }
+
+    // ── Create all weeks / days / blocks / exercises ─────────────────
+    for (let i = 0; i < args.workoutWeeks.length; i++) {
+      const week = args.workoutWeeks[i]
+      const weekId = await ctx.db.insert('workoutWeeks', {
+        planificationId: args.id,
+        revisionId,
+        name: week.name,
+        order: i,
+        notes: undefined,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      for (let j = 0; j < week.workoutDays.length; j++) {
+        const day = week.workoutDays[j]
+        const dayId = await ctx.db.insert('workoutDays', {
+          weekId,
+          planificationId: args.id,
+          revisionId,
+          name: day.name,
+          order: j,
+          dayOfWeek: day.dayOfWeek,
+          notes: undefined,
+          createdAt: now,
+          updatedAt: now,
+        })
+
+        // Create blocks and build clientId → real ID map
+        const blockIdMap = new Map<string, Id<'exerciseBlocks'>>()
+        for (let b = 0; b < day.blocks.length; b++) {
+          const block = day.blocks[b]
+          const blockId = await ctx.db.insert('exerciseBlocks', {
+            workoutDayId: dayId,
+            revisionId,
+            name: block.name,
+            order: b,
+            notes: block.notes,
+            createdAt: now,
+            updatedAt: now,
+          })
+          blockIdMap.set(block.clientId, blockId)
+        }
+
+        // Create exercises (already ordered by the client)
+        for (let e = 0; e < day.exercises.length; e++) {
+          const ex = day.exercises[e]
+          await ctx.db.insert('dayExercises', {
+            workoutDayId: dayId,
+            revisionId,
+            exerciseId: ex.exerciseId,
+            blockId: ex.blockClientId
+              ? blockIdMap.get(ex.blockClientId)
+              : undefined,
+            order: e,
+            sets: ex.sets,
+            reps: ex.reps,
+            weight: ex.weight,
+            prPercentage: ex.prPercentage,
+            timeSeconds: ex.timeSeconds,
+            notes: ex.notes,
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
+      }
+    }
+  },
+})
+
+/**
  * Get planification by ID
  */
 export const getById = query({

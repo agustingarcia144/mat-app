@@ -486,7 +486,10 @@ export default function ClassesContent() {
               try {
                 await reserve({ scheduleId: scheduleId as any })
               } catch (e: any) {
-                setError(e?.message ?? 'No se pudo reservar la clase')
+                const raw: string = e?.message ?? ''
+                const match = raw.match(/Uncaught Error:\s*(.+?)(?:\n|$)/)
+                const friendly = match?.[1]?.trim() ?? 'No se pudo reservar la clase'
+                Alert.alert('No se pudo reservar', friendly, [{ text: 'Entendido' }])
               } finally {
                 setBusyScheduleId(null)
               }
@@ -511,7 +514,10 @@ export default function ClassesContent() {
             try {
               await cancelReservation({ id: reservationId as any })
             } catch (e: any) {
-              setError(e?.message ?? 'No se pudo cancelar la reserva')
+              const raw: string = e?.message ?? ''
+              const match = raw.match(/Uncaught Error:\s*(.+?)(?:\n|$)/)
+              const friendly = match?.[1]?.trim() ?? 'No se pudo cancelar la reserva'
+              Alert.alert('No se pudo cancelar', friendly, [{ text: 'Entendido' }])
             } finally {
               setBusyReservationId(null)
             }
@@ -537,7 +543,10 @@ export default function ClassesContent() {
               try {
                 await checkInSelf({ id: reservationId as any })
               } catch (e: any) {
-                setError(e?.message ?? 'No se pudo confirmar la asistencia')
+                const raw: string = e?.message ?? ''
+                const match = raw.match(/Uncaught Error:\s*(.+?)(?:\n|$)/)
+                const friendly = match?.[1]?.trim() ?? 'No se pudo confirmar la asistencia'
+                Alert.alert('No se pudo confirmar', friendly, [{ text: 'Entendido' }])
               } finally {
                 setBusyCheckInReservationId(null)
               }

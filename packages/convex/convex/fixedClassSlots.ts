@@ -8,6 +8,7 @@ import {
   requireOrganizationMembership,
   tryActiveOrgContext,
 } from './permissions'
+import { countWeeklyReservations } from './classReservations'
 
 /**
  * Create a fixed slot for a member (admin/trainer only).
@@ -330,6 +331,31 @@ async function assignFixedSlotToMatchingSchedules(
 
     if (schedule.currentReservations >= schedule.capacity) continue
 
+    // Plan enforcement: skip if member is suspended or over weekly limit
+    const memberSub = await ctx.db
+      .query('memberPlanSubscriptions')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', slot.organizationId)
+          .eq('userId', slot.userId)
+      )
+      .filter((q) => q.neq(q.field('status'), 'cancelled'))
+      .first()
+
+    if (memberSub) {
+      if (memberSub.status === 'suspended') continue
+      const memberPlan = await ctx.db.get(memberSub.planId)
+      if (memberPlan) {
+        const weeklyCount = await countWeeklyReservations(
+          ctx,
+          slot.organizationId,
+          slot.userId,
+          schedule.startTime
+        )
+        if (weeklyCount >= memberPlan.weeklyClassLimit) continue
+      }
+    }
+
     const existing = await ctx.db
       .query('classReservations')
       .withIndex('by_schedule', (q) => q.eq('scheduleId', schedule._id))
@@ -561,6 +587,31 @@ export async function assignFixedSlotsToSchedule(
       .first()
 
     if (existing) continue
+
+    // Plan enforcement: skip if member is suspended or over weekly limit
+    const memberSub = await ctx.db
+      .query('memberPlanSubscriptions')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', schedule.organizationId)
+          .eq('userId', slot.userId)
+      )
+      .filter((q) => q.neq(q.field('status'), 'cancelled'))
+      .first()
+
+    if (memberSub) {
+      if (memberSub.status === 'suspended') continue
+      const memberPlan = await ctx.db.get(memberSub.planId)
+      if (memberPlan) {
+        const weeklyCount = await countWeeklyReservations(
+          ctx,
+          schedule.organizationId,
+          slot.userId,
+          schedule.startTime
+        )
+        if (weeklyCount >= memberPlan.weeklyClassLimit) continue
+      }
+    }
 
     await ctx.db.insert('classReservations', {
       scheduleId,

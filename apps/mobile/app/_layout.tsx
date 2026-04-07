@@ -180,6 +180,7 @@ function RootLayoutNav() {
         <Stack.Screen name="index" />
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
+        <Stack.Screen name="sso-callback" />
         <Stack.Screen name="onboarding-notifications" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="onboarding-2" />

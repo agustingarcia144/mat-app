@@ -16,7 +16,7 @@ interface AssignmentDetailExerciseRowProps {
   ex: DayExerciseWithDetails
   isDark: boolean
   muted: string
-  onPress: () => void
+  onPress?: () => void
 }
 
 export function AssignmentDetailExerciseRow({
