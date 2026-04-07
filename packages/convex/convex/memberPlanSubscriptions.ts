@@ -102,6 +102,7 @@ export const getByOrganization = query({
 export const activate = mutation({
   args: {
     planId: v.id('membershipPlans'),
+    advanceMonths: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
@@ -117,6 +118,19 @@ export const activate = mutation({
     }
     if (!plan.isActive) {
       throw new Error('Este plan ya no está disponible')
+    }
+
+    // Validate advance months against configured discounts
+    const advanceMonths = args.advanceMonths ?? 1
+    if (advanceMonths > 1) {
+      const discountTier = plan.advancePaymentDiscounts?.find(
+        (d) => d.months === advanceMonths
+      )
+      if (!discountTier) {
+        throw new Error(
+          `No hay descuento configurado para ${advanceMonths} meses`
+        )
+      }
     }
 
     // Check no existing active/suspended subscription
@@ -147,10 +161,104 @@ export const activate = mutation({
       updatedAt: now,
     })
 
+    // Create payment records
+    if (advanceMonths > 1) {
+      const discountTier = plan.advancePaymentDiscounts!.find(
+        (d) => d.months === advanceMonths
+      )!
+      await createAdvancePayments(ctx, {
+        organizationId: membership.organizationId,
+        userId: identity.subject,
+        subscriptionId,
+        plan,
+        months: advanceMonths,
+        discountPercentage: discountTier.discountPercentage,
+      })
+    } else {
+      // Single month — standard flow
+      await createPaymentForCurrentPeriod(ctx, {
+        organizationId: membership.organizationId,
+        userId: identity.subject,
+        subscriptionId,
+        plan,
+      })
+    }
+
+    return subscriptionId
+  },
+})
+
+/**
+ * Admin/trainer assigns a plan to a member. Creates subscription + pending payment.
+ */
+export const assignToMember = mutation({
+  args: {
+    userId: v.string(),
+    planId: v.id('membershipPlans'),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAdminOrTrainer(ctx, membership.organizationId)
+
+    // Verify the target user is a member of this org
+    const targetMembership = await ctx.db
+      .query('organizationMemberships')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', membership.organizationId)
+          .eq('userId', args.userId)
+      )
+      .filter((q) => q.eq(q.field('status'), 'active'))
+      .first()
+
+    if (!targetMembership) {
+      throw new Error('El usuario no es miembro activo de esta organización')
+    }
+    if (targetMembership.role !== 'member') {
+      throw new Error('Solo se puede asignar un plan a un miembro')
+    }
+
+    const plan = await ctx.db.get(args.planId)
+    if (!plan || plan.organizationId !== membership.organizationId) {
+      throw new Error('Plan no encontrado')
+    }
+    if (!plan.isActive) {
+      throw new Error('Este plan no está activo')
+    }
+
+    // Check no existing active/suspended subscription
+    const existing = await ctx.db
+      .query('memberPlanSubscriptions')
+      .withIndex('by_organization_user', (q) =>
+        q
+          .eq('organizationId', membership.organizationId)
+          .eq('userId', args.userId)
+      )
+      .filter((q) => q.neq(q.field('status'), 'cancelled'))
+      .first()
+
+    if (existing) {
+      throw new Error(
+        'El miembro ya tiene un plan activo. Cancelalo antes de asignar otro.'
+      )
+    }
+
+    const now = Date.now()
+    const subscriptionId = await ctx.db.insert('memberPlanSubscriptions', {
+      organizationId: membership.organizationId,
+      userId: args.userId,
+      planId: args.planId,
+      status: 'active',
+      activatedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+
     // Create payment record for current billing period
     await createPaymentForCurrentPeriod(ctx, {
       organizationId: membership.organizationId,
-      userId: identity.subject,
+      userId: args.userId,
       subscriptionId,
       plan,
     })
@@ -386,6 +494,61 @@ export const autoSuspendUnpaid = internalMutation({
     return { suspendedCount }
   },
 })
+
+/**
+ * Helper: create advance payment records for multiple months with a discount.
+ * Each month gets its own payment record with the discounted per-month amount.
+ */
+async function createAdvancePayments(
+  ctx: MutationCtx,
+  params: {
+    organizationId: Id<'organizations'>
+    userId: string
+    subscriptionId: Id<'memberPlanSubscriptions'>
+    plan: {
+      _id: Id<'membershipPlans'>
+      priceArs: number
+    }
+    months: number
+    discountPercentage: number
+  }
+) {
+  const now = Date.now()
+  const d = new Date(now)
+  const discountedPrice = Math.round(
+    params.plan.priceArs * (1 - params.discountPercentage / 100)
+  )
+
+  for (let i = 0; i < params.months; i++) {
+    const monthDate = new Date(d.getFullYear(), d.getMonth() + i, 1)
+    const billingPeriod = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`
+
+    // Check if a payment already exists for this period
+    const existing = await ctx.db
+      .query('planPayments')
+      .withIndex('by_subscription_period', (q) =>
+        q
+          .eq('subscriptionId', params.subscriptionId)
+          .eq('billingPeriod', billingPeriod)
+      )
+      .first()
+
+    if (!existing) {
+      await ctx.db.insert('planPayments', {
+        organizationId: params.organizationId,
+        userId: params.userId,
+        subscriptionId: params.subscriptionId,
+        planId: params.plan._id,
+        billingPeriod,
+        amountArs: discountedPrice,
+        totalAmountArs: discountedPrice,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+  }
+}
 
 /**
  * Helper: create a payment record for the current billing period.

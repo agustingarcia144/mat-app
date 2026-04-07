@@ -29,7 +29,7 @@ import {
 import { type Id } from '@/convex/_generated/dataModel'
 import { toast } from 'sonner'
 import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
-import { Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Plus, Trash2 } from 'lucide-react'
 
 const UNLIMITED_SENTINEL = 9999
 
@@ -69,7 +69,6 @@ export default function PlanFormDialog({
     control,
     formState: { errors, isSubmitting },
   } = useForm<MembershipPlanForm>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(membershipPlanSchema) as any,
     defaultValues: {
       name: '',
@@ -79,6 +78,7 @@ export default function PlanFormDialog({
       paymentWindowStartDay: 1,
       paymentWindowEndDay: 10,
       interestTiers: [],
+      advancePaymentDiscounts: [],
     },
   })
 
@@ -87,8 +87,25 @@ export default function PlanFormDialog({
     name: 'interestTiers',
   })
 
-  const watchedEndDay = watch('paymentWindowEndDay')
+  const {
+    fields: discountFields,
+    append: appendDiscount,
+    remove: removeDiscount,
+  } = useFieldArray({
+    control,
+    name: 'advancePaymentDiscounts',
+  })
+
+  const watchedEndDay = watch('paymentWindowEndDay') ?? 10
   const watchedTiers = watch('interestTiers')
+
+  // Sorted absolute days for all tiers — used to compute per-tier date ranges
+  const sortedTierDays = [...(watchedTiers ?? [])]
+    .map((t) => watchedEndDay + (t?.daysAfterWindowEnd ?? 1))
+    .sort((a, b) => a - b)
+
+  const formatRangeDay = (d: number) =>
+    d <= 28 ? `${d}` : `${d - 28} (mes sig.)`
 
   useEffect(() => {
     if (!open) return
@@ -103,7 +120,10 @@ export default function PlanFormDialog({
         weeklyClassLimit: existingPlan.weeklyClassLimit,
         paymentWindowStartDay: existingPlan.paymentWindowStartDay,
         paymentWindowEndDay: existingPlan.paymentWindowEndDay,
-        interestTiers: (existingPlan.interestTiers ?? []) as MembershipPlanForm['interestTiers'],
+        interestTiers: (existingPlan.interestTiers ??
+          []) as MembershipPlanForm['interestTiers'],
+        advancePaymentDiscounts: (existingPlan.advancePaymentDiscounts ??
+          []) as MembershipPlanForm['advancePaymentDiscounts'],
       })
     } else if (!isEditing) {
       setIsUnlimited(false)
@@ -116,6 +136,7 @@ export default function PlanFormDialog({
         paymentWindowStartDay: 1,
         paymentWindowEndDay: 10,
         interestTiers: [],
+        advancePaymentDiscounts: [],
       })
     }
   }, [open, existingPlan, isEditing, reset])
@@ -136,7 +157,12 @@ export default function PlanFormDialog({
 
   const onSubmit = async (data: MembershipPlanForm) => {
     try {
-      const interestTiers = data.interestTiers?.length ? data.interestTiers : undefined
+      const interestTiers = data.interestTiers?.length
+        ? data.interestTiers
+        : undefined
+      const advancePaymentDiscounts = data.advancePaymentDiscounts?.length
+        ? data.advancePaymentDiscounts
+        : undefined
       if (isEditing && planId) {
         await updatePlan({
           planId,
@@ -147,6 +173,7 @@ export default function PlanFormDialog({
           paymentWindowStartDay: data.paymentWindowStartDay,
           paymentWindowEndDay: data.paymentWindowEndDay,
           interestTiers,
+          advancePaymentDiscounts,
         })
         toast.success('Plan actualizado')
       } else {
@@ -158,6 +185,7 @@ export default function PlanFormDialog({
           paymentWindowStartDay: data.paymentWindowStartDay,
           paymentWindowEndDay: data.paymentWindowEndDay,
           interestTiers,
+          advancePaymentDiscounts,
         })
         toast.success('Plan creado')
       }
@@ -255,7 +283,9 @@ export default function PlanFormDialog({
                 </FieldLabel>
                 <Input
                   type="number"
-                  {...register('paymentWindowStartDay', { valueAsNumber: true })}
+                  {...register('paymentWindowStartDay', {
+                    valueAsNumber: true,
+                  })}
                   min={1}
                   max={28}
                 />
@@ -298,7 +328,11 @@ export default function PlanFormDialog({
                 size="sm"
                 className="h-7 gap-1 text-xs"
                 onClick={() =>
-                  append({ daysAfterWindowEnd: 1, type: 'percentage', value: 0 })
+                  append({
+                    daysAfterWindowEnd: 5,
+                    type: 'percentage',
+                    value: 0,
+                  })
                 }
               >
                 <Plus className="h-3 w-3" />
@@ -314,17 +348,27 @@ export default function PlanFormDialog({
               <div className="space-y-3">
                 {fields.map((field, index) => {
                   const days = watchedTiers?.[index]?.daysAfterWindowEnd ?? 1
-                  const endDay = watchedEndDay ?? 10
-                  const absoluteDay = endDay + days
+                  const absoluteDay = watchedEndDay + days
+                  const sortedIdx = sortedTierDays.indexOf(absoluteDay)
+                  const nextTierDay = sortedTierDays[sortedIdx + 1]
+                  const rangeLabel = nextTierDay
+                    ? `Desde el ${formatRangeDay(absoluteDay)} hasta el ${formatRangeDay(nextTierDay - 1)}`
+                    : `Desde el ${formatRangeDay(absoluteDay)} en adelante`
+
                   return (
                     <div
                       key={field.id}
                       className="bg-muted/50 space-y-2 rounded-lg border p-3"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">
-                          Tramo {index + 1}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-medium">
+                            Tramo {index + 1}
+                          </span>
+                          <span className="text-muted-foreground text-xs">
+                            {rangeLabel}
+                          </span>
+                        </div>
                         <button
                           type="button"
                           onClick={() => remove(index)}
@@ -337,33 +381,48 @@ export default function PlanFormDialog({
                       <div className="grid grid-cols-3 gap-2">
                         <Field>
                           <FieldLabel className="text-muted-foreground text-xs font-normal">
-                            Desde día
+                            Día del mes
                           </FieldLabel>
                           <Input
                             type="number"
-                            min={1}
-                            max={28}
-                            {...register(
-                              `interestTiers.${index}.daysAfterWindowEnd`,
-                              { valueAsNumber: true }
-                            )}
+                            min={watchedEndDay + 1}
+                            max={watchedEndDay + 28}
+                            value={absoluteDay}
+                            onChange={(e) => {
+                              const dayOfMonth =
+                                parseInt(e.target.value, 10) || 0
+                              const relative = Math.max(
+                                1,
+                                dayOfMonth - watchedEndDay
+                              )
+                              setValue(
+                                `interestTiers.${index}.daysAfterWindowEnd`,
+                                relative,
+                                { shouldValidate: true }
+                              )
+                            }}
                           />
-                          <p className="text-muted-foreground text-xs">
-                            ≈ día {absoluteDay <= 28 ? absoluteDay : `${absoluteDay} (mes sig.)`}
-                          </p>
+                          {absoluteDay > 28 && (
+                            <p className="text-muted-foreground text-xs">
+                              Día {absoluteDay - 28} del mes siguiente
+                            </p>
+                          )}
                         </Field>
 
                         <Field>
                           <FieldLabel className="text-muted-foreground text-xs font-normal">
                             Tipo
                           </FieldLabel>
-                          <select
-                            {...register(`interestTiers.${index}.type`)}
-                            className="border-input bg-background h-9 w-full rounded-md border px-2 text-sm"
-                          >
-                            <option value="percentage">%</option>
-                            <option value="fixed">$ fijo</option>
-                          </select>
+                          <div className="relative">
+                            <select
+                              {...register(`interestTiers.${index}.type`)}
+                              className="border-input bg-background h-9 w-full appearance-none rounded-md border pl-2 pr-7 text-sm"
+                            >
+                              <option value="percentage">%</option>
+                              <option value="fixed">$ fijo</option>
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" />
+                          </div>
                         </Field>
 
                         <Field>
@@ -373,7 +432,11 @@ export default function PlanFormDialog({
                           <Input
                             type="number"
                             min={0}
-                            step={watchedTiers?.[index]?.type === 'fixed' ? 100 : 0.5}
+                            step={
+                              watchedTiers?.[index]?.type === 'fixed'
+                                ? 100
+                                : 0.5
+                            }
                             {...register(`interestTiers.${index}.value`, {
                               valueAsNumber: true,
                             })}
@@ -390,8 +453,95 @@ export default function PlanFormDialog({
                   )
                 })}
                 <FieldDescription>
-                  Los tramos son acumulativos: si aplican varios, todos se suman.
-                  El cargo se calcula sobre el precio base del plan.
+                  Los tramos son acumulativos: si aplican varios, todos se
+                  suman. El cargo se calcula sobre el precio base del plan.
+                </FieldDescription>
+              </div>
+            )}
+          </Field>
+
+          {/* Advance payment discounts */}
+          <Field>
+            <div className="flex items-center justify-between">
+              <FieldLabel>Descuentos por pago adelantado</FieldLabel>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={() =>
+                  appendDiscount({ months: 3, discountPercentage: 10 })
+                }
+              >
+                <Plus className="h-3 w-3" />
+                Agregar descuento
+              </Button>
+            </div>
+
+            {discountFields.length === 0 ? (
+              <p className="text-muted-foreground text-xs">
+                Sin descuentos por pago adelantado configurados.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {discountFields.map((field, index) => (
+                  <div
+                    key={field.id}
+                    className="bg-muted/50 flex items-end gap-2 rounded-lg border p-3"
+                  >
+                    <Field className="flex-1">
+                      <FieldLabel className="text-muted-foreground text-xs font-normal">
+                        Meses
+                      </FieldLabel>
+                      <div className="relative">
+                        <select
+                          {...register(
+                            `advancePaymentDiscounts.${index}.months`,
+                            {
+                              valueAsNumber: true,
+                            }
+                          )}
+                          className="border-input bg-background h-9 w-full appearance-none rounded-md border pl-2 pr-7 text-sm"
+                        >
+                          <option value={3}>3 meses (trimestral)</option>
+                          <option value={6}>6 meses (semestral)</option>
+                          <option value={12}>12 meses (anual)</option>
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" />
+                      </div>
+                    </Field>
+
+                    <Field className="flex-1">
+                      <FieldLabel className="text-muted-foreground text-xs font-normal">
+                        Descuento %
+                      </FieldLabel>
+                      <Input
+                        type="number"
+                        min={0.1}
+                        max={100}
+                        step="any"
+                        {...register(
+                          `advancePaymentDiscounts.${index}.discountPercentage`,
+                          { valueAsNumber: true }
+                        )}
+                      />
+                    </Field>
+
+                    <button
+                      type="button"
+                      onClick={() => removeDiscount(index)}
+                      className="text-muted-foreground hover:text-destructive mb-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+                {errors.advancePaymentDiscounts && (
+                  <FieldError>Revisá los valores de los descuentos</FieldError>
+                )}
+                <FieldDescription>
+                  El miembro podrá elegir pagar varios meses por adelantado con
+                  descuento al activar el plan desde la app.
                 </FieldDescription>
               </div>
             )}

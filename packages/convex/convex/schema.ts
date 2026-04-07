@@ -656,6 +656,11 @@ export default defineSchema({
       type: v.union(v.literal('percentage'), v.literal('fixed')),
       value: v.number(), // % or fixed ARS amount
     }))),
+    // Advance payment discounts - e.g. pay 3 months upfront, get 10% off
+    advancePaymentDiscounts: v.optional(v.array(v.object({
+      months: v.number(), // 3, 6, 12
+      discountPercentage: v.number(), // 0-100
+    }))),
     isActive: v.boolean(),
     createdBy: v.string(), // Clerk user ID
     createdAt: v.number(),

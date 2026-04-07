@@ -4,9 +4,9 @@ import { useState, useMemo } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { DataTable } from '@/components/ui/data-table'
-import { getColumns } from '@/components/features/usuarios/table/columns'
-import { InviteUserDialog } from '@/components/features/usuarios/invite-user-dialog'
-import { PendingInvitationsCard } from '@/components/features/usuarios/pending-invitations-card'
+import { getColumns } from '@/components/features/users/table/columns'
+import { InviteUserDialog } from '@/components/features/users/invite-user-dialog'
+import { PendingInvitationsCard } from '@/components/features/users/pending-invitations-card'
 import { mapMembershipsToMembers } from '@repo/core/utils'
 import type { Member } from '@repo/core'
 import DataTableSkeleton from '@/components/ui/data-table-skeleton'
@@ -37,7 +37,9 @@ function getRoleLabel(role: string): string {
 export default function UsuariosPage() {
   const isMobile = useIsMobile()
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
-  const currentMembership = useQuery(api.organizationMemberships.getCurrentMembership)
+  const currentMembership = useQuery(
+    api.organizationMemberships.getCurrentMembership
+  )
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
     canQueryCurrentOrganization ? {} : 'skip'
@@ -120,7 +122,9 @@ export default function UsuariosPage() {
                   .map((name) => name[0])
                   .join('')
                   .toUpperCase()
-                  .slice(0, 2) || user.email?.[0]?.toUpperCase() || '?'
+                  .slice(0, 2) ||
+                user.email?.[0]?.toUpperCase() ||
+                '?'
               const isActive = normalize(user.status) === 'active'
               const roleLabel = getRoleLabel(user.role ?? '')
 
@@ -135,9 +139,7 @@ export default function UsuariosPage() {
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <div className="flex min-w-0 items-center gap-3">
                         <Avatar className="h-9 w-9 shrink-0">
-                          {user.imageUrl && (
-                            <AvatarImage src={user.imageUrl} />
-                          )}
+                          {user.imageUrl && <AvatarImage src={user.imageUrl} />}
                           <AvatarFallback>{initials}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
@@ -153,7 +155,9 @@ export default function UsuariosPage() {
                         <Badge variant="outline" className="text-xs">
                           {roleLabel}
                         </Badge>
-                        <StatusBadge status={isActive ? 'active' : 'inactive'} />
+                        <StatusBadge
+                          status={isActive ? 'active' : 'inactive'}
+                        />
                       </div>
                     </div>
                   </div>

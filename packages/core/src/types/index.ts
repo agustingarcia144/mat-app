@@ -162,6 +162,14 @@ export type ClassReservation = {
 }
 
 /**
+ * Advance payment discount tier configured on a membership plan.
+ */
+export type AdvancePaymentDiscount = {
+  months: number // e.g. 3, 6, 12
+  discountPercentage: number // 0-100
+}
+
+/**
  * Payment and subscription types
  */
 export type SubscriptionStatus = 'active' | 'suspended' | 'cancelled'

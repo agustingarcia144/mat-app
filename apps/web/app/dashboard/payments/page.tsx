@@ -4,17 +4,19 @@ import { useState } from 'react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
 import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
-import PaymentReviewQueue from '@/components/features/pagos/payment-review-queue'
-import PlanList from '@/components/features/pagos/plan-list'
-import PaymentHistoryList from '@/components/features/pagos/payment-history-list'
-import RecordPaymentDialog from '@/components/features/pagos/dialogs/record-payment-dialog'
+import { Plus, UserPlus } from 'lucide-react'
+import PaymentReviewQueue from '@/components/features/payments/payment-review-queue'
+import PlanList from '@/components/features/payments/plan-list'
+import PaymentHistoryList from '@/components/features/payments/payment-history-list'
+import RecordPaymentDialog from '@/components/features/payments/dialogs/record-payment-dialog'
+import AssignPlanDialog from '@/components/features/payments/dialogs/assign-plan-dialog'
 
 export default function PagosPage() {
   const [tab, setTab] = useState<'pendientes' | 'planes' | 'historial'>(
     'pendientes'
   )
   const [recordOpen, setRecordOpen] = useState(false)
+  const [assignOpen, setAssignOpen] = useState(false)
 
   return (
     <DashboardPageContainer className="space-y-4 py-4 md:space-y-6 md:py-6">
@@ -26,17 +28,26 @@ export default function PagosPage() {
             Gestiona planes de membresía y revisa comprobantes de pago
           </p>
         </div>
-        <Button className="gap-2 shrink-0" onClick={() => setRecordOpen(true)}>
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Registrar pago</span>
-          <span className="sm:hidden">Pago</span>
-        </Button>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => setAssignOpen(true)}
+          >
+            <UserPlus className="h-4 w-4" />
+            <span className="hidden sm:inline">Asignar plan</span>
+          </Button>
+          <Button className="gap-2" onClick={() => setRecordOpen(true)}>
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Registrar pago</span>
+            <span className="sm:hidden">Pago</span>
+          </Button>
+        </div>
       </div>
 
-      <RecordPaymentDialog
-        open={recordOpen}
-        onOpenChange={setRecordOpen}
-      />
+      <RecordPaymentDialog open={recordOpen} onOpenChange={setRecordOpen} />
+
+      <AssignPlanDialog open={assignOpen} onOpenChange={setAssignOpen} />
 
       {/* Tabs */}
       <Tabs

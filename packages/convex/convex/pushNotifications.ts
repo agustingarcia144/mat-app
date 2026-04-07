@@ -221,6 +221,33 @@ export const markNotificationEventFailed = internalMutation({
   },
 })
 
+export const deactivateAllTokensForUser = internalMutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const tokens = await ctx.db
+      .query('pushTokens')
+      .withIndex('by_user_active', (q) =>
+        q.eq('userId', args.userId).eq('active', true)
+      )
+      .collect()
+
+    const now = Date.now()
+    let deactivated = 0
+
+    for (const token of tokens) {
+      await ctx.db.patch(token._id, {
+        active: false,
+        updatedAt: now,
+      })
+      deactivated += 1
+    }
+
+    return { deactivated }
+  },
+})
+
 export const deactivateTokensInternal = internalMutation({
   args: {
     tokens: v.array(v.string()),

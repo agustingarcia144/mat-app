@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from 'convex/react'
+import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { type Id } from '@/convex/_generated/dataModel'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -12,7 +13,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { MoreHorizontal, Eye, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import PaymentReviewDialog from './dialogs/payment-review-dialog'
+import PaymentDetailDialog from './dialogs/payment-detail-dialog'
 import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
 
 type PaymentStatusFilter = 'all' | 'pending' | 'in_review' | 'approved' | 'declined'
@@ -55,25 +74,59 @@ export default function PaymentHistoryList() {
       : 'skip'
   )
 
-  const [reviewOpen, setReviewOpen] = useState(false)
-  const [selectedPayment, setSelectedPayment] = useState<{
+  type SelectedPayment = {
     id: Id<'planPayments'>
     memberName: string
     planName: string
     billingPeriod: string
     amountArs: number
-  } | null>(null)
+    status: string
+  }
 
-  const handleRowClick = (payment: NonNullable<typeof payments>[number]) => {
-    if (payment.status !== 'in_review') return
-    setSelectedPayment({
-      id: payment._id,
-      memberName: payment.userFullName,
-      planName: payment.planName,
-      billingPeriod: payment.billingPeriod,
-      amountArs: payment.amountArs,
-    })
-    setReviewOpen(true)
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [selectedPayment, setSelectedPayment] = useState<SelectedPayment | null>(null)
+
+  const removePayment = useMutation(api.planPayments.remove)
+
+  const buildSelected = (payment: NonNullable<typeof payments>[number]): SelectedPayment => ({
+    id: payment._id,
+    memberName: payment.userFullName,
+    planName: payment.planName,
+    billingPeriod: payment.billingPeriod,
+    amountArs: payment.amountArs,
+    status: payment.status,
+  })
+
+  const handleView = (payment: NonNullable<typeof payments>[number]) => {
+    setSelectedPayment(buildSelected(payment))
+    if (payment.status === 'in_review') {
+      setReviewOpen(true)
+    } else {
+      setDetailOpen(true)
+    }
+  }
+
+  const handleDeleteClick = (payment: NonNullable<typeof payments>[number]) => {
+    setSelectedPayment(buildSelected(payment))
+    setDeleteOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedPayment) return
+    setDeleting(true)
+    try {
+      await removePayment({ paymentId: selectedPayment.id })
+      toast.success('Pago eliminado')
+      setDeleteOpen(false)
+      setSelectedPayment(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar el pago')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -117,6 +170,7 @@ export default function PaymentHistoryList() {
                   <th className="p-3 text-left font-medium">Monto</th>
                   <th className="p-3 text-left font-medium">Estado</th>
                   <th className="p-3 text-left font-medium">Fecha</th>
+                  <th className="p-3 w-10" />
                 </tr>
               </thead>
               <tbody>
@@ -125,12 +179,7 @@ export default function PaymentHistoryList() {
                   return (
                     <tr
                       key={payment._id}
-                      className={`border-t border-border hover:bg-muted/30 ${
-                        payment.status === 'in_review'
-                          ? 'cursor-pointer'
-                          : ''
-                      }`}
-                      onClick={() => handleRowClick(payment)}
+                      className="border-t border-border hover:bg-muted/30"
                     >
                       <td className="p-3">{payment.userFullName}</td>
                       <td className="p-3">{payment.planName}</td>
@@ -147,6 +196,37 @@ export default function PaymentHistoryList() {
                       </td>
                       <td className="p-3 text-muted-foreground">
                         {formatDate(payment.createdAt)}
+                      </td>
+                      <td className="p-3">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Acciones</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleView(payment)}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              Ver
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => handleDeleteClick(payment)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   )
@@ -171,6 +251,56 @@ export default function PaymentHistoryList() {
           amountArs={selectedPayment.amountArs}
         />
       )}
+
+      {selectedPayment && (
+        <PaymentDetailDialog
+          open={detailOpen}
+          onOpenChange={(open) => {
+            setDetailOpen(open)
+            if (!open) setSelectedPayment(null)
+          }}
+          paymentId={selectedPayment.id}
+          memberName={selectedPayment.memberName}
+          planName={selectedPayment.planName}
+          billingPeriod={selectedPayment.billingPeriod}
+          amountArs={selectedPayment.amountArs}
+          status={selectedPayment.status}
+        />
+      )}
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar pago</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que querés eliminar este pago?
+              {selectedPayment && (
+                <span className="block mt-1 font-medium text-foreground">
+                  {selectedPayment.memberName} — {selectedPayment.planName}
+                </span>
+              )}
+              Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+            >
+              {deleting ? 'Eliminando...' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

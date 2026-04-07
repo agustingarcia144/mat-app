@@ -379,6 +379,34 @@ export const decline = mutation({
 })
 
 /**
+ * Admin deletes a payment record (e.g. approved by mistake).
+ * Removes the associated proof file from storage if present.
+ */
+export const remove = mutation({
+  args: { paymentId: v.id('planPayments') },
+  handler: async (ctx, args) => {
+    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAdminOrTrainer(ctx, membership.organizationId)
+
+    const payment = await ctx.db.get(args.paymentId)
+    if (!payment || payment.organizationId !== membership.organizationId) {
+      throw new Error('Pago no encontrado')
+    }
+
+    // Delete the proof file from storage if one was uploaded
+    if (payment.proofStorageId) {
+      try {
+        await ctx.storage.delete(payment.proofStorageId)
+      } catch {
+        // Ignore if already deleted
+      }
+    }
+
+    await ctx.db.delete(args.paymentId)
+  },
+})
+
+/**
  * Admin/trainer records a payment on behalf of a member (cash or bank transfer).
  * The payment is created as approved immediately — no review step needed.
  * For bank transfers the admin may optionally attach proof.
