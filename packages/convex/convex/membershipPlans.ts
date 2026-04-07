@@ -64,6 +64,11 @@ const interestTierV = v.object({
   value: v.number(),
 })
 
+const advancePaymentDiscountV = v.object({
+  months: v.number(),
+  discountPercentage: v.number(),
+})
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -73,6 +78,7 @@ export const create = mutation({
     paymentWindowStartDay: v.number(),
     paymentWindowEndDay: v.number(),
     interestTiers: v.optional(v.array(interestTierV)),
+    advancePaymentDiscounts: v.optional(v.array(advancePaymentDiscountV)),
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx)
@@ -91,6 +97,7 @@ export const create = mutation({
       paymentWindowStartDay: args.paymentWindowStartDay,
       paymentWindowEndDay: args.paymentWindowEndDay,
       interestTiers: args.interestTiers?.length ? args.interestTiers : undefined,
+      advancePaymentDiscounts: args.advancePaymentDiscounts?.length ? args.advancePaymentDiscounts : undefined,
       isActive: true,
       createdBy: identity.subject,
       createdAt: now,
@@ -112,6 +119,7 @@ export const update = mutation({
     paymentWindowStartDay: v.optional(v.number()),
     paymentWindowEndDay: v.optional(v.number()),
     interestTiers: v.optional(v.array(interestTierV)),
+    advancePaymentDiscounts: v.optional(v.array(advancePaymentDiscountV)),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx)
@@ -149,6 +157,8 @@ export const update = mutation({
       patch.paymentWindowEndDay = args.paymentWindowEndDay
     if (args.interestTiers !== undefined)
       patch.interestTiers = args.interestTiers.length ? args.interestTiers : undefined
+    if (args.advancePaymentDiscounts !== undefined)
+      patch.advancePaymentDiscounts = args.advancePaymentDiscounts.length ? args.advancePaymentDiscounts : undefined
 
     await ctx.db.patch(args.planId, patch)
   },

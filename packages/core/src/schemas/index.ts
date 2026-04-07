@@ -210,6 +210,17 @@ const interestTierSchema = z.object({
   value: z.coerce.number().positive('El valor debe ser mayor a 0'),
 })
 
+const advancePaymentDiscountSchema = z.object({
+  months: z.coerce
+    .number()
+    .int()
+    .min(2, 'Mínimo 2 meses'),
+  discountPercentage: z.coerce
+    .number()
+    .min(0.1, 'El descuento debe ser mayor a 0')
+    .max(100, 'El descuento no puede superar el 100%'),
+})
+
 export const membershipPlanSchema = z
   .object({
     name: z.string().min(1, 'El nombre es requerido').trim(),
@@ -233,6 +244,7 @@ export const membershipPlanSchema = z
       .min(1, 'El día debe ser entre 1 y 28')
       .max(28, 'El día debe ser entre 1 y 28'),
     interestTiers: z.array(interestTierSchema).default([]),
+    advancePaymentDiscounts: z.array(advancePaymentDiscountSchema).default([]),
   })
   .refine(
     (data) => data.paymentWindowEndDay >= data.paymentWindowStartDay,
