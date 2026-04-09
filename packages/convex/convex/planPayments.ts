@@ -198,6 +198,308 @@ export const getByOrganization = query({
   },
 })
 
+function getCurrentBillingPeriod() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function roundPercentage(value: number, total: number) {
+  if (total <= 0) return 0
+  return Math.round((value / total) * 1000) / 10
+}
+
+function sortBillingPeriodsDesc(periods: string[]) {
+  return Array.from(new Set(periods)).sort((a, b) =>
+    a < b ? 1 : a > b ? -1 : 0
+  )
+}
+
+export const getOrganizationMetrics = query({
+  args: {
+    selectedPeriod: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAdminOrTrainer(ctx, membership.organizationId)
+
+    const [payments, subscriptions] = await Promise.all([
+      ctx.db
+        .query('planPayments')
+        .withIndex('by_organization', (q) =>
+          q.eq('organizationId', membership.organizationId)
+        )
+        .collect(),
+      ctx.db
+        .query('memberPlanSubscriptions')
+        .withIndex('by_organization', (q) =>
+          q.eq('organizationId', membership.organizationId)
+        )
+        .collect(),
+    ])
+
+    const planIds = new Set<string>()
+    for (const payment of payments) planIds.add(String(payment.planId))
+    for (const subscription of subscriptions) {
+      planIds.add(String(subscription.planId))
+    }
+
+    const plans = new Map<string, any>()
+    await Promise.all(
+      Array.from(planIds).map(async (planId) => {
+        const plan = await ctx.db.get(planId as any)
+        if (plan) plans.set(planId, plan)
+      })
+    )
+
+    const activeSubscriptions = subscriptions.filter(
+      (subscription) => subscription.status !== 'cancelled'
+    )
+    const currentBillingPeriod = getCurrentBillingPeriod()
+
+    const currentPayments = payments.filter(
+      (payment) => payment.billingPeriod === currentBillingPeriod
+    )
+
+    const paymentBySubscription = new Map<string, (typeof currentPayments)[number]>()
+    for (const payment of currentPayments) {
+      const key = String(payment.subscriptionId)
+      const previous = paymentBySubscription.get(key)
+      if (!previous || payment.updatedAt > previous.updatedAt) {
+        paymentBySubscription.set(key, payment)
+      }
+    }
+
+    let expectedRevenueArs = 0
+    let approvedRevenueArs = 0
+    let interestRevenueArs = 0
+    let approvedCount = 0
+    let inReviewCount = 0
+    let pendingCount = 0
+    let declinedCount = 0
+    let missingCount = 0
+    let suspendedCount = 0
+
+    const planBreakdown = new Map<
+      string,
+      {
+        planId: string
+        planName: string
+        members: number
+        approvedMembers: number
+        expectedRevenueArs: number
+        approvedRevenueArs: number
+      }
+    >()
+
+    for (const subscription of activeSubscriptions) {
+      const plan = plans.get(String(subscription.planId))
+      const planName = plan?.name ?? 'Plan eliminado'
+      const planPrice = plan?.priceArs ?? 0
+      const currentPayment = paymentBySubscription.get(String(subscription._id))
+
+      expectedRevenueArs += planPrice
+      if (subscription.status === 'suspended') suspendedCount += 1
+
+      const planEntry =
+        planBreakdown.get(String(subscription.planId)) ?? {
+          planId: String(subscription.planId),
+          planName,
+          members: 0,
+          approvedMembers: 0,
+          expectedRevenueArs: 0,
+          approvedRevenueArs: 0,
+        }
+
+      planEntry.members += 1
+      planEntry.expectedRevenueArs += planPrice
+
+      if (!currentPayment) {
+        missingCount += 1
+      } else if (currentPayment.status === 'approved') {
+        approvedCount += 1
+        planEntry.approvedMembers += 1
+        const approvedAmount =
+          currentPayment.totalAmountArs ?? currentPayment.amountArs
+        approvedRevenueArs += approvedAmount
+        interestRevenueArs += currentPayment.interestTotalArs ?? 0
+        planEntry.approvedRevenueArs += approvedAmount
+      } else if (currentPayment.status === 'in_review') {
+        inReviewCount += 1
+      } else if (currentPayment.status === 'pending') {
+        pendingCount += 1
+      } else if (currentPayment.status === 'declined') {
+        declinedCount += 1
+      }
+
+      planBreakdown.set(String(subscription.planId), planEntry)
+    }
+
+    const totalTrackedMembers = activeSubscriptions.length
+    const unpaidCount = pendingCount + declinedCount + missingCount
+
+    const collectionRatePct = roundPercentage(approvedRevenueArs, expectedRevenueArs)
+    const approvalRatePct = roundPercentage(approvedCount, totalTrackedMembers)
+    const inReviewRatePct = roundPercentage(inReviewCount, totalTrackedMembers)
+    const unpaidRatePct = roundPercentage(unpaidCount, totalTrackedMembers)
+    const suspendedRatePct = roundPercentage(suspendedCount, totalTrackedMembers)
+
+    const methodCounts = new Map<string, number>()
+    const paymentsWithMethod = payments.filter((payment) => Boolean(payment.paymentMethod))
+    for (const payment of paymentsWithMethod) {
+      const method = payment.paymentMethod ?? 'Sin metodo'
+      methodCounts.set(method, (methodCounts.get(method) ?? 0) + 1)
+    }
+
+    const paymentMethods = Array.from(methodCounts.entries())
+      .map(([method, count]) => ({
+        method,
+        count,
+        percentage: roundPercentage(count, paymentsWithMethod.length),
+      }))
+      .sort((a, b) => b.count - a.count)
+
+    const reviewDurations = payments
+      .filter(
+        (payment) =>
+          typeof payment.proofUploadedAt === 'number' &&
+          typeof payment.reviewedAt === 'number' &&
+          payment.reviewedAt >= payment.proofUploadedAt
+      )
+      .map((payment) => (payment.reviewedAt! - payment.proofUploadedAt!) / 3600000)
+
+    const averageReviewHours =
+      reviewDurations.length > 0
+        ? Math.round(
+            (reviewDurations.reduce((sum, value) => sum + value, 0) /
+              reviewDurations.length) *
+              10
+          ) / 10
+        : null
+
+    const recentPeriods = sortBillingPeriodsDesc([
+      currentBillingPeriod,
+      ...payments.map((payment) => payment.billingPeriod),
+    ]).slice(0, 12)
+
+    const monthlyOverview = recentPeriods.map((period) => {
+      const periodPayments = payments.filter((payment) => payment.billingPeriod === period)
+      const expectedAmount = periodPayments.reduce(
+        (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
+        0
+      )
+      const approvedPayments = periodPayments.filter(
+        (payment) => payment.status === 'approved'
+      )
+      const approvedAmount = approvedPayments.reduce(
+        (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
+        0
+      )
+
+      return {
+        billingPeriod: period,
+        totalPayments: periodPayments.length,
+        approvedPayments: approvedPayments.length,
+        inReviewPayments: periodPayments.filter(
+          (payment) => payment.status === 'in_review'
+        ).length,
+        declinedPayments: periodPayments.filter(
+          (payment) => payment.status === 'declined'
+        ).length,
+        pendingPayments: periodPayments.filter(
+          (payment) => payment.status === 'pending'
+        ).length,
+        interestAmountArs: approvedPayments.reduce(
+          (sum, payment) => sum + (payment.interestTotalArs ?? 0),
+          0
+        ),
+        expectedAmountArs: expectedAmount,
+        approvedAmountArs: approvedAmount,
+        collectionRatePct: roundPercentage(approvedAmount, expectedAmount),
+      }
+    })
+
+    const selectedPeriod =
+      args.selectedPeriod && recentPeriods.includes(args.selectedPeriod)
+        ? args.selectedPeriod
+        : currentBillingPeriod
+    const selectedIndex = recentPeriods.indexOf(selectedPeriod)
+    const previousPeriod =
+      selectedIndex >= 0 ? recentPeriods[selectedIndex + 1] ?? null : null
+
+    const selectedOverview =
+      monthlyOverview.find((period) => period.billingPeriod === selectedPeriod) ?? null
+    const previousOverview = previousPeriod
+      ? monthlyOverview.find((period) => period.billingPeriod === previousPeriod) ?? null
+      : null
+
+    const comparison = selectedOverview
+      ? {
+          approvedAmountDeltaArs:
+            selectedOverview.approvedAmountArs -
+            (previousOverview?.approvedAmountArs ?? 0),
+          collectionRateDeltaPct:
+            selectedOverview.collectionRatePct -
+            (previousOverview?.collectionRatePct ?? 0),
+          approvedPaymentsDelta:
+            selectedOverview.approvedPayments -
+            (previousOverview?.approvedPayments ?? 0),
+          pendingPaymentsDelta:
+            selectedOverview.pendingPayments -
+            (previousOverview?.pendingPayments ?? 0),
+        }
+      : null
+
+    return {
+      currentPeriod: currentBillingPeriod,
+      selectedPeriod,
+      previousPeriod,
+      availablePeriods: recentPeriods,
+      overview: {
+        trackedMembers: totalTrackedMembers,
+        expectedRevenueArs,
+        approvedRevenueArs,
+        outstandingRevenueArs: Math.max(expectedRevenueArs - approvedRevenueArs, 0),
+        interestRevenueArs,
+        approvedCount,
+        inReviewCount,
+        pendingCount,
+        declinedCount,
+        missingCount,
+        unpaidCount,
+        suspendedCount,
+        collectionRatePct,
+        approvalRatePct,
+        inReviewRatePct,
+        unpaidRatePct,
+        suspendedRatePct,
+        averageReviewHours,
+      },
+      selectedOverview,
+      previousOverview,
+      comparison,
+      financialBalance: {
+        incomeArs: selectedOverview?.approvedAmountArs ?? 0,
+        interestIncomeArs: selectedOverview?.interestAmountArs ?? 0,
+        expenseArs: null,
+        netResultArs: null,
+        profitabilityPct: null,
+        hasExpenseData: false,
+      },
+      paymentMethods,
+      planBreakdown: Array.from(planBreakdown.values())
+        .map((plan) => ({
+          ...plan,
+          collectionRatePct: roundPercentage(
+            plan.approvedRevenueArs,
+            plan.expectedRevenueArs
+          ),
+        }))
+        .sort((a, b) => b.expectedRevenueArs - a.expectedRevenueArs),
+      monthlyOverview,
+    }
+  },
+})
+
 /**
  * Get the download URL for a proof file.
  */
