@@ -8,6 +8,7 @@ import wolfiBg from '../../assets/mat-wolf-looking.png'
 import ActiveMembers from '../../components/features/dashboard/ActiveMembers'
 import PlanificationStatus from '@/components/features/dashboard/PlanificationStatus'
 import NextClassCard from '@/components/features/dashboard/NextClassCard'
+import PaymentsOverview from '@/components/features/dashboard/PaymentsOverview'
 import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule-detail-dialog'
 
 export default function Page() {
@@ -43,13 +44,18 @@ export default function Page() {
         </p>
       </div>
 
-      <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[560px_minmax(520px,1fr)] xl:items-stretch">
-        <div className="flex min-w-0 flex-col gap-4 md:gap-6 xl:h-full">
-          <ActiveMembers />
-          <PlanificationStatus />
-        </div>
+      <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.1fr)] xl:items-stretch xl:[&>*]:h-full">
+        <ActiveMembers />
+        <PaymentsOverview />
+      </div>
 
-        <NextClassCard onOpenDetail={handleOpenScheduleDetail} />
+      <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.1fr)] xl:items-stretch xl:[&>*]:h-full">
+        <PlanificationStatus />
+        <NextClassCard
+          onOpenDetail={handleOpenScheduleDetail}
+          pageSize={2}
+          className="min-h-[410px] bg-background/60"
+        />
       </div>
 
       {selectedScheduleId && (

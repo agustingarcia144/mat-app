@@ -54,7 +54,7 @@ export default function StatsCard({
       )}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <span className="text-sm text-muted-foreground">{title}</span>
+        <span className="text-lg font-semibold text-foreground">{title}</span>
 
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {actionLabel && actionHref && (
