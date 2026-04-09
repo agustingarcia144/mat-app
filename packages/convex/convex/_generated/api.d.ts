@@ -25,6 +25,7 @@ import type * as memberInviteCodes from "../memberInviteCodes.js";
 import type * as memberInviteCodesNode from "../memberInviteCodesNode.js";
 import type * as memberPlanSubscriptions from "../memberPlanSubscriptions.js";
 import type * as membershipPlans from "../membershipPlans.js";
+import type * as metrics from "../metrics.js";
 import type * as migrations from "../migrations.js";
 import type * as modelWeekSlots from "../modelWeekSlots.js";
 import type * as orgCreationCodes from "../orgCreationCodes.js";
@@ -75,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   memberInviteCodesNode: typeof memberInviteCodesNode;
   memberPlanSubscriptions: typeof memberPlanSubscriptions;
   membershipPlans: typeof membershipPlans;
+  metrics: typeof metrics;
   migrations: typeof migrations;
   modelWeekSlots: typeof modelWeekSlots;
   orgCreationCodes: typeof orgCreationCodes;
