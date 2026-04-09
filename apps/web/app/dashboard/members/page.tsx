@@ -4,7 +4,10 @@ import { useState, useMemo } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { DataTable } from '@/components/ui/data-table'
-import { getColumns } from '@/components/features/members/table/columns'
+import {
+  getColumns,
+  type MemberTableRow,
+} from '@/components/features/members/table/columns'
 import { mapMembershipsToMembers } from '@repo/core/utils'
 import type { Member } from '@repo/core'
 import DataTableSkeleton from '@/components/ui/data-table-skeleton'
@@ -30,6 +33,14 @@ export default function MembersPage() {
     api.organizationMemberships.getOrganizationMemberships,
     canQueryCurrentOrganization ? {} : 'skip'
   )
+  const subscriptions = useQuery(
+    api.memberPlanSubscriptions.getByOrganization,
+    canQueryCurrentOrganization ? {} : 'skip'
+  )
+  const payments = useQuery(
+    api.planPayments.getByOrganization,
+    canQueryCurrentOrganization ? {} : 'skip'
+  )
 
   const members = mapMembershipsToMembers(memberships || [])
 
@@ -42,22 +53,89 @@ export default function MembersPage() {
 
   const columns = useMemo(() => getColumns(), [])
 
+  const currentBillingPeriod = useMemo(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  }, [])
+
+  const membersWithPlanData = useMemo<MemberTableRow[]>(() => {
+    const latestSubscriptionByUser = new Map<string, any>()
+
+    for (const subscription of subscriptions ?? []) {
+      if (subscription.status === 'cancelled') continue
+
+      const previous = latestSubscriptionByUser.get(subscription.userId)
+      const previousUpdatedAt = previous?.updatedAt ?? previous?.createdAt ?? 0
+      const currentUpdatedAt = subscription.updatedAt ?? subscription.createdAt ?? 0
+
+      if (!previous || currentUpdatedAt > previousUpdatedAt) {
+        latestSubscriptionByUser.set(subscription.userId, subscription)
+      }
+    }
+
+    const currentPaymentBySubscription = new Map<string, any>()
+
+    for (const payment of payments ?? []) {
+      if (payment.billingPeriod !== currentBillingPeriod) continue
+
+      const key = String(payment.subscriptionId)
+      const previous = currentPaymentBySubscription.get(key)
+      const previousUpdatedAt = previous?.updatedAt ?? previous?.createdAt ?? 0
+      const currentUpdatedAt = payment.updatedAt ?? payment.createdAt ?? 0
+
+      if (!previous || currentUpdatedAt > previousUpdatedAt) {
+        currentPaymentBySubscription.set(key, payment)
+      }
+    }
+
+    return onlyMembers.map((member): MemberTableRow => {
+      const subscription = latestSubscriptionByUser.get(member.id)
+      const currentPayment = subscription
+        ? currentPaymentBySubscription.get(String(subscription._id))
+        : null
+
+      const assignedPlanName = subscription?.plan?.name ?? 'Sin Plan'
+
+      let planPaymentStatus: MemberTableRow['planPaymentStatus'] = 'none'
+
+      if (!subscription) {
+        planPaymentStatus = 'none'
+      } else if (subscription?.status === 'suspended') {
+        planPaymentStatus = 'vencido'
+      } else if (currentPayment?.status === 'approved') {
+        planPaymentStatus = 'pago'
+      } else {
+        planPaymentStatus = 'pendiente'
+      }
+
+      return {
+        ...member,
+        assignedPlanName,
+        planPaymentStatus,
+      }
+    })
+  }, [currentBillingPeriod, onlyMembers, payments, subscriptions])
+
   const filteredMembers = useMemo(() => {
     const searchValue = normalize(search)
 
-    return onlyMembers.filter((m: Member): boolean => {
+    return membersWithPlanData.filter((m: Member): boolean => {
       return (
         !searchValue ||
         normalize(m.name).includes(searchValue) ||
         normalize(m.email).includes(searchValue)
       )
     })
-  }, [onlyMembers, search])
+  }, [membersWithPlanData, search])
 
-  if (memberships === undefined) {
+  if (
+    memberships === undefined ||
+    subscriptions === undefined ||
+    payments === undefined
+  ) {
     return (
       <DashboardPageContainer className='py-6 md:py-10'>
-        <DataTableSkeleton columns={6} rows={10} />
+        <DataTableSkeleton columns={8} rows={10} />
       </DashboardPageContainer>
     )
   }
