@@ -14,10 +14,15 @@ import { cn } from '@/lib/utils'
 
 type Props = {
   onOpenDetail: (id: Id<'classSchedules'>) => void
+  pageSize?: number
+  className?: string
 }
 
-export default function NextClassCard({ onOpenDetail }: Props) {
-  const pageSize = 3
+export default function NextClassCard({
+  onOpenDetail,
+  pageSize = 3,
+  className,
+}: Props) {
   const upcomingWindowMs = 7 * 24 * 60 * 60 * 1000
   const canQuery = useCanQueryCurrentOrganization()
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now())
@@ -112,16 +117,21 @@ export default function NextClassCard({ onOpenDetail }: Props) {
 
   if (visibleClasses.length === 0) {
     return (
-      <div className="flex h-[180px] w-full items-center justify-center rounded-xl border p-5">
-        No hay clases programadas en los próximos 7 días.
+      <div
+        className={cn(
+          'flex h-[180px] w-full items-center justify-center rounded-xl border p-5',
+          className
+        )}
+      >
+        No hay clases programadas en los proximos 7 dias.
       </div>
     )
   }
 
   return (
-    <div className="w-full rounded-xl border p-5">
+    <div className={cn('w-full rounded-xl border p-5', className)}>
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Próximas clases</h3>
+        <h3 className="text-lg font-semibold">Proximas clases</h3>
 
         <div className="flex items-center gap-1">
           <Button
@@ -146,7 +156,7 @@ export default function NextClassCard({ onOpenDetail }: Props) {
         </div>
       </div>
 
-      <div className="mt-4 space-y-4">
+      <div className="mt-4 flex flex-col gap-4">
         {visibleClasses.map((schedule: (typeof enriched)[number]) => {
           const start = new Date(schedule.startTime)
           const end = new Date(schedule.endTime)
@@ -154,7 +164,7 @@ export default function NextClassCard({ onOpenDetail }: Props) {
           return (
             <div
               key={schedule._id}
-              className="flex min-h-[150px] flex-col rounded-lg border p-4"
+              className="flex min-h-[150px] flex-1 flex-col rounded-lg border p-4"
             >
               <div className="space-y-1">
                 <p className="font-medium leading-tight">

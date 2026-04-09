@@ -40,7 +40,7 @@ export default function ActiveMembers() {
 
   return (
     <Card className="flex min-h-[220px] w-full max-w-none flex-col rounded-2xl border bg-background/60 p-4 md:h-[220px] md:p-5">
-      <div className="text-sm text-muted-foreground">Miembros activos</div>
+      <div className="text-lg font-semibold text-foreground">Miembros activos</div>
 
       <div className="flex flex-1 items-center justify-center py-2 md:py-0">
         <div className="flex w-full max-w-[460px] flex-col items-center justify-center gap-5 md:flex-row md:gap-12">
