@@ -1,16 +1,16 @@
-'use client'
+"use client";
 
-import * as React from 'react'
+import * as React from "react";
 
 import {
   Sidebar,
   SidebarHeader,
   SidebarContent,
   SidebarFooter,
-} from '@/components/ui/sidebar'
-import HeaderNavItems from './nav-items/header-nav-items'
-import FooterNavItems from './nav-items/footer-nav-items'
-import ContentNavItems from './nav-items/content-nav-items'
+} from "@/components/ui/sidebar";
+import HeaderNavItems from "./nav-items/header-nav-items";
+import FooterNavItems from "./nav-items/footer-nav-items";
+import ContentNavItems from "./nav-items/content-nav-items";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -25,5 +25,5 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <FooterNavItems />
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

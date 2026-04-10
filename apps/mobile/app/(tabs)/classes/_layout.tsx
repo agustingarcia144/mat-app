@@ -1,5 +1,5 @@
-import { Stack } from 'expo-router'
-import HeaderBackButton from '@/components/ui/header-back-button'
+import { Stack } from "expo-router";
+import HeaderBackButton from "@/components/ui/header-back-button";
 
 export default function ClassesLayout() {
   return (
@@ -10,11 +10,11 @@ export default function ClassesLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: '',
+          title: "",
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
         }}
       />
     </Stack>
-  )
+  );
 }

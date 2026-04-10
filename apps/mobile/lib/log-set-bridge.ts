@@ -4,25 +4,25 @@
  * update runs immediately without relying on focus events.
  */
 export type PendingLogSetResult = {
-  dayExId: string
-  setIndex: number
-  reps: number
-  weight: number
+  dayExId: string;
+  setIndex: number;
+  reps: number;
+  weight: number;
   /** When true, apply the same reps and weight to all sets of the exercise */
-  applyToAllSets?: boolean
+  applyToAllSets?: boolean;
   /** Optional duration in seconds (per exercise/session), if applicable */
-  timeSeconds?: number
-}
+  timeSeconds?: number;
+};
 
-export type LogSetSaveCallback = (result: PendingLogSetResult) => void
+export type LogSetSaveCallback = (result: PendingLogSetResult) => void;
 
-let saveCallback: LogSetSaveCallback | null = null
+let saveCallback: LogSetSaveCallback | null = null;
 
 export function setLogSetSaveCallback(cb: LogSetSaveCallback | null) {
-  saveCallback = cb
+  saveCallback = cb;
 }
 
 export function invokeLogSetSaveCallback(result: PendingLogSetResult) {
-  saveCallback?.(result)
-  saveCallback = null
+  saveCallback?.(result);
+  saveCallback = null;
 }

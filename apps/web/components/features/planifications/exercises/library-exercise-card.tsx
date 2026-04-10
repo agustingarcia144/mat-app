@@ -1,53 +1,51 @@
-'use client'
+"use client";
 
-import { useDraggable } from '@dnd-kit/react'
-import Image from 'next/image'
-import { getVideoThumbnailUrl } from '@repo/core/utils'
-import { Badge } from '@/components/ui/badge'
+import { useDraggable } from "@dnd-kit/react";
+import Image from "next/image";
+import { getVideoThumbnailUrl } from "@repo/core/utils";
+import { Badge } from "@/components/ui/badge";
 
-import fallbackThumbnail from '@/assets/mat-wolf-looking.png'
+import fallbackThumbnail from "@/assets/mat-wolf-looking.png";
 
-const LIBRARY_PREFIX = 'library-'
+const LIBRARY_PREFIX = "library-";
 
 export interface LibraryExercise {
-  _id: string
-  name: string
-  description?: string | null
-  category?: string | null
-  equipment?: string | null
-  videoUrl?: string | null
+  _id: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  equipment?: string | null;
+  videoUrl?: string | null;
 }
 
 interface LibraryExerciseCardProps {
-  exercise: LibraryExercise
+  exercise: LibraryExercise;
 }
 
 export function getLibraryExerciseDragId(exerciseId: string) {
-  return `${LIBRARY_PREFIX}${exerciseId}`
+  return `${LIBRARY_PREFIX}${exerciseId}`;
 }
 
-export function parseLibraryExerciseDragId(
-  dragId: string
-): string | null {
-  if (!dragId.startsWith(LIBRARY_PREFIX)) return null
-  return dragId.slice(LIBRARY_PREFIX.length)
+export function parseLibraryExerciseDragId(dragId: string): string | null {
+  if (!dragId.startsWith(LIBRARY_PREFIX)) return null;
+  return dragId.slice(LIBRARY_PREFIX.length);
 }
 
 export default function LibraryExerciseCard({
   exercise,
 }: LibraryExerciseCardProps) {
-  const id = getLibraryExerciseDragId(exercise._id)
-  const { ref, isDragging } = useDraggable({ id })
+  const id = getLibraryExerciseDragId(exercise._id);
+  const { ref, isDragging } = useDraggable({ id });
 
   const thumbnailUrl = exercise.videoUrl
     ? getVideoThumbnailUrl(exercise.videoUrl)
-    : null
+    : null;
 
   return (
     <div
       ref={ref as (el: HTMLDivElement | null) => void}
       className={`h-[240px] flex flex-col border rounded-lg overflow-hidden transition-colors cursor-grab active:cursor-grabbing touch-none select-none ${
-        isDragging ? 'opacity-50 ring-2 ring-primary' : 'hover:border-primary'
+        isDragging ? "opacity-50 ring-2 ring-primary" : "hover:border-primary"
       }`}
     >
       <div className="aspect-video w-full shrink-0 bg-muted relative">
@@ -81,5 +79,5 @@ export default function LibraryExerciseCard({
         </div>
       </div>
     </div>
-  )
+  );
 }

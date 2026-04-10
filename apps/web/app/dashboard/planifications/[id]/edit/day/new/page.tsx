@@ -1,28 +1,32 @@
-import { use } from 'react'
-import NewDayPageClient from './new-day-page-client'
+import { use } from "react";
+import NewDayPageClient from "./new-day-page-client";
 
-type SearchParamsInput = Record<string, string | string[] | undefined>
+type SearchParamsInput = Record<string, string | string[] | undefined>;
 
 function getFirstQueryValue(
   params: SearchParamsInput,
-  key: string
+  key: string,
 ): string | undefined {
-  const value = params[key]
-  if (Array.isArray(value)) return value[0]
-  return value
+  const value = params[key];
+  if (Array.isArray(value)) return value[0];
+  return value;
 }
 
 export default function NewDayPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>
-  searchParams: Promise<SearchParamsInput>
+  params: Promise<{ id: string }>;
+  searchParams: Promise<SearchParamsInput>;
 }) {
-  const { id: planificationId } = use(params)
-  const resolvedSearchParams = use(searchParams)
-  const weekIndex = Number(getFirstQueryValue(resolvedSearchParams, 'weekIndex') ?? 0)
-  const dayOfWeek = Number(getFirstQueryValue(resolvedSearchParams, 'dayOfWeek') ?? 1)
+  const { id: planificationId } = use(params);
+  const resolvedSearchParams = use(searchParams);
+  const weekIndex = Number(
+    getFirstQueryValue(resolvedSearchParams, "weekIndex") ?? 0,
+  );
+  const dayOfWeek = Number(
+    getFirstQueryValue(resolvedSearchParams, "dayOfWeek") ?? 1,
+  );
 
   return (
     <NewDayPageClient
@@ -30,5 +34,5 @@ export default function NewDayPage({
       weekIndex={weekIndex}
       dayOfWeek={dayOfWeek}
     />
-  )
+  );
 }

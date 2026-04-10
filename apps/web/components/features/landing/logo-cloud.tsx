@@ -1,9 +1,9 @@
-import Image from 'next/image'
-import { InfiniteSlider } from '@/components/ui/infinite-slider'
-import { ProgressiveBlur } from '@/components/ui/progressive-blur'
+import Image from "next/image";
+import { InfiniteSlider } from "@/components/ui/infinite-slider";
+import { ProgressiveBlur } from "@/components/ui/progressive-blur";
 
 export const LogoCloud = () => {
-  const year = new Date().getFullYear()
+  const year = new Date().getFullYear();
   return (
     <section className="bg-background pb-16 md:pb-32">
       <div className="group relative m-auto max-w-6xl px-6">
@@ -121,5 +121,5 @@ export const LogoCloud = () => {
         </footer>
       </div>
     </section>
-  )
-}
+  );
+};

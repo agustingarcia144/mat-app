@@ -1,8 +1,8 @@
-import React from 'react'
-import { Authenticated, AuthLoading } from 'convex/react'
+import React from "react";
+import { Authenticated, AuthLoading } from "convex/react";
 
-import LoadingScreen from '@/components/shared/screens/loading-screen'
-import PaymentHistoryContent from '@/components/features/plan/payment-history-content'
+import LoadingScreen from "@/components/shared/screens/loading-screen";
+import PaymentHistoryContent from "@/components/features/plan/payment-history-content";
 
 export default function PaymentHistoryScreen() {
   return (
@@ -14,5 +14,5 @@ export default function PaymentHistoryScreen() {
         <PaymentHistoryContent />
       </Authenticated>
     </>
-  )
+  );
 }

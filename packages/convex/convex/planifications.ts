@@ -1,17 +1,17 @@
-import { mutation, query } from './_generated/server'
-import type { Id } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { v } from "convex/values";
 import {
   requireAuth,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
   requireOrganizationMembership,
-} from './permissions'
+} from "./permissions";
 import {
   ensureCurrentRevisionForPlanification,
   getLatestRevisionForPlanification,
   resolveRevisionIdForPlanification,
-} from './planificationRevisionHelpers'
+} from "./planificationRevisionHelpers";
 
 /**
  * Create a new planification
@@ -20,22 +20,22 @@ export const create = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
-    folderId: v.optional(v.id('folders')),
+    folderId: v.optional(v.id("folders")),
     isTemplate: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
-    await requireAdminOrTrainer(ctx, membership.organizationId)
+    await requireAdminOrTrainer(ctx, membership.organizationId);
 
-    const now = Date.now()
+    const now = Date.now();
 
     // Templates must not belong to any folder
-    const folderId = args.isTemplate ? undefined : args.folderId
+    const folderId = args.isTemplate ? undefined : args.folderId;
 
-    const planificationId = await ctx.db.insert('planifications', {
+    const planificationId = await ctx.db.insert("planifications", {
       organizationId: membership.organizationId,
       name: args.name,
       description: args.description,
@@ -45,9 +45,9 @@ export const create = mutation({
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
-    })
+    });
 
-    const revisionId = await ctx.db.insert('planificationRevisions', {
+    const revisionId = await ctx.db.insert("planificationRevisions", {
       planificationId,
       revisionNumber: 1,
       name: args.name,
@@ -56,88 +56,98 @@ export const create = mutation({
       supersedesRevisionId: undefined,
       createdAt: now,
       updatedAt: now,
-    })
+    });
 
     await ctx.db.patch(planificationId, {
       currentRevisionId: revisionId,
       updatedAt: now,
-    })
+    });
 
-    return planificationId
+    return planificationId;
   },
-})
+});
 
 /**
  * Update a planification
  */
 export const update = mutation({
   args: {
-    id: v.id('planifications'),
+    id: v.id("planifications"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
-    folderId: v.optional(v.id('folders')),
+    folderId: v.optional(v.id("folders")),
     isTemplate: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const planification = await ctx.db.get(args.id)
+    const planification = await ctx.db.get(args.id);
     if (!planification) {
-      throw new Error('Planification not found')
+      throw new Error("Planification not found");
     }
 
-    await requireAdminOrTrainer(ctx, planification.organizationId)
+    await requireAdminOrTrainer(ctx, planification.organizationId);
 
-    const { id, ...updates } = args
+    const { id, ...updates } = args;
 
     // Templates must not belong to any folder
-    const patch: Record<string, unknown> = { ...updates, updatedAt: Date.now() }
-    const isTemplate = updates.isTemplate ?? planification.isTemplate
+    const patch: Record<string, unknown> = {
+      ...updates,
+      updatedAt: Date.now(),
+    };
+    const isTemplate = updates.isTemplate ?? planification.isTemplate;
     if (isTemplate) {
-      patch.folderId = undefined
+      patch.folderId = undefined;
     }
 
-    await ctx.db.patch(id, patch)
+    await ctx.db.patch(id, patch);
   },
-})
+});
 
 /**
  * Create a new immutable revision for a planification.
  */
 export const createRevision = mutation({
   args: {
-    id: v.id('planifications'),
+    id: v.id("planifications"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
-    folderId: v.optional(v.id('folders')),
+    folderId: v.optional(v.id("folders")),
     isTemplate: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const planification = await ctx.db.get(args.id)
+    const planification = await ctx.db.get(args.id);
     if (!planification) {
-      throw new Error('Planification not found')
+      throw new Error("Planification not found");
     }
 
-    await requireAdminOrTrainer(ctx, planification.organizationId)
+    await requireAdminOrTrainer(ctx, planification.organizationId);
 
-    const now = Date.now()
-    const isTemplate = args.isTemplate ?? planification.isTemplate
-    const name = args.name ?? planification.name
+    const now = Date.now();
+    const isTemplate = args.isTemplate ?? planification.isTemplate;
+    const name = args.name ?? planification.name;
     const description =
-      args.description !== undefined ? args.description : planification.description
-    const folderId = isTemplate ? undefined : (args.folderId ?? planification.folderId)
+      args.description !== undefined
+        ? args.description
+        : planification.description;
+    const folderId = isTemplate
+      ? undefined
+      : (args.folderId ?? planification.folderId);
 
     const supersedesRevisionId = await ensureCurrentRevisionForPlanification(
       ctx,
       args.id,
-      identity.subject
-    )
-    const latestRevision = await getLatestRevisionForPlanification(ctx, args.id)
-    const revisionNumber = (latestRevision?.revisionNumber ?? 0) + 1
+      identity.subject,
+    );
+    const latestRevision = await getLatestRevisionForPlanification(
+      ctx,
+      args.id,
+    );
+    const revisionNumber = (latestRevision?.revisionNumber ?? 0) + 1;
 
-    const revisionId = await ctx.db.insert('planificationRevisions', {
+    const revisionId = await ctx.db.insert("planificationRevisions", {
       planificationId: args.id,
       revisionNumber,
       name,
@@ -146,7 +156,7 @@ export const createRevision = mutation({
       supersedesRevisionId,
       createdAt: now,
       updatedAt: now,
-    })
+    });
 
     await ctx.db.patch(args.id, {
       name,
@@ -155,106 +165,106 @@ export const createRevision = mutation({
       isTemplate,
       currentRevisionId: revisionId,
       updatedAt: now,
-    })
+    });
 
     // Active assignments should follow the latest revision so members receive
     // updated planification fields (weeks/days/exercises/notes/comments).
     const assignments = await ctx.db
-      .query('planificationAssignments')
-      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
-      .collect()
+      .query("planificationAssignments")
+      .withIndex("by_planification", (q) => q.eq("planificationId", args.id))
+      .collect();
     for (const assignment of assignments) {
-      if (assignment.status !== 'active') continue
-      if (assignment.revisionId === revisionId) continue
+      if (assignment.status !== "active") continue;
+      if (assignment.revisionId === revisionId) continue;
       await ctx.db.patch(assignment._id, {
         revisionId,
         updatedAt: now,
-      })
+      });
     }
 
-    return revisionId
+    return revisionId;
   },
-})
+});
 
 /**
  * Delete a planification and all related data
  */
 export const remove = mutation({
   args: {
-    id: v.id('planifications'),
+    id: v.id("planifications"),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const planification = await ctx.db.get(args.id)
+    const planification = await ctx.db.get(args.id);
     if (!planification) {
-      throw new Error('Planification not found')
+      throw new Error("Planification not found");
     }
 
-    await requireAdminOrTrainer(ctx, planification.organizationId)
+    await requireAdminOrTrainer(ctx, planification.organizationId);
 
     const hasAssignments = await ctx.db
-      .query('planificationAssignments')
-      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
-      .first()
+      .query("planificationAssignments")
+      .withIndex("by_planification", (q) => q.eq("planificationId", args.id))
+      .first();
     if (hasAssignments) {
       throw new Error(
-        'Cannot delete planification with assignment history. Archive it instead.'
-      )
+        "Cannot delete planification with assignment history. Archive it instead.",
+      );
     }
 
     // Delete all workout weeks
     const workoutWeeks = await ctx.db
-      .query('workoutWeeks')
-      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
-      .collect()
+      .query("workoutWeeks")
+      .withIndex("by_planification", (q) => q.eq("planificationId", args.id))
+      .collect();
 
     for (const week of workoutWeeks) {
       // Delete all workout days in this week
       const workoutDays = await ctx.db
-        .query('workoutDays')
-        .withIndex('by_week', (q) => q.eq('weekId', week._id))
-        .collect()
+        .query("workoutDays")
+        .withIndex("by_week", (q) => q.eq("weekId", week._id))
+        .collect();
 
       for (const day of workoutDays) {
         // Delete day exercises
         const dayExercises = await ctx.db
-          .query('dayExercises')
-          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
-          .collect()
+          .query("dayExercises")
+          .withIndex("by_workout_day", (q) => q.eq("workoutDayId", day._id))
+          .collect();
 
         for (const exercise of dayExercises) {
-          await ctx.db.delete(exercise._id)
+          await ctx.db.delete(exercise._id);
         }
 
-        await ctx.db.delete(day._id)
+        await ctx.db.delete(day._id);
       }
 
-      await ctx.db.delete(week._id)
+      await ctx.db.delete(week._id);
     }
 
     // Delete assignments
     const assignments = await ctx.db
-      .query('planificationAssignments')
-      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
-      .collect()
+      .query("planificationAssignments")
+      .withIndex("by_planification", (q) => q.eq("planificationId", args.id))
+      .collect();
 
     for (const assignment of assignments) {
-      await ctx.db.delete(assignment._id)
+      await ctx.db.delete(assignment._id);
     }
 
     const revisions = await ctx.db
-      .query('planificationRevisions')
-      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
-      .collect()
+      .query("planificationRevisions")
+      .withIndex("by_planification", (q) => q.eq("planificationId", args.id))
+      .collect();
     for (const revision of revisions) {
-      await ctx.db.delete(revision._id)
+      await ctx.db.delete(revision._id);
     }
 
     // Delete the planification
-    await ctx.db.delete(args.id)
+    await ctx.db.delete(args.id);
   },
-})
+});
 
 /**
  * Archive a planification. Hides it from trainer lists but preserves all
@@ -262,86 +272,89 @@ export const remove = mutation({
  */
 export const archive = mutation({
   args: {
-    id: v.id('planifications'),
+    id: v.id("planifications"),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const planification = await ctx.db.get(args.id)
+    const planification = await ctx.db.get(args.id);
     if (!planification) {
-      throw new Error('Planification not found')
+      throw new Error("Planification not found");
     }
 
-    await requireAdminOrTrainer(ctx, planification.organizationId)
+    await requireAdminOrTrainer(ctx, planification.organizationId);
 
-    const now = Date.now()
+    const now = Date.now();
     await ctx.db.patch(args.id, {
       isArchived: true,
       archivedAt: now,
       updatedAt: now,
-    })
+    });
 
     // Cancel any active assignments so nobody is currently assigned to an archived plan
     const assignments = await ctx.db
-      .query('planificationAssignments')
-      .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
-      .collect()
+      .query("planificationAssignments")
+      .withIndex("by_planification", (q) => q.eq("planificationId", args.id))
+      .collect();
     for (const assignment of assignments) {
-      if (assignment.status === 'active') {
-        await ctx.db.patch(assignment._id, { status: 'cancelled', updatedAt: now })
+      if (assignment.status === "active") {
+        await ctx.db.patch(assignment._id, {
+          status: "cancelled",
+          updatedAt: now,
+        });
       }
     }
   },
-})
+});
 
 /**
  * Unarchive a planification so it appears again in trainer lists.
  */
 export const unarchive = mutation({
   args: {
-    id: v.id('planifications'),
+    id: v.id("planifications"),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const planification = await ctx.db.get(args.id)
+    const planification = await ctx.db.get(args.id);
     if (!planification) {
-      throw new Error('Planification not found')
+      throw new Error("Planification not found");
     }
 
-    await requireAdminOrTrainer(ctx, planification.organizationId)
+    await requireAdminOrTrainer(ctx, planification.organizationId);
 
-    const now = Date.now()
+    const now = Date.now();
     await ctx.db.patch(args.id, {
       isArchived: false,
       archivedAt: undefined,
       updatedAt: now,
-    })
+    });
   },
-})
+});
 
 /**
  * Duplicate a planification
  */
 export const duplicate = mutation({
   args: {
-    id: v.id('planifications'),
+    id: v.id("planifications"),
     name: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const original = await ctx.db.get(args.id)
+    const original = await ctx.db.get(args.id);
     if (!original) {
-      throw new Error('Planification not found')
+      throw new Error("Planification not found");
     }
 
-    await requireAdminOrTrainer(ctx, original.organizationId)
+    await requireAdminOrTrainer(ctx, original.organizationId);
 
-    const now = Date.now()
+    const now = Date.now();
 
     // Create new planification
-    const newPlanificationId = await ctx.db.insert('planifications', {
+    const newPlanificationId = await ctx.db.insert("planifications", {
       organizationId: original.organizationId,
       name: args.name || `${original.name} (copia)`,
       description: original.description,
@@ -351,9 +364,9 @@ export const duplicate = mutation({
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
-    })
+    });
 
-    const revisionId = await ctx.db.insert('planificationRevisions', {
+    const revisionId = await ctx.db.insert("planificationRevisions", {
       planificationId: newPlanificationId,
       revisionNumber: 1,
       name: args.name || `${original.name} (copia)`,
@@ -362,31 +375,34 @@ export const duplicate = mutation({
       supersedesRevisionId: undefined,
       createdAt: now,
       updatedAt: now,
-    })
+    });
 
     await ctx.db.patch(newPlanificationId, {
       currentRevisionId: revisionId,
       updatedAt: now,
-    })
+    });
 
-    const sourceRevisionId = await resolveRevisionIdForPlanification(ctx, args.id)
+    const sourceRevisionId = await resolveRevisionIdForPlanification(
+      ctx,
+      args.id,
+    );
 
     // Duplicate workout weeks
     let workoutWeeks = await ctx.db
-      .query('workoutWeeks')
-      .withIndex('by_planification_revision', (q) =>
-        q.eq('planificationId', args.id).eq('revisionId', sourceRevisionId)
+      .query("workoutWeeks")
+      .withIndex("by_planification_revision", (q) =>
+        q.eq("planificationId", args.id).eq("revisionId", sourceRevisionId),
       )
-      .collect()
+      .collect();
     if (workoutWeeks.length === 0) {
       workoutWeeks = await ctx.db
-        .query('workoutWeeks')
-        .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
-        .collect()
+        .query("workoutWeeks")
+        .withIndex("by_planification", (q) => q.eq("planificationId", args.id))
+        .collect();
     }
 
     for (const week of workoutWeeks) {
-      const newWeekId = await ctx.db.insert('workoutWeeks', {
+      const newWeekId = await ctx.db.insert("workoutWeeks", {
         planificationId: newPlanificationId,
         revisionId,
         name: week.name,
@@ -394,16 +410,16 @@ export const duplicate = mutation({
         notes: week.notes,
         createdAt: now,
         updatedAt: now,
-      })
+      });
 
       // Duplicate workout days
       const workoutDays = await ctx.db
-        .query('workoutDays')
-        .withIndex('by_week', (q) => q.eq('weekId', week._id))
-        .collect()
+        .query("workoutDays")
+        .withIndex("by_week", (q) => q.eq("weekId", week._id))
+        .collect();
 
       for (const day of workoutDays) {
-        const newDayId = await ctx.db.insert('workoutDays', {
+        const newDayId = await ctx.db.insert("workoutDays", {
           weekId: newWeekId,
           planificationId: newPlanificationId,
           revisionId,
@@ -413,16 +429,19 @@ export const duplicate = mutation({
           notes: day.notes,
           createdAt: now,
           updatedAt: now,
-        })
+        });
 
         // Duplicate exercise blocks for this day (so blockId on dayExercises can be mapped)
         const blocks = await ctx.db
-          .query('exerciseBlocks')
-          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
-          .collect()
-        const oldBlockIdToNew = new Map<Id<'exerciseBlocks'>, Id<'exerciseBlocks'>>()
+          .query("exerciseBlocks")
+          .withIndex("by_workout_day", (q) => q.eq("workoutDayId", day._id))
+          .collect();
+        const oldBlockIdToNew = new Map<
+          Id<"exerciseBlocks">,
+          Id<"exerciseBlocks">
+        >();
         for (const block of blocks) {
-          const newBlockId = await ctx.db.insert('exerciseBlocks', {
+          const newBlockId = await ctx.db.insert("exerciseBlocks", {
             workoutDayId: newDayId,
             revisionId,
             name: block.name,
@@ -430,21 +449,21 @@ export const duplicate = mutation({
             notes: block.notes,
             createdAt: now,
             updatedAt: now,
-          })
-          oldBlockIdToNew.set(block._id, newBlockId)
+          });
+          oldBlockIdToNew.set(block._id, newBlockId);
         }
 
         // Duplicate day exercises (with blockId mapped to new blocks when set)
         const dayExercises = await ctx.db
-          .query('dayExercises')
-          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
-          .collect()
+          .query("dayExercises")
+          .withIndex("by_workout_day", (q) => q.eq("workoutDayId", day._id))
+          .collect();
 
         for (const exercise of dayExercises) {
           const newBlockId = exercise.blockId
             ? oldBlockIdToNew.get(exercise.blockId)
-            : undefined
-          await ctx.db.insert('dayExercises', {
+            : undefined;
+          await ctx.db.insert("dayExercises", {
             workoutDayId: newDayId,
             revisionId,
             exerciseId: exercise.exerciseId,
@@ -458,41 +477,41 @@ export const duplicate = mutation({
             notes: exercise.notes,
             createdAt: now,
             updatedAt: now,
-          })
+          });
         }
       }
     }
 
-    return newPlanificationId
+    return newPlanificationId;
   },
-})
+});
 
 /**
  * Create a new planification from a template (copies full content, creates planification not template)
  */
 export const createFromTemplate = mutation({
   args: {
-    templateId: v.id('planifications'),
+    templateId: v.id("planifications"),
     name: v.string(),
     description: v.optional(v.string()),
-    folderId: v.optional(v.id('folders')),
+    folderId: v.optional(v.id("folders")),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const template = await ctx.db.get(args.templateId)
+    const template = await ctx.db.get(args.templateId);
     if (!template) {
-      throw new Error('Plantilla no encontrada')
+      throw new Error("Plantilla no encontrada");
     }
     if (!template.isTemplate) {
-      throw new Error('Solo se pueden usar plantillas como base')
+      throw new Error("Solo se pueden usar plantillas como base");
     }
 
-    await requireAdminOrTrainer(ctx, template.organizationId)
+    await requireAdminOrTrainer(ctx, template.organizationId);
 
-    const now = Date.now()
+    const now = Date.now();
 
-    const newPlanificationId = await ctx.db.insert('planifications', {
+    const newPlanificationId = await ctx.db.insert("planifications", {
       organizationId: template.organizationId,
       name: args.name,
       description: args.description ?? template.description,
@@ -502,9 +521,9 @@ export const createFromTemplate = mutation({
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
-    })
+    });
 
-    const revisionId = await ctx.db.insert('planificationRevisions', {
+    const revisionId = await ctx.db.insert("planificationRevisions", {
       planificationId: newPlanificationId,
       revisionNumber: 1,
       name: args.name,
@@ -513,37 +532,37 @@ export const createFromTemplate = mutation({
       supersedesRevisionId: undefined,
       createdAt: now,
       updatedAt: now,
-    })
+    });
 
     await ctx.db.patch(newPlanificationId, {
       currentRevisionId: revisionId,
       updatedAt: now,
-    })
+    });
 
     const sourceRevisionId = await resolveRevisionIdForPlanification(
       ctx,
-      args.templateId
-    )
+      args.templateId,
+    );
 
     let workoutWeeks = await ctx.db
-      .query('workoutWeeks')
-      .withIndex('by_planification_revision', (q) =>
+      .query("workoutWeeks")
+      .withIndex("by_planification_revision", (q) =>
         q
-          .eq('planificationId', args.templateId)
-          .eq('revisionId', sourceRevisionId)
+          .eq("planificationId", args.templateId)
+          .eq("revisionId", sourceRevisionId),
       )
-      .collect()
+      .collect();
     if (workoutWeeks.length === 0) {
       workoutWeeks = await ctx.db
-        .query('workoutWeeks')
-        .withIndex('by_planification', (q) =>
-          q.eq('planificationId', args.templateId)
+        .query("workoutWeeks")
+        .withIndex("by_planification", (q) =>
+          q.eq("planificationId", args.templateId),
         )
-        .collect()
+        .collect();
     }
 
     for (const week of workoutWeeks) {
-      const newWeekId = await ctx.db.insert('workoutWeeks', {
+      const newWeekId = await ctx.db.insert("workoutWeeks", {
         planificationId: newPlanificationId,
         revisionId,
         name: week.name,
@@ -551,15 +570,15 @@ export const createFromTemplate = mutation({
         notes: week.notes,
         createdAt: now,
         updatedAt: now,
-      })
+      });
 
       const workoutDays = await ctx.db
-        .query('workoutDays')
-        .withIndex('by_week', (q) => q.eq('weekId', week._id))
-        .collect()
+        .query("workoutDays")
+        .withIndex("by_week", (q) => q.eq("weekId", week._id))
+        .collect();
 
       for (const day of workoutDays) {
-        const newDayId = await ctx.db.insert('workoutDays', {
+        const newDayId = await ctx.db.insert("workoutDays", {
           weekId: newWeekId,
           planificationId: newPlanificationId,
           revisionId,
@@ -569,15 +588,18 @@ export const createFromTemplate = mutation({
           notes: day.notes,
           createdAt: now,
           updatedAt: now,
-        })
+        });
 
         const blocks = await ctx.db
-          .query('exerciseBlocks')
-          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
-          .collect()
-        const oldBlockIdToNew = new Map<Id<'exerciseBlocks'>, Id<'exerciseBlocks'>>()
+          .query("exerciseBlocks")
+          .withIndex("by_workout_day", (q) => q.eq("workoutDayId", day._id))
+          .collect();
+        const oldBlockIdToNew = new Map<
+          Id<"exerciseBlocks">,
+          Id<"exerciseBlocks">
+        >();
         for (const block of blocks) {
-          const newBlockId = await ctx.db.insert('exerciseBlocks', {
+          const newBlockId = await ctx.db.insert("exerciseBlocks", {
             workoutDayId: newDayId,
             revisionId,
             name: block.name,
@@ -585,20 +607,20 @@ export const createFromTemplate = mutation({
             notes: block.notes,
             createdAt: now,
             updatedAt: now,
-          })
-          oldBlockIdToNew.set(block._id, newBlockId)
+          });
+          oldBlockIdToNew.set(block._id, newBlockId);
         }
 
         const dayExercises = await ctx.db
-          .query('dayExercises')
-          .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
-          .collect()
+          .query("dayExercises")
+          .withIndex("by_workout_day", (q) => q.eq("workoutDayId", day._id))
+          .collect();
 
         for (const exercise of dayExercises) {
           const newBlockId = exercise.blockId
             ? oldBlockIdToNew.get(exercise.blockId)
-            : undefined
-          await ctx.db.insert('dayExercises', {
+            : undefined;
+          await ctx.db.insert("dayExercises", {
             workoutDayId: newDayId,
             revisionId,
             exerciseId: exercise.exerciseId,
@@ -612,14 +634,14 @@ export const createFromTemplate = mutation({
             notes: exercise.notes,
             createdAt: now,
             updatedAt: now,
-          })
+          });
         }
       }
     }
 
-    return newPlanificationId
+    return newPlanificationId;
   },
-})
+});
 
 /**
  * Save an entire planification (metadata + weeks/days/blocks/exercises) in a
@@ -632,10 +654,10 @@ export const createFromTemplate = mutation({
  */
 export const saveFull = mutation({
   args: {
-    id: v.id('planifications'),
+    id: v.id("planifications"),
     name: v.string(),
     description: v.optional(v.string()),
-    folderId: v.optional(v.id('folders')),
+    folderId: v.optional(v.id("folders")),
     isTemplate: v.boolean(),
     workoutWeeks: v.array(
       v.object({
@@ -649,11 +671,11 @@ export const saveFull = mutation({
                 clientId: v.string(), // temporary client-side ID for mapping exercises
                 name: v.string(),
                 notes: v.optional(v.string()),
-              })
+              }),
             ),
             exercises: v.array(
               v.object({
-                exerciseId: v.id('exercises'),
+                exerciseId: v.id("exercises"),
                 blockClientId: v.optional(v.string()), // matches blocks[].clientId
                 sets: v.number(),
                 reps: v.optional(v.string()),
@@ -661,37 +683,40 @@ export const saveFull = mutation({
                 prPercentage: v.optional(v.number()),
                 timeSeconds: v.optional(v.number()),
                 notes: v.optional(v.string()),
-              })
+              }),
             ),
-          })
+          }),
         ),
-      })
+      }),
     ),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const planification = await ctx.db.get(args.id)
-    if (!planification) throw new Error('Planification not found')
-    await requireAdminOrTrainer(ctx, planification.organizationId)
+    const planification = await ctx.db.get(args.id);
+    if (!planification) throw new Error("Planification not found");
+    await requireAdminOrTrainer(ctx, planification.organizationId);
 
-    const now = Date.now()
-    const shouldCreateRevision = !!planification.hasEverBeenAssigned
-    const isTemplate = args.isTemplate
-    const folderId = isTemplate ? undefined : args.folderId
-    let revisionId: Id<'planificationRevisions'> | undefined
+    const now = Date.now();
+    const shouldCreateRevision = !!planification.hasEverBeenAssigned;
+    const isTemplate = args.isTemplate;
+    const folderId = isTemplate ? undefined : args.folderId;
+    let revisionId: Id<"planificationRevisions"> | undefined;
 
     if (shouldCreateRevision) {
       // ── Create a new immutable revision ──────────────────────────────
       const supersedesRevisionId = await ensureCurrentRevisionForPlanification(
         ctx,
         args.id,
-        identity.subject
-      )
-      const latestRevision = await getLatestRevisionForPlanification(ctx, args.id)
-      const revisionNumber = (latestRevision?.revisionNumber ?? 0) + 1
+        identity.subject,
+      );
+      const latestRevision = await getLatestRevisionForPlanification(
+        ctx,
+        args.id,
+      );
+      const revisionNumber = (latestRevision?.revisionNumber ?? 0) + 1;
 
-      revisionId = await ctx.db.insert('planificationRevisions', {
+      revisionId = await ctx.db.insert("planificationRevisions", {
         planificationId: args.id,
         revisionNumber,
         name: args.name,
@@ -700,7 +725,7 @@ export const saveFull = mutation({
         supersedesRevisionId,
         createdAt: now,
         updatedAt: now,
-      })
+      });
 
       await ctx.db.patch(args.id, {
         name: args.name,
@@ -709,17 +734,17 @@ export const saveFull = mutation({
         isTemplate,
         currentRevisionId: revisionId,
         updatedAt: now,
-      })
+      });
 
       // Point active assignments to the new revision
       const assignments = await ctx.db
-        .query('planificationAssignments')
-        .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
-        .collect()
+        .query("planificationAssignments")
+        .withIndex("by_planification", (q) => q.eq("planificationId", args.id))
+        .collect();
       for (const assignment of assignments) {
-        if (assignment.status !== 'active') continue
-        if (assignment.revisionId === revisionId) continue
-        await ctx.db.patch(assignment._id, { revisionId, updatedAt: now })
+        if (assignment.status !== "active") continue;
+        if (assignment.revisionId === revisionId) continue;
+        await ctx.db.patch(assignment._id, { revisionId, updatedAt: now });
       }
     } else {
       // ── Update in-place: patch metadata, delete old content ─────────
@@ -729,43 +754,43 @@ export const saveFull = mutation({
         folderId,
         isTemplate,
         updatedAt: now,
-      })
+      });
 
       const oldWeeks = await ctx.db
-        .query('workoutWeeks')
-        .withIndex('by_planification', (q) => q.eq('planificationId', args.id))
-        .collect()
+        .query("workoutWeeks")
+        .withIndex("by_planification", (q) => q.eq("planificationId", args.id))
+        .collect();
 
       for (const week of oldWeeks) {
         const days = await ctx.db
-          .query('workoutDays')
-          .withIndex('by_week', (q) => q.eq('weekId', week._id))
-          .collect()
+          .query("workoutDays")
+          .withIndex("by_week", (q) => q.eq("weekId", week._id))
+          .collect();
         for (const day of days) {
           const exercises = await ctx.db
-            .query('dayExercises')
-            .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
-            .collect()
-          for (const ex of exercises) await ctx.db.delete(ex._id)
+            .query("dayExercises")
+            .withIndex("by_workout_day", (q) => q.eq("workoutDayId", day._id))
+            .collect();
+          for (const ex of exercises) await ctx.db.delete(ex._id);
 
           const blocks = await ctx.db
-            .query('exerciseBlocks')
-            .withIndex('by_workout_day', (q) => q.eq('workoutDayId', day._id))
-            .collect()
-          for (const block of blocks) await ctx.db.delete(block._id)
+            .query("exerciseBlocks")
+            .withIndex("by_workout_day", (q) => q.eq("workoutDayId", day._id))
+            .collect();
+          for (const block of blocks) await ctx.db.delete(block._id);
 
-          await ctx.db.delete(day._id)
+          await ctx.db.delete(day._id);
         }
-        await ctx.db.delete(week._id)
+        await ctx.db.delete(week._id);
       }
 
-      revisionId = await resolveRevisionIdForPlanification(ctx, args.id)
+      revisionId = await resolveRevisionIdForPlanification(ctx, args.id);
     }
 
     // ── Create all weeks / days / blocks / exercises ─────────────────
     for (let i = 0; i < args.workoutWeeks.length; i++) {
-      const week = args.workoutWeeks[i]
-      const weekId = await ctx.db.insert('workoutWeeks', {
+      const week = args.workoutWeeks[i];
+      const weekId = await ctx.db.insert("workoutWeeks", {
         planificationId: args.id,
         revisionId,
         name: week.name,
@@ -773,11 +798,11 @@ export const saveFull = mutation({
         notes: undefined,
         createdAt: now,
         updatedAt: now,
-      })
+      });
 
       for (let j = 0; j < week.workoutDays.length; j++) {
-        const day = week.workoutDays[j]
-        const dayId = await ctx.db.insert('workoutDays', {
+        const day = week.workoutDays[j];
+        const dayId = await ctx.db.insert("workoutDays", {
           weekId,
           planificationId: args.id,
           revisionId,
@@ -787,13 +812,13 @@ export const saveFull = mutation({
           notes: undefined,
           createdAt: now,
           updatedAt: now,
-        })
+        });
 
         // Create blocks and build clientId → real ID map
-        const blockIdMap = new Map<string, Id<'exerciseBlocks'>>()
+        const blockIdMap = new Map<string, Id<"exerciseBlocks">>();
         for (let b = 0; b < day.blocks.length; b++) {
-          const block = day.blocks[b]
-          const blockId = await ctx.db.insert('exerciseBlocks', {
+          const block = day.blocks[b];
+          const blockId = await ctx.db.insert("exerciseBlocks", {
             workoutDayId: dayId,
             revisionId,
             name: block.name,
@@ -801,14 +826,14 @@ export const saveFull = mutation({
             notes: block.notes,
             createdAt: now,
             updatedAt: now,
-          })
-          blockIdMap.set(block.clientId, blockId)
+          });
+          blockIdMap.set(block.clientId, blockId);
         }
 
         // Create exercises (already ordered by the client)
         for (let e = 0; e < day.exercises.length; e++) {
-          const ex = day.exercises[e]
-          await ctx.db.insert('dayExercises', {
+          const ex = day.exercises[e];
+          await ctx.db.insert("dayExercises", {
             workoutDayId: dayId,
             revisionId,
             exerciseId: ex.exerciseId,
@@ -824,56 +849,56 @@ export const saveFull = mutation({
             notes: ex.notes,
             createdAt: now,
             updatedAt: now,
-          })
+          });
         }
       }
     }
   },
-})
+});
 
 /**
  * Get planification by ID
  */
 export const getById = query({
   args: {
-    id: v.id('planifications'),
+    id: v.id("planifications"),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return null
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
 
-    const planification = await ctx.db.get(args.id)
+    const planification = await ctx.db.get(args.id);
     if (!planification) {
-      return null
+      return null;
     }
 
-    await requireOrganizationMembership(ctx, planification.organizationId)
-    return planification
+    await requireOrganizationMembership(ctx, planification.organizationId);
+    return planification;
   },
-})
+});
 
 export const getRevisions = query({
   args: {
-    planificationId: v.id('planifications'),
+    planificationId: v.id("planifications"),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return []
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
 
-    const planification = await ctx.db.get(args.planificationId)
-    if (!planification) return []
+    const planification = await ctx.db.get(args.planificationId);
+    if (!planification) return [];
 
-    await requireOrganizationMembership(ctx, planification.organizationId)
+    await requireOrganizationMembership(ctx, planification.organizationId);
 
     return await ctx.db
-      .query('planificationRevisions')
-      .withIndex('by_planification_revisionNumber', (q) =>
-        q.eq('planificationId', args.planificationId)
+      .query("planificationRevisions")
+      .withIndex("by_planification_revisionNumber", (q) =>
+        q.eq("planificationId", args.planificationId),
       )
-      .order('desc')
-      .collect()
+      .order("desc")
+      .collect();
   },
-})
+});
 
 /**
  * Get all planifications for the current user's organization
@@ -881,18 +906,18 @@ export const getRevisions = query({
 export const getByOrganization = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuth(ctx)
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
     return await ctx.db
-      .query('planifications')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', membership.organizationId)
+      .query("planifications")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
       )
-      .filter((q) => q.neq(q.field('isArchived'), true))
-      .collect()
+      .filter((q) => q.neq(q.field("isArchived"), true))
+      .collect();
   },
-})
+});
 
 /**
  * Get planifications by folder for the current user's organization.
@@ -900,36 +925,36 @@ export const getByOrganization = query({
  */
 export const getByFolder = query({
   args: {
-    folderId: v.optional(v.id('folders')),
+    folderId: v.optional(v.id("folders")),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
     // Root level (Todas): return only non-template planifications
     if (args.folderId === undefined) {
       return await ctx.db
-        .query('planifications')
-        .withIndex('by_organization_isTemplate', (q) =>
+        .query("planifications")
+        .withIndex("by_organization_isTemplate", (q) =>
           q
-            .eq('organizationId', membership.organizationId)
-            .eq('isTemplate', false)
+            .eq("organizationId", membership.organizationId)
+            .eq("isTemplate", false),
         )
-        .filter((q) => q.neq(q.field('isArchived'), true))
-        .collect()
+        .filter((q) => q.neq(q.field("isArchived"), true))
+        .collect();
     }
 
     return await ctx.db
-      .query('planifications')
-      .withIndex('by_organization_folder', (q) =>
+      .query("planifications")
+      .withIndex("by_organization_folder", (q) =>
         q
-          .eq('organizationId', membership.organizationId)
-          .eq('folderId', args.folderId)
+          .eq("organizationId", membership.organizationId)
+          .eq("folderId", args.folderId),
       )
-      .filter((q) => q.neq(q.field('isArchived'), true))
-      .collect()
+      .filter((q) => q.neq(q.field("isArchived"), true))
+      .collect();
   },
-})
+});
 
 /**
  * Get all templates for the current user's organization.
@@ -938,20 +963,20 @@ export const getByFolder = query({
 export const getTemplates = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuth(ctx)
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
     const templates = await ctx.db
-      .query('planifications')
-      .withIndex('by_organization_isTemplate', (q) =>
+      .query("planifications")
+      .withIndex("by_organization_isTemplate", (q) =>
         q
-          .eq('organizationId', membership.organizationId)
-          .eq('isTemplate', true)
+          .eq("organizationId", membership.organizationId)
+          .eq("isTemplate", true),
       )
-      .filter((q) => q.neq(q.field('isArchived'), true))
-      .collect()
+      .filter((q) => q.neq(q.field("isArchived"), true))
+      .collect();
 
     // Sort by updatedAt descending (most recently updated first)
-    return templates.sort((a, b) => b.updatedAt - a.updatedAt)
+    return templates.sort((a, b) => b.updatedAt - a.updatedAt);
   },
-})
+});

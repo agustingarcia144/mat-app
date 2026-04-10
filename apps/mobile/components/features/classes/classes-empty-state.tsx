@@ -1,16 +1,16 @@
-import React from 'react'
-import { ClassesEmptyStateCard } from './classes-empty-state-card'
+import React from "react";
+import { ClassesEmptyStateCard } from "./classes-empty-state-card";
 
 interface ClassesEmptyStateProps {
-  paddingBottom: number
-  title?: string
-  subtext?: string
+  paddingBottom: number;
+  title?: string;
+  subtext?: string;
 }
 
 export function ClassesEmptyState({
   paddingBottom,
-  title = 'No tienes reservas',
-  subtext = 'Reservá tu lugar en las próximas clases',
+  title = "No tienes reservas",
+  subtext = "Reservá tu lugar en las próximas clases",
 }: ClassesEmptyStateProps) {
   return (
     <ClassesEmptyStateCard
@@ -18,5 +18,5 @@ export function ClassesEmptyState({
       subtext={subtext}
       paddingBottom={paddingBottom}
     />
-  )
+  );
 }

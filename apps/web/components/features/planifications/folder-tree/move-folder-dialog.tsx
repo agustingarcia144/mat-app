@@ -1,32 +1,32 @@
-'use client'
+"use client";
 
-import { useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { toast } from 'sonner'
-import { FolderTree } from '@/components/features/planifications/folder-tree/folder-tree'
-import { getFolderAndDescendantIds } from '@/components/features/planifications/planification-folder-dnd'
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { FolderTree } from "@/components/features/planifications/folder-tree/folder-tree";
+import { getFolderAndDescendantIds } from "@/components/features/planifications/planification-folder-dnd";
 
 interface FolderData {
-  _id: string
-  name: string
-  parentId?: string
-  path: string
-  order: number
+  _id: string;
+  name: string;
+  parentId?: string;
+  path: string;
+  order: number;
 }
 
 interface MoveFolderDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  folderId: string
-  folderName: string
-  folders: FolderData[]
-  onSuccess?: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  folderId: string;
+  folderName: string;
+  folders: FolderData[];
+  onSuccess?: () => void;
 }
 
 export default function MoveFolderDialog({
@@ -37,24 +37,24 @@ export default function MoveFolderDialog({
   folders,
   onSuccess,
 }: MoveFolderDialogProps) {
-  const moveFolder = useMutation(api.folders.move)
+  const moveFolder = useMutation(api.folders.move);
 
-  const invalidIds = getFolderAndDescendantIds(folderId, folders)
-  const allowedFolders = folders.filter((f) => !invalidIds.has(f._id))
+  const invalidIds = getFolderAndDescendantIds(folderId, folders);
+  const allowedFolders = folders.filter((f) => !invalidIds.has(f._id));
 
   const handleSelect = async (targetId: string | null) => {
     try {
       await moveFolder({
         id: folderId as any,
         newParentId: targetId === null ? undefined : (targetId as any),
-      })
-      toast.success('Carpeta movida')
-      onOpenChange(false)
-      onSuccess?.()
+      });
+      toast.success("Carpeta movida");
+      onOpenChange(false);
+      onSuccess?.();
     } catch {
-      toast.error('Error al mover la carpeta')
+      toast.error("Error al mover la carpeta");
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -78,5 +78,5 @@ export default function MoveFolderDialog({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,17 +1,17 @@
-import React from 'react'
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
+import React from "react";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { ThemedPressable } from "@/components/ui/themed-pressable";
 
 export interface WorkoutFooterProps {
-  isNewSession: boolean
-  isCompleted: boolean
-  starting: boolean
-  completing: boolean
-  onStartWorkout: () => void
-  onComplete: () => void
-  paddingBottom: number
-  isDark: boolean
-  colorScheme: 'light' | 'dark' | null
+  isNewSession: boolean;
+  isCompleted: boolean;
+  starting: boolean;
+  completing: boolean;
+  onStartWorkout: () => void;
+  onComplete: () => void;
+  paddingBottom: number;
+  isDark: boolean;
+  colorScheme: "light" | "dark" | null;
 }
 
 export function WorkoutFooter({
@@ -32,7 +32,7 @@ export function WorkoutFooter({
           styles.footer,
           {
             paddingBottom,
-            backgroundColor: isDark ? '#0a0a0a' : '#fff',
+            backgroundColor: isDark ? "#0a0a0a" : "#fff",
           },
         ]}
       >
@@ -44,13 +44,13 @@ export function WorkoutFooter({
           {starting ? (
             <ActivityIndicator
               size="small"
-              color={colorScheme === 'dark' ? '#000' : '#fff'}
+              color={colorScheme === "dark" ? "#000" : "#fff"}
             />
           ) : (
             <Text
               style={[
                 styles.primaryButtonText,
-                { color: colorScheme === 'dark' ? '#000' : '#fff' },
+                { color: colorScheme === "dark" ? "#000" : "#fff" },
               ]}
             >
               Empezar entrenamiento
@@ -58,7 +58,7 @@ export function WorkoutFooter({
           )}
         </ThemedPressable>
       </View>
-    )
+    );
   }
 
   if (!isCompleted) {
@@ -68,7 +68,7 @@ export function WorkoutFooter({
           styles.footer,
           {
             paddingBottom,
-            backgroundColor: isDark ? '#0a0a0a' : '#fff',
+            backgroundColor: isDark ? "#0a0a0a" : "#fff",
           },
         ]}
       >
@@ -80,13 +80,13 @@ export function WorkoutFooter({
           {completing ? (
             <ActivityIndicator
               size="small"
-              color={colorScheme === 'dark' ? '#000' : '#fff'}
+              color={colorScheme === "dark" ? "#000" : "#fff"}
             />
           ) : (
             <Text
               style={[
                 styles.primaryButtonText,
-                { color: colorScheme === 'dark' ? '#000' : '#fff' },
+                { color: colorScheme === "dark" ? "#000" : "#fff" },
               ]}
             >
               Completar entrenamiento
@@ -94,7 +94,7 @@ export function WorkoutFooter({
           )}
         </ThemedPressable>
       </View>
-    )
+    );
   }
 
   return (
@@ -103,13 +103,13 @@ export function WorkoutFooter({
         styles.footer,
         {
           paddingBottom,
-          backgroundColor: isDark ? '#0a0a0a' : '#fff',
+          backgroundColor: isDark ? "#0a0a0a" : "#fff",
         },
       ]}
     >
       <Text style={styles.completedLabel}>Sesión completada</Text>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -119,12 +119,12 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   completedLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
     opacity: 0.8,
   },
-})
+});

@@ -1,4 +1,4 @@
-import React from 'react'
+import React from "react";
 import {
   View,
   Text,
@@ -11,43 +11,43 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
-} from 'react-native'
-import DateTimePicker from '@react-native-community/datetimepicker'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
-import { useUser, useClerk } from '@clerk/expo'
+} from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { useUser, useClerk } from "@clerk/expo";
 import {
   Authenticated,
   AuthLoading,
   useMutation,
   useQuery,
   useAction,
-} from 'convex/react'
-import { api } from '@repo/convex'
-import { format, parseISO } from 'date-fns'
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedText } from '@/components/ui/themed-text'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
-import { Colors } from '@/constants/theme'
-import LoadingScreen from '@/components/shared/screens/loading-screen'
-import { useAppReset } from '@/components/providers/providers'
-import { Picker } from '@react-native-picker/picker'
+} from "convex/react";
+import { api } from "@repo/convex";
+import { format, parseISO } from "date-fns";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ThemedText } from "@/components/ui/themed-text";
+import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { Colors } from "@/constants/theme";
+import LoadingScreen from "@/components/shared/screens/loading-screen";
+import { useAppReset } from "@/components/providers/providers";
+import { Picker } from "@react-native-picker/picker";
 
-const HEIGHT_CM = Array.from({ length: 151 }, (_, i) => 100 + i)
-const WEIGHT_KG = Array.from({ length: 171 }, (_, i) => 30 + i)
+const HEIGHT_CM = Array.from({ length: 151 }, (_, i) => 100 + i);
+const WEIGHT_KG = Array.from({ length: 171 }, (_, i) => 30 + i);
 
 type PersonalInfoModalProps = {
-  visible: boolean
-  onClose: () => void
-  isDark: boolean
+  visible: boolean;
+  onClose: () => void;
+  isDark: boolean;
   initialData: {
-    firstName?: string
-    lastName?: string
-    nickname?: string
-    birthday?: string
-    phone?: string
-  }
-}
+    firstName?: string;
+    lastName?: string;
+    nickname?: string;
+    birthday?: string;
+    phone?: string;
+  };
+};
 
 function PersonalInfoModal({
   visible,
@@ -55,50 +55,52 @@ function PersonalInfoModal({
   isDark,
   initialData,
 }: PersonalInfoModalProps) {
-  const insets = useSafeAreaInsets()
-  const { user } = useUser()
-  const updatePersonalInfo = useMutation(api.users.updatePersonalInfo)
+  const insets = useSafeAreaInsets();
+  const { user } = useUser();
+  const updatePersonalInfo = useMutation(api.users.updatePersonalInfo);
 
-  const [firstName, setFirstName] = React.useState(initialData.firstName ?? '')
-  const [lastName, setLastName] = React.useState(initialData.lastName ?? '')
-  const [nickname, setNickname] = React.useState(initialData.nickname ?? '')
-  const [phone, setPhone] = React.useState(initialData.phone ?? '')
+  const [firstName, setFirstName] = React.useState(initialData.firstName ?? "");
+  const [lastName, setLastName] = React.useState(initialData.lastName ?? "");
+  const [nickname, setNickname] = React.useState(initialData.nickname ?? "");
+  const [phone, setPhone] = React.useState(initialData.phone ?? "");
   const [birthdayDate, setBirthdayDate] = React.useState<Date | null>(() => {
-    if (!initialData.birthday) return null
+    if (!initialData.birthday) return null;
     try {
-      return parseISO(initialData.birthday)
+      return parseISO(initialData.birthday);
     } catch {
-      return null
+      return null;
     }
-  })
-  const [showDatePicker, setShowDatePicker] = React.useState(false)
-  const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState('')
+  });
+  const [showDatePicker, setShowDatePicker] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
 
   React.useEffect(() => {
     if (visible) {
-      setFirstName(initialData.firstName ?? '')
-      setLastName(initialData.lastName ?? '')
-      setNickname(initialData.nickname ?? '')
-      setPhone(initialData.phone ?? '')
+      setFirstName(initialData.firstName ?? "");
+      setLastName(initialData.lastName ?? "");
+      setNickname(initialData.nickname ?? "");
+      setPhone(initialData.phone ?? "");
       setBirthdayDate(() => {
-        if (!initialData.birthday) return null
+        if (!initialData.birthday) return null;
         try {
-          return parseISO(initialData.birthday)
+          return parseISO(initialData.birthday);
         } catch {
-          return null
+          return null;
         }
-      })
-      setError('')
+      });
+      setError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible])
+  }, [visible]);
 
-  const displayBirthday = birthdayDate ? format(birthdayDate, 'dd/MM/yyyy') : ''
+  const displayBirthday = birthdayDate
+    ? format(birthdayDate, "dd/MM/yyyy")
+    : "";
 
   const handleSave = async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true);
+    setError("");
     try {
       await Promise.all([
         // Keep Clerk in sync for name fields (Clerk is auth source of truth;
@@ -112,32 +114,32 @@ function PersonalInfoModal({
           lastName: lastName.trim() || undefined,
           nickname: nickname.trim() || undefined,
           birthday: birthdayDate
-            ? format(birthdayDate, 'yyyy-MM-dd')
+            ? format(birthdayDate, "yyyy-MM-dd")
             : undefined,
           phone: phone.trim() || undefined,
         }),
-      ])
-      onClose()
+      ]);
+      onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(e instanceof Error ? e.message : "Error al guardar");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const inputStyle = [
     styles.settingInput,
     {
-      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-      color: isDark ? '#fff' : '#000',
-      borderColor: isDark ? '#27272a' : '#e4e4e7',
+      backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+      color: isDark ? "#fff" : "#000",
+      borderColor: isDark ? "#27272a" : "#e4e4e7",
     },
-  ]
+  ];
 
   const labelStyle = [
     styles.settingInputLabel,
-    { color: isDark ? '#a1a1aa' : '#71717a' },
-  ]
+    { color: isDark ? "#a1a1aa" : "#71717a" },
+  ];
 
   return (
     <Modal
@@ -155,7 +157,7 @@ function PersonalInfoModal({
           style={[
             styles.modalCard,
             {
-              backgroundColor: isDark ? '#000' : '#fff',
+              backgroundColor: isDark ? "#000" : "#fff",
               paddingBottom: Math.max(insets.bottom, 20),
             },
           ]}
@@ -164,7 +166,7 @@ function PersonalInfoModal({
             <View
               style={[
                 styles.modalHandle,
-                { backgroundColor: isDark ? '#555' : '#ccc' },
+                { backgroundColor: isDark ? "#555" : "#ccc" },
               ]}
             />
           </View>
@@ -186,7 +188,7 @@ function PersonalInfoModal({
                 value={firstName}
                 onChangeText={setFirstName}
                 placeholder="Nombre"
-                placeholderTextColor={isDark ? '#52525b' : '#a1a1aa'}
+                placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
                 editable={!loading}
                 autoCapitalize="words"
               />
@@ -199,7 +201,7 @@ function PersonalInfoModal({
                 value={lastName}
                 onChangeText={setLastName}
                 placeholder="Apellido"
-                placeholderTextColor={isDark ? '#52525b' : '#a1a1aa'}
+                placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
                 editable={!loading}
                 autoCapitalize="words"
               />
@@ -212,7 +214,7 @@ function PersonalInfoModal({
                 value={nickname}
                 onChangeText={setNickname}
                 placeholder="¿Cómo te gusta que te llamen?"
-                placeholderTextColor={isDark ? '#52525b' : '#a1a1aa'}
+                placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
                 editable={!loading}
                 autoCapitalize="words"
               />
@@ -225,7 +227,7 @@ function PersonalInfoModal({
                 value={phone}
                 onChangeText={setPhone}
                 placeholder="+54 11 1234-5678"
-                placeholderTextColor={isDark ? '#52525b' : '#a1a1aa'}
+                placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
                 editable={!loading}
                 keyboardType="phone-pad"
               />
@@ -234,22 +236,22 @@ function PersonalInfoModal({
             <View style={styles.settingInputGroup}>
               <Text style={labelStyle}>Fecha de nacimiento</Text>
               <Pressable
-                style={[inputStyle, { justifyContent: 'center' }]}
+                style={[inputStyle, { justifyContent: "center" }]}
                 onPress={() => !loading && setShowDatePicker(true)}
               >
                 <Text
                   style={{
                     color: displayBirthday
                       ? isDark
-                        ? '#fff'
-                        : '#000'
+                        ? "#fff"
+                        : "#000"
                       : isDark
-                        ? '#52525b'
-                        : '#a1a1aa',
+                        ? "#52525b"
+                        : "#a1a1aa",
                     fontSize: 16,
                   }}
                 >
-                  {displayBirthday || 'DD/MM/AAAA'}
+                  {displayBirthday || "DD/MM/AAAA"}
                 </Text>
               </Pressable>
             </View>
@@ -257,19 +259,19 @@ function PersonalInfoModal({
             <Pressable
               style={[
                 styles.modalSaveButton,
-                { backgroundColor: isDark ? '#fff' : '#000' },
+                { backgroundColor: isDark ? "#fff" : "#000" },
                 loading && { opacity: 0.5 },
               ]}
               onPress={handleSave}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={isDark ? '#000' : '#fff'} />
+                <ActivityIndicator color={isDark ? "#000" : "#fff"} />
               ) : (
                 <Text
                   style={[
                     styles.modalSaveButtonText,
-                    { color: isDark ? '#000' : '#fff' },
+                    { color: isDark ? "#000" : "#fff" },
                   ]}
                 >
                   Guardar
@@ -291,7 +293,7 @@ function PersonalInfoModal({
             style={[
               styles.pickerSheet,
               {
-                backgroundColor: isDark ? '#1c1c1e' : '#fff',
+                backgroundColor: isDark ? "#1c1c1e" : "#fff",
                 paddingBottom: Math.max(insets.bottom + 16, 32),
               },
             ]}
@@ -299,7 +301,7 @@ function PersonalInfoModal({
             <Text
               style={[
                 styles.pickerSheetTitle,
-                { color: isDark ? '#fff' : '#000' },
+                { color: isDark ? "#fff" : "#000" },
               ]}
             >
               Fecha de nacimiento
@@ -309,13 +311,13 @@ function PersonalInfoModal({
               mode="date"
               display="spinner"
               onChange={(_event, selectedDate) => {
-                if (Platform.OS === 'android') setShowDatePicker(false)
-                if (selectedDate) setBirthdayDate(selectedDate)
+                if (Platform.OS === "android") setShowDatePicker(false);
+                if (selectedDate) setBirthdayDate(selectedDate);
               }}
               maximumDate={new Date()}
               minimumDate={new Date(1900, 0, 1)}
               locale="es-ES"
-              style={{ width: '100%' }}
+              style={{ width: "100%" }}
             />
             <Pressable
               onPress={() => setShowDatePicker(false)}
@@ -325,7 +327,7 @@ function PersonalInfoModal({
               <Text
                 style={[
                   styles.pickerSheetDoneText,
-                  { color: isDark ? '#fff' : '#000' },
+                  { color: isDark ? "#fff" : "#000" },
                 ]}
               >
                 Listo
@@ -335,19 +337,19 @@ function PersonalInfoModal({
         </View>
       )}
     </Modal>
-  )
+  );
 }
 
 type PhysicalInfoModalProps = {
-  visible: boolean
-  onClose: () => void
-  isDark: boolean
+  visible: boolean;
+  onClose: () => void;
+  isDark: boolean;
   initialData: {
-    height?: number
-    weight?: number
-    description?: string
-  }
-}
+    height?: number;
+    weight?: number;
+    description?: string;
+  };
+};
 
 function PhysicalInfoModal({
   visible,
@@ -355,73 +357,73 @@ function PhysicalInfoModal({
   isDark,
   initialData,
 }: PhysicalInfoModalProps) {
-  const insets = useSafeAreaInsets()
-  const updatePhysicalInfo = useMutation(api.users.updatePhysicalInfo)
+  const insets = useSafeAreaInsets();
+  const updatePhysicalInfo = useMutation(api.users.updatePhysicalInfo);
 
   const [heightCm, setHeightCm] = React.useState<number>(
-    initialData.height ?? HEIGHT_CM[50]
-  )
+    initialData.height ?? HEIGHT_CM[50],
+  );
   const [weightKg, setWeightKg] = React.useState<number>(
-    initialData.weight ?? WEIGHT_KG[40]
-  )
+    initialData.weight ?? WEIGHT_KG[40],
+  );
   const [heightText, setHeightText] = React.useState(
-    String(initialData.height ?? HEIGHT_CM[50])
-  )
+    String(initialData.height ?? HEIGHT_CM[50]),
+  );
   const [weightText, setWeightText] = React.useState(
-    String(initialData.weight ?? WEIGHT_KG[40])
-  )
+    String(initialData.weight ?? WEIGHT_KG[40]),
+  );
   const [description, setDescription] = React.useState(
-    initialData.description ?? ''
-  )
+    initialData.description ?? "",
+  );
   const [activePicker, setActivePicker] = React.useState<
-    'height' | 'weight' | null
-  >(null)
-  const [loading, setLoading] = React.useState(false)
-  const [error, setError] = React.useState('')
+    "height" | "weight" | null
+  >(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
 
   React.useEffect(() => {
     if (visible) {
-      const h = initialData.height ?? HEIGHT_CM[50]
-      const w = initialData.weight ?? WEIGHT_KG[40]
-      setHeightCm(h)
-      setWeightKg(w)
-      setHeightText(String(h))
-      setWeightText(String(w))
-      setDescription(initialData.description ?? '')
-      setError('')
+      const h = initialData.height ?? HEIGHT_CM[50];
+      const w = initialData.weight ?? WEIGHT_KG[40];
+      setHeightCm(h);
+      setWeightKg(w);
+      setHeightText(String(h));
+      setWeightText(String(w));
+      setDescription(initialData.description ?? "");
+      setError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible])
+  }, [visible]);
 
   const handleSave = async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true);
+    setError("");
     try {
       await updatePhysicalInfo({
         height: heightCm,
         weight: weightKg,
         description: description.trim() || undefined,
-      })
-      onClose()
+      });
+      onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al guardar')
+      setError(e instanceof Error ? e.message : "Error al guardar");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const labelStyle = [
     styles.settingInputLabel,
-    { color: isDark ? '#a1a1aa' : '#71717a' },
-  ]
+    { color: isDark ? "#a1a1aa" : "#71717a" },
+  ];
   const pickerInputStyle = [
     styles.settingInput,
     {
-      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-      borderColor: isDark ? '#27272a' : '#e4e4e7',
-      justifyContent: 'center' as const,
+      backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+      borderColor: isDark ? "#27272a" : "#e4e4e7",
+      justifyContent: "center" as const,
     },
-  ]
+  ];
 
   return (
     <Modal
@@ -439,7 +441,7 @@ function PhysicalInfoModal({
           style={[
             styles.modalCard,
             {
-              backgroundColor: isDark ? '#000' : '#fff',
+              backgroundColor: isDark ? "#000" : "#fff",
               paddingBottom: Math.max(insets.bottom, 20),
             },
           ]}
@@ -448,7 +450,7 @@ function PhysicalInfoModal({
             <View
               style={[
                 styles.modalHandle,
-                { backgroundColor: isDark ? '#555' : '#ccc' },
+                { backgroundColor: isDark ? "#555" : "#ccc" },
               ]}
             />
           </View>
@@ -465,33 +467,37 @@ function PhysicalInfoModal({
 
             <View style={styles.settingInputGroup}>
               <Text style={labelStyle}>Altura (cm)</Text>
-              {Platform.OS === 'android' ? (
+              {Platform.OS === "android" ? (
                 <TextInput
                   style={[
                     styles.settingInput,
                     {
-                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                      color: isDark ? '#fff' : '#000',
-                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                      backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                      color: isDark ? "#fff" : "#000",
+                      borderColor: isDark ? "#27272a" : "#e4e4e7",
                     },
                   ]}
                   keyboardType="number-pad"
                   value={heightText}
                   onChangeText={setHeightText}
                   onBlur={() => {
-                    const n = parseInt(heightText, 10)
-                    const clamped = isNaN(n) ? HEIGHT_CM[50] : Math.min(250, Math.max(100, n))
-                    setHeightCm(clamped)
-                    setHeightText(String(clamped))
+                    const n = parseInt(heightText, 10);
+                    const clamped = isNaN(n)
+                      ? HEIGHT_CM[50]
+                      : Math.min(250, Math.max(100, n));
+                    setHeightCm(clamped);
+                    setHeightText(String(clamped));
                   }}
                   editable={!loading}
                 />
               ) : (
                 <Pressable
                   style={pickerInputStyle}
-                  onPress={() => !loading && setActivePicker('height')}
+                  onPress={() => !loading && setActivePicker("height")}
                 >
-                  <Text style={{ fontSize: 16, color: isDark ? '#fff' : '#000' }}>
+                  <Text
+                    style={{ fontSize: 16, color: isDark ? "#fff" : "#000" }}
+                  >
                     {heightCm} cm
                   </Text>
                 </Pressable>
@@ -500,33 +506,37 @@ function PhysicalInfoModal({
 
             <View style={styles.settingInputGroup}>
               <Text style={labelStyle}>Peso (kg)</Text>
-              {Platform.OS === 'android' ? (
+              {Platform.OS === "android" ? (
                 <TextInput
                   style={[
                     styles.settingInput,
                     {
-                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                      color: isDark ? '#fff' : '#000',
-                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                      backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                      color: isDark ? "#fff" : "#000",
+                      borderColor: isDark ? "#27272a" : "#e4e4e7",
                     },
                   ]}
                   keyboardType="number-pad"
                   value={weightText}
                   onChangeText={setWeightText}
                   onBlur={() => {
-                    const n = parseInt(weightText, 10)
-                    const clamped = isNaN(n) ? WEIGHT_KG[40] : Math.min(200, Math.max(30, n))
-                    setWeightKg(clamped)
-                    setWeightText(String(clamped))
+                    const n = parseInt(weightText, 10);
+                    const clamped = isNaN(n)
+                      ? WEIGHT_KG[40]
+                      : Math.min(200, Math.max(30, n));
+                    setWeightKg(clamped);
+                    setWeightText(String(clamped));
                   }}
                   editable={!loading}
                 />
               ) : (
                 <Pressable
                   style={pickerInputStyle}
-                  onPress={() => !loading && setActivePicker('weight')}
+                  onPress={() => !loading && setActivePicker("weight")}
                 >
-                  <Text style={{ fontSize: 16, color: isDark ? '#fff' : '#000' }}>
+                  <Text
+                    style={{ fontSize: 16, color: isDark ? "#fff" : "#000" }}
+                  >
                     {weightKg} kg
                   </Text>
                 </Pressable>
@@ -540,15 +550,15 @@ function PhysicalInfoModal({
                   styles.settingInput,
                   styles.settingTextArea,
                   {
-                    backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                    color: isDark ? '#fff' : '#000',
-                    borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                    color: isDark ? "#fff" : "#000",
+                    borderColor: isDark ? "#27272a" : "#e4e4e7",
                   },
                 ]}
                 value={description}
                 onChangeText={setDescription}
                 placeholder="Objetivos, lesiones, notas..."
-                placeholderTextColor={isDark ? '#52525b' : '#a1a1aa'}
+                placeholderTextColor={isDark ? "#52525b" : "#a1a1aa"}
                 multiline
                 numberOfLines={3}
                 editable={!loading}
@@ -558,19 +568,19 @@ function PhysicalInfoModal({
             <Pressable
               style={[
                 styles.modalSaveButton,
-                { backgroundColor: isDark ? '#fff' : '#000' },
+                { backgroundColor: isDark ? "#fff" : "#000" },
                 loading && { opacity: 0.5 },
               ]}
               onPress={handleSave}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={isDark ? '#000' : '#fff'} />
+                <ActivityIndicator color={isDark ? "#000" : "#fff"} />
               ) : (
                 <Text
                   style={[
                     styles.modalSaveButtonText,
-                    { color: isDark ? '#000' : '#fff' },
+                    { color: isDark ? "#000" : "#fff" },
                   ]}
                 >
                   Guardar
@@ -581,7 +591,7 @@ function PhysicalInfoModal({
         </View>
 
         {/* Picker overlay — iOS only (on Android we use inline TextInput) */}
-        {Platform.OS === 'ios' && activePicker !== null && (
+        {Platform.OS === "ios" && activePicker !== null && (
           <View style={styles.pickerOverlay}>
             <Pressable
               style={styles.modalFlexBackdrop}
@@ -591,12 +601,12 @@ function PhysicalInfoModal({
               style={[
                 styles.pickerSheet,
                 {
-                  position: 'absolute',
+                  position: "absolute",
                   bottom: 0,
                   left: 0,
                   right: 0,
                   elevation: 24,
-                  backgroundColor: isDark ? '#1c1c1e' : '#fff',
+                  backgroundColor: isDark ? "#1c1c1e" : "#fff",
                   paddingBottom: Math.max(insets.bottom + 16, 32),
                 },
               ]}
@@ -604,12 +614,12 @@ function PhysicalInfoModal({
               <Text
                 style={[
                   styles.pickerSheetTitle,
-                  { color: isDark ? '#fff' : '#000' },
+                  { color: isDark ? "#fff" : "#000" },
                 ]}
               >
-                {activePicker === 'height' ? 'Altura (cm)' : 'Peso (kg)'}
+                {activePicker === "height" ? "Altura (cm)" : "Peso (kg)"}
               </Text>
-              {activePicker === 'height' ? (
+              {activePicker === "height" ? (
                 <Picker
                   selectedValue={heightCm}
                   onValueChange={(v: number) => setHeightCm(v)}
@@ -636,7 +646,7 @@ function PhysicalInfoModal({
                 <Text
                   style={[
                     styles.pickerSheetDoneText,
-                    { color: isDark ? '#fff' : '#000' },
+                    { color: isDark ? "#fff" : "#000" },
                   ]}
                 >
                   Listo
@@ -647,16 +657,16 @@ function PhysicalInfoModal({
         )}
       </View>
     </Modal>
-  )
+  );
 }
 
 type DeleteAccountModalProps = {
-  visible: boolean
-  onClose: () => void
-  isDark: boolean
-  modalSurfaceColor: string
-  buttonBg: string
-}
+  visible: boolean;
+  onClose: () => void;
+  isDark: boolean;
+  modalSurfaceColor: string;
+  buttonBg: string;
+};
 
 function DeleteAccountModal({
   visible,
@@ -665,58 +675,58 @@ function DeleteAccountModal({
   modalSurfaceColor,
   buttonBg,
 }: DeleteAccountModalProps) {
-  const { signOut } = useClerk()
-  const deleteMyAccount = useAction(api.userDeletion.deleteMyAccount)
-  const insets = useSafeAreaInsets()
-  const [pending, setPending] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  const { signOut } = useClerk();
+  const deleteMyAccount = useAction(api.userDeletion.deleteMyAccount);
+  const insets = useSafeAreaInsets();
+  const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!visible) {
-      setError(null)
-      setPending(false)
+      setError(null);
+      setPending(false);
     }
-  }, [visible])
+  }, [visible]);
 
   const runDelete = React.useCallback(async () => {
-    setPending(true)
-    setError(null)
+    setPending(true);
+    setError(null);
     try {
-      await deleteMyAccount({})
-      await signOut()
+      await deleteMyAccount({});
+      await signOut();
       // Do not call router.replace here: it races the navigator and throws
       // "navigate before mounting Root Layout". Root _layout redirects unauthenticated
       // users from profile (inSettings) to `/` via useEffect.
     } catch (e) {
       const msg =
-        e instanceof Error ? e.message : 'No se pudo eliminar la cuenta.'
-      setError(msg)
-      Alert.alert('Error', msg)
+        e instanceof Error ? e.message : "No se pudo eliminar la cuenta.";
+      setError(msg);
+      Alert.alert("Error", msg);
     } finally {
-      setPending(false)
+      setPending(false);
     }
-  }, [deleteMyAccount, signOut])
+  }, [deleteMyAccount, signOut]);
 
   const onPressDelete = React.useCallback(() => {
     Alert.alert(
-      '¿Eliminar cuenta permanentemente?',
-      'Se eliminarán tu cuenta de acceso y tus datos personales en la app. Si tienes una suscripción en App Store, cancélala en Ajustes > Apple ID > Suscripciones. Esta acción no se puede deshacer.',
+      "¿Eliminar cuenta permanentemente?",
+      "Se eliminarán tu cuenta de acceso y tus datos personales en la app. Si tienes una suscripción en App Store, cancélala en Ajustes > Apple ID > Suscripciones. Esta acción no se puede deshacer.",
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: "Cancelar", style: "cancel" },
         {
-          text: 'Eliminar',
-          style: 'destructive',
+          text: "Eliminar",
+          style: "destructive",
           onPress: () => {
-            void runDelete()
+            void runDelete();
           },
         },
-      ]
-    )
-  }, [runDelete])
+      ],
+    );
+  }, [runDelete]);
 
   const handleClose = React.useCallback(() => {
-    if (!pending) onClose()
-  }, [pending, onClose])
+    if (!pending) onClose();
+  }, [pending, onClose]);
 
   return (
     <Modal
@@ -746,7 +756,7 @@ function DeleteAccountModal({
             <View
               style={[
                 styles.modalHandle,
-                { backgroundColor: isDark ? '#555' : '#ccc' },
+                { backgroundColor: isDark ? "#555" : "#ccc" },
               ]}
             />
           </View>
@@ -770,8 +780,8 @@ function DeleteAccountModal({
             style={[
               styles.modalDeleteButton,
               {
-                borderColor: '#ef4444',
-                backgroundColor: 'transparent',
+                borderColor: "#ef4444",
+                backgroundColor: "transparent",
                 opacity: pending ? 0.6 : 1,
               },
             ]}
@@ -800,7 +810,7 @@ function DeleteAccountModal({
             <Text
               style={[
                 styles.modalCancelButtonText,
-                { color: isDark ? '#fff' : '#000' },
+                { color: isDark ? "#fff" : "#000" },
               ]}
             >
               Volver
@@ -809,84 +819,86 @@ function DeleteAccountModal({
         </View>
       </View>
     </Modal>
-  )
+  );
 }
 
 function ProfileContent() {
-  const router = useRouter()
-  const { user } = useUser()
-  const { signOut } = useClerk()
-  const organizations = useQuery(api.organizationMemberships.getMyOrganizations)
+  const router = useRouter();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const organizations = useQuery(
+    api.organizationMemberships.getMyOrganizations,
+  );
   const currentMembership = useQuery(
-    api.organizationMemberships.getCurrentMembershipWithOrganization
-  )
+    api.organizationMemberships.getCurrentMembershipWithOrganization,
+  );
   const setActiveOrganization = useMutation(
-    api.organizationMemberships.setActiveOrganization
-  )
-  const { resetApp } = useAppReset()
-  const insets = useSafeAreaInsets()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
+    api.organizationMemberships.setActiveOrganization,
+  );
+  const { resetApp } = useAppReset();
+  const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
   const [switchingOrgId, setSwitchingOrgId] = React.useState<string | null>(
-    null
-  )
-  const [orgError, setOrgError] = React.useState<string | null>(null)
+    null,
+  );
+  const [orgError, setOrgError] = React.useState<string | null>(null);
   const [deleteAccountModalVisible, setDeleteAccountModalVisible] =
-    React.useState(false)
+    React.useState(false);
   const [personalInfoModalVisible, setPersonalInfoModalVisible] =
-    React.useState(false)
+    React.useState(false);
   const [physicalInfoModalVisible, setPhysicalInfoModalVisible] =
-    React.useState(false)
+    React.useState(false);
 
-  const convexUser = useQuery(api.users.getCurrentUser)
+  const convexUser = useQuery(api.users.getCurrentUser);
 
   const primaryEmail =
     user?.emailAddresses?.[0]?.emailAddress ??
-    user?.primaryEmailAddress?.emailAddress
+    user?.primaryEmailAddress?.emailAddress;
   const fullName =
-    [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
     primaryEmail ||
-    'Usuario'
-  const imageUrl = user?.imageUrl
+    "Usuario";
+  const imageUrl = user?.imageUrl;
   const memberships = React.useMemo(
     () =>
       (organizations ?? []).filter(
         (membership) =>
-          typeof membership.organizationId === 'string' &&
-          membership.organizationId.length > 0
+          typeof membership.organizationId === "string" &&
+          membership.organizationId.length > 0,
       ),
-    [organizations]
-  )
-  const hasMultipleOrganizations = memberships.length > 1
-  const activeOrgId = currentMembership?.organization?._id ?? null
+    [organizations],
+  );
+  const hasMultipleOrganizations = memberships.length > 1;
+  const activeOrgId = currentMembership?.organization?._id ?? null;
   const isLoaded =
-    organizations !== undefined && currentMembership !== undefined
+    organizations !== undefined && currentMembership !== undefined;
 
-  const buttonBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)'
-  const backgroundColor = Colors[colorScheme ?? 'light'].background
-  const modalSurfaceColor = Colors[colorScheme ?? 'light'].background
+  const buttonBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)";
+  const backgroundColor = Colors[colorScheme ?? "light"].background;
+  const modalSurfaceColor = Colors[colorScheme ?? "light"].background;
 
   const handleOrganizationSwitch = React.useCallback(
     async (selectedOrgId: string) => {
-      if (!selectedOrgId || selectedOrgId === activeOrgId) return
+      if (!selectedOrgId || selectedOrgId === activeOrgId) return;
 
-      setOrgError(null)
-      setSwitchingOrgId(selectedOrgId)
+      setOrgError(null);
+      setSwitchingOrgId(selectedOrgId);
       try {
-        await setActiveOrganization({ organizationId: selectedOrgId as never })
-        resetApp()
-        router.replace('/')
+        await setActiveOrganization({ organizationId: selectedOrgId as never });
+        resetApp();
+        router.replace("/");
       } catch (error) {
-        console.error('Failed to switch organization', error)
+        console.error("Failed to switch organization", error);
         setOrgError(
-          'No se pudo cambiar de organización. Verifica tu conexión e intenta nuevamente.'
-        )
+          "No se pudo cambiar de organización. Verifica tu conexión e intenta nuevamente.",
+        );
       } finally {
-        setSwitchingOrgId(null)
+        setSwitchingOrgId(null);
       }
     },
-    [activeOrgId, resetApp, router, setActiveOrganization]
-  )
+    [activeOrgId, resetApp, router, setActiveOrganization],
+  );
 
   return (
     <View style={[styles.container, { backgroundColor }]}>
@@ -896,7 +908,7 @@ function ProfileContent() {
           styles.scrollContent,
           {
             // Extra top padding on Android so avatar isn't cut off by the transparent header/title
-            paddingTop: insets.top + (Platform.OS === 'android' ? 64 : 44),
+            paddingTop: insets.top + (Platform.OS === "android" ? 64 : 44),
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -914,21 +926,21 @@ function ProfileContent() {
                 styles.avatarPlaceholder,
                 {
                   backgroundColor: isDark
-                    ? 'rgba(255,255,255,0.12)'
-                    : 'rgba(0,0,0,0.08)',
+                    ? "rgba(255,255,255,0.12)"
+                    : "rgba(0,0,0,0.08)",
                 },
               ]}
             >
               <Text
                 style={[
                   styles.avatarPlaceholderText,
-                  { color: isDark ? '#fff' : '#000' },
+                  { color: isDark ? "#fff" : "#000" },
                 ]}
               >
                 {(
                   user?.firstName?.[0] ||
                   primaryEmail?.[0] ||
-                  '?'
+                  "?"
                 ).toUpperCase()}
               </Text>
             </View>
@@ -947,7 +959,7 @@ function ProfileContent() {
             <Text
               style={[
                 styles.orgSectionTitle,
-                { color: isDark ? '#fff' : '#000' },
+                { color: isDark ? "#fff" : "#000" },
               ]}
             >
               Cambiar organización
@@ -956,9 +968,9 @@ function ProfileContent() {
               <Text style={styles.orgErrorText}>{orgError}</Text>
             ) : null}
             {memberships.map((membership, index) => {
-              const membershipOrgId = membership.organizationId
-              const isCurrent = membershipOrgId === activeOrgId
-              const isSwitching = switchingOrgId === membershipOrgId
+              const membershipOrgId = membership.organizationId;
+              const isCurrent = membershipOrgId === activeOrgId;
+              const isSwitching = switchingOrgId === membershipOrgId;
 
               return (
                 <ThemedPressable
@@ -973,15 +985,15 @@ function ProfileContent() {
                   <Text
                     style={[
                       styles.orgButtonText,
-                      { color: isDark ? '#fff' : '#000' },
+                      { color: isDark ? "#fff" : "#000" },
                     ]}
                   >
                     {membership.organizationName}
-                    {isCurrent ? ' (actual)' : ''}
-                    {isSwitching ? '...' : ''}
+                    {isCurrent ? " (actual)" : ""}
+                    {isSwitching ? "..." : ""}
                   </Text>
                 </ThemedPressable>
-              )
+              );
             })}
           </View>
         ) : null}
@@ -990,7 +1002,7 @@ function ProfileContent() {
           <Text
             style={[
               styles.settingsSectionTitle,
-              { color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)' },
+              { color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.55)" },
             ]}
           >
             Ajustes
@@ -1002,7 +1014,7 @@ function ProfileContent() {
             <Text
               style={[
                 styles.settingsRowText,
-                { color: isDark ? '#fff' : '#000' },
+                { color: isDark ? "#fff" : "#000" },
               ]}
             >
               Información personal
@@ -1010,7 +1022,7 @@ function ProfileContent() {
             <Text
               style={[
                 styles.settingsRowChevron,
-                { color: isDark ? '#71717a' : '#a1a1aa' },
+                { color: isDark ? "#71717a" : "#a1a1aa" },
               ]}
             >
               ›
@@ -1023,7 +1035,7 @@ function ProfileContent() {
             <Text
               style={[
                 styles.settingsRowText,
-                { color: isDark ? '#fff' : '#000' },
+                { color: isDark ? "#fff" : "#000" },
               ]}
             >
               Información física
@@ -1031,7 +1043,7 @@ function ProfileContent() {
             <Text
               style={[
                 styles.settingsRowChevron,
-                { color: isDark ? '#71717a' : '#a1a1aa' },
+                { color: isDark ? "#71717a" : "#a1a1aa" },
               ]}
             >
               ›
@@ -1043,13 +1055,13 @@ function ProfileContent() {
           type="secondary"
           lightColor={buttonBg}
           darkColor={buttonBg}
-          style={[styles.button, { marginTop: 16, backgroundColor: '#ef4444' }]}
+          style={[styles.button, { marginTop: 16, backgroundColor: "#ef4444" }]}
           onPress={async () => {
-            router.back()
-            await signOut()
+            router.back();
+            await signOut();
           }}
         >
-          <Text style={[styles.buttonText, { color: '#fff' }]}>
+          <Text style={[styles.buttonText, { color: "#fff" }]}>
             Cerrar sesión
           </Text>
         </ThemedPressable>
@@ -1058,7 +1070,7 @@ function ProfileContent() {
           <Text
             style={[
               styles.dangerSectionTitle,
-              { color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)' },
+              { color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.55)" },
             ]}
           >
             Zona peligrosa
@@ -1070,8 +1082,8 @@ function ProfileContent() {
             style={[
               styles.deleteAccountButton,
               {
-                borderColor: '#ef4444',
-                backgroundColor: 'transparent',
+                borderColor: "#ef4444",
+                backgroundColor: "transparent",
               },
             ]}
             onPress={() => setDeleteAccountModalVisible(true)}
@@ -1079,7 +1091,7 @@ function ProfileContent() {
             accessibilityLabel="Eliminar cuenta permanentemente"
           >
             <Text
-              style={[styles.deleteAccountButtonText, { color: '#ef4444' }]}
+              style={[styles.deleteAccountButtonText, { color: "#ef4444" }]}
             >
               Eliminar cuenta permanentemente
             </Text>
@@ -1119,7 +1131,7 @@ function ProfileContent() {
         buttonBg={buttonBg}
       />
     </View>
-  )
+  );
 }
 
 export default function ProfileScreen() {
@@ -1132,7 +1144,7 @@ export default function ProfileScreen() {
         <ProfileContent />
       </Authenticated>
     </>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -1140,8 +1152,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   scroll: {
     flex: 1,
@@ -1149,107 +1161,107 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 24,
     paddingBottom: 40,
-    alignItems: 'center',
+    alignItems: "center",
   },
   avatarRow: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 16,
   },
   avatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: "rgba(0,0,0,0.06)",
   },
   avatarPlaceholder: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarPlaceholderText: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 13,
     opacity: 0.8,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 24,
   },
   orgSection: {
-    width: '100%',
+    width: "100%",
     marginTop: 24,
     gap: 10,
   },
   orgSectionTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   orgErrorText: {
-    color: '#ef4444',
+    color: "#ef4444",
     fontSize: 13,
   },
   orgButton: {
     height: 44,
     borderRadius: 9999,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   orgButtonText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   button: {
     height: 48,
     borderRadius: 9999,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'stretch',
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "stretch",
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   dangerSection: {
-    width: '100%',
+    width: "100%",
     marginTop: 28,
     gap: 10,
   },
   dangerSectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   deleteAccountButton: {
     height: 48,
     borderRadius: 9999,
     borderWidth: 1.5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'stretch',
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "stretch",
   },
   deleteAccountButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   settingsSection: {
-    width: '100%',
+    width: "100%",
     marginTop: 28,
     gap: 8,
   },
   settingsSectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: 2,
   },
@@ -1257,13 +1269,13 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 9999,
     paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   settingsRowText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   settingsRowChevron: {
     fontSize: 22,
@@ -1281,26 +1293,26 @@ const styles = StyleSheet.create({
     height: undefined,
     minHeight: 88,
     paddingTop: 12,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   settingInputGroup: {
     gap: 6,
   },
   settingInputLabel: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
     paddingLeft: 4,
   },
   modalSaveButton: {
     height: 48,
     borderRadius: 9999,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 8,
   },
   modalSaveButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   pickerSheet: {
     paddingHorizontal: 16,
@@ -1311,51 +1323,51 @@ const styles = StyleSheet.create({
   },
   pickerSheetTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
   },
   pickerSheetDone: {
-    position: 'absolute',
+    position: "absolute",
     right: 16,
     bottom: 16,
     zIndex: 50,
     elevation: 50,
   },
   pickerSheetDoneInline: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginTop: 4,
   },
   pickerSheetDoneText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   modalRoot: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   // Flex-based backdrop: fills space above the card without overlapping it.
   // Avoids Android touch-dispatch issues caused by absoluteFillObject + pointerEvents.
   modalFlexBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: "rgba(0,0,0,0.45)",
   },
   // Same pattern for picker overlays inside modals.
   pickerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    flexDirection: 'column',
-    justifyContent: 'flex-end',
+    flexDirection: "column",
+    justifyContent: "flex-end",
   },
   modalCard: {
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingHorizontal: 24,
     paddingTop: 8,
-    maxHeight: '88%',
+    maxHeight: "88%",
   },
   modalHandleArea: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 8,
   },
   modalHandle: {
@@ -1365,7 +1377,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 12,
   },
   modalBody: {
@@ -1375,7 +1387,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   modalError: {
-    color: '#ef4444',
+    color: "#ef4444",
     fontSize: 14,
     marginBottom: 16,
   },
@@ -1383,25 +1395,25 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 9999,
     borderWidth: 1.5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'stretch',
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "stretch",
   },
   modalDeleteButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ef4444',
+    fontWeight: "600",
+    color: "#ef4444",
   },
   modalCancelButton: {
     height: 48,
     borderRadius: 9999,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'stretch',
+    justifyContent: "center",
+    alignItems: "center",
+    alignSelf: "stretch",
     marginBottom: 8,
   },
   modalCancelButtonText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
-})
+});

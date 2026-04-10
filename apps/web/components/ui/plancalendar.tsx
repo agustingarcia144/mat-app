@@ -1,56 +1,49 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
+import { useState } from "react";
 import {
   addDays,
   startOfMonth,
   startOfWeek,
   addMonths,
   subMonths,
-  format
-} from 'date-fns'
+  format,
+} from "date-fns";
 
-import { es } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { es } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type Props = {
-  startDate: Date
-  endDate: Date
-}
+  startDate: Date;
+  endDate: Date;
+};
 
 export default function PlanCalendar({ startDate, endDate }: Props) {
+  const [month, setMonth] = useState(startOfMonth(startDate));
 
-  const [month, setMonth] = useState(startOfMonth(startDate))
+  const today = new Date();
 
-  const today = new Date()
-
-  const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
+  const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
 
   /* 42 días = 6 semanas completas */
-  const days = Array.from({ length: 42 }).map((_, i) =>
-    addDays(start, i)
-  )
+  const days = Array.from({ length: 42 }).map((_, i) => addDays(start, i));
 
-  const isInRange = (date: Date) =>
-    date >= startDate && date <= endDate
+  const isInRange = (date: Date) => date >= startDate && date <= endDate;
 
   const isLastDays = (date: Date) =>
     isInRange(date) &&
-    (endDate.getTime() - date.getTime()) / (1000 * 60 * 60 * 24) <= 5
+    (endDate.getTime() - date.getTime()) / (1000 * 60 * 60 * 24) <= 5;
 
-  const isExpired = endDate < today
+  const isExpired = endDate < today;
 
   const isToday = (date: Date) =>
-    format(date, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
+    format(date, "yyyy-MM-dd") === format(today, "yyyy-MM-dd");
 
   return (
-
     <div className="w-full space-y-2">
-
       {/* HEADER */}
 
       <div className="flex items-center justify-between text-[11px] sm:text-xs">
-
         <button
           onClick={() => setMonth(subMonths(month, 1))}
           className="rounded p-1 hover:bg-muted sm:p-1"
@@ -59,7 +52,7 @@ export default function PlanCalendar({ startDate, endDate }: Props) {
         </button>
 
         <span className="text-center font-bold uppercase tracking-wide">
-          {format(month, 'MMMM yyyy', { locale: es })}
+          {format(month, "MMMM yyyy", { locale: es })}
         </span>
 
         <button
@@ -68,45 +61,33 @@ export default function PlanCalendar({ startDate, endDate }: Props) {
         >
           <ChevronRight size={16} />
         </button>
-
       </div>
 
       {/* WEEK DAYS */}
 
       <div className="grid grid-cols-7 text-[10px] text-muted-foreground sm:text-[10px]">
-
-        {['Lu','Ma','Mi','Ju','Vi','Sa','Do'].map((d) => (
+        {["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"].map((d) => (
           <div key={d} className="text-center">
             {d}
           </div>
         ))}
-
       </div>
 
       {/* DAYS */}
 
       <div className="grid grid-cols-7 gap-1">
-
         {days.map((date) => {
+          const inRange = isInRange(date);
 
-          const inRange = isInRange(date)
-
-          let bg = ''
+          let bg = "";
 
           if (inRange) {
-
-            if (isExpired)
-              bg = 'bg-red-500/40'
-
-            else if (isLastDays(date))
-              bg = 'bg-yellow-500/40'
-
-            else
-              bg = 'bg-green-500/40'
+            if (isExpired) bg = "bg-red-500/40";
+            else if (isLastDays(date)) bg = "bg-yellow-500/40";
+            else bg = "bg-green-500/40";
           }
 
           return (
-
             <div
               key={date.toISOString()}
               className={`
@@ -115,19 +96,14 @@ export default function PlanCalendar({ startDate, endDate }: Props) {
                 text-[11px] sm:text-xs
                 rounded
                 ${bg}
-                ${isToday(date) ? 'border border-white' : ''}
+                ${isToday(date) ? "border border-white" : ""}
               `}
             >
               {date.getDate()}
             </div>
-
-          )
-
+          );
         })}
-
       </div>
-
     </div>
-
-  )
+  );
 }

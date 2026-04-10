@@ -1,196 +1,198 @@
-'use client'
+"use client";
 
-import Image from 'next/image'
-import { useState } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { useRouter } from 'next/navigation'
-import { FileText, Calendar, MoreVertical } from 'lucide-react'
-import { useDraggable } from '@dnd-kit/react'
-import { Button } from '@/components/ui/button'
+import Image from "next/image";
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useRouter } from "next/navigation";
+import { FileText, Calendar, MoreVertical } from "lucide-react";
+import { useDraggable } from "@dnd-kit/react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
-import { formatDate } from 'date-fns'
-import matWolfLooking from '@/assets/mat-wolf-looking.png'
-import DuplicatePlanificationDialog from '../dialogs/duplicate-planification-dialog'
-import DeletePlanificationDialog from '../dialogs/delete-planification-dialog'
-import AssignDialog from '../assignments/assign-dialog'
-import AssignedMembersDialog from '../assignments/assigned-members-dialog'
-import { getPlanificationDragId } from '../planification-folder-dnd'
-import { cn } from '@/lib/utils'
+} from "@/components/ui/empty";
+import { formatDate } from "date-fns";
+import matWolfLooking from "@/assets/mat-wolf-looking.png";
+import DuplicatePlanificationDialog from "../dialogs/duplicate-planification-dialog";
+import DeletePlanificationDialog from "../dialogs/delete-planification-dialog";
+import AssignDialog from "../assignments/assign-dialog";
+import AssignedMembersDialog from "../assignments/assigned-members-dialog";
+import { getPlanificationDragId } from "../planification-folder-dnd";
+import { cn } from "@/lib/utils";
 
 export interface PlanificationData {
-  _id: string
-  name: string
-  description?: string
-  isTemplate: boolean
-  hasEverBeenAssigned?: boolean
-  createdBy: string
-  createdAt: number
-  updatedAt: number
+  _id: string;
+  name: string;
+  description?: string;
+  isTemplate: boolean;
+  hasEverBeenAssigned?: boolean;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 interface PlanificationListProps {
-  planifications: PlanificationData[]
-  isLoading: boolean
-  onUseTemplate?: (template: PlanificationData) => void
+  planifications: PlanificationData[];
+  isLoading: boolean;
+  onUseTemplate?: (template: PlanificationData) => void;
 }
 
 function PlanificationCard({
   planification,
   onUseTemplate,
 }: {
-  planification: PlanificationData
-  onUseTemplate?: (template: PlanificationData) => void
+  planification: PlanificationData;
+  onUseTemplate?: (template: PlanificationData) => void;
 }) {
-  const router = useRouter()
-  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const router = useRouter();
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
-    useState(false)
+    useState(false);
 
   const assignments = useQuery(
     api.planificationAssignments.getByPlanification,
     {
       planificationId: planification._id as any,
-    }
-  )
+    },
+  );
 
-  const dragId = getPlanificationDragId(planification._id)
+  const dragId = getPlanificationDragId(planification._id);
   const { ref, isDragging } = useDraggable(
-    planification.isTemplate ? { id: `noop-plan-${planification._id}` } : { id: dragId }
-  )
+    planification.isTemplate
+      ? { id: `noop-plan-${planification._id}` }
+      : { id: dragId },
+  );
 
   const cardContent = (
     <div
       className={cn(
-        'group border rounded-lg p-4 hover:border-primary cursor-pointer transition-colors',
-        !planification.isTemplate && 'cursor-grab active:cursor-grabbing',
-        isDragging && 'opacity-50'
+        "group border rounded-lg p-4 hover:border-primary cursor-pointer transition-colors",
+        !planification.isTemplate && "cursor-grab active:cursor-grabbing",
+        isDragging && "opacity-50",
       )}
       onClick={() =>
         router.push(`/dashboard/planifications/${planification._id}`)
       }
     >
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <h3 className="font-semibold truncate">{planification.name}</h3>
-          </div>
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <h3 className="font-semibold truncate">{planification.name}</h3>
+        </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 opacity-0 group-hover:opacity-100"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  router.push(`/dashboard/planifications/${planification._id}`)
-                }}
-              >
-                Ver
-              </DropdownMenuItem>
-              {!planification.isTemplate && (
-                <>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setAssignedMembersDialogOpen(true)
-                    }}
-                  >
-                    Ver Asignados
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setAssignDialogOpen(true)
-                    }}
-                  >
-                    Asignar
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  router.push(
-                    `/dashboard/planifications/${planification._id}/edit`
-                  )
-                }}
-              >
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setDuplicateDialogOpen(true)
-                }}
-              >
-                Duplicar
-              </DropdownMenuItem>
-              {planification.isTemplate && onUseTemplate && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 opacity-0 group-hover:opacity-100"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/dashboard/planifications/${planification._id}`);
+              }}
+            >
+              Ver
+            </DropdownMenuItem>
+            {!planification.isTemplate && (
+              <>
                 <DropdownMenuItem
                   onClick={(e) => {
-                    e.stopPropagation()
-                    onUseTemplate(planification)
+                    e.stopPropagation();
+                    setAssignedMembersDialogOpen(true);
                   }}
                 >
-                  Usar Plantilla
+                  Ver Asignados
                 </DropdownMenuItem>
-              )}
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAssignDialogOpen(true);
+                  }}
+                >
+                  Asignar
+                </DropdownMenuItem>
+              </>
+            )}
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(
+                  `/dashboard/planifications/${planification._id}/edit`,
+                );
+              }}
+            >
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                setDuplicateDialogOpen(true);
+              }}
+            >
+              Duplicar
+            </DropdownMenuItem>
+            {planification.isTemplate && onUseTemplate && (
               <DropdownMenuItem
                 onClick={(e) => {
-                  e.stopPropagation()
-                  setDeleteDialogOpen(true)
+                  e.stopPropagation();
+                  onUseTemplate(planification);
                 }}
-                className="text-destructive"
               >
-                Eliminar
+                Usar Plantilla
               </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {planification.description && (
-          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-            {planification.description}
-          </p>
-        )}
-
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3" />
-            {formatDate(planification.createdAt, 'dd/MM/yyyy')}
-          </div>
-          {planification.isTemplate && (
-            <Badge variant="secondary" className="text-xs">
-              Plantilla
-            </Badge>
-          )}
-        </div>
+            )}
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteDialogOpen(true);
+              }}
+              className="text-destructive"
+            >
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-  )
+
+      {planification.description && (
+        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+          {planification.description}
+        </p>
+      )}
+
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1">
+          <Calendar className="h-3 w-3" />
+          {formatDate(planification.createdAt, "dd/MM/yyyy")}
+        </div>
+        {planification.isTemplate && (
+          <Badge variant="secondary" className="text-xs">
+            Plantilla
+          </Badge>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -234,7 +236,7 @@ function PlanificationCard({
         </>
       )}
     </>
-  )
+  );
 }
 
 function PlanificationSkeleton() {
@@ -248,7 +250,7 @@ function PlanificationSkeleton() {
       <Skeleton className="h-4 w-3/4 mb-3" />
       <Skeleton className="h-3 w-24" />
     </div>
-  )
+  );
 }
 
 export default function PlanificationList({
@@ -263,7 +265,7 @@ export default function PlanificationList({
           <PlanificationSkeleton key={i} />
         ))}
       </div>
-    )
+    );
   }
 
   if (planifications.length === 0) {
@@ -283,7 +285,7 @@ export default function PlanificationList({
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
-    )
+    );
   }
 
   return (
@@ -296,5 +298,5 @@ export default function PlanificationList({
         />
       ))}
     </div>
-  )
+  );
 }

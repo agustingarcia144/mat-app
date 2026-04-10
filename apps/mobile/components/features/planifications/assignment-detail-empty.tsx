@@ -1,13 +1,13 @@
-import React from 'react'
-import { View, Image } from 'react-native'
-import { ThemedView } from '@/components/ui/themed-view'
-import { ThemedText } from '@/components/ui/themed-text'
-import { assignmentDetailStyles as styles } from './assignment-detail-styles'
+import React from "react";
+import { View, Image } from "react-native";
+import { ThemedView } from "@/components/ui/themed-view";
+import { ThemedText } from "@/components/ui/themed-text";
+import { assignmentDetailStyles as styles } from "./assignment-detail-styles";
 
-const matWolfLooking = require('@/assets/images/mat-wolf-looking.png')
+const matWolfLooking = require("@/assets/images/mat-wolf-looking.png");
 
 interface AssignmentDetailNotFoundProps {
-  paddingTop: number
+  paddingTop: number;
 }
 
 export function AssignmentDetailNotFound({
@@ -30,12 +30,12 @@ export function AssignmentDetailNotFound({
         </ThemedText>
       </View>
     </ThemedView>
-  )
+  );
 }
 
 interface AssignmentDetailEmptyCardProps {
-  message: string
-  muted: string
+  message: string;
+  muted: string;
 }
 
 export function AssignmentDetailEmptyCard({
@@ -54,5 +54,5 @@ export function AssignmentDetailEmptyCard({
         {message}
       </ThemedText>
     </View>
-  )
+  );
 }

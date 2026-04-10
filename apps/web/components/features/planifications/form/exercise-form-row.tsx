@@ -1,21 +1,18 @@
-'use client'
+"use client";
 
-import { UseFormReturn, Controller } from 'react-hook-form'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
-import { Trash2 } from 'lucide-react'
-import {
-  Field,
-  FieldError,
-} from '@/components/ui/field'
-import { PlanificationForm } from '@repo/core/schemas'
+import { UseFormReturn, Controller } from "react-hook-form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
+import { Field, FieldError } from "@/components/ui/field";
+import { PlanificationForm } from "@repo/core/schemas";
 
 interface ExerciseFormRowProps {
-  weekIndex: number
-  dayIndex: number
-  exerciseIndex: number
-  form: UseFormReturn<PlanificationForm>
-  onRemove: () => void
+  weekIndex: number;
+  dayIndex: number;
+  exerciseIndex: number;
+  form: UseFormReturn<PlanificationForm>;
+  onRemove: () => void;
 }
 
 export default function ExerciseFormRow({
@@ -26,8 +23,8 @@ export default function ExerciseFormRow({
   onRemove,
 }: ExerciseFormRowProps) {
   const exercise = form.watch(
-    `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises.${exerciseIndex}`
-  )
+    `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises.${exerciseIndex}`,
+  );
 
   return (
     <div className="flex items-center gap-1.5 p-2 bg-muted/50 rounded-md">
@@ -50,9 +47,7 @@ export default function ExerciseFormRow({
                 placeholder="S"
                 className="h-7 text-center text-xs"
               />
-              {fieldState.invalid && (
-                <FieldError errors={[fieldState.error]} />
-              )}
+              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
           )}
         />
@@ -70,9 +65,7 @@ export default function ExerciseFormRow({
                 placeholder="R"
                 className="h-7 text-center text-xs"
               />
-              {fieldState.invalid && (
-                <FieldError errors={[fieldState.error]} />
-              )}
+              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
           )}
         />
@@ -88,9 +81,7 @@ export default function ExerciseFormRow({
                 placeholder="Peso"
                 className="h-7 text-xs"
               />
-              {fieldState.invalid && (
-                <FieldError errors={[fieldState.error]} />
-              )}
+              {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
           )}
         />
@@ -106,5 +97,5 @@ export default function ExerciseFormRow({
         </Button>
       </div>
     </div>
-  )
+  );
 }

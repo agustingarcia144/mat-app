@@ -1,8 +1,8 @@
-import React from 'react'
-import { Authenticated, AuthLoading } from 'convex/react'
+import React from "react";
+import { Authenticated, AuthLoading } from "convex/react";
 
-import LoadingScreen from '@/components/shared/screens/loading-screen'
-import ProofUploadForm from '@/components/features/plan/proof-upload-form'
+import LoadingScreen from "@/components/shared/screens/loading-screen";
+import ProofUploadForm from "@/components/features/plan/proof-upload-form";
 
 export default function UploadProofScreen() {
   return (
@@ -14,5 +14,5 @@ export default function UploadProofScreen() {
         <ProofUploadForm />
       </Authenticated>
     </>
-  )
+  );
 }

@@ -1,183 +1,183 @@
-'use client'
+"use client";
 
-import { useQuery, useMutation } from 'convex/react'
-import type { Doc } from '@/convex/_generated/dataModel'
-import { api } from '@/convex/_generated/api'
-import { Plus, FileStack, FolderTree } from 'lucide-react'
+import { useQuery, useMutation } from "convex/react";
+import type { Doc } from "@/convex/_generated/dataModel";
+import { api } from "@/convex/_generated/api";
+import { Plus, FileStack, FolderTree } from "lucide-react";
 import {
   useState,
   useCallback,
   useSyncExternalStore,
   useEffect,
   startTransition,
-} from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
-import { DragDropProvider, useDragDropMonitor } from '@dnd-kit/react'
-import { toast } from 'sonner'
+} from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { DragDropProvider, useDragDropMonitor } from "@dnd-kit/react";
+import { toast } from "sonner";
 import {
   parsePlanificationDragId,
   parseFolderDndId,
   FOLDER_ROOT_ID,
   getFolderAndDescendantIds,
-} from '@/components/features/planifications/planification-folder-dnd'
+} from "@/components/features/planifications/planification-folder-dnd";
 
-const PLANIFICATIONS_LIST_VIEW_KEY = 'planifications-list-view'
+const PLANIFICATIONS_LIST_VIEW_KEY = "planifications-list-view";
 
-function getStoredListView(): 'grid' | 'table' {
-  if (typeof window === 'undefined') return 'grid'
-  const s = localStorage.getItem(PLANIFICATIONS_LIST_VIEW_KEY)
-  return s === 'grid' || s === 'table' ? s : 'grid'
+function getStoredListView(): "grid" | "table" {
+  if (typeof window === "undefined") return "grid";
+  const s = localStorage.getItem(PLANIFICATIONS_LIST_VIEW_KEY);
+  return s === "grid" || s === "table" ? s : "grid";
 }
 
-const listViewListeners = new Set<() => void>()
+const listViewListeners = new Set<() => void>();
 function subscribeToListView(callback: () => void) {
-  listViewListeners.add(callback)
+  listViewListeners.add(callback);
   return () => {
-    listViewListeners.delete(callback)
-  }
+    listViewListeners.delete(callback);
+  };
 }
 function notifyListViewListeners() {
-  listViewListeners.forEach((cb) => cb())
+  listViewListeners.forEach((cb) => cb());
 }
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-} from '@/components/ui/resizable'
+} from "@/components/ui/resizable";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from '@/components/ui/context-menu'
+} from "@/components/ui/context-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from '@/components/ui/sheet'
-import PlanificationList from '@/components/features/planifications/library/planification-list'
-import PlanificationListTable from '@/components/features/planifications/library/planification-list-table'
-import FolderTreeSidebar from '@/components/features/planifications/folder-tree/folder-tree'
-import CreatePlanificationDialog from '@/components/features/planifications/dialogs/create-planification-dialog'
-import TemplatesDialog from '@/components/features/planifications/dialogs/templates-dialog'
-import { useIsMobile } from '@/hooks/use-mobile'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
-import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
-import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
+} from "@/components/ui/sheet";
+import PlanificationList from "@/components/features/planifications/library/planification-list";
+import PlanificationListTable from "@/components/features/planifications/library/planification-list-table";
+import FolderTreeSidebar from "@/components/features/planifications/folder-tree/folder-tree";
+import CreatePlanificationDialog from "@/components/features/planifications/dialogs/create-planification-dialog";
+import TemplatesDialog from "@/components/features/planifications/dialogs/templates-dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { ResponsiveActionButton } from "@/components/ui/responsive-action-button";
+import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 
 /** Must be a direct child of DragDropProvider so useDragDropMonitor receives the manager and we get the drop target. */
 function PlanificationsDragEndMonitor({
   onDragEnd,
   children,
 }: {
-  onDragEnd: (event: unknown, manager?: unknown) => void
-  children: React.ReactNode
+  onDragEnd: (event: unknown, manager?: unknown) => void;
+  children: React.ReactNode;
 }) {
-  useDragDropMonitor({ onDragEnd })
-  return <>{children}</>
+  useDragDropMonitor({ onDragEnd });
+  return <>{children}</>;
 }
 
 export default function PlanificationsPage() {
-  const isMobile = useIsMobile()
-  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
-  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const isMobile = useIsMobile();
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createDialogTemplateId, setCreateDialogTemplateId] = useState<
     string | undefined
-  >(undefined)
+  >(undefined);
   const [createDialogTemplate, setCreateDialogTemplate] = useState<
     { name: string; description?: string } | undefined
-  >(undefined)
-  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false)
-  const [dialogFolderId, setDialogFolderId] = useState<string | undefined>()
-  const searchParams = useSearchParams()
-  const router = useRouter()
+  >(undefined);
+  const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
+  const [dialogFolderId, setDialogFolderId] = useState<string | undefined>();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
-    const createFrom = searchParams.get('createFrom')
+    const createFrom = searchParams.get("createFrom");
     if (createFrom) {
       startTransition(() => {
-        setCreateDialogTemplateId(createFrom)
-        setCreateDialogOpen(true)
-      })
-      router.replace('/dashboard/planifications', { scroll: false })
+        setCreateDialogTemplateId(createFrom);
+        setCreateDialogOpen(true);
+      });
+      router.replace("/dashboard/planifications", { scroll: false });
     }
-  }, [searchParams, router])
+  }, [searchParams, router]);
   const listView = useSyncExternalStore(
     subscribeToListView,
     getStoredListView,
-    () => 'grid'
-  )
-  const setListView = useCallback((value: 'grid' | 'table') => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(PLANIFICATIONS_LIST_VIEW_KEY, value)
-      notifyListViewListeners()
+    () => "grid",
+  );
+  const setListView = useCallback((value: "grid" | "table") => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(PLANIFICATIONS_LIST_VIEW_KEY, value);
+      notifyListViewListeners();
     }
-  }, [])
-  const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false)
+  }, []);
+  const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
 
   const folders = useQuery(
     api.folders.getTree,
-    canQueryCurrentOrganization ? {} : 'skip'
-  )
+    canQueryCurrentOrganization ? {} : "skip",
+  );
   const deletableFolderIds = useQuery(
     api.folders.getDeletableFolderIds,
-    canQueryCurrentOrganization ? {} : 'skip'
-  )
+    canQueryCurrentOrganization ? {} : "skip",
+  );
   const planifications = useQuery(
     api.planifications.getByFolder,
     canQueryCurrentOrganization
       ? {
           folderId: selectedFolderId ? (selectedFolderId as any) : undefined,
         }
-      : 'skip'
-  )
-  const updatePlanification = useMutation(api.planifications.update)
-  const moveFolder = useMutation(api.folders.move)
+      : "skip",
+  );
+  const updatePlanification = useMutation(api.planifications.update);
+  const moveFolder = useMutation(api.folders.move);
 
   const handleDragEnd = useCallback(
     async (event: unknown, manager?: unknown) => {
-      if ((event as { canceled?: boolean })?.canceled) return
+      if ((event as { canceled?: boolean })?.canceled) return;
       const ev = event as {
-        operation?: { source?: { id?: string }; target?: { id?: string } }
+        operation?: { source?: { id?: string }; target?: { id?: string } };
         detail?: {
-          operation?: { source?: { id?: string }; target?: { id?: string } }
-        }
-      }
+          operation?: { source?: { id?: string }; target?: { id?: string } };
+        };
+      };
       const mgr = manager as
         | {
             dragOperation?: {
-              source?: { id?: string }
-              target?: { id?: string }
-            }
-            operation?: { source?: { id?: string }; target?: { id?: string } }
+              source?: { id?: string };
+              target?: { id?: string };
+            };
+            operation?: { source?: { id?: string }; target?: { id?: string } };
           }
-        | undefined
+        | undefined;
       const op =
         ev?.operation ??
         mgr?.dragOperation ??
         mgr?.operation ??
-        ev?.detail?.operation
-      const source = op?.source
-      const target = op?.target
-      if (!source?.id || !target?.id || source.id === target.id) return
+        ev?.detail?.operation;
+      const source = op?.source;
+      const target = op?.target;
+      if (!source?.id || !target?.id || source.id === target.id) return;
 
-      const sourceId = String(source.id)
-      const targetId = String(target.id)
+      const sourceId = String(source.id);
+      const targetId = String(target.id);
 
-      const planificationId = parsePlanificationDragId(sourceId)
+      const planificationId = parsePlanificationDragId(sourceId);
       if (planificationId != null) {
         if (targetId !== FOLDER_ROOT_ID && parseFolderDndId(targetId) == null)
-          return
+          return;
         try {
           await updatePlanification({
             id: planificationId as any,
@@ -185,58 +185,59 @@ export default function PlanificationsPage() {
               targetId === FOLDER_ROOT_ID
                 ? undefined
                 : (parseFolderDndId(targetId) as any),
-          })
-          toast.success('Planificación movida')
+          });
+          toast.success("Planificación movida");
         } catch {
-          toast.error('Error al mover la planificación')
+          toast.error("Error al mover la planificación");
         }
-        return
+        return;
       }
 
-      const sourceFolderId = parseFolderDndId(sourceId)
+      const sourceFolderId = parseFolderDndId(sourceId);
       if (sourceFolderId != null) {
         if (targetId !== FOLDER_ROOT_ID && parseFolderDndId(targetId) == null)
-          return
-        const folderList = folders ?? []
+          return;
+        const folderList = folders ?? [];
         const invalidTargets = getFolderAndDescendantIds(
           sourceFolderId,
-          folderList
-        )
+          folderList,
+        );
         const targetFolderId =
-          targetId === FOLDER_ROOT_ID ? null : parseFolderDndId(targetId)
-        if (targetFolderId != null && invalidTargets.has(targetFolderId)) return
+          targetId === FOLDER_ROOT_ID ? null : parseFolderDndId(targetId);
+        if (targetFolderId != null && invalidTargets.has(targetFolderId))
+          return;
         try {
           await moveFolder({
             id: sourceFolderId as any,
             newParentId:
               targetId === FOLDER_ROOT_ID ? undefined : (targetFolderId as any),
-          })
-          toast.success('Carpeta movida')
+          });
+          toast.success("Carpeta movida");
         } catch {
-          toast.error('Error al mover la carpeta')
+          toast.error("Error al mover la carpeta");
         }
       }
     },
-    [folders, updatePlanification, moveFolder]
-  )
+    [folders, updatePlanification, moveFolder],
+  );
 
   const selectedFolderName = selectedFolderId
-    ? folders?.find((folder: Doc<'folders'>) => folder._id === selectedFolderId)
+    ? folders?.find((folder: Doc<"folders">) => folder._id === selectedFolderId)
         ?.name
-    : 'Todas'
+    : "Todas";
 
   const handleUseTemplate = useCallback(
     (template: { _id: string; name: string; description?: string }) => {
-      setCreateDialogTemplateId(template._id)
+      setCreateDialogTemplateId(template._id);
       setCreateDialogTemplate({
         name: template.name,
         description: template.description,
-      })
-      setCreateDialogOpen(true)
-      setTemplatesDialogOpen(false)
+      });
+      setCreateDialogOpen(true);
+      setTemplatesDialogOpen(false);
     },
-    []
-  )
+    [],
+  );
 
   const planificationsGrid = (
     <PlanificationList
@@ -244,10 +245,10 @@ export default function PlanificationsPage() {
       isLoading={planifications === undefined}
       onUseTemplate={handleUseTemplate}
     />
-  )
+  );
 
   const desktopListContent =
-    listView === 'grid' ? (
+    listView === "grid" ? (
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div className="flex-1 min-h-0 p-4 pt-2 overflow-auto">
@@ -257,8 +258,8 @@ export default function PlanificationsPage() {
         <ContextMenuContent>
           <ContextMenuItem
             onClick={() => {
-              setDialogFolderId(selectedFolderId || undefined)
-              setCreateDialogOpen(true)
+              setDialogFolderId(selectedFolderId || undefined);
+              setCreateDialogOpen(true);
             }}
           >
             Nueva Planificación
@@ -273,18 +274,18 @@ export default function PlanificationsPage() {
           onUseTemplate={handleUseTemplate}
         />
       </div>
-    )
+    );
 
   const dialogs = (
     <>
       <CreatePlanificationDialog
         open={createDialogOpen}
         onOpenChange={(open) => {
-          setCreateDialogOpen(open)
+          setCreateDialogOpen(open);
           if (!open) {
-            setDialogFolderId(undefined)
-            setCreateDialogTemplateId(undefined)
-            setCreateDialogTemplate(undefined)
+            setDialogFolderId(undefined);
+            setCreateDialogTemplateId(undefined);
+            setCreateDialogTemplate(undefined);
           }
         }}
         folderId={dialogFolderId}
@@ -298,7 +299,7 @@ export default function PlanificationsPage() {
         onUseTemplate={handleUseTemplate}
       />
     </>
-  )
+  );
 
   if (isMobile) {
     return (
@@ -320,8 +321,8 @@ export default function PlanificationsPage() {
           />
           <ResponsiveActionButton
             onClick={() => {
-              setDialogFolderId(undefined)
-              setCreateDialogOpen(true)
+              setDialogFolderId(undefined);
+              setCreateDialogOpen(true);
             }}
             icon={<Plus className="h-4 w-4" aria-hidden />}
             label="Nueva planificación"
@@ -345,8 +346,8 @@ export default function PlanificationsPage() {
                   folders={folders || []}
                   selectedId={selectedFolderId}
                   onSelect={(id) => {
-                    setSelectedFolderId(id)
-                    setMobileFoldersOpen(false)
+                    setSelectedFolderId(id);
+                    setMobileFoldersOpen(false);
                   }}
                   deletableFolderIds={deletableFolderIds ?? []}
                 />
@@ -364,7 +365,7 @@ export default function PlanificationsPage() {
 
         {dialogs}
       </DashboardPageContainer>
-    )
+    );
   }
 
   return (
@@ -386,8 +387,8 @@ export default function PlanificationsPage() {
           />
           <ResponsiveActionButton
             onClick={() => {
-              setDialogFolderId(undefined)
-              setCreateDialogOpen(true)
+              setDialogFolderId(undefined);
+              setCreateDialogOpen(true);
             }}
             icon={<Plus className="h-4 w-4" aria-hidden />}
             label="Nueva planificación"
@@ -420,7 +421,7 @@ export default function PlanificationsPage() {
                   <span className="text-sm text-muted-foreground">Vista:</span>
                   <Select
                     value={listView}
-                    onValueChange={(v) => setListView(v as 'grid' | 'table')}
+                    onValueChange={(v) => setListView(v as "grid" | "table")}
                   >
                     <SelectTrigger className="w-[120px]">
                       <SelectValue placeholder="Vista" />
@@ -438,5 +439,5 @@ export default function PlanificationsPage() {
         </PlanificationsDragEndMonitor>
       </DragDropProvider>
     </DashboardPageContainer>
-  )
+  );
 }

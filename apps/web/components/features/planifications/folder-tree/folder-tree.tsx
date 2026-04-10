@@ -1,67 +1,75 @@
-'use client'
+"use client";
 
-import { useState, useCallback } from 'react'
-import { ChevronRight, Folder, FolderOpen, FolderInput, GripVertical, Plus, Trash2 } from 'lucide-react'
-import { useDraggable, useDroppable } from '@dnd-kit/react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { useState, useCallback } from "react";
+import {
+  ChevronRight,
+  Folder,
+  FolderOpen,
+  FolderInput,
+  GripVertical,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { useDraggable, useDroppable } from "@dnd-kit/react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuTrigger,
-} from '@/components/ui/context-menu'
-import CreateFolderDialog from '@/components/features/planifications/folder-tree/create-folder-dialog'
-import DeleteFolderDialog from '@/components/features/planifications/folder-tree/delete-folder-dialog'
-import MoveFolderDialog from '@/components/features/planifications/folder-tree/move-folder-dialog'
+} from "@/components/ui/context-menu";
+import CreateFolderDialog from "@/components/features/planifications/folder-tree/create-folder-dialog";
+import DeleteFolderDialog from "@/components/features/planifications/folder-tree/delete-folder-dialog";
+import MoveFolderDialog from "@/components/features/planifications/folder-tree/move-folder-dialog";
 import {
   FOLDER_ROOT_ID,
   getFolderDndId,
-} from '@/components/features/planifications/planification-folder-dnd'
+} from "@/components/features/planifications/planification-folder-dnd";
 
 interface FolderData {
-  _id: string
-  name: string
-  parentId?: string
-  path: string
-  order: number
+  _id: string;
+  name: string;
+  parentId?: string;
+  path: string;
+  order: number;
 }
 
 interface FolderTreeSidebarProps {
-  folders: FolderData[]
-  selectedId: string | null
-  onSelect: (id: string | null) => void
+  folders: FolderData[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
   /** Folder IDs that can be deleted (empty). When provided, "Eliminar" is shown in context menu. */
-  deletableFolderIds?: string[]
+  deletableFolderIds?: string[];
   /** When true, folders and root are draggable/droppable for DnD move. Default false (e.g. in picker dialogs). */
-  enableDnd?: boolean
+  enableDnd?: boolean;
 }
 
 interface FolderTreeProps {
-  folders: FolderData[]
-  selectedId: string | null
-  onSelect: (id: string | null) => void
-  showCreateDialog: boolean
-  setShowCreateDialog: (show: boolean) => void
+  folders: FolderData[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  showCreateDialog: boolean;
+  setShowCreateDialog: (show: boolean) => void;
   /** Label for the root option (e.g. "Sin carpeta" in picker mode). Default "Todas" */
-  rootLabel?: string
+  rootLabel?: string;
   /** When true, hide create-folder actions (for picker/select mode). */
-  disableCreate?: boolean
+  disableCreate?: boolean;
   /** Folder IDs that can be deleted (empty). When provided, "Eliminar" is shown in context menu. */
-  deletableFolderIds?: string[]
-  enableDnd?: boolean
+  deletableFolderIds?: string[];
+  enableDnd?: boolean;
 }
 
 interface FolderItemProps {
-  folder: FolderData
-  child?: FolderData[]
-  folders: FolderData[]
-  level: number
-  selectedId: string | null
-  onSelect: (id: string | null) => void
-  disableCreate?: boolean
-  deletableFolderIds?: string[]
-  enableDnd?: boolean
+  folder: FolderData;
+  child?: FolderData[];
+  folders: FolderData[];
+  level: number;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  disableCreate?: boolean;
+  deletableFolderIds?: string[];
+  enableDnd?: boolean;
 }
 
 function FolderItem({
@@ -75,31 +83,35 @@ function FolderItem({
   deletableFolderIds,
   enableDnd,
 }: FolderItemProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [showMoveDialog, setShowMoveDialog] = useState(false)
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const isSelected = selectedId === folder._id
-  const hasChildren = child && child.length > 0
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const isSelected = selectedId === folder._id;
+  const hasChildren = child && child.length > 0;
   const canDelete =
-    deletableFolderIds != null && deletableFolderIds.includes(folder._id)
+    deletableFolderIds != null && deletableFolderIds.includes(folder._id);
 
-  const dndId = getFolderDndId(folder._id)
-  const { ref: dragRef, handleRef, isDragging } = useDraggable({
+  const dndId = getFolderDndId(folder._id);
+  const {
+    ref: dragRef,
+    handleRef,
+    isDragging,
+  } = useDraggable({
     id: enableDnd ? dndId : `noop-folder-${folder._id}`,
-  })
+  });
   const { ref: dropRef, isDropTarget } = useDroppable({
     id: enableDnd ? dndId : `noop-folder-${folder._id}`,
-  })
+  });
   const setRef = useCallback(
     (el: HTMLDivElement | null) => {
       if (enableDnd) {
-        dragRef(el)
-        dropRef(el)
+        dragRef(el);
+        dropRef(el);
       }
     },
-    [enableDnd, dragRef, dropRef]
-  )
+    [enableDnd, dragRef, dropRef],
+  );
 
   const rowContent = (
     <>
@@ -119,14 +131,14 @@ function FolderItem({
           size="icon"
           className="h-4 w-4 p-0"
           onClick={(e) => {
-            e.stopPropagation()
-            setIsExpanded(!isExpanded)
+            e.stopPropagation();
+            setIsExpanded(!isExpanded);
           }}
         >
           <ChevronRight
             className={cn(
-              'h-3 w-3 transition-transform',
-              isExpanded && 'rotate-90'
+              "h-3 w-3 transition-transform",
+              isExpanded && "rotate-90",
             )}
           />
         </Button>
@@ -146,14 +158,14 @@ function FolderItem({
         <span className="text-sm truncate">{folder.name}</span>
       </div>
     </>
-  )
+  );
 
   const rowClassName = cn(
-    'flex items-center gap-1 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer group',
-    isSelected && 'bg-accent',
-    enableDnd && isDragging && 'opacity-50',
-    enableDnd && isDropTarget && 'ring-2 ring-white'
-  )
+    "flex items-center gap-1 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer group",
+    isSelected && "bg-accent",
+    enableDnd && isDragging && "opacity-50",
+    enableDnd && isDropTarget && "ring-2 ring-white",
+  );
 
   return (
     <div>
@@ -232,7 +244,7 @@ function FolderItem({
           folders={folders}
           onSuccess={() => {
             if (selectedId === folder._id) {
-              onSelect(null)
+              onSelect(null);
             }
           }}
         />
@@ -246,13 +258,13 @@ function FolderItem({
           folderName={folder.name}
           onSuccess={() => {
             if (selectedId === folder._id) {
-              onSelect(null)
+              onSelect(null);
             }
           }}
         />
       )}
     </div>
-  )
+  );
 }
 
 function FolderTreeItem({
@@ -265,16 +277,16 @@ function FolderTreeItem({
   deletableFolderIds,
   enableDnd,
 }: {
-  folder: FolderData
-  folders: FolderData[]
-  level: number
-  selectedId: string | null
-  onSelect: (id: string | null) => void
-  disableCreate?: boolean
-  deletableFolderIds?: string[]
-  enableDnd?: boolean
+  folder: FolderData;
+  folders: FolderData[];
+  level: number;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  disableCreate?: boolean;
+  deletableFolderIds?: string[];
+  enableDnd?: boolean;
 }) {
-  const child = folders.filter((f) => f.parentId === folder._id)
+  const child = folders.filter((f) => f.parentId === folder._id);
   return (
     <FolderItem
       folder={folder}
@@ -287,7 +299,7 @@ function FolderTreeItem({
       deletableFolderIds={deletableFolderIds}
       enableDnd={enableDnd}
     />
-  )
+  );
 }
 
 function DroppableRootRow({
@@ -296,28 +308,28 @@ function DroppableRootRow({
   onSelect,
   enableDnd,
 }: {
-  rootLabel: string
-  selectedId: string | null
-  onSelect: (id: string | null) => void
-  enableDnd?: boolean
+  rootLabel: string;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  enableDnd?: boolean;
 }) {
   const { ref, isDropTarget } = useDroppable({
-    id: enableDnd ? FOLDER_ROOT_ID : 'noop-root',
-  })
+    id: enableDnd ? FOLDER_ROOT_ID : "noop-root",
+  });
   return (
     <div
       ref={enableDnd ? ref : undefined}
       className={cn(
-        'flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer',
-        selectedId === null && 'bg-accent',
-        enableDnd && isDropTarget && 'ring-2 ring-white'
+        "flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer",
+        selectedId === null && "bg-accent",
+        enableDnd && isDropTarget && "ring-2 ring-white",
       )}
       onClick={() => onSelect(null)}
     >
       <Folder className="h-4 w-4 text-muted-foreground" />
       <span className="text-sm font-medium">{rootLabel}</span>
     </div>
-  )
+  );
 }
 
 function FolderTree({
@@ -326,12 +338,12 @@ function FolderTree({
   onSelect,
   showCreateDialog,
   setShowCreateDialog,
-  rootLabel = 'Todas',
+  rootLabel = "Todas",
   disableCreate = false,
   deletableFolderIds,
   enableDnd,
 }: FolderTreeProps) {
-  const rootFolders = folders.filter((f) => !f.parentId)
+  const rootFolders = folders.filter((f) => !f.parentId);
 
   return (
     <div className="space-y-1">
@@ -364,10 +376,10 @@ function FolderTree({
         />
       )}
     </div>
-  )
+  );
 }
 
-export { FolderTree }
+export { FolderTree };
 
 export default function FolderTreeSidebar({
   folders,
@@ -376,7 +388,7 @@ export default function FolderTreeSidebar({
   deletableFolderIds,
   enableDnd = false,
 }: FolderTreeSidebarProps) {
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -399,5 +411,5 @@ export default function FolderTreeSidebar({
         enableDnd={enableDnd}
       />
     </div>
-  )
+  );
 }

@@ -1,15 +1,15 @@
-import { useRouter } from 'expo-router'
-import { PressableScale } from 'pressto'
-import { StyleSheet, useColorScheme } from 'react-native'
-import { IconSymbol } from './icon-symbol'
+import { useRouter } from "expo-router";
+import { PressableScale } from "pressto";
+import { StyleSheet, useColorScheme } from "react-native";
+import { IconSymbol } from "./icon-symbol";
 
-const SIZE = 36
+const SIZE = 36;
 
 export default function HeaderBackButton() {
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-  const tint = isDark ? '#fff' : '#000'
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const tint = isDark ? "#fff" : "#000";
 
   return (
     <PressableScale
@@ -19,7 +19,7 @@ export default function HeaderBackButton() {
     >
       <IconSymbol name="chevron.left" size={22} color={tint} />
     </PressableScale>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -27,7 +27,7 @@ const styles = StyleSheet.create({
     width: SIZE,
     height: SIZE,
     borderRadius: SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-})
+});

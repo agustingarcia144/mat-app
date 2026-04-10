@@ -1,18 +1,18 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useMemo } from 'react'
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery, useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Button } from '@/components/ui/button'
+import { useState, useEffect, useMemo } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
+} from "@/components/ui/sheet";
 import {
   Command,
   CommandEmpty,
@@ -20,33 +20,33 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
+} from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover'
-import { Textarea } from '@/components/ui/textarea'
-import { Calendar } from '@/components/ui/calendar'
+} from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Field,
   FieldLabel,
   FieldDescription,
   FieldError,
-} from '@/components/ui/field'
-import { assignmentSchema, Assignment } from '@repo/core/schemas'
-import { format, addDays } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { Check, ChevronsUpDown } from 'lucide-react'
-import { type DateRange } from 'react-day-picker'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+} from "@/components/ui/field";
+import { assignmentSchema, Assignment } from "@repo/core/schemas";
+import { format, addDays } from "date-fns";
+import { es } from "date-fns/locale";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { type DateRange } from "react-day-picker";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 interface AssignDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  planificationId: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  planificationId: string;
 }
 
 export default function AssignDialog({
@@ -54,13 +54,13 @@ export default function AssignDialog({
   onOpenChange,
   planificationId,
 }: AssignDialogProps) {
-  const assign = useMutation(api.planificationAssignments.assign)
-  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
+  const assign = useMutation(api.planificationAssignments.assign);
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
 
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    open && canQueryCurrentOrganization ? {} : 'skip'
-  )
+    open && canQueryCurrentOrganization ? {} : "skip",
+  );
 
   const assignments = useQuery(
     api.planificationAssignments.getByPlanification,
@@ -68,66 +68,66 @@ export default function AssignDialog({
       ? {
           planificationId: planificationId as any,
         }
-      : 'skip'
-  )
+      : "skip",
+  );
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: new Date(),
     to: addDays(new Date(), 30),
-  })
-  const [memberSearchOpen, setMemberSearchOpen] = useState(false)
+  });
+  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
 
   // NUEVO: múltiples seleccionados
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([])
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
   const form = useForm<Assignment>({
     resolver: zodResolver(assignmentSchema),
     defaultValues: {
-      userId: '',
-      startDate: '',
-      endDate: '',
-      notes: '',
+      userId: "",
+      startDate: "",
+      endDate: "",
+      notes: "",
     },
-  })
-// Update form values when date range changes
+  });
+  // Update form values when date range changes
   useEffect(() => {
     if (dateRange?.from) {
-      form.setValue('startDate', format(dateRange.from, 'yyyy-MM-dd'))
+      form.setValue("startDate", format(dateRange.from, "yyyy-MM-dd"));
     } else {
-      form.setValue('startDate', '')
+      form.setValue("startDate", "");
     }
 
     if (dateRange?.to) {
-      form.setValue('endDate', format(dateRange.to, 'yyyy-MM-dd'))
+      form.setValue("endDate", format(dateRange.to, "yyyy-MM-dd"));
     } else {
-      form.setValue('endDate', '')
+      form.setValue("endDate", "");
     }
-  }, [dateRange, form])
+  }, [dateRange, form]);
 
   const assignedUserIds = useMemo(() => {
-    if (!assignments) return new Set<string>()
+    if (!assignments) return new Set<string>();
 
     return new Set(
       assignments
-        .filter((a: { status: string }) => a.status === 'active')
-        .map((a: { userId: string }) => a.userId)
-    )
-  }, [assignments])
+        .filter((a: { status: string }) => a.status === "active")
+        .map((a: { userId: string }) => a.userId),
+    );
+  }, [assignments]);
 
   const availableMembers = useMemo(() => {
-    if (!memberships) return []
+    if (!memberships) return [];
 
     return memberships.filter(
       (m: { role: string; userId: string }) =>
-        m.role === 'member' && !assignedUserIds.has(m.userId)
-    )
-  }, [memberships, assignedUserIds])
+        m.role === "member" && !assignedUserIds.has(m.userId),
+    );
+  }, [memberships, assignedUserIds]);
 
   const onSubmit = async (data: Assignment) => {
     try {
       if (selectedUsers.length === 0) {
-        toast.error('Selecciona al menos un miembro')
-        return
+        toast.error("Selecciona al menos un miembro");
+        return;
       }
 
       for (const userId of selectedUsers) {
@@ -139,21 +139,21 @@ export default function AssignDialog({
             : undefined,
           endDate: data.endDate ? new Date(data.endDate).getTime() : undefined,
           notes: data.notes?.trim() || undefined,
-        })
+        });
       }
 
-      form.reset()
-      setSelectedUsers([])
+      form.reset();
+      setSelectedUsers([]);
       setDateRange({
         from: new Date(),
         to: addDays(new Date(), 30),
-      })
-      onOpenChange(false)
+      });
+      onOpenChange(false);
     } catch (error: any) {
-      console.error('Failed to assign:', error)
-      toast.error(error.message || 'Error al asignar planificación')
+      console.error("Failed to assign:", error);
+      toast.error(error.message || "Error al asignar planificación");
     }
-  }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -183,15 +183,15 @@ export default function AssignDialog({
                       role="combobox"
                       aria-expanded={memberSearchOpen}
                       className={cn(
-                        'w-full justify-between',
-                        selectedUsers.length === 0 && 'text-muted-foreground'
+                        "w-full justify-between",
+                        selectedUsers.length === 0 && "text-muted-foreground",
                       )}
                       disabled={form.formState.isSubmitting}
                       type="button"
                     >
                       {selectedUsers.length > 0
                         ? `${selectedUsers.length} miembro(s) seleccionado(s)`
-                        : 'Buscar miembros...'}
+                        : "Buscar miembros..."}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
@@ -209,47 +209,47 @@ export default function AssignDialog({
                         <CommandGroup>
                           {availableMembers.map(
                             (member: {
-                              userId: string
-                              fullName?: string
-                              email?: string
+                              userId: string;
+                              fullName?: string;
+                              email?: string;
                             }) => {
                               const isSelected = selectedUsers.includes(
-                                member.userId
-                              )
+                                member.userId,
+                              );
 
                               return (
                                 <CommandItem
                                   key={member.userId}
-                                  value={`${member.fullName || ''} ${member.email || ''}`}
+                                  value={`${member.fullName || ""} ${member.email || ""}`}
                                   onSelect={() => {
-                                    let nextSelectedUsers: string[] = []
+                                    let nextSelectedUsers: string[] = [];
 
                                     if (isSelected) {
                                       nextSelectedUsers = selectedUsers.filter(
-                                        id => id !== member.userId
-                                      )
+                                        (id) => id !== member.userId,
+                                      );
                                     } else {
                                       nextSelectedUsers = [
                                         ...selectedUsers,
                                         member.userId,
-                                      ]
+                                      ];
                                     }
 
-                                    setSelectedUsers(nextSelectedUsers)
+                                    setSelectedUsers(nextSelectedUsers);
 
                                     // mantenemos userId sincronizado solo para validación del schema
-                                    field.onChange(nextSelectedUsers[0] || '')
+                                    field.onChange(nextSelectedUsers[0] || "");
                                   }}
                                 >
                                   <Check
                                     className={cn(
-                                      'mr-2 h-4 w-4',
-                                      isSelected ? 'opacity-100' : 'opacity-0'
+                                      "mr-2 h-4 w-4",
+                                      isSelected ? "opacity-100" : "opacity-0",
                                     )}
                                   />
                                   <div className="flex flex-col">
                                     <span className="font-medium">
-                                      {member.fullName || 'Sin nombre'}
+                                      {member.fullName || "Sin nombre"}
                                     </span>
                                     {member.email && (
                                       <span className="text-xs text-muted-foreground">
@@ -258,8 +258,8 @@ export default function AssignDialog({
                                     )}
                                   </div>
                                 </CommandItem>
-                              )
-                            }
+                              );
+                            },
                           )}
                         </CommandGroup>
                       </CommandList>
@@ -321,9 +321,11 @@ export default function AssignDialog({
           <div className="flex gap-2 pt-4">
             <Button
               type="submit"
-              disabled={form.formState.isSubmitting || selectedUsers.length === 0}
+              disabled={
+                form.formState.isSubmitting || selectedUsers.length === 0
+              }
             >
-              {form.formState.isSubmitting ? 'Asignando...' : 'Asignar'}
+              {form.formState.isSubmitting ? "Asignando..." : "Asignar"}
             </Button>
 
             <Button
@@ -338,5 +340,5 @@ export default function AssignDialog({
         </form>
       </SheetContent>
     </Sheet>
-  )
+  );
 }

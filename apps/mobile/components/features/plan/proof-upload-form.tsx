@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState } from "react";
 import {
   StyleSheet,
   View,
@@ -8,164 +8,169 @@ import {
   ActivityIndicator,
   ActionSheetIOS,
   Platform,
-} from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useRouter, useLocalSearchParams } from 'expo-router'
-import * as ImagePicker from 'expo-image-picker'
-import * as DocumentPicker from 'expo-document-picker'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@repo/convex'
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@repo/convex";
 
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedView } from '@/components/ui/themed-view'
-import { ThemedText } from '@/components/ui/themed-text'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
-import { calculateInterest } from '@repo/core/types'
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ThemedView } from "@/components/ui/themed-view";
+import { ThemedText } from "@/components/ui/themed-text";
+import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { calculateInterest } from "@repo/core/types";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export default function ProofUploadForm() {
-  const insets = useSafeAreaInsets()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-  const router = useRouter()
-  const { paymentId } = useLocalSearchParams<{ paymentId: string }>()
+  const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const router = useRouter();
+  const { paymentId } = useLocalSearchParams<{ paymentId: string }>();
 
-  const generateUploadUrl = useMutation(api.planPayments.generateUploadUrl)
-  const uploadProof = useMutation(api.planPayments.uploadProof)
-  const currentPayment = useQuery(api.planPayments.getMyCurrentPeriodPayment)
+  const generateUploadUrl = useMutation(api.planPayments.generateUploadUrl);
+  const uploadProof = useMutation(api.planPayments.uploadProof);
+  const currentPayment = useQuery(api.planPayments.getMyCurrentPeriodPayment);
 
   const [selectedFile, setSelectedFile] = useState<{
-    uri: string
-    name: string
-    type: string
-  } | null>(null)
-  const [uploading, setUploading] = useState(false)
+    uri: string;
+    name: string;
+    type: string;
+  } | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const showPicker = () => {
-    const options = ['Foto de galería', 'Tomar foto', 'Documento PDF', 'Cancelar']
-    const cancelIndex = 3
+    const options = [
+      "Foto de galería",
+      "Tomar foto",
+      "Documento PDF",
+      "Cancelar",
+    ];
+    const cancelIndex = 3;
 
-    if (Platform.OS === 'ios') {
+    if (Platform.OS === "ios") {
       ActionSheetIOS.showActionSheetWithOptions(
         { options, cancelButtonIndex: cancelIndex },
         (index) => {
-          if (index === 0) pickFromGallery()
-          else if (index === 1) takePhoto()
-          else if (index === 2) pickDocument()
-        }
-      )
+          if (index === 0) pickFromGallery();
+          else if (index === 1) takePhoto();
+          else if (index === 2) pickDocument();
+        },
+      );
     } else {
       // Android fallback with Alert
-      Alert.alert('Seleccionar archivo', 'Elegí cómo subir tu comprobante', [
-        { text: 'Galería', onPress: pickFromGallery },
-        { text: 'Cámara', onPress: takePhoto },
-        { text: 'PDF', onPress: pickDocument },
-        { text: 'Cancelar', style: 'cancel' },
-      ])
+      Alert.alert("Seleccionar archivo", "Elegí cómo subir tu comprobante", [
+        { text: "Galería", onPress: pickFromGallery },
+        { text: "Cámara", onPress: takePhoto },
+        { text: "PDF", onPress: pickDocument },
+        { text: "Cancelar", style: "cancel" },
+      ]);
     }
-  }
+  };
 
   const pickFromGallery = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería.')
-      return
+      Alert.alert("Permiso requerido", "Necesitamos acceso a tu galería.");
+      return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ["images"],
       quality: 0.8,
-    })
+    });
 
     if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0]
-      const mime = asset.mimeType ?? ''
-      const name = asset.fileName ?? ''
+      const asset = result.assets[0];
+      const mime = asset.mimeType ?? "";
+      const name = asset.fileName ?? "";
       if (
-        mime === 'image/heic' ||
-        mime === 'image/heif' ||
-        name.toLowerCase().endsWith('.heic') ||
-        name.toLowerCase().endsWith('.heif')
+        mime === "image/heic" ||
+        mime === "image/heif" ||
+        name.toLowerCase().endsWith(".heic") ||
+        name.toLowerCase().endsWith(".heif")
       ) {
         Alert.alert(
-          'Formato no compatible',
-          'Las imágenes HEIC no son compatibles. Por favor exportá la foto como JPEG desde tu galería.'
-        )
-        return
+          "Formato no compatible",
+          "Las imágenes HEIC no son compatibles. Por favor exportá la foto como JPEG desde tu galería.",
+        );
+        return;
       }
       setSelectedFile({
         uri: asset.uri,
-        name: name || 'comprobante.jpg',
-        type: mime || 'image/jpeg',
-      })
+        name: name || "comprobante.jpg",
+        type: mime || "image/jpeg",
+      });
     }
-  }
+  };
 
   const takePhoto = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync()
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu cámara.')
-      return
+      Alert.alert("Permiso requerido", "Necesitamos acceso a tu cámara.");
+      return;
     }
 
     const result = await ImagePicker.launchCameraAsync({
       quality: 0.8,
-    })
+    });
 
     if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0]
+      const asset = result.assets[0];
       setSelectedFile({
         uri: asset.uri,
-        name: asset.fileName ?? 'comprobante.jpg',
-        type: asset.mimeType ?? 'image/jpeg',
-      })
+        name: asset.fileName ?? "comprobante.jpg",
+        type: asset.mimeType ?? "image/jpeg",
+      });
     }
-  }
+  };
 
   const pickDocument = async () => {
     const result = await DocumentPicker.getDocumentAsync({
-      type: 'application/pdf',
+      type: "application/pdf",
       copyToCacheDirectory: true,
-    })
+    });
 
     if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0]
+      const asset = result.assets[0];
       if (asset.size && asset.size > MAX_FILE_SIZE) {
-        Alert.alert('Archivo muy grande', 'El archivo no debe superar 10MB.')
-        return
+        Alert.alert("Archivo muy grande", "El archivo no debe superar 10MB.");
+        return;
       }
       setSelectedFile({
         uri: asset.uri,
         name: asset.name,
-        type: asset.mimeType ?? 'application/pdf',
-      })
+        type: asset.mimeType ?? "application/pdf",
+      });
     }
-  }
+  };
 
   const handleUpload = async () => {
-    if (!selectedFile || !paymentId) return
+    if (!selectedFile || !paymentId) return;
 
-    setUploading(true)
+    setUploading(true);
     try {
       // Get upload URL
-      const uploadUrl = await generateUploadUrl()
+      const uploadUrl = await generateUploadUrl();
 
       // Upload the file
-      const response = await fetch(selectedFile.uri)
-      const blob = await response.blob()
+      const response = await fetch(selectedFile.uri);
+      const blob = await response.blob();
 
       const uploadResponse = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': selectedFile.type },
+        method: "POST",
+        headers: { "Content-Type": selectedFile.type },
         body: blob,
-      })
+      });
 
       if (!uploadResponse.ok) {
-        throw new Error('Error al subir el archivo')
+        throw new Error("Error al subir el archivo");
       }
 
-      const { storageId } = await uploadResponse.json()
+      const { storageId } = await uploadResponse.json();
 
       // Link proof to payment
       await uploadProof({
@@ -173,20 +178,22 @@ export default function ProofUploadForm() {
         storageId,
         fileName: selectedFile.name,
         contentType: selectedFile.type,
-      })
+      });
 
-      Alert.alert('Comprobante enviado', 'Tu comprobante fue enviado para revisión.', [
-        { text: 'OK', onPress: () => router.back() },
-      ])
+      Alert.alert(
+        "Comprobante enviado",
+        "Tu comprobante fue enviado para revisión.",
+        [{ text: "OK", onPress: () => router.back() }],
+      );
     } catch (err) {
       Alert.alert(
-        'Error',
-        err instanceof Error ? err.message : 'Error al subir comprobante'
-      )
+        "Error",
+        err instanceof Error ? err.message : "Error al subir comprobante",
+      );
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -201,9 +208,9 @@ export default function ProofUploadForm() {
           Seleccioná una imagen o PDF del comprobante de transferencia bancaria.
         </ThemedText>
         <ThemedText style={styles.disclaimer}>
-          El pago se realiza directamente al gimnasio por transferencia bancaria,
-          fuera de la aplicación. Esta pantalla solo sirve para enviar el
-          comprobante.
+          El pago se realiza directamente al gimnasio por transferencia
+          bancaria, fuera de la aplicación. Esta pantalla solo sirve para enviar
+          el comprobante.
         </ThemedText>
 
         {/* Preview */}
@@ -211,10 +218,10 @@ export default function ProofUploadForm() {
           <View
             style={[
               styles.preview,
-              { backgroundColor: isDark ? '#1c1c1e' : '#f5f5f5' },
+              { backgroundColor: isDark ? "#1c1c1e" : "#f5f5f5" },
             ]}
           >
-            {selectedFile.type.startsWith('image/') ? (
+            {selectedFile.type.startsWith("image/") ? (
               <Image
                 source={{ uri: selectedFile.uri }}
                 style={styles.previewImage}
@@ -223,20 +230,14 @@ export default function ProofUploadForm() {
             ) : (
               <View style={styles.pdfPreview}>
                 <Text
-                  style={[
-                    styles.pdfIcon,
-                    { color: isDark ? '#fff' : '#000' },
-                  ]}
+                  style={[styles.pdfIcon, { color: isDark ? "#fff" : "#000" }]}
                 >
                   PDF
                 </Text>
               </View>
             )}
             <Text
-              style={[
-                styles.fileName,
-                { color: isDark ? '#ccc' : '#444' },
-              ]}
+              style={[styles.fileName, { color: isDark ? "#ccc" : "#444" }]}
               numberOfLines={1}
             >
               {selectedFile.name}
@@ -245,40 +246,79 @@ export default function ProofUploadForm() {
         ) : null}
 
         {/* Interest preview */}
-        {currentPayment?.planInterestTiers?.length ? (() => {
-          const interest = calculateInterest(
-            currentPayment.amountArs,
-            currentPayment.planInterestTiers,
-            currentPayment.billingPeriod,
-            currentPayment.planPaymentWindowEndDay,
-          )
-          return (
-            <View style={[interestStyles.box, { backgroundColor: isDark ? '#2a1f00' : '#fef3c7' }]}>
-              <Text style={[interestStyles.title, { color: isDark ? '#fcd34d' : '#92400e' }]}>
-                Cargo por mora
-              </Text>
-              {interest.applied.length === 0 ? (
-                <Text style={[interestStyles.line, { color: isDark ? '#fcd34d' : '#92400e' }]}>
-                  Sin mora — estás dentro del período de pago.
-                </Text>
-              ) : (
-                <>
-                  <Text style={[interestStyles.line, { color: isDark ? '#fcd34d' : '#92400e' }]}>
-                    Base: ${currentPayment.amountArs.toLocaleString('es-AR')}
+        {currentPayment?.planInterestTiers?.length
+          ? (() => {
+              const interest = calculateInterest(
+                currentPayment.amountArs,
+                currentPayment.planInterestTiers,
+                currentPayment.billingPeriod,
+                currentPayment.planPaymentWindowEndDay,
+              );
+              return (
+                <View
+                  style={[
+                    interestStyles.box,
+                    { backgroundColor: isDark ? "#2a1f00" : "#fef3c7" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      interestStyles.title,
+                      { color: isDark ? "#fcd34d" : "#92400e" },
+                    ]}
+                  >
+                    Cargo por mora
                   </Text>
-                  {interest.applied.map((tier, i) => (
-                    <Text key={i} style={[interestStyles.line, { color: isDark ? '#fcd34d' : '#92400e' }]}>
-                      + Mora ({tier.type === 'percentage' ? `${tier.value}%` : `$${tier.value.toLocaleString('es-AR')} fijo`}): +${tier.amountArs.toLocaleString('es-AR')}
+                  {interest.applied.length === 0 ? (
+                    <Text
+                      style={[
+                        interestStyles.line,
+                        { color: isDark ? "#fcd34d" : "#92400e" },
+                      ]}
+                    >
+                      Sin mora — estás dentro del período de pago.
                     </Text>
-                  ))}
-                  <Text style={[interestStyles.total, { color: isDark ? '#fbbf24' : '#78350f' }]}>
-                    Total a pagar: ${interest.totalAmount.toLocaleString('es-AR')}
-                  </Text>
-                </>
-              )}
-            </View>
-          )
-        })() : null}
+                  ) : (
+                    <>
+                      <Text
+                        style={[
+                          interestStyles.line,
+                          { color: isDark ? "#fcd34d" : "#92400e" },
+                        ]}
+                      >
+                        Base: $
+                        {currentPayment.amountArs.toLocaleString("es-AR")}
+                      </Text>
+                      {interest.applied.map((tier, i) => (
+                        <Text
+                          key={i}
+                          style={[
+                            interestStyles.line,
+                            { color: isDark ? "#fcd34d" : "#92400e" },
+                          ]}
+                        >
+                          + Mora (
+                          {tier.type === "percentage"
+                            ? `${tier.value}%`
+                            : `$${tier.value.toLocaleString("es-AR")} fijo`}
+                          ): +${tier.amountArs.toLocaleString("es-AR")}
+                        </Text>
+                      ))}
+                      <Text
+                        style={[
+                          interestStyles.total,
+                          { color: isDark ? "#fbbf24" : "#78350f" },
+                        ]}
+                      >
+                        Total a pagar: $
+                        {interest.totalAmount.toLocaleString("es-AR")}
+                      </Text>
+                    </>
+                  )}
+                </View>
+              );
+            })()
+          : null}
 
         {/* Select file */}
         <ThemedPressable
@@ -288,9 +328,9 @@ export default function ProofUploadForm() {
           disabled={uploading}
         >
           <Text
-            style={[styles.selectText, { color: isDark ? '#fff' : '#000' }]}
+            style={[styles.selectText, { color: isDark ? "#fff" : "#000" }]}
           >
-            {selectedFile ? 'Cambiar archivo' : 'Seleccionar archivo'}
+            {selectedFile ? "Cambiar archivo" : "Seleccionar archivo"}
           </Text>
         </ThemedPressable>
 
@@ -311,7 +351,7 @@ export default function ProofUploadForm() {
         ) : null}
       </View>
     </ThemedView>
-  )
+  );
 }
 
 const interestStyles = StyleSheet.create({
@@ -322,7 +362,7 @@ const interestStyles = StyleSheet.create({
   },
   title: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 2,
   },
   line: {
@@ -330,10 +370,10 @@ const interestStyles = StyleSheet.create({
   },
   total: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     marginTop: 4,
   },
-})
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -351,16 +391,16 @@ const styles = StyleSheet.create({
   disclaimer: {
     fontSize: 12,
     opacity: 0.45,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   preview: {
     borderRadius: 12,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 8,
   },
   previewImage: {
-    width: '100%',
+    width: "100%",
     height: 200,
     borderRadius: 8,
   },
@@ -368,14 +408,14 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 12,
-    backgroundColor: '#ef4444',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#ef4444",
+    justifyContent: "center",
+    alignItems: "center",
   },
   pdfIcon: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: "700",
+    color: "#fff",
   },
   fileName: {
     fontSize: 13,
@@ -383,18 +423,18 @@ const styles = StyleSheet.create({
   selectButton: {
     paddingVertical: 14,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   selectText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   uploadButton: {
     marginTop: 4,
   },
   uploadText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
-})
+});

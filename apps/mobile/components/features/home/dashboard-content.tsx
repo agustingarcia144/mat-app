@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,82 +7,82 @@ import {
   Platform,
   useWindowDimensions,
   ActivityIndicator,
-} from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useUser } from '@clerk/expo'
-import type { Href } from 'expo-router'
-import { useRouter } from 'expo-router'
-import { useQuery } from 'convex/react'
-import { api } from '@repo/convex'
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedView } from '@/components/ui/themed-view'
-import { ThemedText } from '@/components/ui/themed-text'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
-import { format, getISODay, startOfWeek, endOfWeek } from 'date-fns'
-import { CalendarWeekView } from '@/components/features/home/calendar-week-view'
-import { NoActivePlanAlert } from '@/components/features/home/no-active-plan-alert'
-import { ReservedClassesForDay } from '@/components/features/home/reserved-classes-for-day'
-import { RestDayPlaceholder } from '@/components/features/home/rest-day-placeholder'
-import { ScheduledWorkoutCard } from '@/components/features/home/scheduled-workout-card'
-import { ScrollView } from 'react-native-gesture-handler'
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useUser } from "@clerk/expo";
+import type { Href } from "expo-router";
+import { useRouter } from "expo-router";
+import { useQuery } from "convex/react";
+import { api } from "@repo/convex";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ThemedView } from "@/components/ui/themed-view";
+import { ThemedText } from "@/components/ui/themed-text";
+import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { format, getISODay, startOfWeek, endOfWeek } from "date-fns";
+import { CalendarWeekView } from "@/components/features/home/calendar-week-view";
+import { NoActivePlanAlert } from "@/components/features/home/no-active-plan-alert";
+import { ReservedClassesForDay } from "@/components/features/home/reserved-classes-for-day";
+import { RestDayPlaceholder } from "@/components/features/home/rest-day-placeholder";
+import { ScheduledWorkoutCard } from "@/components/features/home/scheduled-workout-card";
+import { ScrollView } from "react-native-gesture-handler";
 
-const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const }
+const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const };
 
 export default function DashboardContent() {
-  const { user } = useUser()
-  const convexUser = useQuery(api.users.getCurrentUser)
-  const router = useRouter()
-  const insets = useSafeAreaInsets()
-  const { width: windowWidth } = useWindowDimensions()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
+  const { user } = useUser();
+  const convexUser = useQuery(api.users.getCurrentUser);
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
 
-  const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
 
   const assignments = useQuery(
     api.planificationAssignments.getByUser,
-    user?.id ? { userId: user.id } : 'skip'
-  )
+    user?.id ? { userId: user.id } : "skip",
+  );
 
   const activeAssignment = useMemo(
-    () => assignments?.find((a) => a.status === 'active'),
-    [assignments]
-  )
+    () => assignments?.find((a) => a.status === "active"),
+    [assignments],
+  );
 
   const organizationUsesPlanifications = useQuery(
     api.planificationAssignments.organizationUsesPlanifications,
-    user?.id ? {} : 'skip'
-  )
+    user?.id ? {} : "skip",
+  );
 
   const showNoActivePlanAlert =
-    !activeAssignment && organizationUsesPlanifications === true
+    !activeAssignment && organizationUsesPlanifications === true;
 
-  const tabBarHeight = Platform.OS === 'ios' ? 49 : 56
-  const alertTabGap = 12
-  const alertBottomOffset = insets.bottom + tabBarHeight + alertTabGap
-  const alertHeight = 110
+  const tabBarHeight = Platform.OS === "ios" ? 49 : 56;
+  const alertTabGap = 12;
+  const alertBottomOffset = insets.bottom + tabBarHeight + alertTabGap;
+  const alertHeight = 110;
 
   const { monday, sunday } = useMemo(
     () => ({
       monday: startOfWeek(selectedDate, WEEK_STARTS_MONDAY),
       sunday: endOfWeek(selectedDate, WEEK_STARTS_MONDAY),
     }),
-    [selectedDate]
-  )
+    [selectedDate],
+  );
 
   const weekSessions = useQuery(
     api.workoutDaySessions.getMyWeekSessions,
     user?.id
       ? {
-          startOn: format(monday, 'yyyy-MM-dd'),
-          endOn: format(sunday, 'yyyy-MM-dd'),
+          startOn: format(monday, "yyyy-MM-dd"),
+          endOn: format(sunday, "yyyy-MM-dd"),
         }
-      : 'skip'
-  )
+      : "skip",
+  );
 
   const handleWeekChange = (newDate: Date) => {
-    setSelectedDate(newDate)
-  }
+    setSelectedDate(newDate);
+  };
 
   const workoutDays = useQuery(
     api.workoutDays.getByPlanification,
@@ -91,8 +91,8 @@ export default function DashboardContent() {
           planificationId: activeAssignment.planificationId,
           revisionId: activeAssignment.revisionId,
         }
-      : 'skip'
-  )
+      : "skip",
+  );
 
   const allExercises = useQuery(
     api.dayExercises.getByPlanification,
@@ -101,23 +101,23 @@ export default function DashboardContent() {
           planificationId: activeAssignment.planificationId,
           revisionId: activeAssignment.revisionId,
         }
-      : 'skip'
-  )
+      : "skip",
+  );
 
   const weekSessionsForActiveAssignment = useMemo(() => {
-    if (!weekSessions || !activeAssignment) return []
+    if (!weekSessions || !activeAssignment) return [];
     return weekSessions.filter(
-      (session) => session.assignmentId === activeAssignment._id
-    )
-  }, [weekSessions, activeAssignment])
+      (session) => session.assignmentId === activeAssignment._id,
+    );
+  }, [weekSessions, activeAssignment]);
   const completedSessionsFromOtherAssignments = useMemo(() => {
-    if (!weekSessions || !activeAssignment) return []
+    if (!weekSessions || !activeAssignment) return [];
     return weekSessions.filter(
       (session) =>
         session.assignmentId !== activeAssignment._id &&
-        session.status === 'completed'
-    )
-  }, [weekSessions, activeAssignment])
+        session.status === "completed",
+    );
+  }, [weekSessions, activeAssignment]);
   const weekSessionsForDisplay = useMemo(
     () =>
       activeAssignment
@@ -131,52 +131,52 @@ export default function DashboardContent() {
       weekSessionsForActiveAssignment,
       completedSessionsFromOtherAssignments,
       weekSessions,
-    ]
-  )
+    ],
+  );
 
   const exercisesByDay = useMemo(() => {
-    if (!allExercises) return {} as Record<string, typeof allExercises>
-    const map: Record<string, typeof allExercises> = {}
+    if (!allExercises) return {} as Record<string, typeof allExercises>;
+    const map: Record<string, typeof allExercises> = {};
     allExercises.forEach((ex) => {
-      const dayId = ex.workoutDayId
-      if (!map[dayId]) map[dayId] = []
-      map[dayId].push(ex)
-    })
+      const dayId = ex.workoutDayId;
+      if (!map[dayId]) map[dayId] = [];
+      map[dayId].push(ex);
+    });
     Object.keys(map).forEach((dayId) => {
-      map[dayId].sort((a, b) => a.order - b.order)
-    })
-    return map
-  }, [allExercises])
+      map[dayId].sort((a, b) => a.order - b.order);
+    });
+    return map;
+  }, [allExercises]);
 
-  const selectedYmd = format(selectedDate, 'yyyy-MM-dd')
-  const selectedISOWeekday = getISODay(selectedDate)
+  const selectedYmd = format(selectedDate, "yyyy-MM-dd");
+  const selectedISOWeekday = getISODay(selectedDate);
 
   const { startOfDay, endOfDay } = useMemo(() => {
-    const d = new Date(selectedDate)
-    const start = new Date(d)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(d)
-    end.setHours(23, 59, 59, 999)
-    return { startOfDay: start.getTime(), endOfDay: end.getTime() }
-  }, [selectedDate])
+    const d = new Date(selectedDate);
+    const start = new Date(d);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(d);
+    end.setHours(23, 59, 59, 999);
+    return { startOfDay: start.getTime(), endOfDay: end.getTime() };
+  }, [selectedDate]);
 
   const { startOfWeekMs, endOfWeekMs } = useMemo(
     () => ({
       startOfWeekMs: monday.getTime(),
       endOfWeekMs: sunday.getTime(),
     }),
-    [monday, sunday]
-  )
+    [monday, sunday],
+  );
 
   const reservationsForDay = useQuery(api.classReservations.getByUserForDate, {
     startOfDay,
     endOfDay,
-  })
+  });
 
   const reservationsForWeek = useQuery(
     api.classReservations.getByUserForDateRange,
-    { startOfRange: startOfWeekMs, endOfRange: endOfWeekMs }
-  )
+    { startOfRange: startOfWeekMs, endOfRange: endOfWeekMs },
+  );
 
   const daysWithClasses = useMemo(
     () =>
@@ -184,73 +184,79 @@ export default function DashboardContent() {
         new Set(
           (reservationsForWeek ?? [])
             .filter((r) => r.schedule != null)
-            .map((r) => format(new Date(r.schedule!.startTime), 'yyyy-MM-dd'))
-        )
+            .map((r) => format(new Date(r.schedule!.startTime), "yyyy-MM-dd")),
+        ),
       ),
-    [reservationsForWeek]
-  )
+    [reservationsForWeek],
+  );
 
   const daysWithAttendedClasses = useMemo(
     () =>
       Array.from(
         new Set(
           (reservationsForWeek ?? [])
-            .filter((r) => r.schedule != null && r.status === 'attended')
-            .map((r) => format(new Date(r.schedule!.startTime), 'yyyy-MM-dd'))
-        )
+            .filter((r) => r.schedule != null && r.status === "attended")
+            .map((r) => format(new Date(r.schedule!.startTime), "yyyy-MM-dd")),
+        ),
       ),
-    [reservationsForWeek]
-  )
+    [reservationsForWeek],
+  );
 
   const reservedClassesItems = useMemo(
     () =>
       reservationsForDay?.filter(
         (
-          r
+          r,
         ): r is typeof r & {
-          schedule: NonNullable<typeof r.schedule>
-          class: NonNullable<typeof r.class>
-        } => r.schedule != null && r.class != null
+          schedule: NonNullable<typeof r.schedule>;
+          class: NonNullable<typeof r.class>;
+        } => r.schedule != null && r.class != null,
       ) ?? [],
-    [reservationsForDay]
-  )
+    [reservationsForDay],
+  );
 
   const scheduledWorkoutDay = useMemo(() => {
-    if (!workoutDays) return null
+    if (!workoutDays) return null;
     // Only show the planned workout if the selected date falls within the
     // active assignment's date range — otherwise the workout didn't exist yet.
     if (activeAssignment?.startDate) {
-      const start = new Date(activeAssignment.startDate)
-      start.setHours(0, 0, 0, 0)
-      const sel = new Date(selectedDate)
-      sel.setHours(0, 0, 0, 0)
-      if (sel < start) return null
+      const start = new Date(activeAssignment.startDate);
+      start.setHours(0, 0, 0, 0);
+      const sel = new Date(selectedDate);
+      sel.setHours(0, 0, 0, 0);
+      if (sel < start) return null;
     }
     if (activeAssignment?.endDate) {
-      const end = new Date(activeAssignment.endDate)
-      end.setHours(23, 59, 59, 999)
-      if (selectedDate > end) return null
+      const end = new Date(activeAssignment.endDate);
+      end.setHours(23, 59, 59, 999);
+      if (selectedDate > end) return null;
     }
-    return workoutDays.find((d) => d.dayOfWeek === selectedISOWeekday) ?? null
-  }, [workoutDays, selectedISOWeekday, activeAssignment?.startDate, activeAssignment?.endDate, selectedDate])
+    return workoutDays.find((d) => d.dayOfWeek === selectedISOWeekday) ?? null;
+  }, [
+    workoutDays,
+    selectedISOWeekday,
+    activeAssignment?.startDate,
+    activeAssignment?.endDate,
+    selectedDate,
+  ]);
   const sessionForSelected = useMemo(
     () =>
       weekSessionsForActiveAssignment.find(
         (s) =>
           s.performedOn === selectedYmd &&
-          s.workoutDayId === scheduledWorkoutDay?._id
+          s.workoutDayId === scheduledWorkoutDay?._id,
       ) ??
       weekSessionsForDisplay.find(
         (s) =>
-          s.status === 'completed' &&
+          s.status === "completed" &&
           s.performedOn === selectedYmd &&
-          s.workoutDayId === scheduledWorkoutDay?._id
+          s.workoutDayId === scheduledWorkoutDay?._id,
       ) ??
       weekSessionsForActiveAssignment.find(
-        (s) => s.performedOn === selectedYmd
+        (s) => s.performedOn === selectedYmd,
       ) ??
       weekSessionsForDisplay.find(
-        (s) => s.status === 'completed' && s.performedOn === selectedYmd
+        (s) => s.status === "completed" && s.performedOn === selectedYmd,
       ) ??
       null,
     [
@@ -258,59 +264,59 @@ export default function DashboardContent() {
       weekSessionsForDisplay,
       selectedYmd,
       scheduledWorkoutDay?._id,
-    ]
-  )
+    ],
+  );
 
   const historicalWorkoutDay = useQuery(
     api.workoutDays.getById,
     sessionForSelected && !scheduledWorkoutDay
       ? { id: sessionForSelected.workoutDayId }
-      : 'skip'
-  )
+      : "skip",
+  );
   const workoutDayToDisplay =
-    scheduledWorkoutDay ?? historicalWorkoutDay ?? null
+    scheduledWorkoutDay ?? historicalWorkoutDay ?? null;
   const blocksForDisplayDay = useQuery(
     api.exerciseBlocks.getByWorkoutDay,
     workoutDayToDisplay?._id
       ? { workoutDayId: workoutDayToDisplay._id }
-      : 'skip'
-  )
+      : "skip",
+  );
 
   const { statusBadgeLabel, statusBadgeVariant } = useMemo(() => {
     if (!sessionForSelected) {
       return {
-        statusBadgeLabel: 'No Iniciado',
-        statusBadgeVariant: 'notStarted' as const,
-      }
+        statusBadgeLabel: "No Iniciado",
+        statusBadgeVariant: "notStarted" as const,
+      };
     }
-    if (sessionForSelected.status === 'completed') {
+    if (sessionForSelected.status === "completed") {
       return {
-        statusBadgeLabel: 'Completado',
-        statusBadgeVariant: 'completed' as const,
-      }
+        statusBadgeLabel: "Completado",
+        statusBadgeVariant: "completed" as const,
+      };
     }
-    if (sessionForSelected.status === 'skipped') {
+    if (sessionForSelected.status === "skipped") {
       return {
-        statusBadgeLabel: 'Omitido',
-        statusBadgeVariant: 'skipped' as const,
-      }
+        statusBadgeLabel: "Omitido",
+        statusBadgeVariant: "skipped" as const,
+      };
     }
     return {
-      statusBadgeLabel: 'En curso',
-      statusBadgeVariant: 'inProgress' as const,
-    }
-  }, [sessionForSelected])
+      statusBadgeLabel: "En curso",
+      statusBadgeVariant: "inProgress" as const,
+    };
+  }, [sessionForSelected]);
 
   const handleOpenWorkout = () => {
     if (sessionForSelected) {
-      router.push(`/home/workout/${sessionForSelected._id}` as Href)
+      router.push(`/home/workout/${sessionForSelected._id}` as Href);
     } else {
-      if (!activeAssignment || !scheduledWorkoutDay) return
+      if (!activeAssignment || !scheduledWorkoutDay) return;
       router.push(
-        `/home/workout/new?workoutDayId=${scheduledWorkoutDay._id}&performedOn=${selectedYmd}&assignmentId=${activeAssignment._id}` as Href
-      )
+        `/home/workout/new?workoutDayId=${scheduledWorkoutDay._id}&performedOn=${selectedYmd}&assignmentId=${activeAssignment._id}` as Href,
+      );
     }
-  }
+  };
 
   const todaySectionLoading =
     weekSessions === undefined ||
@@ -319,7 +325,7 @@ export default function DashboardContent() {
     (sessionForSelected != null &&
       scheduledWorkoutDay == null &&
       historicalWorkoutDay === undefined) ||
-    (workoutDayToDisplay != null && blocksForDisplayDay === undefined)
+    (workoutDayToDisplay != null && blocksForDisplayDay === undefined);
 
   return (
     <ThemedView style={styles.container}>
@@ -336,7 +342,7 @@ export default function DashboardContent() {
       >
         <View style={styles.headerRow}>
           <ThemedText type="title" style={styles.welcome}>
-            ¡Hola,{' '}
+            ¡Hola,{" "}
             {convexUser?.nickname ||
               user?.firstName ||
               user?.emailAddresses[0]?.emailAddress}
@@ -344,7 +350,7 @@ export default function DashboardContent() {
           </ThemedText>
           <ThemedPressable
             type="secondary"
-            onPress={() => router.push('/profile' as Href)}
+            onPress={() => router.push("/profile" as Href)}
             style={styles.avatarButton}
             accessibilityLabel="Abrir perfil"
           >
@@ -357,13 +363,13 @@ export default function DashboardContent() {
               <Text
                 style={[
                   styles.avatarPlaceholder,
-                  { color: isDark ? '#a1a1aa' : '#52525b' },
+                  { color: isDark ? "#a1a1aa" : "#52525b" },
                 ]}
               >
                 {(
                   user?.firstName?.[0] ||
                   user?.emailAddresses?.[0]?.emailAddress?.[0] ||
-                  '?'
+                  "?"
                 ).toUpperCase()}
               </Text>
             )}
@@ -384,8 +390,8 @@ export default function DashboardContent() {
             workoutDays={
               (workoutDays as
                 | {
-                    dayOfWeek?: number
-                    [key: string]: unknown
+                    dayOfWeek?: number;
+                    [key: string]: unknown;
                   }[]
                 | undefined) ?? []
             }
@@ -399,12 +405,12 @@ export default function DashboardContent() {
             <View style={[styles.todaySectionLoading, styles.centered]}>
               <ActivityIndicator
                 size="large"
-                color={isDark ? '#a1a1aa' : '#71717a'}
+                color={isDark ? "#a1a1aa" : "#71717a"}
               />
               <Text
                 style={[
                   styles.todaySectionLoadingText,
-                  { color: isDark ? '#71717a' : '#a1a1aa' },
+                  { color: isDark ? "#71717a" : "#a1a1aa" },
                 ]}
               >
                 Cargando...
@@ -447,13 +453,13 @@ export default function DashboardContent() {
           pointerEvents="box-none"
         >
           <NoActivePlanAlert
-            onPress={() => router.push('/planifications' as Href)}
+            onPress={() => router.push("/planifications" as Href)}
             isDark={isDark}
           />
         </View>
       )}
     </ThemedView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -461,13 +467,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   alertOverlay: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
   },
   centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   content: {
     flex: 1,
@@ -478,9 +484,9 @@ const styles = StyleSheet.create({
     marginLeft: -24,
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
     gap: 12,
   },
@@ -493,9 +499,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   avatarImage: {
     width: 44,
@@ -505,7 +511,7 @@ const styles = StyleSheet.create({
   },
   avatarPlaceholder: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   todaySection: {
     flex: 1,
@@ -521,7 +527,7 @@ const styles = StyleSheet.create({
   },
   todayTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 4,
   },
   workoutCardButton: {
@@ -529,7 +535,7 @@ const styles = StyleSheet.create({
   },
   sessionName: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 12,
   },
   exerciseList: {
@@ -540,11 +546,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingLeft: 8,
     borderLeftWidth: 2,
-    borderLeftColor: 'rgba(0, 0, 0, 0.25)',
+    borderLeftColor: "rgba(0, 0, 0, 0.25)",
   },
   exerciseName: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   exerciseMeta: {
     fontSize: 13,
@@ -554,7 +560,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     height: 48,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
-})
+});

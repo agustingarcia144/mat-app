@@ -1,18 +1,18 @@
-import { Stack, useRouter } from 'expo-router'
-import { StyleSheet, useColorScheme } from 'react-native'
-import { PressableScale } from 'pressto'
+import { Stack, useRouter } from "expo-router";
+import { StyleSheet, useColorScheme } from "react-native";
+import { PressableScale } from "pressto";
 
-import { IconSymbol } from '@/components/ui/icon-symbol'
-import HeaderPlayPauseButton from '@/components/ui/header-play-pause-button'
-import HeaderCloseButton from '@/components/ui/header-close-button'
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import HeaderPlayPauseButton from "@/components/ui/header-play-pause-button";
+import HeaderCloseButton from "@/components/ui/header-close-button";
 
-const SIZE = 36
+const SIZE = 36;
 
 function HeaderBackButton() {
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-  const tint = isDark ? '#fff' : '#000'
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const tint = isDark ? "#fff" : "#000";
 
   return (
     <PressableScale
@@ -22,7 +22,7 @@ function HeaderBackButton() {
     >
       <IconSymbol name="chevron.left" size={22} color={tint} />
     </PressableScale>
-  )
+  );
 }
 
 export default function PlanificationsLayout() {
@@ -34,7 +34,7 @@ export default function PlanificationsLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: '',
+          title: "",
           headerTitle: () => null,
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
@@ -45,7 +45,7 @@ export default function PlanificationsLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: '',
+          title: "",
           headerLeft: () => <HeaderBackButton />,
           headerRight: () => <HeaderPlayPauseButton />,
           headerShadowVisible: false,
@@ -54,11 +54,11 @@ export default function PlanificationsLayout() {
       <Stack.Screen
         name="[assignmentId]/[exerciseId]/video"
         options={{
-          presentation: 'formSheet',
+          presentation: "formSheet",
           headerShown: true,
           headerTransparent: true,
-          contentStyle: { backgroundColor: 'transparent' },
-          title: '',
+          contentStyle: { backgroundColor: "transparent" },
+          title: "",
           headerRight: () => <HeaderCloseButton />,
           headerLeft: () => null,
           headerShadowVisible: false,
@@ -68,7 +68,7 @@ export default function PlanificationsLayout() {
         }}
       />
     </Stack>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     width: SIZE,
     height: SIZE,
     borderRadius: SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-})
+});

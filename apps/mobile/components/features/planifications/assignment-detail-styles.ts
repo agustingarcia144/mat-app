@@ -1,13 +1,13 @@
-import { StyleSheet } from 'react-native'
-import { SPACING } from './constants'
+import { StyleSheet } from "react-native";
+import { SPACING } from "./constants";
 
 export const assignmentDetailStyles = StyleSheet.create({
   container: {
     flex: 1,
   },
   centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   scroll: {
     flex: 1,
@@ -17,11 +17,11 @@ export const assignmentDetailStyles = StyleSheet.create({
   },
   hero: {
     marginBottom: SPACING.xxl,
-    alignItems: 'center',
+    alignItems: "center",
   },
   heroTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: SPACING.sm,
   },
   heroMeta: {
@@ -29,7 +29,7 @@ export const assignmentDetailStyles = StyleSheet.create({
   },
   heroMetaText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   heroDescription: {
     fontSize: 15,
@@ -43,7 +43,7 @@ export const assignmentDetailStyles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   weekBlock: {
     gap: SPACING.md,
@@ -55,18 +55,18 @@ export const assignmentDetailStyles = StyleSheet.create({
     padding: SPACING.lg,
     borderRadius: 16,
     borderWidth: 1,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   dayCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: SPACING.sm,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   dayName: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   dayBadge: {
     paddingHorizontal: 10,
@@ -75,7 +75,7 @@ export const assignmentDetailStyles = StyleSheet.create({
   },
   dayBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   dayMeta: {
     fontSize: 13,
@@ -83,7 +83,7 @@ export const assignmentDetailStyles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   emptyDay: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: SPACING.lg,
   },
   emptyDayImage: {
@@ -102,16 +102,16 @@ export const assignmentDetailStyles = StyleSheet.create({
     gap: SPACING.sm,
   },
   blockHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: SPACING.sm,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   blockTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     opacity: 0.9,
   },
@@ -122,14 +122,14 @@ export const assignmentDetailStyles = StyleSheet.create({
   },
   blockBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   exerciseList: {
     gap: SPACING.sm,
   },
   exerciseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: SPACING.md,
   },
   exerciseThumbnail: {
@@ -148,7 +148,7 @@ export const assignmentDetailStyles = StyleSheet.create({
   },
   exerciseName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   exerciseMeta: {
     fontSize: 13,
@@ -165,9 +165,9 @@ export const assignmentDetailStyles = StyleSheet.create({
     padding: SPACING.xl,
     borderRadius: 16,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(128,128,128,0.3)',
-    alignItems: 'center',
+    borderStyle: "dashed",
+    borderColor: "rgba(128,128,128,0.3)",
+    alignItems: "center",
   },
   emptyImage: {
     width: 100,
@@ -176,6 +176,6 @@ export const assignmentDetailStyles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 15,
-    textAlign: 'center',
+    textAlign: "center",
   },
-})
+});

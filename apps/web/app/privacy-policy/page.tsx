@@ -4,19 +4,21 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
+} from "@/components/ui/card";
 
 export const metadata = {
-  title: 'Privacy Policy | Mat',
-  description: 'Privacy Policy for Mat Gestion.',
-}
+  title: "Privacy Policy | Mat",
+  description: "Privacy Policy for Mat Gestion.",
+};
 
 export default function PrivacyPolicyPage() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-10">
       <Card className="bg-zinc-50 dark:bg-zinc-950 border-zinc-200/70 dark:border-zinc-800">
         <CardHeader>
-          <CardTitle className="text-zinc-900 dark:text-zinc-100">Privacy Policy</CardTitle>
+          <CardTitle className="text-zinc-900 dark:text-zinc-100">
+            Privacy Policy
+          </CardTitle>
           <CardDescription className="text-zinc-600 dark:text-zinc-400">
             Last updated: March 17, 2026
           </CardDescription>
@@ -50,19 +52,19 @@ export default function PrivacyPolicyPage() {
                 up or managed by our authentication provider.
               </li>
               <li>
-                <span className="font-medium">Class and reservation data:</span>{' '}
+                <span className="font-medium">Class and reservation data:</span>{" "}
                 such as reservations you make, the classes you attend, and
                 related scheduling information.
               </li>
               <li>
-                <span className="font-medium">Workout and exercise data:</span>{' '}
+                <span className="font-medium">Workout and exercise data:</span>{" "}
                 such as workout sessions, exercise details, notes, and progress
                 you record in the App.
               </li>
               <li>
                 <span className="font-medium">
                   Device and push notification data:
-                </span>{' '}
+                </span>{" "}
                 if you enable notifications, we may store a device token used to
                 send reminders (e.g., class reminders and attendance reminders).
               </li>
@@ -105,11 +107,11 @@ export default function PrivacyPolicyPage() {
             </p>
             <ul className="list-disc pl-5 space-y-1">
               <li>
-                <span className="font-medium">Authentication provider</span>{' '}
+                <span className="font-medium">Authentication provider</span>{" "}
                 (e.g., Clerk) for account sign-in and user management.
               </li>
               <li>
-                <span className="font-medium">Cloud and backend providers</span>{' '}
+                <span className="font-medium">Cloud and backend providers</span>{" "}
                 (e.g., our backend services) to store and process application
                 data.
               </li>
@@ -169,7 +171,7 @@ export default function PrivacyPolicyPage() {
             </h2>
             <p>
               If you have questions about this Privacy Policy or the App,
-              contact us at:{' '}
+              contact us at:{" "}
               <a className="underline" href="mailto:mat.gym.app@gmail.com">
                 mat.gym.app@gmail.com
               </a>
@@ -179,5 +181,5 @@ export default function PrivacyPolicyPage() {
         </CardContent>
       </Card>
     </main>
-  )
+  );
 }

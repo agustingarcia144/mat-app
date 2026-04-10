@@ -1,7 +1,7 @@
-import React from 'react'
-import { Authenticated, AuthLoading } from 'convex/react'
-import { AssignmentDetailContent } from '@/components/features/planifications'
-import LoadingScreen from '@/components/shared/screens/loading-screen'
+import React from "react";
+import { Authenticated, AuthLoading } from "convex/react";
+import { AssignmentDetailContent } from "@/components/features/planifications";
+import LoadingScreen from "@/components/shared/screens/loading-screen";
 
 export default function WorkoutPlanificationScreen() {
   return (
@@ -13,5 +13,5 @@ export default function WorkoutPlanificationScreen() {
         <AssignmentDetailContent />
       </Authenticated>
     </>
-  )
+  );
 }

@@ -1,5 +1,5 @@
-import { Stack } from 'expo-router'
-import HeaderBackButton from '@/components/ui/header-back-button'
+import { Stack } from "expo-router";
+import HeaderBackButton from "@/components/ui/header-back-button";
 
 export default function PlanLayout() {
   return (
@@ -10,7 +10,7 @@ export default function PlanLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: 'Subir comprobante',
+          title: "Subir comprobante",
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
         }}
@@ -20,11 +20,11 @@ export default function PlanLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: 'Historial de pagos',
+          title: "Historial de pagos",
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
         }}
       />
     </Stack>
-  )
+  );
 }

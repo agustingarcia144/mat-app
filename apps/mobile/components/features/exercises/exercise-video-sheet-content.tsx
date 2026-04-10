@@ -1,70 +1,70 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
   StyleSheet,
   useWindowDimensions,
   View,
-} from 'react-native'
-import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useQuery } from 'convex/react'
-import YoutubePlayer from 'react-native-youtube-iframe'
-import { api } from '@repo/convex'
-import { getYoutubeVideoId } from '@repo/core/utils'
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import { EmptyState } from '@/components/ui/empty-state'
-import { ThemedText } from '@/components/ui/themed-text'
-import { ThemedView } from '@/components/ui/themed-view'
+} from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useQuery } from "convex/react";
+import YoutubePlayer from "react-native-youtube-iframe";
+import { api } from "@repo/convex";
+import { getYoutubeVideoId } from "@repo/core/utils";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ThemedText } from "@/components/ui/themed-text";
+import { ThemedView } from "@/components/ui/themed-view";
 
 export default function ExerciseVideoSheetContent() {
-  const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>()
-  const router = useRouter()
-  const { width: windowWidth } = useWindowDimensions()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-  const [isPlaying, setIsPlaying] = useState(true)
+  const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>();
+  const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const [isPlaying, setIsPlaying] = useState(true);
 
   const exercise = useQuery(
     api.exercises.getById,
-    exerciseId ? { id: exerciseId as any } : 'skip'
-  )
+    exerciseId ? { id: exerciseId as any } : "skip",
+  );
 
   const youtubeVideoId = useMemo(() => {
-    if (!exercise?.videoUrl) return null
-    return getYoutubeVideoId(exercise.videoUrl)
-  }, [exercise?.videoUrl])
+    if (!exercise?.videoUrl) return null;
+    return getYoutubeVideoId(exercise.videoUrl);
+  }, [exercise?.videoUrl]);
 
   const openVideo = useCallback(() => {
-    if (exercise?.videoUrl) Linking.openURL(exercise.videoUrl)
-  }, [exercise?.videoUrl])
+    if (exercise?.videoUrl) Linking.openURL(exercise.videoUrl);
+  }, [exercise?.videoUrl]);
 
   const onPlayerStateChange = useCallback(
     (state: string) => {
-      if (state === 'playing') {
-        setIsPlaying(true)
-        return
+      if (state === "playing") {
+        setIsPlaying(true);
+        return;
       }
-      if (state === 'paused' || state === 'ended') {
-        setIsPlaying(false)
+      if (state === "paused" || state === "ended") {
+        setIsPlaying(false);
       }
-      if (state === 'ended') {
-        router.back()
+      if (state === "ended") {
+        router.back();
       }
     },
-    [router]
-  )
+    [router],
+  );
 
   const onPlayerError = useCallback(() => {
-    router.back()
-    openVideo()
-  }, [openVideo, router])
+    router.back();
+    openVideo();
+  }, [openVideo, router]);
 
   if (exercise === undefined) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
+        <ActivityIndicator size="large" color={isDark ? "#fff" : "#000"} />
       </ThemedView>
-    )
+    );
   }
 
   if (!exercise || !youtubeVideoId) {
@@ -80,14 +80,14 @@ export default function ExerciseVideoSheetContent() {
           </ThemedText>
         </EmptyState>
       </ThemedView>
-    )
+    );
   }
 
   // Keep a bounded player size so it renders correctly on small sheet detents.
-  const maxPlayerWidth = Math.max(windowWidth - 32, 240)
-  const preferredHeight = (maxPlayerWidth * 9) / 16
-  const playerHeight = Math.max(150, Math.min(preferredHeight, 260))
-  const playerWidth = (playerHeight * 16) / 9
+  const maxPlayerWidth = Math.max(windowWidth - 32, 240);
+  const preferredHeight = (maxPlayerWidth * 9) / 16;
+  const playerHeight = Math.max(150, Math.min(preferredHeight, 260));
+  const playerWidth = (playerHeight * 16) / 9;
 
   return (
     <ThemedView style={styles.container}>
@@ -118,33 +118,33 @@ export default function ExerciseVideoSheetContent() {
         />
       </View>
     </ThemedView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingTop: 60,
     paddingHorizontal: 16,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   centered: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   playerWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 12,
-    overflow: 'hidden',
-    alignSelf: 'center',
-    width: '100%',
+    overflow: "hidden",
+    alignSelf: "center",
+    width: "100%",
     maxWidth: 462,
   },
   player: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'transparent',
+    width: "100%",
+    height: "100%",
+    backgroundColor: "transparent",
   },
   emptyTitle: {
     fontSize: 16,
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   },
   emptyAction: {
     fontSize: 16,
-    textDecorationLine: 'underline',
+    textDecorationLine: "underline",
     opacity: 0.85,
   },
-})
+});

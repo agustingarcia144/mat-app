@@ -1,51 +1,51 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { createPortal } from 'react-dom'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { type Id } from '@/convex/_generated/dataModel'
+import { useState } from "react";
+import { createPortal } from "react-dom";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { type Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { Field, FieldLabel } from '@/components/ui/field'
-import { toast } from 'sonner'
-import { CheckCircle, Expand, X, XCircle } from 'lucide-react'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { toast } from "sonner";
+import { CheckCircle, Expand, X, XCircle } from "lucide-react";
 
 interface PaymentReviewDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  paymentId: Id<'planPayments'>
-  memberName: string
-  planName: string
-  billingPeriod: string
-  amountArs: number
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  paymentId: Id<"planPayments">;
+  memberName: string;
+  planName: string;
+  billingPeriod: string;
+  amountArs: number;
 }
 
 function formatBillingPeriod(period: string): string {
-  const [year, month] = period.split('-')
+  const [year, month] = period.split("-");
   const monthNames = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre',
-  ]
-  const monthIndex = parseInt(month!, 10) - 1
-  return `${monthNames[monthIndex]} ${year}`
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ];
+  const monthIndex = parseInt(month!, 10) - 1;
+  return `${monthNames[monthIndex]} ${year}`;
 }
 
 export default function PaymentReviewDialog({
@@ -57,53 +57,53 @@ export default function PaymentReviewDialog({
   billingPeriod,
   amountArs,
 }: PaymentReviewDialogProps) {
-  const [notes, setNotes] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [fullscreen, setFullscreen] = useState(false)
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const proofUrl = useQuery(
     api.planPayments.getProofUrl,
-    open ? { paymentId } : 'skip'
-  )
+    open ? { paymentId } : "skip",
+  );
   const payment = useQuery(
     api.planPayments.getById,
-    open ? { paymentId } : 'skip'
-  )
+    open ? { paymentId } : "skip",
+  );
 
-  const approvePayment = useMutation(api.planPayments.approve)
-  const declinePayment = useMutation(api.planPayments.decline)
+  const approvePayment = useMutation(api.planPayments.approve);
+  const declinePayment = useMutation(api.planPayments.decline);
 
   const handleApprove = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       await approvePayment({
         paymentId,
         notes: notes.trim() || undefined,
-      })
-      toast.success('Pago aprobado')
-      onOpenChange(false)
+      });
+      toast.success("Pago aprobado");
+      onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al aprobar')
+      toast.error(err instanceof Error ? err.message : "Error al aprobar");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDecline = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       await declinePayment({
         paymentId,
         notes: notes.trim() || undefined,
-      })
-      toast.success('Pago rechazado')
-      onOpenChange(false)
+      });
+      toast.success("Pago rechazado");
+      onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al rechazar')
+      toast.error(err instanceof Error ? err.message : "Error al rechazar");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -134,21 +134,27 @@ export default function PaymentReviewDialog({
               {payment?.interestApplied?.length ? (
                 <div className="mt-0.5 space-y-0.5">
                   <p className="text-muted-foreground text-sm">
-                    Base: ${amountArs.toLocaleString('es-AR')}
+                    Base: ${amountArs.toLocaleString("es-AR")}
                   </p>
                   {payment.interestApplied.map((tier, i) => (
                     <p key={i} className="text-sm text-amber-600">
-                      + Mora ({tier.type === 'percentage' ? `${tier.value}%` : `$${tier.value.toLocaleString('es-AR')} fijo`}
-                      ): +${tier.amountArs.toLocaleString('es-AR')}
+                      + Mora (
+                      {tier.type === "percentage"
+                        ? `${tier.value}%`
+                        : `$${tier.value.toLocaleString("es-AR")} fijo`}
+                      ): +${tier.amountArs.toLocaleString("es-AR")}
                     </p>
                   ))}
                   <p className="font-semibold">
-                    Total: ${(payment.totalAmountArs ?? amountArs).toLocaleString('es-AR')}
+                    Total: $
+                    {(payment.totalAmountArs ?? amountArs).toLocaleString(
+                      "es-AR",
+                    )}
                   </p>
                 </div>
               ) : (
                 <p className="font-medium">
-                  ${amountArs.toLocaleString('es-AR')}
+                  ${amountArs.toLocaleString("es-AR")}
                 </p>
               )}
             </div>
@@ -164,7 +170,7 @@ export default function PaymentReviewDialog({
               <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
                 No se pudo cargar el comprobante
               </div>
-            ) : proofUrl.contentType === 'application/pdf' ? (
+            ) : proofUrl.contentType === "application/pdf" ? (
               <div className="relative">
                 <iframe
                   src={proofUrl.url}
@@ -190,35 +196,37 @@ export default function PaymentReviewDialog({
           </div>
 
           {/* Fullscreen overlay — portalled to body to escape dialog overflow clipping */}
-          {fullscreen && proofUrl && createPortal(
-            <div
-              className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90"
-              onClick={() => setFullscreen(false)}
-            >
-              <button
-                className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+          {fullscreen &&
+            proofUrl &&
+            createPortal(
+              <div
+                className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90"
                 onClick={() => setFullscreen(false)}
               >
-                <X className="h-6 w-6" />
-              </button>
-              {proofUrl.contentType === 'application/pdf' ? (
-                <iframe
-                  src={proofUrl.url}
-                  className="h-[90vh] w-[90vw] rounded-lg"
-                  title="Comprobante de pago"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <img
-                  src={proofUrl.url}
-                  alt="Comprobante de pago"
-                  className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              )}
-            </div>,
-            document.body
-          )}
+                <button
+                  className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+                  onClick={() => setFullscreen(false)}
+                >
+                  <X className="h-6 w-6" />
+                </button>
+                {proofUrl.contentType === "application/pdf" ? (
+                  <iframe
+                    src={proofUrl.url}
+                    className="h-[90vh] w-[90vw] rounded-lg"
+                    title="Comprobante de pago"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <img
+                    src={proofUrl.url}
+                    alt="Comprobante de pago"
+                    className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                )}
+              </div>,
+              document.body,
+            )}
 
           {/* Notes */}
           <Field>
@@ -256,5 +264,5 @@ export default function PaymentReviewDialog({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

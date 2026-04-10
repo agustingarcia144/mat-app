@@ -143,9 +143,7 @@ export const getColumns = (): ColumnDef<Member>[] => [
   {
     accessorKey: 'role',
     header: 'Rol',
-    cell: ({ row }) => (
-      <RoleBadge role={row.original.role ?? ''} />
-    ),
+    cell: ({ row }) => <RoleBadge role={row.original.role ?? ''} />,
   },
   {
     accessorKey: 'status',

@@ -1,52 +1,52 @@
-'use client'
+"use client";
 
-import { useQuery, useMutation, useAction } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import type { Id } from '@/convex/_generated/dataModel'
+import { useQuery, useMutation, useAction } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 
 type PendingJoinRequest = {
-  _id: Id<'organizationJoinRequests'>
-  userId: string
-  status: string
-  requestedAt: number
-  source?: string
-  fullName?: string | null
-  email?: string | null
-  imageUrl?: string | null
-}
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Check, X, UserPlus } from 'lucide-react'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { toast } from 'sonner'
+  _id: Id<"organizationJoinRequests">;
+  userId: string;
+  status: string;
+  requestedAt: number;
+  source?: string;
+  fullName?: string | null;
+  email?: string | null;
+  imageUrl?: string | null;
+};
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Check, X, UserPlus } from "lucide-react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { toast } from "sonner";
 
 export function JoinRequestsCard() {
-  const pending = useQuery(api.joinGym.listPendingJoinRequests)
-  const approve = useAction(api.joinGym.approveJoinRequest)
-  const reject = useMutation(api.joinGym.rejectJoinRequest)
+  const pending = useQuery(api.joinGym.listPendingJoinRequests);
+  const approve = useAction(api.joinGym.approveJoinRequest);
+  const reject = useMutation(api.joinGym.rejectJoinRequest);
 
-  if (pending === undefined) return null
-  if (pending.length === 0) return null
+  if (pending === undefined) return null;
+  if (pending.length === 0) return null;
 
-  const handleApprove = async (requestId: Id<'organizationJoinRequests'>) => {
+  const handleApprove = async (requestId: Id<"organizationJoinRequests">) => {
     try {
-      await approve({ requestId })
-      toast.success('Solicitud aprobada. El usuario ya es miembro.')
+      await approve({ requestId });
+      toast.success("Solicitud aprobada. El usuario ya es miembro.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se pudo aprobar')
+      toast.error(e instanceof Error ? e.message : "No se pudo aprobar");
     }
-  }
+  };
 
-  const handleReject = async (requestId: Id<'organizationJoinRequests'>) => {
+  const handleReject = async (requestId: Id<"organizationJoinRequests">) => {
     try {
-      await reject({ requestId })
-      toast.success('Solicitud rechazada.')
+      await reject({ requestId });
+      toast.success("Solicitud rechazada.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'No se pudo rechazar')
+      toast.error(e instanceof Error ? e.message : "No se pudo rechazar");
     }
-  }
+  };
 
   return (
     <Card>
@@ -58,17 +58,20 @@ export function JoinRequestsCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Usuarios que escanearon el QR o ingresaron el código manual y esperan tu aprobación.
+          Usuarios que escanearon el QR o ingresaron el código manual y esperan
+          tu aprobación.
         </p>
         <ul className="space-y-2">
           {pending.map((req: PendingJoinRequest) => {
             const initials =
               req.fullName
-                ?.split(' ')
+                ?.split(" ")
                 .map((n: string) => n[0])
-                .join('')
+                .join("")
                 .toUpperCase()
-                .slice(0, 2) || req.email?.[0]?.toUpperCase() || '?'
+                .slice(0, 2) ||
+              req.email?.[0]?.toUpperCase() ||
+              "?";
             return (
               <li
                 key={req._id}
@@ -77,11 +80,13 @@ export function JoinRequestsCard() {
                 <div className="flex min-w-0 items-center gap-3">
                   <Avatar className="size-9">
                     {req.imageUrl && <AvatarImage src={req.imageUrl} />}
-                    <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+                    <AvatarFallback className="text-xs">
+                      {initials}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
-                      {req.fullName || req.email || 'Usuario'}
+                      {req.fullName || req.email || "Usuario"}
                     </p>
                     {req.email && req.fullName && (
                       <p className="truncate text-xs text-muted-foreground">
@@ -89,7 +94,7 @@ export function JoinRequestsCard() {
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(req.requestedAt), 'd MMM yyyy, HH:mm', {
+                      {format(new Date(req.requestedAt), "d MMM yyyy, HH:mm", {
                         locale: es,
                       })}
                     </p>
@@ -116,10 +121,10 @@ export function JoinRequestsCard() {
                   </Button>
                 </div>
               </li>
-            )
+            );
           })}
         </ul>
       </CardContent>
     </Card>
-  )
+  );
 }

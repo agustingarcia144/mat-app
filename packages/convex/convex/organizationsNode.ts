@@ -1,91 +1,91 @@
-"use node"
+"use node";
 
-import { v } from 'convex/values'
-import { internal } from './_generated/api'
-import { internalAction } from './_generated/server'
+import { v } from "convex/values";
+import { internal } from "./_generated/api";
+import { internalAction } from "./_generated/server";
 
 type ResendEmailRequest = {
-  from: string
-  to: string[]
-  subject: string
-  html: string
-  text: string
-  reply_to?: string
-}
+  from: string;
+  to: string[];
+  subject: string;
+  html: string;
+  text: string;
+  reply_to?: string;
+};
 
 type InvitationTokenData = {
-  token: string
-  tokenHash: string
-  expiresAt: number
-}
+  token: string;
+  tokenHash: string;
+  expiresAt: number;
+};
 
 function getRequiredEnv(name: string): string {
-  const value = process.env[name]?.trim()
+  const value = process.env[name]?.trim();
   if (!value) {
-    throw new Error(`Missing ${name}`)
+    throw new Error(`Missing ${name}`);
   }
-  return value
+  return value;
 }
 
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function getInvitationTtlHours(): number {
-  const raw = process.env.INVITATION_TTL_HOURS?.trim()
-  const parsed = raw ? Number(raw) : NaN
+  const raw = process.env.INVITATION_TTL_HOURS?.trim();
+  const parsed = raw ? Number(raw) : NaN;
   if (Number.isFinite(parsed) && parsed > 0) {
-    return parsed
+    return parsed;
   }
-  return 72
+  return 72;
 }
 
 async function hashToken(token: string) {
-  const { createHash } = await import('node:crypto')
-  return createHash('sha256').update(token).digest('hex')
+  const { createHash } = await import("node:crypto");
+  return createHash("sha256").update(token).digest("hex");
 }
 
 async function generateInvitationTokenData(): Promise<InvitationTokenData> {
-  const { randomBytes } = await import('node:crypto')
-  const token = randomBytes(32).toString('base64url')
-  const tokenHash = await hashToken(token)
-  const expiresAt = Date.now() + getInvitationTtlHours() * 60 * 60 * 1000
-  return { token, tokenHash, expiresAt }
+  const { randomBytes } = await import("node:crypto");
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = await hashToken(token);
+  const expiresAt = Date.now() + getInvitationTtlHours() * 60 * 60 * 1000;
+  return { token, tokenHash, expiresAt };
 }
 
 function formatInviteText(args: {
-  organizationName: string
-  roleLabel: string
-  inviterLine: string
-  inviteUrl: string
+  organizationName: string;
+  roleLabel: string;
+  inviterLine: string;
+  inviteUrl: string;
 }) {
   return [
     `Te invitaron a unirte a ${args.organizationName} como ${args.roleLabel}.`,
     args.inviterLine,
-    '',
+    "",
     `Accede desde aqui: ${args.inviteUrl}`,
-    '',
-    'Si no esperabas esta invitacion, ignora este email.',
+    "",
+    "Si no esperabas esta invitacion, ignora este email.",
   ]
     .filter(Boolean)
-    .join('\n')
+    .join("\n");
 }
 
 function formatInviteHtml(args: {
-  organizationName: string
-  roleLabel: string
-  inviterLine: string
-  inviteUrl: string
+  organizationName: string;
+  roleLabel: string;
+  inviterLine: string;
+  inviteUrl: string;
 }) {
-  const organizationName = escapeHtml(args.organizationName)
-  const roleLabel = escapeHtml(args.roleLabel)
-  const inviterLine = escapeHtml(args.inviterLine)
-  const inviteUrl = escapeHtml(args.inviteUrl)
+  const organizationName = escapeHtml(args.organizationName);
+  const roleLabel = escapeHtml(args.roleLabel);
+  const inviterLine = escapeHtml(args.inviterLine);
+  const inviteUrl = escapeHtml(args.inviteUrl);
 
   return `
     <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; color: #111;">
@@ -104,23 +104,23 @@ function formatInviteHtml(args: {
         Si no esperabas esta invitacion, ignora este email.
       </p>
     </div>
-  `
+  `;
 }
 
 async function sendWithResend(payload: ResendEmailRequest) {
-  const resendApiKey = getRequiredEnv('RESEND_API_KEY')
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
+  const resendApiKey = getRequiredEnv("RESEND_API_KEY");
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
     headers: {
       Authorization: `Bearer ${resendApiKey}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  })
+  });
 
   if (!response.ok) {
-    const body = await response.text()
-    throw new Error(`Resend request failed (${response.status}): ${body}`)
+    const body = await response.text();
+    throw new Error(`Resend request failed (${response.status}): ${body}`);
   }
 }
 
@@ -129,52 +129,58 @@ export const hashInvitationToken = internalAction({
     token: v.string(),
   },
   handler: async (_ctx, args) => {
-    return await hashToken(args.token.trim())
+    return await hashToken(args.token.trim());
   },
-})
+});
 
 export const sendStaffInvitationEmail = internalAction({
   args: {
-    invitationId: v.id('organizationInvitations'),
+    invitationId: v.id("organizationInvitations"),
   },
   handler: async (ctx, args) => {
     const invitation = await ctx.runQuery(
       internal.organizations.getInvitationEmailPayloadInternal,
-      { invitationId: args.invitationId }
-    )
+      { invitationId: args.invitationId },
+    );
     if (!invitation) {
-      return { status: 'skipped' as const, reason: 'invitation_not_pending' as const }
+      return {
+        status: "skipped" as const,
+        reason: "invitation_not_pending" as const,
+      };
     }
 
-    const from = getRequiredEnv('RESEND_FROM_EMAIL')
-    const appUrl = getRequiredEnv('INVITATION_APP_URL').replace(/\/+$/, '')
-    const replyTo = process.env.RESEND_REPLY_TO?.trim() || undefined
-    const tokenData = await generateInvitationTokenData()
+    const from = getRequiredEnv("RESEND_FROM_EMAIL");
+    const appUrl = getRequiredEnv("INVITATION_APP_URL").replace(/\/+$/, "");
+    const replyTo = process.env.RESEND_REPLY_TO?.trim() || undefined;
+    const tokenData = await generateInvitationTokenData();
 
-    await ctx.runMutation(internal.organizations.attachInvitationTokenInternal, {
-      invitationId: invitation.invitationId,
-      tokenHash: tokenData.tokenHash,
-      expiresAt: tokenData.expiresAt,
-    })
+    await ctx.runMutation(
+      internal.organizations.attachInvitationTokenInternal,
+      {
+        invitationId: invitation.invitationId,
+        tokenHash: tokenData.tokenHash,
+        expiresAt: tokenData.expiresAt,
+      },
+    );
 
     const inviterLine = invitation.inviterName
       ? `${invitation.inviterName} te envio esta invitacion.`
-      : 'Un administrador te envio esta invitacion.'
-    const inviteUrl = `${appUrl}/invitations/accept?token=${encodeURIComponent(tokenData.token)}`
+      : "Un administrador te envio esta invitacion.";
+    const inviteUrl = `${appUrl}/invitations/accept?token=${encodeURIComponent(tokenData.token)}`;
 
-    const subject = `${invitation.organizationName}: invitacion como ${invitation.roleLabel}`
+    const subject = `${invitation.organizationName}: invitacion como ${invitation.roleLabel}`;
     const text = formatInviteText({
       organizationName: invitation.organizationName,
       roleLabel: invitation.roleLabel,
       inviterLine,
       inviteUrl,
-    })
+    });
     const html = formatInviteHtml({
       organizationName: invitation.organizationName,
       roleLabel: invitation.roleLabel,
       inviterLine,
       inviteUrl,
-    })
+    });
 
     await sendWithResend({
       from,
@@ -183,8 +189,8 @@ export const sendStaffInvitationEmail = internalAction({
       html,
       text,
       reply_to: replyTo,
-    })
+    });
 
-    return { status: 'sent' as const }
+    return { status: "sent" as const };
   },
-})
+});

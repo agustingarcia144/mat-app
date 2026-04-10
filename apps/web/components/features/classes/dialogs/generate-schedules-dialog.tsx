@@ -1,95 +1,95 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useRef } from 'react'
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery, useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import type { Doc } from '@/convex/_generated/dataModel'
-import { Button } from '@/components/ui/button'
+import { useState, useEffect, useRef } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Doc } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Calendar } from '@/components/ui/calendar'
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Field,
   FieldLabel,
   FieldDescription,
   FieldError,
-} from '@/components/ui/field'
+} from "@/components/ui/field";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Checkbox } from '@/components/ui/checkbox'
-import { es } from 'date-fns/locale'
-import type { DateRange } from 'react-day-picker'
-import { type Id } from '@/convex/_generated/dataModel'
-import {
-  generateTurnosTimeWindowSchema,
-  z,
-} from '@repo/core/schemas'
-import { toast } from 'sonner'
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { es } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
+import { type Id } from "@/convex/_generated/dataModel";
+import { generateTurnosTimeWindowSchema, z } from "@repo/core/schemas";
+import { toast } from "sonner";
 
 const DAYS_OF_WEEK = [
-  { value: 1, label: 'Lun' },
-  { value: 2, label: 'Mar' },
-  { value: 3, label: 'Mié' },
-  { value: 4, label: 'Jue' },
-  { value: 5, label: 'Vie' },
-  { value: 6, label: 'Sáb' },
-  { value: 0, label: 'Dom' },
-]
+  { value: 1, label: "Lun" },
+  { value: 2, label: "Mar" },
+  { value: 3, label: "Mié" },
+  { value: 4, label: "Jue" },
+  { value: 5, label: "Vie" },
+  { value: 6, label: "Sáb" },
+  { value: 0, label: "Dom" },
+];
 
 const SLOT_INTERVAL_OPTIONS = [
-  { value: 15, label: 'Cada 15 min' },
-  { value: 30, label: 'Cada 30 min' },
-  { value: 60, label: 'Cada hora' },
-  { value: 120, label: 'Cada 2 horas' },
-]
+  { value: 15, label: "Cada 15 min" },
+  { value: 30, label: "Cada 30 min" },
+  { value: 60, label: "Cada hora" },
+  { value: 120, label: "Cada 2 horas" },
+];
 
-const MAX_SLOTS_PER_GENERATION = 400
+const MAX_SLOTS_PER_GENERATION = 400;
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
-  value: String(i).padStart(2, '0'),
-  label: `${String(i).padStart(2, '0')}:00`,
-}))
+  value: String(i).padStart(2, "0"),
+  label: `${String(i).padStart(2, "0")}:00`,
+}));
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => ({
-  value: String(i).padStart(2, '0'),
-  label: String(i).padStart(2, '0'),
-}))
+  value: String(i).padStart(2, "0"),
+  label: String(i).padStart(2, "0"),
+}));
 
-function parseTimeHHmm(value: string | undefined): { hour: string; minute: string } {
+function parseTimeHHmm(value: string | undefined): {
+  hour: string;
+  minute: string;
+} {
   if (!value || !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(value)) {
-    return { hour: '08', minute: '00' }
+    return { hour: "08", minute: "00" };
   }
-  const [h, m] = value.split(':')
+  const [h, m] = value.split(":");
   return {
-    hour: h!.padStart(2, '0'),
-    minute: m!.padStart(2, '0'),
-  }
+    hour: h!.padStart(2, "0"),
+    minute: m!.padStart(2, "0"),
+  };
 }
 
-type Mode = 'timeWindow' | 'single' | 'modelWeek'
+type Mode = "timeWindow" | "single" | "modelWeek";
 
 const generateTurnosFormSchema = z
   .object({
-    mode: z.enum(['timeWindow', 'single', 'modelWeek']),
-    classId: z.string().min(1, 'Selecciona una clase'),
+    mode: z.enum(["timeWindow", "single", "modelWeek"]),
+    classId: z.string().min(1, "Selecciona una clase"),
     duration: z.coerce
       .number()
-      .min(15, 'Mínimo 15 minutos')
-      .max(480, 'Máximo 8 horas'),
+      .min(15, "Mínimo 15 minutos")
+      .max(480, "Máximo 8 horas"),
     // single
     startDate: z.date().optional(),
     startTime: z
@@ -105,29 +105,57 @@ const generateTurnosFormSchema = z
     daysOfWeek: z.array(z.number()).optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.mode === 'single') {
+    if (data.mode === "single") {
       if (!data.startDate) {
-        ctx.addIssue({ code: 'custom', path: ['startDate'], message: 'Fecha requerida' })
+        ctx.addIssue({
+          code: "custom",
+          path: ["startDate"],
+          message: "Fecha requerida",
+        });
       }
       if (!data.startTime) {
-        ctx.addIssue({ code: 'custom', path: ['startTime'], message: 'Hora requerida' })
+        ctx.addIssue({
+          code: "custom",
+          path: ["startTime"],
+          message: "Hora requerida",
+        });
       }
     }
-    if (data.mode === 'modelWeek') {
+    if (data.mode === "modelWeek") {
       if (!data.daysOfWeek || data.daysOfWeek.length === 0) {
-        ctx.addIssue({ code: 'custom', path: ['daysOfWeek'], message: 'Seleccioná al menos un día' })
+        ctx.addIssue({
+          code: "custom",
+          path: ["daysOfWeek"],
+          message: "Seleccioná al menos un día",
+        });
       }
       if (!data.timeWindowStart) {
-        ctx.addIssue({ code: 'custom', path: ['timeWindowStart'], message: 'Hora inicio requerida' })
+        ctx.addIssue({
+          code: "custom",
+          path: ["timeWindowStart"],
+          message: "Hora inicio requerida",
+        });
       }
       if (!data.timeWindowEnd) {
-        ctx.addIssue({ code: 'custom', path: ['timeWindowEnd'], message: 'Hora fin requerida' })
+        ctx.addIssue({
+          code: "custom",
+          path: ["timeWindowEnd"],
+          message: "Hora fin requerida",
+        });
       }
-      if (data.timeWindowStart && data.timeWindowEnd && data.timeWindowStart >= data.timeWindowEnd) {
-        ctx.addIssue({ code: 'custom', path: ['timeWindowEnd'], message: 'La hora fin debe ser mayor a la hora inicio' })
+      if (
+        data.timeWindowStart &&
+        data.timeWindowEnd &&
+        data.timeWindowStart >= data.timeWindowEnd
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["timeWindowEnd"],
+          message: "La hora fin debe ser mayor a la hora inicio",
+        });
       }
     }
-    if (data.mode === 'timeWindow') {
+    if (data.mode === "timeWindow") {
       const tw = generateTurnosTimeWindowSchema.safeParse({
         rangeStartDate: data.rangeStartDate,
         rangeEndDate: data.rangeEndDate,
@@ -136,28 +164,28 @@ const generateTurnosFormSchema = z
         slotIntervalMinutes: data.slotIntervalMinutes ?? 60,
         durationMinutes: data.duration,
         daysOfWeek: data.daysOfWeek,
-      })
+      });
       if (!tw.success) {
         tw.error.issues.forEach((issue) => {
-          const path = issue.path[0] as string
+          const path = issue.path[0] as string;
           ctx.addIssue({
-            code: 'custom',
+            code: "custom",
             path: [path],
             message: issue.message,
-          })
-        })
+          });
+        });
       }
     }
-  })
+  });
 
-type GenerateTurnosFormValues = z.infer<typeof generateTurnosFormSchema>
+type GenerateTurnosFormValues = z.infer<typeof generateTurnosFormSchema>;
 
 interface GenerateSchedulesDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  initialClassId?: Id<'classes'>
-  initialClassTitle?: string
-  onSuccess?: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialClassId?: Id<"classes">;
+  initialClassTitle?: string;
+  onSuccess?: () => void;
 }
 
 function approximateTimeWindowCount(
@@ -166,23 +194,23 @@ function approximateTimeWindowCount(
   timeStartMins: number,
   timeEndMins: number,
   intervalMins: number,
-  daysOfWeek?: number[]
+  daysOfWeek?: number[],
 ): number {
-  const dayMs = 24 * 60 * 60 * 1000
-  let days = 0
-  let current = new Date(rangeStart)
-  current.setHours(0, 0, 0, 0)
-  const end = new Date(rangeEnd)
-  end.setHours(23, 59, 59, 999)
+  const dayMs = 24 * 60 * 60 * 1000;
+  let days = 0;
+  let current = new Date(rangeStart);
+  current.setHours(0, 0, 0, 0);
+  const end = new Date(rangeEnd);
+  end.setHours(23, 59, 59, 999);
   while (current.getTime() <= end.getTime()) {
-    const dow = current.getDay()
+    const dow = current.getDay();
     if (!daysOfWeek || daysOfWeek.length === 0 || daysOfWeek.includes(dow)) {
-      days++
+      days++;
     }
-    current = new Date(current.getTime() + dayMs)
+    current = new Date(current.getTime() + dayMs);
   }
-  const slotsPerDay = Math.floor((timeEndMins - timeStartMins) / intervalMins)
-  return days * slotsPerDay
+  const slotsPerDay = Math.floor((timeEndMins - timeStartMins) / intervalMins);
+  return days * slotsPerDay;
 }
 
 export default function GenerateSchedulesDialog({
@@ -192,29 +220,34 @@ export default function GenerateSchedulesDialog({
   initialClassTitle,
   onSuccess,
 }: GenerateSchedulesDialogProps) {
-  const classes = useQuery(api.classes.getByOrganization, open ? { activeOnly: false } : 'skip')
-  const generateSchedules = useMutation(api.classes.generateSchedules)
-  const generateFromTimeWindow = useMutation(api.classes.generateSchedulesFromTimeWindow)
-  const createModelWeekSlot = useMutation(api.modelWeekSlots.create)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const submitInProgress = useRef(false)
+  const classes = useQuery(
+    api.classes.getByOrganization,
+    open ? { activeOnly: false } : "skip",
+  );
+  const generateSchedules = useMutation(api.classes.generateSchedules);
+  const generateFromTimeWindow = useMutation(
+    api.classes.generateSchedulesFromTimeWindow,
+  );
+  const createModelWeekSlot = useMutation(api.modelWeekSlots.create);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitInProgress = useRef(false);
 
   const form = useForm<GenerateTurnosFormValues>({
     resolver: zodResolver(generateTurnosFormSchema) as any,
     defaultValues: {
-      mode: 'timeWindow',
-      classId: '',
+      mode: "timeWindow",
+      classId: "",
       duration: 60,
       startDate: new Date(),
-      startTime: '09:00',
+      startTime: "09:00",
       rangeStartDate: new Date(),
       rangeEndDate: new Date(),
-      timeWindowStart: '08:00',
-      timeWindowEnd: '20:00',
+      timeWindowStart: "08:00",
+      timeWindowEnd: "20:00",
       slotIntervalMinutes: 60,
       daysOfWeek: undefined,
     },
-  })
+  });
 
   const {
     register,
@@ -223,120 +256,132 @@ export default function GenerateSchedulesDialog({
     setValue,
     reset,
     formState: { errors },
-  } = form
+  } = form;
 
-  const mode = watch('mode')
-  const classId = watch('classId')
-  const rangeStartDate = watch('rangeStartDate')
-  const rangeEndDate = watch('rangeEndDate')
-  const timeWindowStart = watch('timeWindowStart')
-  const timeWindowEnd = watch('timeWindowEnd')
-  const slotIntervalMinutes = watch('slotIntervalMinutes')
-  const duration = watch('duration')
-  const daysOfWeek = watch('daysOfWeek')
+  const mode = watch("mode");
+  const classId = watch("classId");
+  const rangeStartDate = watch("rangeStartDate");
+  const rangeEndDate = watch("rangeEndDate");
+  const timeWindowStart = watch("timeWindowStart");
+  const timeWindowEnd = watch("timeWindowEnd");
+  const slotIntervalMinutes = watch("slotIntervalMinutes");
+  const duration = watch("duration");
+  const daysOfWeek = watch("daysOfWeek");
 
   useEffect(() => {
     if (open && initialClassId) {
-      setValue('classId', initialClassId)
+      setValue("classId", initialClassId);
     }
-  }, [open, initialClassId, setValue])
+  }, [open, initialClassId, setValue]);
 
   // Keep end date in sync: if start is set and end is missing or before start, use start (single day)
   useEffect(() => {
-    if (mode !== 'timeWindow' || !rangeStartDate) return
-    const end = rangeEndDate ?? null
+    if (mode !== "timeWindow" || !rangeStartDate) return;
+    const end = rangeEndDate ?? null;
     if (end == null || end < rangeStartDate) {
-      setValue('rangeEndDate', rangeStartDate)
+      setValue("rangeEndDate", rangeStartDate);
     }
-  }, [mode, rangeStartDate, rangeEndDate, setValue])
+  }, [mode, rangeStartDate, rangeEndDate, setValue]);
 
   useEffect(() => {
     if (!open) {
       reset({
-        mode: 'timeWindow',
-        classId: initialClassId ?? '',
+        mode: "timeWindow",
+        classId: initialClassId ?? "",
         duration: 60,
         startDate: new Date(),
-        startTime: '09:00',
+        startTime: "09:00",
         rangeStartDate: new Date(),
         rangeEndDate: new Date(),
-        timeWindowStart: '08:00',
-        timeWindowEnd: '20:00',
+        timeWindowStart: "08:00",
+        timeWindowEnd: "20:00",
         slotIntervalMinutes: 60,
         daysOfWeek: undefined,
-      })
+      });
     }
-  }, [open, reset, initialClassId])
+  }, [open, reset, initialClassId]);
 
   const dateRange: DateRange | undefined =
     rangeStartDate != null
       ? { from: rangeStartDate, to: rangeEndDate ?? undefined }
-      : undefined
+      : undefined;
 
-  const todayStart = new Date()
-  todayStart.setHours(0, 0, 0, 0)
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
   const approximateCount =
-    (mode === 'timeWindow' || mode === 'modelWeek') &&
+    (mode === "timeWindow" || mode === "modelWeek") &&
     timeWindowStart &&
     timeWindowEnd &&
     slotIntervalMinutes != null
       ? (() => {
-          const [sh, sm] = timeWindowStart.split(':').map(Number)
-          const [eh, em] = timeWindowEnd.split(':').map(Number)
-          const startMins = (sh ?? 0) * 60 + (sm ?? 0)
-          const endMins = (eh ?? 0) * 60 + (em ?? 0)
-          if (endMins <= startMins) return 0
-          const slotsPerDay = Math.floor((endMins - startMins) / slotIntervalMinutes)
-          if (mode === 'modelWeek') {
-            return (daysOfWeek?.length ?? 0) * slotsPerDay
+          const [sh, sm] = timeWindowStart.split(":").map(Number);
+          const [eh, em] = timeWindowEnd.split(":").map(Number);
+          const startMins = (sh ?? 0) * 60 + (sm ?? 0);
+          const endMins = (eh ?? 0) * 60 + (em ?? 0);
+          if (endMins <= startMins) return 0;
+          const slotsPerDay = Math.floor(
+            (endMins - startMins) / slotIntervalMinutes,
+          );
+          if (mode === "modelWeek") {
+            return (daysOfWeek?.length ?? 0) * slotsPerDay;
           }
-          if (!rangeStartDate || !rangeEndDate) return null
+          if (!rangeStartDate || !rangeEndDate) return null;
           return approximateTimeWindowCount(
             rangeStartDate,
             rangeEndDate,
             startMins,
             endMins,
             slotIntervalMinutes,
-            daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : undefined
-          )
+            daysOfWeek && daysOfWeek.length > 0 ? daysOfWeek : undefined,
+          );
         })()
-      : null
+      : null;
 
   const onSubmit = async (data: GenerateTurnosFormValues) => {
-    if (!data.classId) return
-    if (submitInProgress.current) return
-    submitInProgress.current = true
-    const classIdArg = data.classId as Id<'classes'>
-    setIsSubmitting(true)
+    if (!data.classId) return;
+    if (submitInProgress.current) return;
+    submitInProgress.current = true;
+    const classIdArg = data.classId as Id<"classes">;
+    setIsSubmitting(true);
     try {
-      if (data.mode === 'single' && data.startDate != null && data.startTime != null) {
-        const [hours, minutes] = data.startTime.split(':').map(Number)
-        const startDateTime = new Date(data.startDate)
-        startDateTime.setHours(hours, minutes, 0, 0)
-        const startTime = startDateTime.getTime()
-        const endTime = startTime + data.duration * 60 * 1000
+      if (
+        data.mode === "single" &&
+        data.startDate != null &&
+        data.startTime != null
+      ) {
+        const [hours, minutes] = data.startTime.split(":").map(Number);
+        const startDateTime = new Date(data.startDate);
+        startDateTime.setHours(hours, minutes, 0, 0);
+        const startTime = startDateTime.getTime();
+        const endTime = startTime + data.duration * 60 * 1000;
         const result = await generateSchedules({
           classId: classIdArg,
           startDate: startTime,
           endTime,
-        })
-        toast.success(`Se creó ${result.count} turno correctamente`)
-      } else if (data.mode === 'timeWindow' && data.rangeStartDate && data.timeWindowStart && data.timeWindowEnd && data.slotIntervalMinutes != null) {
+        });
+        toast.success(`Se creó ${result.count} turno correctamente`);
+      } else if (
+        data.mode === "timeWindow" &&
+        data.rangeStartDate &&
+        data.timeWindowStart &&
+        data.timeWindowEnd &&
+        data.slotIntervalMinutes != null
+      ) {
         // Use single day when end is missing or before start (avoids generating on unintended days)
-        const startDate = data.rangeStartDate
-        const endDateRaw = data.rangeEndDate
+        const startDate = data.rangeStartDate;
+        const endDateRaw = data.rangeEndDate;
         const endDate =
-          endDateRaw && endDateRaw >= startDate ? endDateRaw : startDate
+          endDateRaw && endDateRaw >= startDate ? endDateRaw : startDate;
 
-        const [sh, sm] = data.timeWindowStart.split(':').map(Number)
-        const [eh, em] = data.timeWindowEnd.split(':').map(Number)
-        const timeWindowStartMinutes = sh * 60 + sm
-        const timeWindowEndMinutes = eh * 60 + em
-        const startDay = new Date(startDate)
-        startDay.setHours(0, 0, 0, 0)
-        const endDay = new Date(endDate)
-        endDay.setHours(23, 59, 59, 999)
+        const [sh, sm] = data.timeWindowStart.split(":").map(Number);
+        const [eh, em] = data.timeWindowEnd.split(":").map(Number);
+        const timeWindowStartMinutes = sh * 60 + sm;
+        const timeWindowEndMinutes = eh * 60 + em;
+        const startDay = new Date(startDate);
+        startDay.setHours(0, 0, 0, 0);
+        const endDay = new Date(endDate);
+        endDay.setHours(23, 59, 59, 999);
         const result = await generateFromTimeWindow({
           classId: classIdArg,
           startDate: startDay.getTime(),
@@ -345,42 +390,52 @@ export default function GenerateSchedulesDialog({
           timeWindowEndMinutes,
           slotIntervalMinutes: data.slotIntervalMinutes,
           durationMinutes: data.duration,
-          daysOfWeek: data.daysOfWeek && data.daysOfWeek.length > 0 ? data.daysOfWeek : undefined,
-        })
-        toast.success(`Se generaron ${result.count} turnos correctamente`)
-      } else if (data.mode === 'modelWeek' && data.timeWindowStart && data.timeWindowEnd && data.slotIntervalMinutes != null && data.daysOfWeek && data.daysOfWeek.length > 0) {
-        const [sh, sm] = data.timeWindowStart.split(':').map(Number)
-        const [eh, em] = data.timeWindowEnd.split(':').map(Number)
-        const startMins = (sh ?? 0) * 60 + (sm ?? 0)
-        const endMins = (eh ?? 0) * 60 + (em ?? 0)
-        let created = 0
+          daysOfWeek:
+            data.daysOfWeek && data.daysOfWeek.length > 0
+              ? data.daysOfWeek
+              : undefined,
+        });
+        toast.success(`Se generaron ${result.count} turnos correctamente`);
+      } else if (
+        data.mode === "modelWeek" &&
+        data.timeWindowStart &&
+        data.timeWindowEnd &&
+        data.slotIntervalMinutes != null &&
+        data.daysOfWeek &&
+        data.daysOfWeek.length > 0
+      ) {
+        const [sh, sm] = data.timeWindowStart.split(":").map(Number);
+        const [eh, em] = data.timeWindowEnd.split(":").map(Number);
+        const startMins = (sh ?? 0) * 60 + (sm ?? 0);
+        const endMins = (eh ?? 0) * 60 + (em ?? 0);
+        let created = 0;
         for (const dayOfWeek of data.daysOfWeek) {
-          let current = startMins
+          let current = startMins;
           while (current < endMins) {
             await createModelWeekSlot({
               classId: classIdArg,
               dayOfWeek,
               startTimeMinutes: current,
               durationMinutes: data.duration,
-            })
-            created++
-            current += data.slotIntervalMinutes
+            });
+            created++;
+            current += data.slotIntervalMinutes;
           }
         }
-        toast.success(`Se agregaron ${created} slots a la semana modelo`)
+        toast.success(`Se agregaron ${created} slots a la semana modelo`);
       }
-      onOpenChange(false)
-      onSuccess?.()
+      onOpenChange(false);
+      onSuccess?.();
     } catch (error) {
-      console.error('Error generating schedules:', error)
+      console.error("Error generating schedules:", error);
       toast.error(
-        error instanceof Error ? error.message : 'Error al generar turnos'
-      )
+        error instanceof Error ? error.message : "Error al generar turnos",
+      );
     } finally {
-      setIsSubmitting(false)
-      submitInProgress.current = false
+      setIsSubmitting(false);
+      submitInProgress.current = false;
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -390,7 +445,7 @@ export default function GenerateSchedulesDialog({
           <DialogDescription>
             {initialClassTitle
               ? `Crear turnos para la clase "${initialClassTitle}"`
-              : 'Elige una clase y define cuándo se crearán los turnos.'}
+              : "Elige una clase y define cuándo se crearán los turnos."}
           </DialogDescription>
         </DialogHeader>
 
@@ -411,7 +466,7 @@ export default function GenerateSchedulesDialog({
                     <SelectValue placeholder="Selecciona una clase" />
                   </SelectTrigger>
                   <SelectContent>
-                    {classes?.map((c: Doc<'classes'>) => (
+                    {classes?.map((c: Doc<"classes">) => (
                       <SelectItem key={c._id} value={c._id}>
                         {c.name}
                       </SelectItem>
@@ -460,7 +515,7 @@ export default function GenerateSchedulesDialog({
             />
           </Field>
 
-          {mode === 'timeWindow' && (
+          {mode === "timeWindow" && (
             <>
               <Field>
                 <FieldLabel>Rango de fechas</FieldLabel>
@@ -473,9 +528,9 @@ export default function GenerateSchedulesDialog({
                   selected={dateRange}
                   onSelect={(range) => {
                     if (range?.from) {
-                      setValue('rangeStartDate', range.from)
+                      setValue("rangeStartDate", range.from);
                       // Single day when only start is picked; otherwise use range
-                      setValue('rangeEndDate', range.to ?? range.from)
+                      setValue("rangeEndDate", range.to ?? range.from);
                     }
                   }}
                   numberOfMonths={2}
@@ -499,7 +554,7 @@ export default function GenerateSchedulesDialog({
                     name="timeWindowStart"
                     control={form.control}
                     render={({ field }) => {
-                      const { hour, minute } = parseTimeHHmm(field.value)
+                      const { hour, minute } = parseTimeHHmm(field.value);
                       return (
                         <div className="flex items-center gap-2">
                           <Select
@@ -538,7 +593,7 @@ export default function GenerateSchedulesDialog({
                             </SelectContent>
                           </Select>
                         </div>
-                      )
+                      );
                     }}
                   />
                   {errors.timeWindowStart && (
@@ -551,7 +606,7 @@ export default function GenerateSchedulesDialog({
                     name="timeWindowEnd"
                     control={form.control}
                     render={({ field }) => {
-                      const { hour, minute } = parseTimeHHmm(field.value)
+                      const { hour, minute } = parseTimeHHmm(field.value);
                       return (
                         <div className="flex items-center gap-2">
                           <Select
@@ -590,7 +645,7 @@ export default function GenerateSchedulesDialog({
                             </SelectContent>
                           </Select>
                         </div>
-                      )
+                      );
                     }}
                   />
                   {errors.timeWindowEnd && (
@@ -631,19 +686,28 @@ export default function GenerateSchedulesDialog({
                 </FieldDescription>
                 <div className="flex flex-wrap gap-3 pt-1">
                   {DAYS_OF_WEEK.map((day) => (
-                    <div key={day.value} className="flex items-center space-x-2">
+                    <div
+                      key={day.value}
+                      className="flex items-center space-x-2"
+                    >
                       <Checkbox
                         id={`dow-${day.value}`}
                         checked={(daysOfWeek ?? []).includes(day.value)}
                         onCheckedChange={(checked) => {
-                          const current = daysOfWeek ?? []
+                          const current = daysOfWeek ?? [];
                           const next = checked
                             ? [...current, day.value].sort((a, b) => a - b)
-                            : current.filter((d: number) => d !== day.value)
-                          setValue('daysOfWeek', next.length > 0 ? next : undefined)
+                            : current.filter((d: number) => d !== day.value);
+                          setValue(
+                            "daysOfWeek",
+                            next.length > 0 ? next : undefined,
+                          );
                         }}
                       />
-                      <Label htmlFor={`dow-${day.value}`} className="text-sm font-normal">
+                      <Label
+                        htmlFor={`dow-${day.value}`}
+                        className="text-sm font-normal"
+                      >
                         {day.label}
                       </Label>
                     </div>
@@ -654,11 +718,13 @@ export default function GenerateSchedulesDialog({
               {approximateCount != null && approximateCount >= 0 && (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Se crearán aproximadamente <strong>{approximateCount}</strong> turnos.
+                    Se crearán aproximadamente{" "}
+                    <strong>{approximateCount}</strong> turnos.
                   </p>
                   {approximateCount > MAX_SLOTS_PER_GENERATION && (
                     <p className="text-sm text-destructive">
-                      Máximo {MAX_SLOTS_PER_GENERATION} turnos por vez. Reducí el rango de fechas o los días.
+                      Máximo {MAX_SLOTS_PER_GENERATION} turnos por vez. Reducí
+                      el rango de fechas o los días.
                     </p>
                   )}
                 </>
@@ -666,7 +732,7 @@ export default function GenerateSchedulesDialog({
             </>
           )}
 
-          {mode === 'single' && (
+          {mode === "single" && (
             <>
               <Field>
                 <FieldLabel>Fecha</FieldLabel>
@@ -690,7 +756,11 @@ export default function GenerateSchedulesDialog({
               </Field>
               <Field>
                 <FieldLabel>Hora de inicio</FieldLabel>
-                <Input type="time" {...register('startTime')} placeholder="09:00" />
+                <Input
+                  type="time"
+                  {...register("startTime")}
+                  placeholder="09:00"
+                />
                 {errors.startTime && (
                   <FieldError>{errors.startTime.message}</FieldError>
                 )}
@@ -698,28 +768,38 @@ export default function GenerateSchedulesDialog({
             </>
           )}
 
-          {mode === 'modelWeek' && (
+          {mode === "modelWeek" && (
             <>
               <Field>
                 <FieldLabel>Días de la semana</FieldLabel>
                 <FieldDescription>
-                  Los slots se agregarán a la semana modelo para los días seleccionados.
+                  Los slots se agregarán a la semana modelo para los días
+                  seleccionados.
                 </FieldDescription>
                 <div className="flex flex-wrap gap-3 pt-1">
                   {DAYS_OF_WEEK.map((day) => (
-                    <div key={day.value} className="flex items-center space-x-2">
+                    <div
+                      key={day.value}
+                      className="flex items-center space-x-2"
+                    >
                       <Checkbox
                         id={`mw-dow-${day.value}`}
                         checked={(daysOfWeek ?? []).includes(day.value)}
                         onCheckedChange={(checked) => {
-                          const current = daysOfWeek ?? []
+                          const current = daysOfWeek ?? [];
                           const next = checked
                             ? [...current, day.value].sort((a, b) => a - b)
-                            : current.filter((d: number) => d !== day.value)
-                          setValue('daysOfWeek', next.length > 0 ? next : undefined)
+                            : current.filter((d: number) => d !== day.value);
+                          setValue(
+                            "daysOfWeek",
+                            next.length > 0 ? next : undefined,
+                          );
                         }}
                       />
-                      <Label htmlFor={`mw-dow-${day.value}`} className="text-sm font-normal">
+                      <Label
+                        htmlFor={`mw-dow-${day.value}`}
+                        className="text-sm font-normal"
+                      >
                         {day.label}
                       </Label>
                     </div>
@@ -737,31 +817,51 @@ export default function GenerateSchedulesDialog({
                     name="timeWindowStart"
                     control={form.control}
                     render={({ field }) => {
-                      const { hour, minute } = parseTimeHHmm(field.value)
+                      const { hour, minute } = parseTimeHHmm(field.value);
                       return (
                         <div className="flex items-center gap-2">
-                          <Select value={hour} onValueChange={(h) => field.onChange(`${h}:${minute}`)}>
-                            <SelectTrigger className="flex-1"><SelectValue placeholder="Hora" /></SelectTrigger>
+                          <Select
+                            value={hour}
+                            onValueChange={(h) =>
+                              field.onChange(`${h}:${minute}`)
+                            }
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Hora" />
+                            </SelectTrigger>
                             <SelectContent>
                               {HOUR_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                           <span className="text-muted-foreground">:</span>
-                          <Select value={minute} onValueChange={(m) => field.onChange(`${hour}:${m}`)}>
-                            <SelectTrigger className="flex-1"><SelectValue placeholder="Min" /></SelectTrigger>
+                          <Select
+                            value={minute}
+                            onValueChange={(m) =>
+                              field.onChange(`${hour}:${m}`)
+                            }
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Min" />
+                            </SelectTrigger>
                             <SelectContent>
                               {MINUTE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-                      )
+                      );
                     }}
                   />
-                  {errors.timeWindowStart && <FieldError>{errors.timeWindowStart.message}</FieldError>}
+                  {errors.timeWindowStart && (
+                    <FieldError>{errors.timeWindowStart.message}</FieldError>
+                  )}
                 </Field>
                 <Field>
                   <FieldLabel>Hora fin (por día)</FieldLabel>
@@ -769,31 +869,51 @@ export default function GenerateSchedulesDialog({
                     name="timeWindowEnd"
                     control={form.control}
                     render={({ field }) => {
-                      const { hour, minute } = parseTimeHHmm(field.value)
+                      const { hour, minute } = parseTimeHHmm(field.value);
                       return (
                         <div className="flex items-center gap-2">
-                          <Select value={hour} onValueChange={(h) => field.onChange(`${h}:${minute}`)}>
-                            <SelectTrigger className="flex-1"><SelectValue placeholder="Hora" /></SelectTrigger>
+                          <Select
+                            value={hour}
+                            onValueChange={(h) =>
+                              field.onChange(`${h}:${minute}`)
+                            }
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Hora" />
+                            </SelectTrigger>
                             <SelectContent>
                               {HOUR_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                           <span className="text-muted-foreground">:</span>
-                          <Select value={minute} onValueChange={(m) => field.onChange(`${hour}:${m}`)}>
-                            <SelectTrigger className="flex-1"><SelectValue placeholder="Min" /></SelectTrigger>
+                          <Select
+                            value={minute}
+                            onValueChange={(m) =>
+                              field.onChange(`${hour}:${m}`)
+                            }
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Min" />
+                            </SelectTrigger>
                             <SelectContent>
                               {MINUTE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-                      )
+                      );
                     }}
                   />
-                  {errors.timeWindowEnd && <FieldError>{errors.timeWindowEnd.message}</FieldError>}
+                  {errors.timeWindowEnd && (
+                    <FieldError>{errors.timeWindowEnd.message}</FieldError>
+                  )}
                 </Field>
               </div>
 
@@ -803,11 +923,18 @@ export default function GenerateSchedulesDialog({
                   name="slotIntervalMinutes"
                   control={form.control}
                   render={({ field }) => (
-                    <Select value={String(field.value ?? 60)} onValueChange={(v) => field.onChange(Number(v))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select
+                      value={String(field.value ?? 60)}
+                      onValueChange={(v) => field.onChange(Number(v))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         {SLOT_INTERVAL_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={String(opt.value)}>{opt.label}</SelectItem>
+                          <SelectItem key={opt.value} value={String(opt.value)}>
+                            {opt.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -817,7 +944,8 @@ export default function GenerateSchedulesDialog({
 
               {approximateCount != null && approximateCount >= 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Se agregarán aproximadamente <strong>{approximateCount}</strong> slots a la semana modelo.
+                  Se agregarán aproximadamente{" "}
+                  <strong>{approximateCount}</strong> slots a la semana modelo.
                 </p>
               )}
             </>
@@ -827,7 +955,7 @@ export default function GenerateSchedulesDialog({
             <FieldLabel>Duración (minutos)</FieldLabel>
             <Input
               type="number"
-              {...register('duration', { valueAsNumber: true })}
+              {...register("duration", { valueAsNumber: true })}
               min={15}
               max={480}
               step={15}
@@ -851,17 +979,18 @@ export default function GenerateSchedulesDialog({
               type="submit"
               disabled={
                 isSubmitting ||
-                (mode === 'timeWindow' &&
+                (mode === "timeWindow" &&
                   approximateCount != null &&
                   approximateCount > MAX_SLOTS_PER_GENERATION) ||
-                (mode === 'modelWeek' && (approximateCount === 0 || approximateCount === null))
+                (mode === "modelWeek" &&
+                  (approximateCount === 0 || approximateCount === null))
               }
             >
-              {isSubmitting ? 'Generando...' : 'Generar turnos'}
+              {isSubmitting ? "Generando..." : "Generar turnos"}
             </Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

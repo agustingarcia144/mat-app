@@ -1,18 +1,18 @@
-'use client'
+"use client";
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { getVideoEmbedUrl } from '@repo/core/utils'
+} from "@/components/ui/dialog";
+import { getVideoEmbedUrl } from "@repo/core/utils";
 
 interface ExerciseVideoDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  videoUrl: string | null
-  exerciseName: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  videoUrl: string | null;
+  exerciseName: string;
 }
 
 export default function ExerciseVideoDialog({
@@ -21,7 +21,7 @@ export default function ExerciseVideoDialog({
   videoUrl,
   exerciseName,
 }: ExerciseVideoDialogProps) {
-  const embedUrl = videoUrl ? getVideoEmbedUrl(videoUrl) : null
+  const embedUrl = videoUrl ? getVideoEmbedUrl(videoUrl) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -48,5 +48,5 @@ export default function ExerciseVideoDialog({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

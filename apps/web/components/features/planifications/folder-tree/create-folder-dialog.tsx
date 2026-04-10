@@ -1,30 +1,30 @@
-'use client'
+"use client";
 
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
+} from "@/components/ui/sheet";
 import {
   Field,
   FieldLabel,
   FieldDescription,
   FieldError,
-} from '@/components/ui/field'
-import { folderSchema, Folder } from '@repo/core/schemas'
+} from "@/components/ui/field";
+import { folderSchema, Folder } from "@repo/core/schemas";
 
 interface CreateFolderDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  parentId?: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  parentId?: string;
 }
 
 export default function CreateFolderDialog({
@@ -32,27 +32,27 @@ export default function CreateFolderDialog({
   onOpenChange,
   parentId,
 }: CreateFolderDialogProps) {
-  const createFolder = useMutation(api.folders.create)
+  const createFolder = useMutation(api.folders.create);
 
   const form = useForm<Folder>({
     resolver: zodResolver(folderSchema),
     defaultValues: {
-      name: '',
+      name: "",
     },
-  })
+  });
 
   const onSubmit = async (data: Folder) => {
     try {
       await createFolder({
         name: data.name,
         parentId: parentId as any,
-      })
-      form.reset()
-      onOpenChange(false)
+      });
+      form.reset();
+      onOpenChange(false);
     } catch (error) {
-      console.error('Failed to create folder:', error)
+      console.error("Failed to create folder:", error);
     }
-  }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -70,7 +70,9 @@ export default function CreateFolderDialog({
             control={form.control}
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor={field.name}>Nombre de la carpeta</FieldLabel>
+                <FieldLabel htmlFor={field.name}>
+                  Nombre de la carpeta
+                </FieldLabel>
                 <Input
                   {...field}
                   id={field.name}
@@ -82,7 +84,9 @@ export default function CreateFolderDialog({
                 <FieldDescription>
                   Elige un nombre para organizar tus planificaciones.
                 </FieldDescription>
-                {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
               </Field>
             )}
           />
@@ -92,7 +96,7 @@ export default function CreateFolderDialog({
               type="submit"
               disabled={form.formState.isSubmitting || !form.formState.isValid}
             >
-              {form.formState.isSubmitting ? 'Creando...' : 'Crear carpeta'}
+              {form.formState.isSubmitting ? "Creando..." : "Crear carpeta"}
             </Button>
             <Button
               type="button"
@@ -106,5 +110,5 @@ export default function CreateFolderDialog({
         </form>
       </SheetContent>
     </Sheet>
-  )
+  );
 }

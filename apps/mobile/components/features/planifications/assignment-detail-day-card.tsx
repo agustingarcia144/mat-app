@@ -1,22 +1,26 @@
-import React from 'react'
-import { View, Text, Image } from 'react-native'
-import { ThemedText } from '@/components/ui/themed-text'
-import { WEEKDAY_ES } from './constants'
-import { AssignmentDetailExerciseRow } from './assignment-detail-exercise-row'
-import { assignmentDetailStyles as styles } from './assignment-detail-styles'
-import type { WorkoutDay, ExerciseBlock, DayExerciseWithDetails } from './types'
+import React from "react";
+import { View, Text, Image } from "react-native";
+import { ThemedText } from "@/components/ui/themed-text";
+import { WEEKDAY_ES } from "./constants";
+import { AssignmentDetailExerciseRow } from "./assignment-detail-exercise-row";
+import { assignmentDetailStyles as styles } from "./assignment-detail-styles";
+import type {
+  WorkoutDay,
+  ExerciseBlock,
+  DayExerciseWithDetails,
+} from "./types";
 
-const matWolfLooking = require('@/assets/images/mat-wolf-looking.png')
+const matWolfLooking = require("@/assets/images/mat-wolf-looking.png");
 
 interface AssignmentDetailDayCardProps {
-  day: WorkoutDay
-  exercises: DayExerciseWithDetails[]
-  dayBlocks: ExerciseBlock[]
-  isDark: boolean
-  muted: string
-  cardBg: string
-  cardBorder: string
-  onExercisePress?: (ex: DayExerciseWithDetails) => void
+  day: WorkoutDay;
+  exercises: DayExerciseWithDetails[];
+  dayBlocks: ExerciseBlock[];
+  isDark: boolean;
+  muted: string;
+  cardBg: string;
+  cardBorder: string;
+  onExercisePress?: (ex: DayExerciseWithDetails) => void;
 }
 
 export function AssignmentDetailDayCard({
@@ -29,10 +33,10 @@ export function AssignmentDetailDayCard({
   cardBorder,
   onExercisePress,
 }: AssignmentDetailDayCardProps) {
-  const exercisesUnblocked = exercises.filter((ex) => !ex.blockId)
+  const exercisesUnblocked = exercises.filter((ex) => !ex.blockId);
   const unblockedSorted = [...exercisesUnblocked].sort(
-    (a, b) => a.order - b.order
-  )
+    (a, b) => a.order - b.order,
+  );
 
   return (
     <View
@@ -52,14 +56,14 @@ export function AssignmentDetailDayCard({
               styles.dayBadge,
               {
                 backgroundColor: isDark
-                  ? 'rgba(255,255,255,0.12)'
-                  : 'rgba(0,0,0,0.06)',
+                  ? "rgba(255,255,255,0.12)"
+                  : "rgba(0,0,0,0.06)",
               },
             ]}
           >
             <Text style={[styles.dayBadgeText, { color: muted }]}>
-              {exercises.length}{' '}
-              {exercises.length === 1 ? 'ejercicio' : 'ejercicios'}
+              {exercises.length}{" "}
+              {exercises.length === 1 ? "ejercicio" : "ejercicios"}
             </Text>
           </View>
         )}
@@ -86,8 +90,8 @@ export function AssignmentDetailDayCard({
           {dayBlocks.map((block) => {
             const blockExercises = exercises
               .filter((ex) => ex.blockId === block._id)
-              .sort((a, b) => a.order - b.order)
-            if (blockExercises.length === 0) return null
+              .sort((a, b) => a.order - b.order);
+            if (blockExercises.length === 0) return null;
             return (
               <View key={block._id} style={styles.blockGroup}>
                 <View style={styles.blockHeader}>
@@ -99,14 +103,14 @@ export function AssignmentDetailDayCard({
                       styles.blockBadge,
                       {
                         backgroundColor: isDark
-                          ? 'rgba(255,255,255,0.12)'
-                          : 'rgba(0,0,0,0.06)',
+                          ? "rgba(255,255,255,0.12)"
+                          : "rgba(0,0,0,0.06)",
                       },
                     ]}
                   >
                     <Text style={[styles.blockBadgeText, { color: muted }]}>
-                      {blockExercises.length}{' '}
-                      {blockExercises.length === 1 ? 'ejercicio' : 'ejercicios'}
+                      {blockExercises.length}{" "}
+                      {blockExercises.length === 1 ? "ejercicio" : "ejercicios"}
                     </Text>
                   </View>
                 </View>
@@ -117,12 +121,14 @@ export function AssignmentDetailDayCard({
                       ex={ex}
                       isDark={isDark}
                       muted={muted}
-                      onPress={onExercisePress ? () => onExercisePress(ex) : undefined}
+                      onPress={
+                        onExercisePress ? () => onExercisePress(ex) : undefined
+                      }
                     />
                   ))}
                 </View>
               </View>
-            )
+            );
           })}
           {unblockedSorted.length > 0 && (
             <View style={styles.blockGroup}>
@@ -133,14 +139,14 @@ export function AssignmentDetailDayCard({
                     styles.blockBadge,
                     {
                       backgroundColor: isDark
-                        ? 'rgba(255,255,255,0.12)'
-                        : 'rgba(0,0,0,0.06)',
+                        ? "rgba(255,255,255,0.12)"
+                        : "rgba(0,0,0,0.06)",
                     },
                   ]}
                 >
                   <Text style={[styles.blockBadgeText, { color: muted }]}>
-                    {unblockedSorted.length}{' '}
-                    {unblockedSorted.length === 1 ? 'ejercicio' : 'ejercicios'}
+                    {unblockedSorted.length}{" "}
+                    {unblockedSorted.length === 1 ? "ejercicio" : "ejercicios"}
                   </Text>
                 </View>
               </View>
@@ -151,7 +157,9 @@ export function AssignmentDetailDayCard({
                     ex={ex}
                     isDark={isDark}
                     muted={muted}
-                    onPress={onExercisePress ? () => onExercisePress(ex) : undefined}
+                    onPress={
+                      onExercisePress ? () => onExercisePress(ex) : undefined
+                    }
                   />
                 ))}
               </View>
@@ -160,5 +168,5 @@ export function AssignmentDetailDayCard({
         </View>
       )}
     </View>
-  )
+  );
 }

@@ -71,60 +71,60 @@ This means:
 
 ### A) State Transitions
 
-| ID | Scenario | Expected |
-| --- | --- | --- |
-| ST-01 | Page loads with no changes | No toast, no modal. |
-| ST-02 | User edits one field | One toast appears. |
-| ST-03 | User reverts field to original value | Toast dismisses. |
-| ST-04 | User saves successfully | Toast dismisses; dirty becomes false; redirect proceeds without prompt. |
-| ST-05 | Save fails | Toast stays visible; dirty remains true; error toast shown. |
-| ST-06 | Async save pending | Save action disabled + spinner text (`Guardando`). |
-| ST-07 | Rapid successive edits | Still one toast id (no duplicates). |
-| ST-08 | Multiple independent dirty entries on same page | One global toast; guard active while any entry dirty. |
-| ST-09 | One of multiple dirty entries becomes clean | Guard remains if another is still dirty. |
-| ST-10 | All dirty entries become clean | Toast dismissed; guard disabled. |
+| ID    | Scenario                                        | Expected                                                                |
+| ----- | ----------------------------------------------- | ----------------------------------------------------------------------- |
+| ST-01 | Page loads with no changes                      | No toast, no modal.                                                     |
+| ST-02 | User edits one field                            | One toast appears.                                                      |
+| ST-03 | User reverts field to original value            | Toast dismisses.                                                        |
+| ST-04 | User saves successfully                         | Toast dismisses; dirty becomes false; redirect proceeds without prompt. |
+| ST-05 | Save fails                                      | Toast stays visible; dirty remains true; error toast shown.             |
+| ST-06 | Async save pending                              | Save action disabled + spinner text (`Guardando`).                      |
+| ST-07 | Rapid successive edits                          | Still one toast id (no duplicates).                                     |
+| ST-08 | Multiple independent dirty entries on same page | One global toast; guard active while any entry dirty.                   |
+| ST-09 | One of multiple dirty entries becomes clean     | Guard remains if another is still dirty.                                |
+| ST-10 | All dirty entries become clean                  | Toast dismissed; guard disabled.                                        |
 
 ### B) Navigation
 
-| ID | Scenario | Expected |
-| --- | --- | --- |
-| NV-01 | Click internal back button | Intercepted by global guard if leaving guarded scope. |
-| NV-02 | Click sidebar navigation button | Intercepted (history push path). |
-| NV-03 | Click `<Link>` internal route | Intercepted (capture-phase click). |
-| NV-04 | `router.push()` | Intercepted (history push). |
-| NV-05 | `router.replace()` | Intercepted (history replace). |
-| NV-06 | Browser back button | URL restored and modal shown. |
-| NV-07 | Browser forward button | URL restored and modal shown. |
-| NV-08 | Hard refresh (F5/Cmd+R) | Native `beforeunload` confirmation. |
-| NV-09 | Close tab/window | Native `beforeunload` confirmation. |
-| NV-10 | Open same route in new tab (ctrl/cmd click) | Not blocked; original tab remains unchanged. |
-| NV-11 | Navigate between two guarded pages inside same scope (`/edit` ↔ `/edit/day`) | Allowed (no modal), dirty state retained. |
-| NV-12 | Navigate from guarded page to outside scope (`/dashboard/planifications`) | Blocked until confirm. |
-| NV-13 | Confirm discard | Transition executes exactly once. |
-| NV-14 | Cancel discard | Stay on current route; dirty state unchanged. |
-| NV-15 | Attempt multiple blocked navigations while modal open | Latest target kept; no duplicate modals. |
+| ID    | Scenario                                                                     | Expected                                              |
+| ----- | ---------------------------------------------------------------------------- | ----------------------------------------------------- |
+| NV-01 | Click internal back button                                                   | Intercepted by global guard if leaving guarded scope. |
+| NV-02 | Click sidebar navigation button                                              | Intercepted (history push path).                      |
+| NV-03 | Click `<Link>` internal route                                                | Intercepted (capture-phase click).                    |
+| NV-04 | `router.push()`                                                              | Intercepted (history push).                           |
+| NV-05 | `router.replace()`                                                           | Intercepted (history replace).                        |
+| NV-06 | Browser back button                                                          | URL restored and modal shown.                         |
+| NV-07 | Browser forward button                                                       | URL restored and modal shown.                         |
+| NV-08 | Hard refresh (F5/Cmd+R)                                                      | Native `beforeunload` confirmation.                   |
+| NV-09 | Close tab/window                                                             | Native `beforeunload` confirmation.                   |
+| NV-10 | Open same route in new tab (ctrl/cmd click)                                  | Not blocked; original tab remains unchanged.          |
+| NV-11 | Navigate between two guarded pages inside same scope (`/edit` ↔ `/edit/day`) | Allowed (no modal), dirty state retained.             |
+| NV-12 | Navigate from guarded page to outside scope (`/dashboard/planifications`)    | Blocked until confirm.                                |
+| NV-13 | Confirm discard                                                              | Transition executes exactly once.                     |
+| NV-14 | Cancel discard                                                               | Stay on current route; dirty state unchanged.         |
+| NV-15 | Attempt multiple blocked navigations while modal open                        | Latest target kept; no duplicate modals.              |
 
 ### C) Lifecycle / App Router Structure
 
-| ID | Scenario | Expected |
-| --- | --- | --- |
-| LC-01 | Guarded component unmounts | Entry unregisters; no stale dirty flags. |
-| LC-02 | Context/provider re-initialization | State starts clean; no stale toasts. |
-| LC-03 | Nested layouts | Guard remains deterministic within mounted provider. |
-| LC-04 | Parallel routes | Guard decisions based on registered dirty entries only. |
-| LC-05 | Suspense fallback during transition | No duplicate toasts/modals; refs keep latest guard state. |
-| LC-06 | Rapid mount/unmount cycles (concurrent interruption) | Register/unregister remains idempotent. |
+| ID    | Scenario                                             | Expected                                                  |
+| ----- | ---------------------------------------------------- | --------------------------------------------------------- |
+| LC-01 | Guarded component unmounts                           | Entry unregisters; no stale dirty flags.                  |
+| LC-02 | Context/provider re-initialization                   | State starts clean; no stale toasts.                      |
+| LC-03 | Nested layouts                                       | Guard remains deterministic within mounted provider.      |
+| LC-04 | Parallel routes                                      | Guard decisions based on registered dirty entries only.   |
+| LC-05 | Suspense fallback during transition                  | No duplicate toasts/modals; refs keep latest guard state. |
+| LC-06 | Rapid mount/unmount cycles (concurrent interruption) | Register/unregister remains idempotent.                   |
 
 ### D) UI Consistency
 
-| ID | Scenario | Expected |
-| --- | --- | --- |
-| UI-01 | Dirty toggles true repeatedly | One toast instance (same id). |
-| UI-02 | Dirty toggles false | Toast dismissed immediately. |
-| UI-03 | Route changes away after confirm | No stale toast on destination page. |
-| UI-04 | Modal open + user presses escape/outside click | Modal closes and pending navigation clears. |
-| UI-05 | Save button loading state flips | Toast action updates without duplicate toasts. |
-| UI-06 | Long editing session | No listener leaks (cleanup on unmount). |
+| ID    | Scenario                                       | Expected                                       |
+| ----- | ---------------------------------------------- | ---------------------------------------------- |
+| UI-01 | Dirty toggles true repeatedly                  | One toast instance (same id).                  |
+| UI-02 | Dirty toggles false                            | Toast dismissed immediately.                   |
+| UI-03 | Route changes away after confirm               | No stale toast on destination page.            |
+| UI-04 | Modal open + user presses escape/outside click | Modal closes and pending navigation clears.    |
+| UI-05 | Save button loading state flips                | Toast action updates without duplicate toasts. |
+| UI-06 | Long editing session                           | No listener leaks (cleanup on unmount).        |
 
 ---
 

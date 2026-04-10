@@ -1,35 +1,35 @@
-import React from 'react'
-import Image from 'next/image'
-import { Mail, SendHorizonal } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { TextEffect } from '@/components/ui/text-effect'
-import { AnimatedGroup } from '@/components/ui/animated-group'
-import { HeroHeader } from './header'
-import { LogoCloud } from './logo-cloud'
-import { AppPreview } from './app-preview'
-import appScreenshot from '@/assets/screenshot_app.png'
-import webScreenshot from '@/assets/screenshot_web.png'
-import screenshot from '@/assets/screenshot.png'
+import React from "react";
+import Image from "next/image";
+import { Mail, SendHorizonal } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TextEffect } from "@/components/ui/text-effect";
+import { AnimatedGroup } from "@/components/ui/animated-group";
+import { HeroHeader } from "./header";
+import { LogoCloud } from "./logo-cloud";
+import { AppPreview } from "./app-preview";
+import appScreenshot from "@/assets/screenshot_app.png";
+import webScreenshot from "@/assets/screenshot_web.png";
+import screenshot from "@/assets/screenshot.png";
 
 const transitionVariants = {
   item: {
     hidden: {
       opacity: 0,
-      filter: 'blur(12px)',
+      filter: "blur(12px)",
       y: 12,
     },
     visible: {
       opacity: 1,
-      filter: 'blur(0px)',
+      filter: "blur(0px)",
       y: 0,
       transition: {
-        type: 'spring' as const,
+        type: "spring" as const,
         bounce: 0.3,
         duration: 1.5,
       },
     },
   },
-}
+};
 
 export default function HeroSection() {
   return (
@@ -131,5 +131,5 @@ export default function HeroSection() {
         <LogoCloud />
       </main>
     </>
-  )
+  );
 }

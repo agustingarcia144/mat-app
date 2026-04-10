@@ -1,13 +1,13 @@
-'use client'
+"use client";
 
-import { useCallback, useMemo, useState } from 'react'
-import { useAction } from 'convex/react'
-import { QrCode, Download, Printer, Copy, RefreshCw } from 'lucide-react'
-import { QRCodeCanvas } from 'qrcode.react'
-import { toast } from 'sonner'
-import { api } from '@/convex/_generated/api'
-import { Button } from '@/components/ui/button'
-import { useMediaQuery } from '@/hooks/use-media-query'
+import { useCallback, useMemo, useState } from "react";
+import { useAction } from "convex/react";
+import { QrCode, Download, Printer, Copy, RefreshCw } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
+import { toast } from "sonner";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import {
   Dialog,
   DialogContent,
@@ -16,85 +16,95 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 
 type InviteData = {
-  code: string
-  joinToken: string
-  createdAt: number
-}
+  code: string;
+  joinToken: string;
+  createdAt: number;
+};
 
 const INVITATION_APP_URL =
-  process.env.NEXT_PUBLIC_INVITATION_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL
+  process.env.NEXT_PUBLIC_INVITATION_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL;
 
 export function MemberInviteQrDialog() {
-  const getOrCreateCode = useAction(api.memberInviteCodes.getOrCreateOrganizationMemberInviteCode)
-  const [open, setOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [inviteData, setInviteData] = useState<InviteData | null>(null)
-  const isDesktop = useMediaQuery('(min-width: 640px)')
+  const getOrCreateCode = useAction(
+    api.memberInviteCodes.getOrCreateOrganizationMemberInviteCode,
+  );
+  const [open, setOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [inviteData, setInviteData] = useState<InviteData | null>(null);
+  const isDesktop = useMediaQuery("(min-width: 640px)");
 
   const joinUrl = useMemo(() => {
-    if (!inviteData || typeof window === 'undefined') return null
+    if (!inviteData || typeof window === "undefined") return null;
     const baseUrl =
       INVITATION_APP_URL && INVITATION_APP_URL.trim().length > 0
         ? INVITATION_APP_URL
-        : window.location.origin
-    return `${baseUrl.replace(/\/+$/, '')}/join/${inviteData.joinToken}`
-  }, [inviteData])
+        : window.location.origin;
+    return `${baseUrl.replace(/\/+$/, "")}/join/${inviteData.joinToken}`;
+  }, [inviteData]);
 
   const loadData = useCallback(async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const result = await getOrCreateCode({})
-      setInviteData(result)
+      const result = await getOrCreateCode({});
+      setInviteData(result);
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'No se pudo obtener el código de invitación'
-      )
+          : "No se pudo obtener el código de invitación",
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [getOrCreateCode])
+  }, [getOrCreateCode]);
 
   const copyText = useCallback(async (value: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(value)
-      toast.success(`${label} copiado`)
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} copiado`);
     } catch {
-      toast.error(`No se pudo copiar ${label.toLowerCase()}`)
+      toast.error(`No se pudo copiar ${label.toLowerCase()}`);
     }
-  }, [])
+  }, []);
 
   const downloadQr = useCallback(() => {
-    const canvas = document.getElementById('member-join-qr-canvas') as HTMLCanvasElement | null
+    const canvas = document.getElementById(
+      "member-join-qr-canvas",
+    ) as HTMLCanvasElement | null;
     if (!canvas) {
-      toast.error('No se pudo generar la imagen QR')
-      return
+      toast.error("No se pudo generar la imagen QR");
+      return;
     }
-    const url = canvas.toDataURL('image/png')
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'mat-member-join-qr.png'
-    link.click()
-  }, [])
+    const url = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "mat-member-join-qr.png";
+    link.click();
+  }, []);
 
   const printQr = useCallback(() => {
-    const canvas = document.getElementById('member-join-qr-canvas') as HTMLCanvasElement | null
+    const canvas = document.getElementById(
+      "member-join-qr-canvas",
+    ) as HTMLCanvasElement | null;
     if (!canvas || !inviteData) {
-      toast.error('No se pudo preparar la impresión')
-      return
+      toast.error("No se pudo preparar la impresión");
+      return;
     }
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700')
+    const printWindow = window.open(
+      "",
+      "_blank",
+      "noopener,noreferrer,width=900,height=700",
+    );
     if (!printWindow) {
-      toast.error('No se pudo abrir la ventana de impresión')
-      return
+      toast.error("No se pudo abrir la ventana de impresión");
+      return;
     }
 
-    const qrDataUrl = canvas.toDataURL('image/png')
+    const qrDataUrl = canvas.toDataURL("image/png");
     printWindow.document.write(`
       <html>
         <head>
@@ -116,19 +126,19 @@ export function MemberInviteQrDialog() {
           </div>
         </body>
       </html>
-    `)
-    printWindow.document.close()
-    printWindow.focus()
-    printWindow.print()
-  }, [inviteData])
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }, [inviteData]);
 
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        setOpen(nextOpen)
+        setOpen(nextOpen);
         if (nextOpen && !inviteData && !isLoading) {
-          void loadData()
+          void loadData();
         }
       }}
     >
@@ -142,7 +152,8 @@ export function MemberInviteQrDialog() {
         <DialogHeader className="pr-8">
           <DialogTitle>QR y código de invitación</DialogTitle>
           <DialogDescription>
-            Este código es persistente para la organización. Compartilo para que nuevos miembros soliciten ingreso.
+            Este código es persistente para la organización. Compartilo para que
+            nuevos miembros soliciten ingreso.
           </DialogDescription>
         </DialogHeader>
 
@@ -163,15 +174,19 @@ export function MemberInviteQrDialog() {
             </div>
 
             <div className="space-y-2 rounded-lg border p-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Código manual</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Código manual
+              </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="break-all font-mono text-base font-semibold">{inviteData.code}</p>
+                <p className="break-all font-mono text-base font-semibold">
+                  {inviteData.code}
+                </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="gap-2 self-start sm:self-auto"
-                  onClick={() => void copyText(inviteData.code, 'Código')}
+                  onClick={() => void copyText(inviteData.code, "Código")}
                 >
                   <Copy className="size-4" />
                   Copiar
@@ -184,13 +199,15 @@ export function MemberInviteQrDialog() {
                 URL (web)
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <p className="min-w-0 break-all text-xs text-muted-foreground">{joinUrl}</p>
+                <p className="min-w-0 break-all text-xs text-muted-foreground">
+                  {joinUrl}
+                </p>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="shrink-0 gap-2 self-start sm:self-auto"
-                  onClick={() => void copyText(joinUrl, 'Link')}
+                  onClick={() => void copyText(joinUrl, "Link")}
                 >
                   <Copy className="size-4" />
                   Copiar
@@ -212,7 +229,9 @@ export function MemberInviteQrDialog() {
             onClick={() => void loadData()}
             disabled={isLoading}
           >
-            <RefreshCw className={`size-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`size-4 ${isLoading ? "animate-spin" : ""}`}
+            />
             Actualizar
           </Button>
           <div className="grid grid-cols-1 gap-2 sm:flex">
@@ -239,5 +258,5 @@ export function MemberInviteQrDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

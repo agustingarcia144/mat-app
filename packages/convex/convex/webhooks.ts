@@ -44,9 +44,12 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
   }
 
   // Fast idempotency check before any heavy processing.
-  const existingEvent = await ctx.runQuery(unsafeInternal.webhookEvents.getBySvixId, {
-    svixId,
-  });
+  const existingEvent = await ctx.runQuery(
+    unsafeInternal.webhookEvents.getBySvixId,
+    {
+      svixId,
+    },
+  );
   if (existingEvent?.status === "processed") {
     return new Response(null, { status: 200 });
   }
@@ -85,7 +88,7 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
       svixTimestamp: parsedTimestampSeconds * 1000,
       eventType,
       objectId,
-    }
+    },
   );
 
   if (processingState.alreadyProcessed) {
@@ -126,7 +129,9 @@ export const clerkWebhook = httpAction(async (ctx, request) => {
     await ctx.runMutation(unsafeInternal.webhookEvents.markFailed, {
       svixId,
       error:
-        error instanceof Error ? error.message : "Unknown webhook processing error",
+        error instanceof Error
+          ? error.message
+          : "Unknown webhook processing error",
     });
     return new Response("Error processing webhook", { status: 500 });
   }

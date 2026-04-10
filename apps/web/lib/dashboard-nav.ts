@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react'
+import type { LucideIcon } from "lucide-react";
 import {
   HomeIcon,
   UsersIcon,
@@ -8,56 +8,63 @@ import {
   BarChart3,
   CreditCard,
   UserCog,
-} from 'lucide-react'
+  Wallet,
+} from "lucide-react";
 
 export const DASHBOARD_NAV_ITEMS = [
   {
-    label: 'Inicio',
+    label: "Inicio",
     icon: HomeIcon,
-    url: '/',
+    url: "/",
   },
   {
-    label: 'Miembros',
+    label: "Miembros",
     icon: UsersIcon,
-    url: '/members',
+    url: "/members",
   },
   {
-    label: 'Planificaciones',
+    label: "Planificaciones",
     icon: Dumbbell,
-    url: '/planifications',
+    url: "/planifications",
   },
   {
-    label: 'Ejercicios',
+    label: "Ejercicios",
     icon: ListChecks,
-    url: '/exercises',
+    url: "/exercises",
   },
   {
-    label: 'Clases',
+    label: "Clases",
     icon: CalendarDays,
-    url: '/classes',
+    url: "/classes",
   },
   {
-    label: 'Pagos',
+    label: "Pagos",
     icon: CreditCard,
-    url: '/payments',
+    url: "/payments",
     adminOnly: true,
   },
   {
-    label: 'Metricas',
-    icon: BarChart3,
-    url: '/metrics',
+    label: "Ingresos y egresos",
+    icon: Wallet,
+    url: "/income-expenses",
+    adminOnly: true,
   },
   {
-    label: 'Usuarios',
+    label: "Metricas",
+    icon: BarChart3,
+    url: "/metrics",
+  },
+  {
+    label: "Usuarios",
     icon: UserCog,
-    url: '/users',
+    url: "/users",
     adminOnly: true,
   },
 ] as const satisfies readonly {
-  label: string
-  icon: LucideIcon
-  url: string
-  adminOnly?: boolean
-}[]
+  label: string;
+  icon: LucideIcon;
+  url: string;
+  adminOnly?: boolean;
+}[];
 
-export type DashboardNavItem = (typeof DASHBOARD_NAV_ITEMS)[number]
+export type DashboardNavItem = (typeof DASHBOARD_NAV_ITEMS)[number];

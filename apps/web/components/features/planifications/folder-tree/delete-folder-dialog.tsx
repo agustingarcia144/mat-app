@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Button } from '@/components/ui/button'
+import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -11,15 +11,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { toast } from 'sonner'
+} from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 interface DeleteFolderDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  folderId: string
-  folderName: string
-  onSuccess?: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  folderId: string;
+  folderName: string;
+  onSuccess?: () => void;
 }
 
 export default function DeleteFolderDialog({
@@ -29,22 +29,22 @@ export default function DeleteFolderDialog({
   folderName,
   onSuccess,
 }: DeleteFolderDialogProps) {
-  const [isDeleting, setIsDeleting] = useState(false)
-  const removeFolder = useMutation(api.folders.remove)
+  const [isDeleting, setIsDeleting] = useState(false);
+  const removeFolder = useMutation(api.folders.remove);
 
   const handleDeleteConfirm = async () => {
-    setIsDeleting(true)
+    setIsDeleting(true);
     try {
-      await removeFolder({ id: folderId as any })
-      onOpenChange(false)
-      onSuccess?.()
+      await removeFolder({ id: folderId as any });
+      onOpenChange(false);
+      onSuccess?.();
     } catch (error) {
-      console.error('Failed to delete folder:', error)
-      toast.error('Error al eliminar la carpeta')
+      console.error("Failed to delete folder:", error);
+      toast.error("Error al eliminar la carpeta");
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,7 +52,8 @@ export default function DeleteFolderDialog({
         <DialogHeader>
           <DialogTitle>Eliminar carpeta</DialogTitle>
           <DialogDescription>
-            ¿Eliminar &quot;{folderName}&quot;? Esta acción no se puede deshacer.
+            ¿Eliminar &quot;{folderName}&quot;? Esta acción no se puede
+            deshacer.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -68,10 +69,10 @@ export default function DeleteFolderDialog({
             onClick={handleDeleteConfirm}
             disabled={isDeleting}
           >
-            {isDeleting ? 'Eliminando...' : 'Eliminar'}
+            {isDeleting ? "Eliminando..." : "Eliminar"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

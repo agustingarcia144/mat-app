@@ -1,30 +1,30 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useMemo } from 'react'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { type Id, type Doc } from '@/convex/_generated/dataModel'
-import { Button } from '@/components/ui/button'
+import { useState, useEffect, useMemo } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { type Id, type Doc } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Field, FieldLabel, FieldDescription } from '@/components/ui/field'
-import { Separator } from '@/components/ui/separator'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Checkbox } from '@/components/ui/checkbox'
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Command,
   CommandEmpty,
@@ -32,44 +32,44 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
+} from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover'
-import { mapMembershipsToMembers } from '@repo/core/utils'
-import { cn } from '@/lib/utils'
-import { Check, ChevronDown, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+} from "@/components/ui/popover";
+import { mapMembershipsToMembers } from "@repo/core/utils";
+import { cn } from "@/lib/utils";
+import { Check, ChevronDown, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 const DAYS = [
-  { label: 'Lunes', value: 1 },
-  { label: 'Martes', value: 2 },
-  { label: 'Miércoles', value: 3 },
-  { label: 'Jueves', value: 4 },
-  { label: 'Viernes', value: 5 },
-  { label: 'Sábado', value: 6 },
-  { label: 'Domingo', value: 0 },
-]
+  { label: "Lunes", value: 1 },
+  { label: "Martes", value: 2 },
+  { label: "Miércoles", value: 3 },
+  { label: "Jueves", value: 4 },
+  { label: "Viernes", value: 5 },
+  { label: "Sábado", value: 6 },
+  { label: "Domingo", value: 0 },
+];
 
-const MINUTES_OPTIONS = [0, 15, 30, 45]
+const MINUTES_OPTIONS = [0, 15, 30, 45];
 
-export type ModelWeekSlotDoc = Doc<'modelWeekSlots'> & {
-  class: Doc<'classes'> | null
-}
+export type ModelWeekSlotDoc = Doc<"modelWeekSlots"> & {
+  class: Doc<"classes"> | null;
+};
 
 interface ModelWeekSlotDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   /** When provided, the dialog is in edit mode. */
-  slot?: ModelWeekSlotDoc
+  slot?: ModelWeekSlotDoc;
   /** Pre-fill when creating from a grid cell click. */
-  initialDayOfWeek?: number
-  initialStartTimeMinutes?: number
-  classes: Doc<'classes'>[]
-  onSuccess?: () => void
+  initialDayOfWeek?: number;
+  initialStartTimeMinutes?: number;
+  classes: Doc<"classes">[];
+  onSuccess?: () => void;
 }
 
 export default function ModelWeekSlotDialog({
@@ -81,32 +81,32 @@ export default function ModelWeekSlotDialog({
   classes,
   onSuccess,
 }: ModelWeekSlotDialogProps) {
-  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
-  const isEditing = !!slot
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
+  const isEditing = !!slot;
 
   // Slot form state
-  const createSlot = useMutation(api.modelWeekSlots.create)
-  const updateSlot = useMutation(api.modelWeekSlots.update)
-  const removeSlot = useMutation(api.modelWeekSlots.remove)
+  const createSlot = useMutation(api.modelWeekSlots.create);
+  const updateSlot = useMutation(api.modelWeekSlots.update);
+  const removeSlot = useMutation(api.modelWeekSlots.remove);
 
-  const [classId, setClassId] = useState('')
-  const [dayOfWeek, setDayOfWeek] = useState(1)
-  const [hour, setHour] = useState(9)
-  const [minute, setMinute] = useState(0)
-  const [durationMinutes, setDurationMinutes] = useState(60)
-  const [capacity, setCapacity] = useState<string>('')
-  const [notes, setNotes] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [classId, setClassId] = useState("");
+  const [dayOfWeek, setDayOfWeek] = useState(1);
+  const [hour, setHour] = useState(9);
+  const [minute, setMinute] = useState(0);
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [capacity, setCapacity] = useState<string>("");
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // Tab state (only relevant when editing)
-  const [activeTab, setActiveTab] = useState<'slot' | 'members'>('slot')
+  const [activeTab, setActiveTab] = useState<"slot" | "members">("slot");
 
   // Members tab state
-  const createFixedSlot = useMutation(api.fixedClassSlots.create)
-  const removeFixedSlot = useMutation(api.fixedClassSlots.remove)
-  const [memberSearchOpen, setMemberSearchOpen] = useState(false)
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
-  const [addingMembers, setAddingMembers] = useState(false)
+  const createFixedSlot = useMutation(api.fixedClassSlots.create);
+  const removeFixedSlot = useMutation(api.fixedClassSlots.remove);
+  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [addingMembers, setAddingMembers] = useState(false);
 
   const slotMembers = useQuery(
     api.fixedClassSlots.listBySlot,
@@ -116,135 +116,137 @@ export default function ModelWeekSlotDialog({
           dayOfWeek: slot.dayOfWeek,
           startTimeMinutes: slot.startTimeMinutes,
         }
-      : 'skip'
-  )
+      : "skip",
+  );
 
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    isEditing && open && canQueryCurrentOrganization ? {} : 'skip'
-  )
+    isEditing && open && canQueryCurrentOrganization ? {} : "skip",
+  );
 
   const allMembers = useMemo(
     () =>
       memberships
         ? mapMembershipsToMembers(memberships).filter(
-            (m) => m.role?.toLowerCase() === 'member' || m.role?.toLowerCase() === 'miembro'
+            (m) =>
+              m.role?.toLowerCase() === "member" ||
+              m.role?.toLowerCase() === "miembro",
           )
         : [],
-    [memberships]
-  )
+    [memberships],
+  );
 
   const assignedUserIds = useMemo(
     () => new Set(slotMembers?.map((s) => s.userId) ?? []),
-    [slotMembers]
-  )
+    [slotMembers],
+  );
 
   const availableMembers = useMemo(
     () => allMembers.filter((m) => !assignedUserIds.has(m.id)),
-    [allMembers, assignedUserIds]
-  )
+    [allMembers, assignedUserIds],
+  );
 
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     if (slot) {
-      setClassId(slot.classId)
-      setDayOfWeek(slot.dayOfWeek)
-      setHour(Math.floor(slot.startTimeMinutes / 60))
-      setMinute(slot.startTimeMinutes % 60)
-      setDurationMinutes(slot.durationMinutes)
-      setCapacity(slot.capacity != null ? String(slot.capacity) : '')
-      setNotes(slot.notes ?? '')
+      setClassId(slot.classId);
+      setDayOfWeek(slot.dayOfWeek);
+      setHour(Math.floor(slot.startTimeMinutes / 60));
+      setMinute(slot.startTimeMinutes % 60);
+      setDurationMinutes(slot.durationMinutes);
+      setCapacity(slot.capacity != null ? String(slot.capacity) : "");
+      setNotes(slot.notes ?? "");
     } else {
-      setClassId('')
-      setDayOfWeek(initialDayOfWeek ?? 1)
+      setClassId("");
+      setDayOfWeek(initialDayOfWeek ?? 1);
       setHour(
         initialStartTimeMinutes !== undefined
           ? Math.floor(initialStartTimeMinutes / 60)
-          : 9
-      )
+          : 9,
+      );
       setMinute(
         initialStartTimeMinutes !== undefined
           ? initialStartTimeMinutes % 60
-          : 0
-      )
-      setDurationMinutes(60)
-      setCapacity('')
-      setNotes('')
+          : 0,
+      );
+      setDurationMinutes(60);
+      setCapacity("");
+      setNotes("");
     }
-    setActiveTab('slot')
-    setSelectedMemberIds([])
-    setMemberSearchOpen(false)
-  }, [open, slot, initialDayOfWeek, initialStartTimeMinutes])
+    setActiveTab("slot");
+    setSelectedMemberIds([]);
+    setMemberSearchOpen(false);
+  }, [open, slot, initialDayOfWeek, initialStartTimeMinutes]);
 
   const handleSubmit = async () => {
     if (!classId) {
-      toast.error('Seleccioná una clase')
-      return
+      toast.error("Seleccioná una clase");
+      return;
     }
     if (durationMinutes < 5) {
-      toast.error('La duración mínima es 5 minutos')
-      return
+      toast.error("La duración mínima es 5 minutos");
+      return;
     }
 
-    const startTimeMinutes = hour * 60 + minute
-    const capacityValue = capacity ? Number(capacity) : undefined
+    const startTimeMinutes = hour * 60 + minute;
+    const capacityValue = capacity ? Number(capacity) : undefined;
 
-    setLoading(true)
+    setLoading(true);
     try {
       if (isEditing) {
         await updateSlot({
           id: slot._id,
-          classId: classId as Id<'classes'>,
+          classId: classId as Id<"classes">,
           dayOfWeek,
           startTimeMinutes,
           durationMinutes,
           capacity: capacityValue,
           notes: notes || undefined,
-        })
-        toast.success('Slot actualizado')
+        });
+        toast.success("Slot actualizado");
       } else {
         await createSlot({
-          classId: classId as Id<'classes'>,
+          classId: classId as Id<"classes">,
           dayOfWeek,
           startTimeMinutes,
           durationMinutes,
           capacity: capacityValue,
           notes: notes || undefined,
-        })
-        toast.success('Slot creado')
+        });
+        toast.success("Slot creado");
       }
-      onOpenChange(false)
-      onSuccess?.()
+      onOpenChange(false);
+      onSuccess?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al guardar')
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!slot) return
-    setLoading(true)
+    if (!slot) return;
+    setLoading(true);
     try {
-      await removeSlot({ id: slot._id })
-      toast.success('Slot eliminado')
-      onOpenChange(false)
-      onSuccess?.()
+      await removeSlot({ id: slot._id });
+      toast.success("Slot eliminado");
+      onOpenChange(false);
+      onSuccess?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al eliminar')
+      toast.error(err instanceof Error ? err.message : "Error al eliminar");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleAddMembers = async () => {
-    if (selectedMemberIds.length === 0 || !slot) return
+    if (selectedMemberIds.length === 0 || !slot) return;
     const timezone =
-      typeof Intl !== 'undefined'
+      typeof Intl !== "undefined"
         ? Intl.DateTimeFormat().resolvedOptions().timeZone
-        : undefined
+        : undefined;
 
-    setAddingMembers(true)
+    setAddingMembers(true);
     try {
       for (const userId of selectedMemberIds) {
         await createFixedSlot({
@@ -253,30 +255,30 @@ export default function ModelWeekSlotDialog({
           dayOfWeek: slot.dayOfWeek,
           startTimeMinutes: slot.startTimeMinutes,
           timezone,
-        })
+        });
       }
       toast.success(
         selectedMemberIds.length === 1
-          ? 'Miembro agregado'
-          : `${selectedMemberIds.length} miembros agregados`
-      )
-      setSelectedMemberIds([])
-      setMemberSearchOpen(false)
+          ? "Miembro agregado"
+          : `${selectedMemberIds.length} miembros agregados`,
+      );
+      setSelectedMemberIds([]);
+      setMemberSearchOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al agregar')
+      toast.error(err instanceof Error ? err.message : "Error al agregar");
     } finally {
-      setAddingMembers(false)
+      setAddingMembers(false);
     }
-  }
+  };
 
-  const handleRemoveMember = async (id: Id<'fixedClassSlots'>) => {
+  const handleRemoveMember = async (id: Id<"fixedClassSlots">) => {
     try {
-      await removeFixedSlot({ id })
-      toast.success('Miembro eliminado')
+      await removeFixedSlot({ id });
+      toast.success("Miembro eliminado");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al eliminar')
+      toast.error(err instanceof Error ? err.message : "Error al eliminar");
     }
-  }
+  };
 
   const slotFormContent = (
     <div className="space-y-4">
@@ -331,7 +333,7 @@ export default function ModelWeekSlotDialog({
             <SelectContent>
               {Array.from({ length: 24 }, (_, i) => (
                 <SelectItem key={i} value={String(i)}>
-                  {i.toString().padStart(2, '0')}:00
+                  {i.toString().padStart(2, "0")}:00
                 </SelectItem>
               ))}
             </SelectContent>
@@ -350,7 +352,7 @@ export default function ModelWeekSlotDialog({
             <SelectContent>
               {MINUTES_OPTIONS.map((m) => (
                 <SelectItem key={m} value={String(m)}>
-                  {m.toString().padStart(2, '0')}
+                  {m.toString().padStart(2, "0")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -421,11 +423,11 @@ export default function ModelWeekSlotDialog({
           Cancelar
         </Button>
         <Button onClick={handleSubmit} disabled={loading}>
-          {isEditing ? 'Guardar cambios' : 'Crear slot'}
+          {isEditing ? "Guardar cambios" : "Crear slot"}
         </Button>
       </div>
     </div>
-  )
+  );
 
   const membersTabContent = (
     <div className="space-y-4">
@@ -438,16 +440,16 @@ export default function ModelWeekSlotDialog({
               role="combobox"
               aria-expanded={memberSearchOpen}
               className={cn(
-                'flex-1 justify-between',
-                selectedMemberIds.length === 0 && 'text-muted-foreground'
+                "flex-1 justify-between",
+                selectedMemberIds.length === 0 && "text-muted-foreground",
               )}
               type="button"
             >
               {selectedMemberIds.length === 0
-                ? 'Seleccionar miembros'
+                ? "Seleccionar miembros"
                 : selectedMemberIds.length === 1
-                  ? (allMembers.find((m) => m.id === selectedMemberIds[0])?.name ??
-                    '1 miembro')
+                  ? (allMembers.find((m) => m.id === selectedMemberIds[0])
+                      ?.name ?? "1 miembro")
                   : `${selectedMemberIds.length} miembros`}
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
@@ -458,22 +460,22 @@ export default function ModelWeekSlotDialog({
               <CommandList>
                 <CommandEmpty>
                   {availableMembers.length === 0 && allMembers.length > 0
-                    ? 'Todos los miembros ya están asignados.'
-                    : 'No se encontraron miembros.'}
+                    ? "Todos los miembros ya están asignados."
+                    : "No se encontraron miembros."}
                 </CommandEmpty>
                 <CommandGroup>
                   {availableMembers.map((member) => {
-                    const isSelected = selectedMemberIds.includes(member.id)
+                    const isSelected = selectedMemberIds.includes(member.id);
                     return (
                       <CommandItem
                         key={member.id}
-                        value={`${member.name} ${member.email ?? ''}`}
+                        value={`${member.name} ${member.email ?? ""}`}
                         onSelect={() => {
                           setSelectedMemberIds((prev) =>
                             isSelected
                               ? prev.filter((id) => id !== member.id)
-                              : [...prev, member.id]
-                          )
+                              : [...prev, member.id],
+                          );
                         }}
                       >
                         <Checkbox
@@ -492,12 +494,12 @@ export default function ModelWeekSlotDialog({
                         </div>
                         <Check
                           className={cn(
-                            'ml-2 h-4 w-4',
-                            isSelected ? 'opacity-100' : 'opacity-0'
+                            "ml-2 h-4 w-4",
+                            isSelected ? "opacity-100" : "opacity-0",
                           )}
                         />
                       </CommandItem>
-                    )
+                    );
                   })}
                 </CommandGroup>
               </CommandList>
@@ -542,14 +544,14 @@ export default function ModelWeekSlotDialog({
         )}
       </div>
     </div>
-  )
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Editar slot del modelo' : 'Nuevo slot del modelo'}
+            {isEditing ? "Editar slot del modelo" : "Nuevo slot del modelo"}
           </DialogTitle>
           <DialogDescription>
             Define cuándo se dicta una clase en la semana modelo.
@@ -559,7 +561,7 @@ export default function ModelWeekSlotDialog({
         {isEditing ? (
           <Tabs
             value={activeTab}
-            onValueChange={(v) => setActiveTab(v as 'slot' | 'members')}
+            onValueChange={(v) => setActiveTab(v as "slot" | "members")}
           >
             <TabsList className="w-full">
               <TabsTrigger value="slot" className="flex-1">
@@ -581,5 +583,5 @@ export default function ModelWeekSlotDialog({
         )}
       </DialogContent>
     </Dialog>
-  )
+  );
 }

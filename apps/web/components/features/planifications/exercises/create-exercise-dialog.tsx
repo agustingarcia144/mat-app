@@ -1,48 +1,44 @@
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import { useForm, Controller, useWatch } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import type { Doc } from '@/convex/_generated/dataModel'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import { useEffect } from "react";
+import { useForm, Controller, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Doc } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
+} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 import {
   Field,
   FieldLabel,
   FieldDescription,
   FieldError,
-} from '@/components/ui/field'
-import { exerciseSchema, Exercise } from '@repo/core/schemas'
+} from "@/components/ui/field";
+import { exerciseSchema, Exercise } from "@repo/core/schemas";
 
-import {
-  CATEGORIES,
-  EQUIPMENT_OPTIONS,
-  MUSCLE_GROUPS,
-} from '@repo/core'
+import { CATEGORIES, EQUIPMENT_OPTIONS, MUSCLE_GROUPS } from "@repo/core";
 
-import { toast } from 'sonner'
+import { toast } from "sonner";
 
 interface CreateExerciseDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  exercise?: Doc<'exercises'> | null
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  exercise?: Doc<"exercises"> | null;
 }
 
 export default function CreateExerciseDialog({
@@ -50,51 +46,51 @@ export default function CreateExerciseDialog({
   onOpenChange,
   exercise,
 }: CreateExerciseDialogProps) {
-  const createExercise = useMutation(api.exercises.create)
-  const updateExercise = useMutation(api.exercises.update)
+  const createExercise = useMutation(api.exercises.create);
+  const updateExercise = useMutation(api.exercises.update);
 
-  const isEditing = !!exercise
+  const isEditing = !!exercise;
   const isStandardExercise =
-    isEditing && exercise && 'isStandard' in exercise && !!exercise.isStandard
+    isEditing && exercise && "isStandard" in exercise && !!exercise.isStandard;
 
   const form = useForm<Exercise>({
     resolver: zodResolver(exerciseSchema),
     defaultValues: {
-      name: '',
-      description: '',
-      category: '',
-      equipment: '',
-      videoUrl: '',
+      name: "",
+      description: "",
+      category: "",
+      equipment: "",
+      videoUrl: "",
       muscleGroups: [],
     },
-  })
+  });
 
   useEffect(() => {
     if (open) {
       if (exercise) {
         form.reset({
           name: exercise.name,
-          description: exercise.description ?? '',
+          description: exercise.description ?? "",
           category: exercise.category,
-          equipment: exercise.equipment ?? '',
-          videoUrl: exercise.videoUrl ?? '',
+          equipment: exercise.equipment ?? "",
+          videoUrl: exercise.videoUrl ?? "",
           muscleGroups: exercise.muscleGroups ?? [],
-        })
+        });
       } else {
         form.reset({
-          name: '',
-          description: '',
-          category: '',
-          equipment: '',
-          videoUrl: '',
+          name: "",
+          description: "",
+          category: "",
+          equipment: "",
+          videoUrl: "",
           muscleGroups: [],
-        })
+        });
       }
     }
-  }, [open, exercise, form])
+  }, [open, exercise, form]);
 
   const onSubmit = async (data: Exercise) => {
-    if (isStandardExercise) return
+    if (isStandardExercise) return;
     try {
       if (isEditing) {
         await updateExercise({
@@ -105,7 +101,7 @@ export default function CreateExerciseDialog({
           muscleGroups: data.muscleGroups,
           equipment: data.equipment || undefined,
           videoUrl: data.videoUrl || undefined,
-        })
+        });
       } else {
         await createExercise({
           name: data.name,
@@ -114,51 +110,51 @@ export default function CreateExerciseDialog({
           muscleGroups: data.muscleGroups,
           equipment: data.equipment || undefined,
           videoUrl: data.videoUrl || undefined,
-        })
+        });
       }
 
-      form.reset()
-      onOpenChange(false)
+      form.reset();
+      onOpenChange(false);
     } catch (error) {
       console.error(
-        isEditing ? 'Failed to update exercise:' : 'Failed to create exercise:',
-        error
-      )
+        isEditing ? "Failed to update exercise:" : "Failed to create exercise:",
+        error,
+      );
       toast.error(
         isEditing
-          ? 'Error al actualizar el ejercicio'
-          : 'Error al crear el ejercicio'
-      )
+          ? "Error al actualizar el ejercicio"
+          : "Error al crear el ejercicio",
+      );
     }
-  }
+  };
 
   const selectedMuscles = useWatch({
     control: form.control,
-    name: 'muscleGroups',
+    name: "muscleGroups",
     defaultValue: [],
-  })
+  });
 
   const toggleMuscle = (muscle: string) => {
-    const current = form.getValues('muscleGroups')
+    const current = form.getValues("muscleGroups");
     form.setValue(
-      'muscleGroups',
+      "muscleGroups",
       current.includes(muscle)
         ? current.filter((m) => m !== muscle)
-        : [...current, muscle]
-    )
-  }
+        : [...current, muscle],
+    );
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <SheetTitle>
-            {isEditing ? 'Editar ejercicio' : 'Nuevo ejercicio'}
+            {isEditing ? "Editar ejercicio" : "Nuevo ejercicio"}
           </SheetTitle>
           <SheetDescription>
             {isEditing
-              ? 'Modifica los datos del ejercicio'
-              : 'Agrega un nuevo ejercicio a la biblioteca'}
+              ? "Modifica los datos del ejercicio"
+              : "Agrega un nuevo ejercicio a la biblioteca"}
           </SheetDescription>
         </SheetHeader>
 
@@ -179,9 +175,7 @@ export default function CreateExerciseDialog({
                   id={field.name}
                   aria-invalid={fieldState.invalid}
                   placeholder="Ej: Press de banca"
-                  disabled={
-                    form.formState.isSubmitting || isStandardExercise
-                  }
+                  disabled={form.formState.isSubmitting || isStandardExercise}
                   autoComplete="off"
                 />
                 <FieldDescription>
@@ -206,9 +200,7 @@ export default function CreateExerciseDialog({
                   aria-invalid={fieldState.invalid}
                   placeholder="Instrucciones y técnica..."
                   rows={3}
-                  disabled={
-                    form.formState.isSubmitting || isStandardExercise
-                  }
+                  disabled={form.formState.isSubmitting || isStandardExercise}
                   autoComplete="off"
                 />
                 {fieldState.invalid && (
@@ -227,9 +219,7 @@ export default function CreateExerciseDialog({
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  disabled={
-                    form.formState.isSubmitting || isStandardExercise
-                  }
+                  disabled={form.formState.isSubmitting || isStandardExercise}
                 >
                   <SelectTrigger
                     id={field.name}
@@ -264,9 +254,7 @@ export default function CreateExerciseDialog({
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}
-                  disabled={
-                    form.formState.isSubmitting || isStandardExercise
-                  }
+                  disabled={form.formState.isSubmitting || isStandardExercise}
                 >
                   <SelectTrigger
                     id={field.name}
@@ -301,9 +289,7 @@ export default function CreateExerciseDialog({
                   type="url"
                   aria-invalid={fieldState.invalid}
                   placeholder="Ej: https://www.youtube.com/watch?v=..."
-                  disabled={
-                    form.formState.isSubmitting || isStandardExercise
-                  }
+                  disabled={form.formState.isSubmitting || isStandardExercise}
                   autoComplete="off"
                 />
                 {fieldState.invalid && (
@@ -321,13 +307,11 @@ export default function CreateExerciseDialog({
                   key={muscle}
                   type="button"
                   variant={
-                    selectedMuscles.includes(muscle) ? 'default' : 'outline'
+                    selectedMuscles.includes(muscle) ? "default" : "outline"
                   }
                   size="sm"
                   onClick={() => toggleMuscle(muscle)}
-                  disabled={
-                    form.formState.isSubmitting || isStandardExercise
-                  }
+                  disabled={form.formState.isSubmitting || isStandardExercise}
                   className="capitalize"
                 >
                   {muscle}
@@ -347,11 +331,11 @@ export default function CreateExerciseDialog({
             >
               {form.formState.isSubmitting
                 ? isEditing
-                  ? 'Guardando...'
-                  : 'Creando...'
+                  ? "Guardando..."
+                  : "Creando..."
                 : isEditing
-                  ? 'Guardar cambios'
-                  : 'Crear ejercicio'}
+                  ? "Guardar cambios"
+                  : "Crear ejercicio"}
             </Button>
             <Button
               type="button"
@@ -365,5 +349,5 @@ export default function CreateExerciseDialog({
         </form>
       </SheetContent>
     </Sheet>
-  )
+  );
 }

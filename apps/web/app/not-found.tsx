@@ -1,7 +1,7 @@
-import Image from 'next/image'
-import Link from 'next/link'
-import matWolfLooking from '@/assets/mat-wolf-looking.png'
-import { Button } from '@/components/ui/button'
+import Image from "next/image";
+import Link from "next/link";
+import matWolfLooking from "@/assets/mat-wolf-looking.png";
+import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
@@ -28,5 +28,5 @@ export default function NotFound() {
         <Link href="/dashboard">Ir al inicio</Link>
       </Button>
     </main>
-  )
+  );
 }

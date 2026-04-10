@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import {
   createContext,
@@ -10,11 +10,11 @@ import {
   useRef,
   useState,
   type ReactNode,
-} from 'react'
-import { usePathname, useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
+} from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -22,64 +22,64 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 
-const UNSAVED_CHANGES_TOAST_ID = 'unsaved-changes-global'
+const UNSAVED_CHANGES_TOAST_ID = "unsaved-changes-global";
 
-type SaveHandler = (() => void | Promise<void>) | null
-type ShouldBlockNavigation = (targetPath: string) => boolean
+type SaveHandler = (() => void | Promise<void>) | null;
+type ShouldBlockNavigation = (targetPath: string) => boolean;
 
 type UnsavedEntry = {
-  dirty: boolean
-  isSaving: boolean
-  saveHandler: SaveHandler
-  shouldBlockNavigation?: ShouldBlockNavigation
-  sequence: number
-}
+  dirty: boolean;
+  isSaving: boolean;
+  saveHandler: SaveHandler;
+  shouldBlockNavigation?: ShouldBlockNavigation;
+  sequence: number;
+};
 
-type EntriesState = Record<string, UnsavedEntry>
+type EntriesState = Record<string, UnsavedEntry>;
 
 type PendingNavigation = {
-  href: string
-  replace: boolean
-}
+  href: string;
+  replace: boolean;
+};
 
 type UnsavedChangesContextValue = {
-  entries: EntriesState
-  isDirty: boolean
-  registerEntry: (entryId: string) => void
-  unregisterEntry: (entryId: string) => void
-  setEntryDirty: (entryId: string, dirty: boolean) => void
-  setEntrySaving: (entryId: string, saving: boolean) => void
-  setEntrySaveHandler: (entryId: string, saveHandler: SaveHandler) => void
+  entries: EntriesState;
+  isDirty: boolean;
+  registerEntry: (entryId: string) => void;
+  unregisterEntry: (entryId: string) => void;
+  setEntryDirty: (entryId: string, dirty: boolean) => void;
+  setEntrySaving: (entryId: string, saving: boolean) => void;
+  setEntrySaveHandler: (entryId: string, saveHandler: SaveHandler) => void;
   setEntryShouldBlockNavigation: (
     entryId: string,
-    shouldBlockNavigation: ShouldBlockNavigation | undefined
-  ) => void
-  requestNavigation: (targetPath: string, replace?: boolean) => boolean
-  allowNextNavigation: (targetPath?: string) => void
-}
+    shouldBlockNavigation: ShouldBlockNavigation | undefined,
+  ) => void;
+  requestNavigation: (targetPath: string, replace?: boolean) => boolean;
+  allowNextNavigation: (targetPath?: string) => void;
+};
 
 const UnsavedChangesContext = createContext<UnsavedChangesContextValue | null>(
-  null
-)
+  null,
+);
 
 function toRelativePath(raw: string): { fullPath: string; routePath: string } {
-  const parsed = new URL(raw, window.location.href)
+  const parsed = new URL(raw, window.location.href);
   return {
     fullPath: `${parsed.pathname}${parsed.search}${parsed.hash}`,
     routePath: `${parsed.pathname}${parsed.search}`,
-  }
+  };
 }
 
 function resolveHistoryUrl(url?: string | URL | null): {
-  fullPath: string
-  routePath: string
+  fullPath: string;
+  routePath: string;
 } {
   if (url == null) {
-    return toRelativePath(window.location.href)
+    return toRelativePath(window.location.href);
   }
-  return toRelativePath(String(url))
+  return toRelativePath(String(url));
 }
 
 function isPrimaryUnmodifiedClick(event: MouseEvent): boolean {
@@ -89,46 +89,46 @@ function isPrimaryUnmodifiedClick(event: MouseEvent): boolean {
     !event.ctrlKey &&
     !event.shiftKey &&
     !event.altKey
-  )
+  );
 }
 
 function getRoutePathFromLocation() {
-  return `${window.location.pathname}${window.location.search}`
+  return `${window.location.pathname}${window.location.search}`;
 }
 
 function getFullPathFromLocation() {
-  return `${window.location.pathname}${window.location.search}${window.location.hash}`
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
 export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const entrySequenceRef = useRef(0)
-  const bypassGuardCountRef = useRef(0)
-  const bypassTargetRoutePathRef = useRef<string | null>(null)
-  const currentRoutePathRef = useRef('')
-  const currentFullPathRef = useRef('')
+  const router = useRouter();
+  const pathname = usePathname();
+  const entrySequenceRef = useRef(0);
+  const bypassGuardCountRef = useRef(0);
+  const bypassTargetRoutePathRef = useRef<string | null>(null);
+  const currentRoutePathRef = useRef("");
+  const currentFullPathRef = useRef("");
 
-  const [entries, setEntries] = useState<EntriesState>({})
-  const entriesRef = useRef(entries)
-  const pendingNavigationRef = useRef<PendingNavigation | null>(null)
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
+  const [entries, setEntries] = useState<EntriesState>({});
+  const entriesRef = useRef(entries);
+  const pendingNavigationRef = useRef<PendingNavigation | null>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
 
   const updateEntries = useCallback(
     (updater: (previous: EntriesState) => EntriesState) => {
       setEntries((previous) => {
-        const next = updater(previous)
-        entriesRef.current = next
-        return next
-      })
+        const next = updater(previous);
+        entriesRef.current = next;
+        return next;
+      });
     },
-    []
-  )
+    [],
+  );
 
   const registerEntry = useCallback(
     (entryId: string) => {
       updateEntries((previous) => {
-        if (previous[entryId]) return previous
+        if (previous[entryId]) return previous;
         return {
           ...previous,
           [entryId]: {
@@ -137,284 +137,284 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
             saveHandler: null,
             sequence: entrySequenceRef.current++,
           },
-        }
-      })
+        };
+      });
     },
-    [updateEntries]
-  )
+    [updateEntries],
+  );
 
   const unregisterEntry = useCallback(
     (entryId: string) => {
       updateEntries((previous) => {
-        if (!previous[entryId]) return previous
-        const { [entryId]: _, ...rest } = previous
-        return rest
-      })
+        if (!previous[entryId]) return previous;
+        const { [entryId]: _, ...rest } = previous;
+        return rest;
+      });
     },
-    [updateEntries]
-  )
+    [updateEntries],
+  );
 
   const setEntryDirty = useCallback(
     (entryId: string, dirty: boolean) => {
       updateEntries((previous) => {
-        const entry = previous[entryId]
-        if (!entry || entry.dirty === dirty) return previous
+        const entry = previous[entryId];
+        if (!entry || entry.dirty === dirty) return previous;
         return {
           ...previous,
           [entryId]: { ...entry, dirty },
-        }
-      })
+        };
+      });
     },
-    [updateEntries]
-  )
+    [updateEntries],
+  );
 
   const setEntrySaving = useCallback(
     (entryId: string, saving: boolean) => {
       updateEntries((previous) => {
-        const entry = previous[entryId]
-        if (!entry || entry.isSaving === saving) return previous
+        const entry = previous[entryId];
+        if (!entry || entry.isSaving === saving) return previous;
         return {
           ...previous,
           [entryId]: { ...entry, isSaving: saving },
-        }
-      })
+        };
+      });
     },
-    [updateEntries]
-  )
+    [updateEntries],
+  );
 
   const setEntrySaveHandler = useCallback(
     (entryId: string, saveHandler: SaveHandler) => {
       updateEntries((previous) => {
-        const entry = previous[entryId]
-        if (!entry || entry.saveHandler === saveHandler) return previous
+        const entry = previous[entryId];
+        if (!entry || entry.saveHandler === saveHandler) return previous;
         return {
           ...previous,
           [entryId]: { ...entry, saveHandler },
-        }
-      })
+        };
+      });
     },
-    [updateEntries]
-  )
+    [updateEntries],
+  );
 
   const setEntryShouldBlockNavigation = useCallback(
     (
       entryId: string,
-      shouldBlockNavigation: ShouldBlockNavigation | undefined
+      shouldBlockNavigation: ShouldBlockNavigation | undefined,
     ) => {
       updateEntries((previous) => {
-        const entry = previous[entryId]
+        const entry = previous[entryId];
         if (!entry || entry.shouldBlockNavigation === shouldBlockNavigation) {
-          return previous
+          return previous;
         }
         return {
           ...previous,
           [entryId]: { ...entry, shouldBlockNavigation },
-        }
-      })
+        };
+      });
     },
-    [updateEntries]
-  )
+    [updateEntries],
+  );
 
   const allowNextNavigation = useCallback((targetPath?: string) => {
-    if (typeof targetPath === 'string') {
-      bypassTargetRoutePathRef.current = toRelativePath(targetPath).routePath
-      return
+    if (typeof targetPath === "string") {
+      bypassTargetRoutePathRef.current = toRelativePath(targetPath).routePath;
+      return;
     }
-    bypassGuardCountRef.current += 1
-  }, [])
+    bypassGuardCountRef.current += 1;
+  }, []);
 
   const dirtyEntries = useMemo(
     () => Object.values(entries).filter((entry) => entry.dirty),
-    [entries]
-  )
-  const isDirty = dirtyEntries.length > 0
+    [entries],
+  );
+  const isDirty = dirtyEntries.length > 0;
 
   const activeDirtyEntry = useMemo(() => {
-    if (dirtyEntries.length === 0) return null
-    const ordered = [...dirtyEntries].sort((a, b) => b.sequence - a.sequence)
-    return ordered.find((entry) => entry.saveHandler != null) ?? ordered[0]
-  }, [dirtyEntries])
+    if (dirtyEntries.length === 0) return null;
+    const ordered = [...dirtyEntries].sort((a, b) => b.sequence - a.sequence);
+    return ordered.find((entry) => entry.saveHandler != null) ?? ordered[0];
+  }, [dirtyEntries]);
 
   const queueBlockedNavigation = useCallback((next: PendingNavigation) => {
-    pendingNavigationRef.current = next
-    setIsConfirmDialogOpen(true)
-  }, [])
+    pendingNavigationRef.current = next;
+    setIsConfirmDialogOpen(true);
+  }, []);
 
   const shouldBlockTransition = useCallback(
     (targetPath: string, targetRoutePath: string): boolean => {
-      if (targetRoutePath === currentRoutePathRef.current) return false
+      if (targetRoutePath === currentRoutePathRef.current) return false;
       if (
         bypassTargetRoutePathRef.current != null &&
         bypassTargetRoutePathRef.current === targetRoutePath
       ) {
-        bypassTargetRoutePathRef.current = null
-        return false
+        bypassTargetRoutePathRef.current = null;
+        return false;
       }
 
       if (bypassGuardCountRef.current > 0) {
-        bypassGuardCountRef.current -= 1
-        return false
+        bypassGuardCountRef.current -= 1;
+        return false;
       }
 
       const currentDirtyEntries = Object.values(entriesRef.current).filter(
-        (entry) => entry.dirty
-      )
-      if (currentDirtyEntries.length === 0) return false
+        (entry) => entry.dirty,
+      );
+      if (currentDirtyEntries.length === 0) return false;
 
       return currentDirtyEntries.some((entry) => {
-        if (!entry.shouldBlockNavigation) return true
+        if (!entry.shouldBlockNavigation) return true;
         try {
-          return entry.shouldBlockNavigation(targetPath)
+          return entry.shouldBlockNavigation(targetPath);
         } catch (error) {
           console.error(
-            'Error in unsaved-changes shouldBlockNavigation callback:',
-            error
-          )
-          return true
+            "Error in unsaved-changes shouldBlockNavigation callback:",
+            error,
+          );
+          return true;
         }
-      })
+      });
     },
-    []
-  )
+    [],
+  );
 
   useEffect(() => {
-    currentRoutePathRef.current = getRoutePathFromLocation()
-    currentFullPathRef.current = getFullPathFromLocation()
-    bypassGuardCountRef.current = 0
-    bypassTargetRoutePathRef.current = null
-  }, [pathname])
+    currentRoutePathRef.current = getRoutePathFromLocation();
+    currentFullPathRef.current = getFullPathFromLocation();
+    bypassGuardCountRef.current = 0;
+    bypassTargetRoutePathRef.current = null;
+  }, [pathname]);
 
   useEffect(() => {
     const handleDocumentClickCapture = (event: MouseEvent) => {
-      if (event.defaultPrevented) return
-      if (!isPrimaryUnmodifiedClick(event)) return
+      if (event.defaultPrevented) return;
+      if (!isPrimaryUnmodifiedClick(event)) return;
 
-      const eventTarget = event.target
-      if (!(eventTarget instanceof Element)) return
+      const eventTarget = event.target;
+      if (!(eventTarget instanceof Element)) return;
 
-      const anchor = eventTarget.closest('a[href]') as HTMLAnchorElement | null
-      if (!anchor) return
-      if (anchor.hasAttribute('download')) return
-      if (anchor.target && anchor.target !== '_self') return
-      if (anchor.dataset.unsavedIgnoreNavigation === 'true') return
+      const anchor = eventTarget.closest("a[href]") as HTMLAnchorElement | null;
+      if (!anchor) return;
+      if (anchor.hasAttribute("download")) return;
+      if (anchor.target && anchor.target !== "_self") return;
+      if (anchor.dataset.unsavedIgnoreNavigation === "true") return;
 
-      const parsed = toRelativePath(anchor.href)
-      const anchorUrl = new URL(anchor.href, window.location.href)
-      if (anchorUrl.origin !== window.location.origin) return
+      const parsed = toRelativePath(anchor.href);
+      const anchorUrl = new URL(anchor.href, window.location.href);
+      if (anchorUrl.origin !== window.location.origin) return;
 
-      if (!shouldBlockTransition(parsed.fullPath, parsed.routePath)) return
+      if (!shouldBlockTransition(parsed.fullPath, parsed.routePath)) return;
 
-      event.preventDefault()
+      event.preventDefault();
       queueBlockedNavigation({
         href: parsed.fullPath,
         replace: false,
-      })
-    }
+      });
+    };
 
-    document.addEventListener('click', handleDocumentClickCapture, true)
+    document.addEventListener("click", handleDocumentClickCapture, true);
     return () => {
-      document.removeEventListener('click', handleDocumentClickCapture, true)
-    }
-  }, [queueBlockedNavigation, shouldBlockTransition])
+      document.removeEventListener("click", handleDocumentClickCapture, true);
+    };
+  }, [queueBlockedNavigation, shouldBlockTransition]);
 
   useEffect(() => {
-    const originalPushState = window.history.pushState.bind(window.history)
+    const originalPushState = window.history.pushState.bind(window.history);
     const originalReplaceState = window.history.replaceState.bind(
-      window.history
-    )
+      window.history,
+    );
 
     window.history.pushState = (data, unused, url) => {
-      const parsed = resolveHistoryUrl(url)
+      const parsed = resolveHistoryUrl(url);
       if (shouldBlockTransition(parsed.fullPath, parsed.routePath)) {
         queueBlockedNavigation({
           href: parsed.fullPath,
           replace: false,
-        })
-        return
+        });
+        return;
       }
-      originalPushState(data, unused, url)
-      currentRoutePathRef.current = parsed.routePath
-      currentFullPathRef.current = parsed.fullPath
-    }
+      originalPushState(data, unused, url);
+      currentRoutePathRef.current = parsed.routePath;
+      currentFullPathRef.current = parsed.fullPath;
+    };
 
     window.history.replaceState = (data, unused, url) => {
-      const parsed = resolveHistoryUrl(url)
+      const parsed = resolveHistoryUrl(url);
       if (shouldBlockTransition(parsed.fullPath, parsed.routePath)) {
         queueBlockedNavigation({
           href: parsed.fullPath,
           replace: true,
-        })
-        return
+        });
+        return;
       }
-      originalReplaceState(data, unused, url)
-      currentRoutePathRef.current = parsed.routePath
-      currentFullPathRef.current = parsed.fullPath
-    }
+      originalReplaceState(data, unused, url);
+      currentRoutePathRef.current = parsed.routePath;
+      currentFullPathRef.current = parsed.fullPath;
+    };
 
     return () => {
-      window.history.pushState = originalPushState
-      window.history.replaceState = originalReplaceState
-    }
-  }, [queueBlockedNavigation, shouldBlockTransition])
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+    };
+  }, [queueBlockedNavigation, shouldBlockTransition]);
 
   useEffect(() => {
     const handlePopState = () => {
-      const parsed = toRelativePath(window.location.href)
+      const parsed = toRelativePath(window.location.href);
       if (!shouldBlockTransition(parsed.fullPath, parsed.routePath)) {
-        currentRoutePathRef.current = parsed.routePath
-        currentFullPathRef.current = parsed.fullPath
-        return
+        currentRoutePathRef.current = parsed.routePath;
+        currentFullPathRef.current = parsed.fullPath;
+        return;
       }
 
       // popstate cannot be cancelled. Restore current URL deterministically and
       // then ask for confirmation before performing the transition.
       window.history.replaceState(
         window.history.state,
-        '',
-        currentFullPathRef.current
-      )
+        "",
+        currentFullPathRef.current,
+      );
 
       queueBlockedNavigation({
         href: parsed.fullPath,
         replace: false,
-      })
-    }
+      });
+    };
 
-    window.addEventListener('popstate', handlePopState)
+    window.addEventListener("popstate", handlePopState);
     return () => {
-      window.removeEventListener('popstate', handlePopState)
-    }
-  }, [queueBlockedNavigation, shouldBlockTransition])
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [queueBlockedNavigation, shouldBlockTransition]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       const hasDirtyEntries = Object.values(entriesRef.current).some(
-        (entry) => entry.dirty
-      )
-      if (!hasDirtyEntries) return
-      event.preventDefault()
-      event.returnValue = ''
-    }
+        (entry) => entry.dirty,
+      );
+      if (!hasDirtyEntries) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
 
-    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-    }
-  }, [])
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isDirty) {
-      toast.dismiss(UNSAVED_CHANGES_TOAST_ID)
+      toast.dismiss(UNSAVED_CHANGES_TOAST_ID);
       if (pendingNavigationRef.current) {
-        pendingNavigationRef.current = null
-        setIsConfirmDialogOpen(false)
+        pendingNavigationRef.current = null;
+        setIsConfirmDialogOpen(false);
       }
-      return
+      return;
     }
 
-    toast.message('Tienes cambios sin guardar', {
+    toast.message("Tienes cambios sin guardar", {
       id: UNSAVED_CHANGES_TOAST_ID,
-      position: 'top-center',
+      position: "top-center",
       duration: Infinity,
       dismissible: false,
       action:
@@ -424,7 +424,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
             className="h-8"
             disabled={activeDirtyEntry.isSaving}
             onClick={() => {
-              void activeDirtyEntry.saveHandler?.()
+              void activeDirtyEntry.saveHandler?.();
             }}
           >
             {activeDirtyEntry.isSaving ? (
@@ -433,47 +433,47 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
                 Guardando
               </>
             ) : (
-              'Guardar cambios'
+              "Guardar cambios"
             )}
           </Button>
         ) : undefined,
-    })
-  }, [activeDirtyEntry, isDirty])
+    });
+  }, [activeDirtyEntry, isDirty]);
 
   const requestNavigation = useCallback(
     (targetPath: string, replace = false) => {
-      const parsed = toRelativePath(targetPath)
+      const parsed = toRelativePath(targetPath);
       if (shouldBlockTransition(parsed.fullPath, parsed.routePath)) {
         queueBlockedNavigation({
           href: parsed.fullPath,
           replace,
-        })
-        return false
+        });
+        return false;
       }
-      return true
+      return true;
     },
-    [queueBlockedNavigation, shouldBlockTransition]
-  )
+    [queueBlockedNavigation, shouldBlockTransition],
+  );
 
   const handleCancelNavigation = useCallback(() => {
-    setIsConfirmDialogOpen(false)
-    pendingNavigationRef.current = null
-  }, [])
+    setIsConfirmDialogOpen(false);
+    pendingNavigationRef.current = null;
+  }, []);
 
   const handleConfirmNavigation = useCallback(() => {
-    const next = pendingNavigationRef.current
-    if (!next) return
+    const next = pendingNavigationRef.current;
+    if (!next) return;
 
-    pendingNavigationRef.current = null
-    setIsConfirmDialogOpen(false)
+    pendingNavigationRef.current = null;
+    setIsConfirmDialogOpen(false);
 
-    allowNextNavigation(next.href)
+    allowNextNavigation(next.href);
     if (next.replace) {
-      router.replace(next.href)
+      router.replace(next.href);
     } else {
-      router.push(next.href)
+      router.push(next.href);
     }
-  }, [allowNextNavigation, router])
+  }, [allowNextNavigation, router]);
 
   const contextValue = useMemo<UnsavedChangesContextValue>(
     () => ({
@@ -499,8 +499,8 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       setEntryShouldBlockNavigation,
       requestNavigation,
       allowNextNavigation,
-    ]
-  )
+    ],
+  );
 
   return (
     <UnsavedChangesContext.Provider value={contextValue}>
@@ -510,10 +510,10 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
         open={isConfirmDialogOpen}
         onOpenChange={(open) => {
           if (open) {
-            setIsConfirmDialogOpen(true)
-            return
+            setIsConfirmDialogOpen(true);
+            return;
           }
-          handleCancelNavigation()
+          handleCancelNavigation();
         }}
       >
         <DialogContent>
@@ -535,35 +535,35 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
         </DialogContent>
       </Dialog>
     </UnsavedChangesContext.Provider>
-  )
+  );
 }
 
 type UseUnsavedChangesOptions = {
-  dirty?: boolean
-  isSaving?: boolean
-  onSave?: SaveHandler
-  shouldBlockNavigation?: ShouldBlockNavigation
-}
+  dirty?: boolean;
+  isSaving?: boolean;
+  onSave?: SaveHandler;
+  shouldBlockNavigation?: ShouldBlockNavigation;
+};
 
 export function useUnsavedNavigationGuard() {
-  const context = useContext(UnsavedChangesContext)
+  const context = useContext(UnsavedChangesContext);
   if (!context) {
     throw new Error(
-      'useUnsavedNavigationGuard must be used inside UnsavedChangesProvider'
-    )
+      "useUnsavedNavigationGuard must be used inside UnsavedChangesProvider",
+    );
   }
   return {
     requestNavigation: context.requestNavigation,
     allowNextNavigation: context.allowNextNavigation,
-  }
+  };
 }
 
 export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
-  const context = useContext(UnsavedChangesContext)
+  const context = useContext(UnsavedChangesContext);
   if (!context) {
     throw new Error(
-      'useUnsavedChanges must be used inside UnsavedChangesProvider'
-    )
+      "useUnsavedChanges must be used inside UnsavedChangesProvider",
+    );
   }
   const {
     entries,
@@ -576,72 +576,72 @@ export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
     setEntryShouldBlockNavigation,
     requestNavigation,
     allowNextNavigation,
-  } = context
+  } = context;
 
-  const entryId = useId()
+  const entryId = useId();
 
   useEffect(() => {
-    registerEntry(entryId)
+    registerEntry(entryId);
     return () => {
-      unregisterEntry(entryId)
+      unregisterEntry(entryId);
+    };
+  }, [entryId, registerEntry, unregisterEntry]);
+
+  useEffect(() => {
+    if (typeof options?.dirty === "boolean") {
+      setEntryDirty(entryId, options.dirty);
     }
-  }, [entryId, registerEntry, unregisterEntry])
+  }, [entryId, options?.dirty, setEntryDirty]);
 
   useEffect(() => {
-    if (typeof options?.dirty === 'boolean') {
-      setEntryDirty(entryId, options.dirty)
+    if (typeof options?.isSaving === "boolean") {
+      setEntrySaving(entryId, options.isSaving);
     }
-  }, [entryId, options?.dirty, setEntryDirty])
+  }, [entryId, options?.isSaving, setEntrySaving]);
 
   useEffect(() => {
-    if (typeof options?.isSaving === 'boolean') {
-      setEntrySaving(entryId, options.isSaving)
-    }
-  }, [entryId, options?.isSaving, setEntrySaving])
+    setEntrySaveHandler(entryId, options?.onSave ?? null);
+  }, [entryId, options?.onSave, setEntrySaveHandler]);
 
   useEffect(() => {
-    setEntrySaveHandler(entryId, options?.onSave ?? null)
-  }, [entryId, options?.onSave, setEntrySaveHandler])
-
-  useEffect(() => {
-    setEntryShouldBlockNavigation(entryId, options?.shouldBlockNavigation)
-  }, [entryId, options?.shouldBlockNavigation, setEntryShouldBlockNavigation])
+    setEntryShouldBlockNavigation(entryId, options?.shouldBlockNavigation);
+  }, [entryId, options?.shouldBlockNavigation, setEntryShouldBlockNavigation]);
 
   const markDirty = useCallback(() => {
-    setEntryDirty(entryId, true)
-  }, [entryId, setEntryDirty])
+    setEntryDirty(entryId, true);
+  }, [entryId, setEntryDirty]);
 
   const markClean = useCallback(() => {
-    setEntryDirty(entryId, false)
-  }, [entryId, setEntryDirty])
+    setEntryDirty(entryId, false);
+  }, [entryId, setEntryDirty]);
 
   const setDirty = useCallback(
     (dirty: boolean) => {
-      setEntryDirty(entryId, dirty)
+      setEntryDirty(entryId, dirty);
     },
-    [entryId, setEntryDirty]
-  )
+    [entryId, setEntryDirty],
+  );
 
   const setSaving = useCallback(
     (saving: boolean) => {
-      setEntrySaving(entryId, saving)
+      setEntrySaving(entryId, saving);
     },
-    [entryId, setEntrySaving]
-  )
+    [entryId, setEntrySaving],
+  );
 
   const setSaveHandler = useCallback(
     (saveHandler: SaveHandler) => {
-      setEntrySaveHandler(entryId, saveHandler)
+      setEntrySaveHandler(entryId, saveHandler);
     },
-    [entryId, setEntrySaveHandler]
-  )
+    [entryId, setEntrySaveHandler],
+  );
 
   const setShouldBlockNavigation = useCallback(
     (shouldBlockNavigation: ShouldBlockNavigation | undefined) => {
-      setEntryShouldBlockNavigation(entryId, shouldBlockNavigation)
+      setEntryShouldBlockNavigation(entryId, shouldBlockNavigation);
     },
-    [entryId, setEntryShouldBlockNavigation]
-  )
+    [entryId, setEntryShouldBlockNavigation],
+  );
 
   return {
     isDirty: entries[entryId]?.dirty ?? false,
@@ -654,5 +654,5 @@ export function useUnsavedChanges(options?: UseUnsavedChangesOptions) {
     setShouldBlockNavigation,
     requestNavigation,
     allowNextNavigation,
-  }
+  };
 }

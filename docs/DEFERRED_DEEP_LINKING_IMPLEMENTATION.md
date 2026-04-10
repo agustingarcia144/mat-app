@@ -18,10 +18,10 @@ Clerk remains auth-only.
 
 ## Required environment variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `JOIN_LINK_SECRET` | Yes | Secret used to sign and verify join tokens |
-| `CONVEX_HTTP_URL` | Yes (web join page) | Base URL for Convex HTTP endpoints |
+| Variable           | Required            | Description                                |
+| ------------------ | ------------------- | ------------------------------------------ |
+| `JOIN_LINK_SECRET` | Yes                 | Secret used to sign and verify join tokens |
+| `CONVEX_HTTP_URL`  | Yes (web join page) | Base URL for Convex HTTP endpoints         |
 
 ## Operational notes
 

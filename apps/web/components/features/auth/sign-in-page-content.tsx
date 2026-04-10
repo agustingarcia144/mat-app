@@ -1,59 +1,65 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useSignIn } from "@clerk/nextjs/legacy"
-import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSignIn } from "@clerk/nextjs/legacy";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
-const DEFAULT_REDIRECT = '/select-organization'
+const DEFAULT_REDIRECT = "/select-organization";
 
 function getSafeRedirectUrl(redirectUrl: string | null): string {
-  if (!redirectUrl || typeof redirectUrl !== 'string') return DEFAULT_REDIRECT
+  if (!redirectUrl || typeof redirectUrl !== "string") return DEFAULT_REDIRECT;
   try {
-    const decoded = decodeURIComponent(redirectUrl)
-    if (typeof window !== 'undefined') {
-      const origin = window.location.origin
-      if (decoded === origin || decoded.startsWith(origin + '/')) {
-        const path = decoded.slice(origin.length) || '/'
-        return path
+    const decoded = decodeURIComponent(redirectUrl);
+    if (typeof window !== "undefined") {
+      const origin = window.location.origin;
+      if (decoded === origin || decoded.startsWith(origin + "/")) {
+        const path = decoded.slice(origin.length) || "/";
+        return path;
       }
     }
-    if (decoded.startsWith('/')) return decoded
+    if (decoded.startsWith("/")) return decoded;
   } catch {
     // ignore invalid URLs
   }
-  return DEFAULT_REDIRECT
+  return DEFAULT_REDIRECT;
 }
 
 type Props = {
-  redirectUrlFromQuery: string | null
-}
+  redirectUrlFromQuery: string | null;
+};
 
 export function SignInPageContent({ redirectUrlFromQuery }: Props) {
-  const router = useRouter()
-  const { isLoaded, signIn, setActive } = useSignIn()
-  const [email, setEmail] = React.useState('')
-  const [password, setPassword] = React.useState('')
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isOAuthLoading, setIsOAuthLoading] = React.useState(false)
+  const router = useRouter();
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isOAuthLoading, setIsOAuthLoading] = React.useState(false);
 
   const redirectUrlComplete = React.useMemo(
     () => getSafeRedirectUrl(redirectUrlFromQuery),
-    [redirectUrlFromQuery]
-  )
+    [redirectUrlFromQuery],
+  );
 
   const signInWith = React.useCallback(
-    (strategy: 'oauth_google') => {
-      if (!signIn || !isLoaded) return
-      setIsOAuthLoading(true)
+    (strategy: "oauth_google") => {
+      if (!signIn || !isLoaded) return;
+      setIsOAuthLoading(true);
       const callbackRedirect = `/sign-in/sso-callback?redirect_url=${encodeURIComponent(
-        redirectUrlComplete
-      )}`
+        redirectUrlComplete,
+      )}`;
       signIn
         .authenticateWithRedirect({
           strategy,
@@ -61,47 +67,47 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
           redirectUrlComplete,
         })
         .catch((err) => {
-          setIsOAuthLoading(false)
+          setIsOAuthLoading(false);
           toast.error(
-            err?.errors?.[0]?.longMessage ?? 'Error al iniciar sesión'
-          )
-        })
+            err?.errors?.[0]?.longMessage ?? "Error al iniciar sesión",
+          );
+        });
     },
-    [signIn, isLoaded, redirectUrlComplete]
-  )
+    [signIn, isLoaded, redirectUrlComplete],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!isLoaded || !signIn) return
-    setIsSubmitting(true)
+    e.preventDefault();
+    if (!isLoaded || !signIn) return;
+    setIsSubmitting(true);
     try {
       const attempt = await signIn.create({
         identifier: email,
         password,
-      })
-      if (attempt.status === 'complete') {
+      });
+      if (attempt.status === "complete") {
         await setActive({
           session: attempt.createdSessionId,
           navigate: () => router.push(redirectUrlComplete),
-        })
-        setEmail('')
-        setPassword('')
-      } else if (attempt.status === 'needs_second_factor') {
-        toast.info('Verificación en dos pasos habilitada. Completá el flujo.')
+        });
+        setEmail("");
+        setPassword("");
+      } else if (attempt.status === "needs_second_factor") {
+        toast.info("Verificación en dos pasos habilitada. Completá el flujo.");
       } else {
-        toast.error('Completá los pasos requeridos para iniciar sesión.')
+        toast.error("Completá los pasos requeridos para iniciar sesión.");
       }
     } catch (err: unknown) {
       const msg =
-        err && typeof err === 'object' && 'errors' in err
+        err && typeof err === "object" && "errors" in err
           ? (err as { errors?: Array<{ longMessage?: string }> }).errors?.[0]
               ?.longMessage
-          : null
-      toast.error(msg ?? 'Error al iniciar sesión')
+          : null;
+      toast.error(msg ?? "Error al iniciar sesión");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Card className="w-full max-w-[400px]">
@@ -116,7 +122,7 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
           type="button"
           variant="outline"
           className="w-full"
-          onClick={() => signInWith('oauth_google')}
+          onClick={() => signInWith("oauth_google")}
           disabled={!isLoaded || isOAuthLoading}
         >
           <svg className="size-4" viewBox="0 0 24 24" aria-hidden>
@@ -137,7 +143,7 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
               fill="#EA4335"
             />
           </svg>
-          {isOAuthLoading ? 'Conectando…' : 'Continuar con Google'}
+          {isOAuthLoading ? "Conectando…" : "Continuar con Google"}
         </Button>
 
         <div className="relative">
@@ -175,7 +181,7 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
             />
           </div>
           <Button type="submit" disabled={!isLoaded || isSubmitting}>
-            {isSubmitting ? 'Entrando…' : 'Continuar'}
+            {isSubmitting ? "Entrando…" : "Continuar"}
           </Button>
 
           <div
@@ -187,7 +193,7 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
         </form>
 
         <p className="text-center text-sm text-muted-foreground">
-          ¿No tenés cuenta?{' '}
+          ¿No tenés cuenta?{" "}
           <Link
             href="/sign-up"
             className="font-medium text-primary underline-offset-4 hover:underline"
@@ -196,7 +202,7 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
           </Link>
         </p>
         <p className="text-center text-sm text-muted-foreground">
-          ¿Tenés un codigo de invitacion para crear organizacion?{' '}
+          ¿Tenés un codigo de invitacion para crear organizacion?{" "}
           <Link
             href="/invite-code"
             className="font-medium text-primary underline-offset-4 hover:underline"
@@ -206,5 +212,5 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
         </p>
       </CardContent>
     </Card>
-  )
+  );
 }

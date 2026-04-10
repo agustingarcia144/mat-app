@@ -1,68 +1,68 @@
-'use client'
+"use client";
 
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from 'convex/react'
-import { useEffect } from 'react'
-import { api } from '@/convex/_generated/api'
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation } from "convex/react";
+import { useEffect } from "react";
+import { api } from "@/convex/_generated/api";
 import {
   planificationBasicInfoSchema,
   type PlanificationBasicInfo,
-} from '@repo/core/schemas'
+} from "@repo/core/schemas";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import BasicInfoSection from '@/components/features/planifications/form/basic-info-section'
-import { usePlanificationForm } from '@/contexts/planification-form-context'
-import { toast } from 'sonner'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import BasicInfoSection from "@/components/features/planifications/form/basic-info-section";
+import { usePlanificationForm } from "@/contexts/planification-form-context";
+import { toast } from "sonner";
 
 export default function EditPlanificationDialog({
   open,
   onOpenChange,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const { form: contextForm, planificationId } = usePlanificationForm()
-  const updatePlanification = useMutation(api.planifications.update)
+  const { form: contextForm, planificationId } = usePlanificationForm();
+  const updatePlanification = useMutation(api.planifications.update);
 
   const form = useForm<PlanificationBasicInfo>({
     resolver: zodResolver(planificationBasicInfoSchema),
     defaultValues: {
-      name: '',
-      description: '',
+      name: "",
+      description: "",
       folderId: undefined,
       isTemplate: false,
     },
-  })
+  });
 
   // Sync dialog form from context when dialog opens
   useEffect(() => {
     if (open) {
-      const values = contextForm.getValues()
+      const values = contextForm.getValues();
       form.reset({
         name: values.name,
-        description: values.description ?? '',
+        description: values.description ?? "",
         folderId: values.folderId,
         isTemplate: values.isTemplate,
-      })
+      });
     }
-  }, [open, contextForm, form])
+  }, [open, contextForm, form]);
 
   // Radix Dialog can leave body with pointer-events: none when closed (controlled from outside). Reset so the page stays clickable.
   useEffect(() => {
     if (!open) {
       const id = setTimeout(() => {
-        document.body.style.pointerEvents = ''
-      }, 0)
-      return () => clearTimeout(id)
+        document.body.style.pointerEvents = "";
+      }, 0);
+      return () => clearTimeout(id);
     }
-  }, [open])
+  }, [open]);
 
   const onSubmit = form.handleSubmit(async (data) => {
     try {
@@ -72,22 +72,24 @@ export default function EditPlanificationDialog({
         description: data.description || undefined,
         folderId: data.folderId as any,
         isTemplate: data.isTemplate,
-      })
-      contextForm.resetField('name', { defaultValue: data.name })
-      contextForm.resetField('description', {
-        defaultValue: data.description ?? '',
-      })
-      contextForm.resetField('folderId', { defaultValue: data.folderId as any })
-      contextForm.resetField('isTemplate', { defaultValue: data.isTemplate })
-      onOpenChange(false)
-      toast.success('Información básica actualizada')
+      });
+      contextForm.resetField("name", { defaultValue: data.name });
+      contextForm.resetField("description", {
+        defaultValue: data.description ?? "",
+      });
+      contextForm.resetField("folderId", {
+        defaultValue: data.folderId as any,
+      });
+      contextForm.resetField("isTemplate", { defaultValue: data.isTemplate });
+      onOpenChange(false);
+      toast.success("Información básica actualizada");
     } catch (error) {
-      console.error('Failed to update planification:', error)
-      toast.error('Error al actualizar la planificación')
+      console.error("Failed to update planification:", error);
+      toast.error("Error al actualizar la planificación");
     }
-  })
+  });
 
-  const isSubmitting = form.formState.isSubmitting
+  const isSubmitting = form.formState.isSubmitting;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -114,11 +116,11 @@ export default function EditPlanificationDialog({
               type="submit"
               disabled={isSubmitting || !form.formState.isValid}
             >
-              {isSubmitting ? 'Guardando...' : 'Guardar'}
+              {isSubmitting ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

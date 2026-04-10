@@ -1,47 +1,47 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { type Id } from '@/convex/_generated/dataModel'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { toast } from 'sonner'
-import { Edit, Plus, ToggleLeft, ToggleRight } from 'lucide-react'
-import PlanFormDialog from './dialogs/plan-form-dialog'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+import { useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { type Id } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { Edit, Plus, ToggleLeft, ToggleRight } from "lucide-react";
+import PlanFormDialog from "./dialogs/plan-form-dialog";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 export default function PlanList() {
-  const canQuery = useCanQueryCurrentOrganization()
+  const canQuery = useCanQueryCurrentOrganization();
   const plans = useQuery(
     api.membershipPlans.getByOrganization,
-    canQuery ? { activeOnly: false } : 'skip'
-  )
-  const toggleActive = useMutation(api.membershipPlans.toggleActive)
+    canQuery ? { activeOnly: false } : "skip",
+  );
+  const toggleActive = useMutation(api.membershipPlans.toggleActive);
 
-  const [formOpen, setFormOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<
-    Id<'membershipPlans'> | undefined
-  >()
+    Id<"membershipPlans"> | undefined
+  >();
 
-  const handleToggle = async (planId: Id<'membershipPlans'>) => {
+  const handleToggle = async (planId: Id<"membershipPlans">) => {
     try {
-      await toggleActive({ planId })
-      toast.success('Estado del plan actualizado')
+      await toggleActive({ planId });
+      toast.success("Estado del plan actualizado");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al actualizar')
+      toast.error(err instanceof Error ? err.message : "Error al actualizar");
     }
-  }
+  };
 
-  const handleEdit = (planId: Id<'membershipPlans'>) => {
-    setEditingPlanId(planId)
-    setFormOpen(true)
-  }
+  const handleEdit = (planId: Id<"membershipPlans">) => {
+    setEditingPlanId(planId);
+    setFormOpen(true);
+  };
 
   const handleNew = () => {
-    setEditingPlanId(undefined)
-    setFormOpen(true)
-  }
+    setEditingPlanId(undefined);
+    setFormOpen(true);
+  };
 
   return (
     <>
@@ -93,18 +93,20 @@ export default function PlanList() {
                       </div>
                     </td>
                     <td className="p-3">
-                      ${plan.priceArs.toLocaleString('es-AR')}
+                      ${plan.priceArs.toLocaleString("es-AR")}
                     </td>
                     <td className="p-3">
-                      {plan.weeklyClassLimit >= 9999 ? 'Sin límite' : plan.weeklyClassLimit}
+                      {plan.weeklyClassLimit >= 9999
+                        ? "Sin límite"
+                        : plan.weeklyClassLimit}
                     </td>
                     <td className="p-3">
-                      Día {plan.paymentWindowStartDay} al{' '}
+                      Día {plan.paymentWindowStartDay} al{" "}
                       {plan.paymentWindowEndDay}
                     </td>
                     <td className="p-3">
-                      <Badge variant={plan.isActive ? 'default' : 'secondary'}>
-                        {plan.isActive ? 'Activo' : 'Inactivo'}
+                      <Badge variant={plan.isActive ? "default" : "secondary"}>
+                        {plan.isActive ? "Activo" : "Inactivo"}
                       </Badge>
                     </td>
                     <td className="p-3">
@@ -121,7 +123,7 @@ export default function PlanList() {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleToggle(plan._id)}
-                          title={plan.isActive ? 'Desactivar' : 'Activar'}
+                          title={plan.isActive ? "Desactivar" : "Activar"}
                         >
                           {plan.isActive ? (
                             <ToggleRight className="h-4 w-4" />
@@ -142,11 +144,11 @@ export default function PlanList() {
       <PlanFormDialog
         open={formOpen}
         onOpenChange={(open) => {
-          setFormOpen(open)
-          if (!open) setEditingPlanId(undefined)
+          setFormOpen(open);
+          if (!open) setEditingPlanId(undefined);
         }}
         planId={editingPlanId}
       />
     </>
-  )
+  );
 }

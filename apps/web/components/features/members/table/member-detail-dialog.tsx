@@ -1,36 +1,30 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 
-import { Badge } from '@/components/ui/badge'
-import StatusBadge from '@/components/shared/badges/status-badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Button } from '@/components/ui/button'
+import { Badge } from "@/components/ui/badge";
+import StatusBadge from "@/components/shared/badges/status-badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 
-import { useQuery, useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
-import type { Doc, Id } from '@/convex/_generated/dataModel'
-import type { Member } from '@repo/core'
+import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { Member } from "@repo/core";
 
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
-import {
-  Eye,
-  Users,
-  Clock,
-  Plus,
-  Trash2,
-} from 'lucide-react'
+import { Eye, Users, Clock, Plus, Trash2 } from "lucide-react";
 
-import { useRouter } from 'next/navigation'
+import { useRouter } from "next/navigation";
 
 import {
   Select,
@@ -38,206 +32,208 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 
-import { Label } from '@/components/ui/label'
-import { toast } from 'sonner'
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 
-import PlanCalendar from '@/components/ui/plancalendar'
+import PlanCalendar from "@/components/ui/plancalendar";
 
 const DAYS_OF_WEEK = [
-  { value: 0, label: 'Domingo' },
-  { value: 1, label: 'Lunes' },
-  { value: 2, label: 'Martes' },
-  { value: 3, label: 'Miércoles' },
-  { value: 4, label: 'Jueves' },
-  { value: 5, label: 'Viernes' },
-  { value: 6, label: 'Sábado' },
-]
+  { value: 0, label: "Domingo" },
+  { value: 1, label: "Lunes" },
+  { value: 2, label: "Martes" },
+  { value: 3, label: "Miércoles" },
+  { value: 4, label: "Jueves" },
+  { value: 5, label: "Viernes" },
+  { value: 6, label: "Sábado" },
+];
 
 type Props = {
-  member: Member | null
-  open: boolean
-  onClose: () => void
-}
+  member: Member | null;
+  open: boolean;
+  onClose: () => void;
+};
 
 function safeDate(value: any): Date | null {
-  if (!value) return null
+  if (!value) return null;
 
-  if (typeof value === 'string' && value.includes('/')) {
-    const parts = value.split('/')
+  if (typeof value === "string" && value.includes("/")) {
+    const parts = value.split("/");
     if (parts.length === 3) {
-      const [day, month, year] = parts
-      const parsed = new Date(`${year}-${month}-${day}`)
-      return isNaN(parsed.getTime()) ? null : parsed
+      const [day, month, year] = parts;
+      const parsed = new Date(`${year}-${month}-${day}`);
+      return isNaN(parsed.getTime()) ? null : parsed;
     }
   }
 
-  const d = new Date(value)
-  return isNaN(d.getTime()) ? null : d
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 export default function MemberDetailDialog({ member, open, onClose }: Props) {
-  const router = useRouter()
+  const router = useRouter();
 
-  const [addFixedSlotOpen, setAddFixedSlotOpen] = useState(false)
-  const [addClassId, setAddClassId] = useState<Id<'classes'> | ''>('')
-  const [addDayOfWeek, setAddDayOfWeek] = useState<number>(1)
-  const [addHour, setAddHour] = useState(9)
-  const [addMinute, setAddMinute] = useState(0)
+  const [addFixedSlotOpen, setAddFixedSlotOpen] = useState(false);
+  const [addClassId, setAddClassId] = useState<Id<"classes"> | "">("");
+  const [addDayOfWeek, setAddDayOfWeek] = useState<number>(1);
+  const [addHour, setAddHour] = useState(9);
+  const [addMinute, setAddMinute] = useState(0);
 
   const assignments = useQuery(
     api.planificationAssignments.getByUser,
-    member && open ? { userId: member.id } : 'skip'
-  )
+    member && open ? { userId: member.id } : "skip",
+  );
 
   const fixedSlots = useQuery(
     api.fixedClassSlots.listByUser,
-    member && open ? { userId: member.id } : 'skip'
-  )
+    member && open ? { userId: member.id } : "skip",
+  );
 
   const classes = useQuery(api.classes.getByOrganization, {
     activeOnly: false,
-  })
+  });
 
-  const createFixedSlot = useMutation(api.fixedClassSlots.create)
-  const removeFixedSlot = useMutation(api.fixedClassSlots.remove)
+  const createFixedSlot = useMutation(api.fixedClassSlots.create);
+  const removeFixedSlot = useMutation(api.fixedClassSlots.remove);
 
-  if (!member) return null
+  if (!member) return null;
 
   const assignment = assignments?.find(
     (
-      a: Doc<'planificationAssignments'> & {
-        planification?: { _id: Id<'planifications'> } | null
-      }
-    ) => a.status === 'active'
-  )
+      a: Doc<"planificationAssignments"> & {
+        planification?: { _id: Id<"planifications"> } | null;
+      },
+    ) => a.status === "active",
+  );
 
   const initials =
     member.fullName
-      ?.split(' ')
+      ?.split(" ")
       .map((n: string) => n[0])
-      .join('')
+      .join("")
       .toUpperCase()
       .slice(0, 2) ||
     member.email?.[0]?.toUpperCase() ||
-    '?'
+    "?";
 
   const handleViewPlan = () => {
-    if (!assignment?.planification?._id) return
-    router.push(`/dashboard/planifications/${assignment.planification._id}`)
-  }
+    if (!assignment?.planification?._id) return;
+    router.push(`/dashboard/planifications/${assignment.planification._id}`);
+  };
 
   const handleAssign = () => {
-    router.push('/dashboard/planifications')
-  }
+    router.push("/dashboard/planifications");
+  };
 
   const handleAddFixedSlot = async () => {
     if (!addClassId) {
-      toast.error('Seleccioná una clase')
-      return
+      toast.error("Seleccioná una clase");
+      return;
     }
 
-    const startTimeMinutes = addHour * 60 + addMinute
+    const startTimeMinutes = addHour * 60 + addMinute;
     const timezone =
-      typeof Intl !== 'undefined'
+      typeof Intl !== "undefined"
         ? Intl.DateTimeFormat().resolvedOptions().timeZone
-        : undefined
+        : undefined;
 
     try {
       await createFixedSlot({
         userId: member.id,
-        classId: addClassId as Id<'classes'>,
+        classId: addClassId as Id<"classes">,
         dayOfWeek: addDayOfWeek,
         startTimeMinutes,
         timezone,
-      })
+      });
 
-      toast.success('Turno fijo agregado')
-      setAddFixedSlotOpen(false)
-      setAddClassId('')
-      setAddDayOfWeek(1)
-      setAddHour(9)
-      setAddMinute(0)
+      toast.success("Turno fijo agregado");
+      setAddFixedSlotOpen(false);
+      setAddClassId("");
+      setAddDayOfWeek(1);
+      setAddHour(9);
+      setAddMinute(0);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error al agregar turno fijo')
+      toast.error(
+        e instanceof Error ? e.message : "Error al agregar turno fijo",
+      );
     }
-  }
+  };
 
-  const handleRemoveFixedSlot = async (id: Id<'fixedClassSlots'>) => {
+  const handleRemoveFixedSlot = async (id: Id<"fixedClassSlots">) => {
     try {
-      await removeFixedSlot({ id })
-      toast.success('Turno fijo eliminado')
+      await removeFixedSlot({ id });
+      toast.success("Turno fijo eliminado");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error al eliminar')
+      toast.error(e instanceof Error ? e.message : "Error al eliminar");
     }
-  }
+  };
 
   const formatSlotTime = (minutes: number) => {
-    const h = Math.floor(minutes / 60)
-    const m = minutes % 60
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
-  }
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+  };
 
-  const birthDate = safeDate(member.birthDate)
+  const birthDate = safeDate(member.birthDate);
 
   const age = (() => {
-    if (!birthDate) return null
-    const today = new Date()
-    let years = today.getFullYear() - birthDate.getFullYear()
+    if (!birthDate) return null;
+    const today = new Date();
+    let years = today.getFullYear() - birthDate.getFullYear();
 
     const hasHadBirthdayThisYear =
       today.getMonth() > birthDate.getMonth() ||
       (today.getMonth() === birthDate.getMonth() &&
-        today.getDate() >= birthDate.getDate())
+        today.getDate() >= birthDate.getDate());
 
-    if (!hasHadBirthdayThisYear) years--
-    return years
-  })()
+    if (!hasHadBirthdayThisYear) years--;
+    return years;
+  })();
 
   const planStatus = (() => {
-    if (!assignment) return null
+    if (!assignment) return null;
 
-    const start = safeDate(assignment.startDate)
-    const end = safeDate(assignment.endDate)
+    const start = safeDate(assignment.startDate);
+    const end = safeDate(assignment.endDate);
 
-    if (!start || !end) return null
+    if (!start || !end) return null;
 
-    const now = new Date()
+    const now = new Date();
 
     const diffDays = (from: Date, to: Date) =>
-      Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))
+      Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
 
     if (end <= now) {
       return {
-        status: 'expired' as const,
+        status: "expired" as const,
         daysLeft: 0,
-      }
+      };
     }
 
     if (start > now) {
       return {
-        status: 'not_started' as const,
+        status: "not_started" as const,
         daysLeft: diffDays(now, end),
-      }
+      };
     }
 
-    const daysLeft = Math.max(diffDays(now, end), 0)
+    const daysLeft = Math.max(diffDays(now, end), 0);
 
     if (daysLeft <= 5) {
       return {
-        status: 'expiring_soon' as const,
+        status: "expiring_soon" as const,
         daysLeft,
-      }
+      };
     }
 
     return {
-      status: 'active' as const,
+      status: "active" as const,
       daysLeft,
-    }
-  })()
+    };
+  })();
 
-  const showAssignButton = !assignment || planStatus?.status === 'expired'
+  const showAssignButton = !assignment || planStatus?.status === "expired";
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -279,9 +275,9 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 <p className="text-muted-foreground">Estado</p>
                 <StatusBadge
                   status={
-                    member.status?.toLowerCase() === 'activo'
-                      ? 'active'
-                      : member.status?.toLowerCase() ?? 'inactive'
+                    member.status?.toLowerCase() === "activo"
+                      ? "active"
+                      : (member.status?.toLowerCase() ?? "inactive")
                   }
                 />
               </div>
@@ -290,10 +286,10 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 <p className="text-muted-foreground">Miembro desde</p>
                 <p>
                   {safeDate(member.joinedAt)
-                    ? format(safeDate(member.joinedAt)!, 'd MMM yyyy', {
+                    ? format(safeDate(member.joinedAt)!, "d MMM yyyy", {
                         locale: es,
                       })
-                    : '-'}
+                    : "-"}
                 </p>
               </div>
 
@@ -301,8 +297,8 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 <p className="text-muted-foreground">Fecha de nacimiento</p>
                 <p>
                   {birthDate && age !== null
-                    ? `${format(birthDate, 'dd/MM/yyyy')} (${age} años)`
-                    : '-'}
+                    ? `${format(birthDate, "dd/MM/yyyy")} (${age} años)`
+                    : "-"}
                 </p>
               </div>
             </div>
@@ -334,16 +330,17 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 ) : (
                   <div className="space-y-2">
                     <p className="text-xs text-muted-foreground">
-                      {fixedSlots.length} turno{fixedSlots.length === 1 ? '' : 's'}
+                      {fixedSlots.length} turno
+                      {fixedSlots.length === 1 ? "" : "s"}
                     </p>
 
                     <div className="h-[108px] overflow-y-auto pr-1 sm:pr-2">
                       <ul className="space-y-1.5">
                         {fixedSlots.map(
                           (
-                            slot: Doc<'fixedClassSlots'> & {
-                              className?: string | null
-                            }
+                            slot: Doc<"fixedClassSlots"> & {
+                              className?: string | null;
+                            },
                           ) => (
                             <li
                               key={slot._id}
@@ -351,12 +348,12 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                             >
                               <div className="min-w-0 flex-1">
                                 <p className="truncate font-medium leading-none">
-                                  {slot.className ?? '-'}
+                                  {slot.className ?? "-"}
                                 </p>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   {DAYS_OF_WEEK.find(
-                                    (d) => d.value === slot.dayOfWeek
-                                  )?.label ?? slot.dayOfWeek}{' '}
+                                    (d) => d.value === slot.dayOfWeek,
+                                  )?.label ?? slot.dayOfWeek}{" "}
                                   {formatSlotTime(slot.startTimeMinutes)}
                                 </p>
                               </div>
@@ -370,7 +367,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </li>
-                          )
+                          ),
                         )}
                       </ul>
                     </div>
@@ -392,37 +389,37 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
                     {planStatus && (
                       <div className="flex flex-wrap gap-2 text-xs">
-                        {planStatus.status === 'active' && (
+                        {planStatus.status === "active" && (
                           <>
                             <Badge className="bg-green-500/20 text-green-400 border border-green-500/40">
                               Activa
                             </Badge>
                             <Badge variant="secondary">
                               {planStatus.daysLeft} día
-                              {planStatus.daysLeft !== 1 && 's'} restantes
+                              {planStatus.daysLeft !== 1 && "s"} restantes
                             </Badge>
                           </>
                         )}
 
-                        {planStatus.status === 'expiring_soon' && (
+                        {planStatus.status === "expiring_soon" && (
                           <>
                             <Badge className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
                               Por vencer
                             </Badge>
                             <Badge variant="secondary">
                               {planStatus.daysLeft} día
-                              {planStatus.daysLeft !== 1 && 's'} restantes
+                              {planStatus.daysLeft !== 1 && "s"} restantes
                             </Badge>
                           </>
                         )}
 
-                        {planStatus.status === 'expired' && (
+                        {planStatus.status === "expired" && (
                           <Badge className="bg-red-500/20 text-red-400 border border-red-500/40">
                             Vencida
                           </Badge>
                         )}
 
-                        {planStatus.status === 'not_started' && (
+                        {planStatus.status === "not_started" && (
                           <Badge variant="secondary">No iniciada</Badge>
                         )}
                       </div>
@@ -488,14 +485,14 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
               <Label>Clase</Label>
               <Select
                 value={addClassId}
-                onValueChange={(v) => setAddClassId(v as Id<'classes'>)}
+                onValueChange={(v) => setAddClassId(v as Id<"classes">)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar clase" />
                 </SelectTrigger>
 
                 <SelectContent>
-                  {classes?.map((c: Doc<'classes'>) => (
+                  {classes?.map((c: Doc<"classes">) => (
                     <SelectItem key={c._id} value={c._id}>
                       {c.name}
                     </SelectItem>
@@ -538,7 +535,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                   <SelectContent>
                     {Array.from({ length: 24 }, (_, i) => (
                       <SelectItem key={i} value={String(i)}>
-                        {i.toString().padStart(2, '0')}:00
+                        {i.toString().padStart(2, "0")}:00
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -558,7 +555,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                   <SelectContent>
                     {[0, 15, 30, 45].map((m) => (
                       <SelectItem key={m} value={String(m)}>
-                        :{m.toString().padStart(2, '0')}
+                        :{m.toString().padStart(2, "0")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -579,5 +576,5 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
         </DialogContent>
       </Dialog>
     </Dialog>
-  )
+  );
 }

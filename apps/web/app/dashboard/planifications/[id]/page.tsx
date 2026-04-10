@@ -1,24 +1,24 @@
-'use client'
+"use client";
 
-import Image from 'next/image'
-import { use, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Button } from '@/components/ui/button'
+import Image from "next/image";
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
+} from "@/components/ui/empty";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft,
   Edit,
@@ -27,71 +27,71 @@ import {
   Trash2,
   MoreVertical,
   FileStack,
-} from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Avatar,
   AvatarFallback,
   AvatarGroup,
   AvatarGroupCount,
   AvatarImage,
-} from '@/components/ui/avatar'
-import matWolfLooking from '@/assets/mat-wolf-looking.png'
+} from "@/components/ui/avatar";
+import matWolfLooking from "@/assets/mat-wolf-looking.png";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { formatDate } from 'date-fns'
-import Link from 'next/link'
-import DuplicatePlanificationDialog from '@/components/features/planifications/dialogs/duplicate-planification-dialog'
-import DeletePlanificationDialog from '@/components/features/planifications/dialogs/delete-planification-dialog'
-import AssignDialog from '@/components/features/planifications/assignments/assign-dialog'
-import AssignedMembersDialog from '@/components/features/planifications/assignments/assigned-members-dialog'
-import WorkoutWeekCard from '@/components/features/planifications/cards/workout-week-card'
-import WorkoutWeekHorizontalView from '@/components/features/planifications/cards/workout-week-horizontal-view'
+} from "@/components/ui/tooltip";
+import { formatDate } from "date-fns";
+import Link from "next/link";
+import DuplicatePlanificationDialog from "@/components/features/planifications/dialogs/duplicate-planification-dialog";
+import DeletePlanificationDialog from "@/components/features/planifications/dialogs/delete-planification-dialog";
+import AssignDialog from "@/components/features/planifications/assignments/assign-dialog";
+import AssignedMembersDialog from "@/components/features/planifications/assignments/assigned-members-dialog";
+import WorkoutWeekCard from "@/components/features/planifications/cards/workout-week-card";
+import WorkoutWeekHorizontalView from "@/components/features/planifications/cards/workout-week-horizontal-view";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import type { Doc, Id } from '@/convex/_generated/dataModel'
+} from "@/components/ui/select";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 
-type ViewMode = 'vertical' | 'horizontal'
+type ViewMode = "vertical" | "horizontal";
 
-type AssignmentWithUser = Doc<'planificationAssignments'> & {
-  user?: { fullName?: string; email?: string; imageUrl?: string } | null
-}
+type AssignmentWithUser = Doc<"planificationAssignments"> & {
+  user?: { fullName?: string; email?: string; imageUrl?: string } | null;
+};
 
 export default function PlanificationViewPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params)
-  const router = useRouter()
-  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const { id } = use(params);
+  const router = useRouter();
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
-    useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('vertical')
+    useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("vertical");
 
   const planification = useQuery(api.planifications.getById, {
     id: id as any,
-  })
+  });
   const workoutWeeks = useQuery(api.workoutWeeks.getByPlanification, {
     planificationId: id as any,
-  })
+  });
   const assignments = useQuery(
     api.planificationAssignments.getByPlanification,
     {
       planificationId: id as any,
-    }
-  )
+    },
+  );
 
   if (
     planification === undefined ||
@@ -105,7 +105,7 @@ export default function PlanificationViewPage({
         <Skeleton className="h-6 w-96 mb-6" />
         <Skeleton className="h-96" />
       </div>
-    )
+    );
   }
 
   if (!planification) {
@@ -113,7 +113,7 @@ export default function PlanificationViewPage({
       <div className="container mx-auto py-6 text-center">
         <p>Planificación no encontrada</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -150,7 +150,7 @@ export default function PlanificationViewPage({
                 </p>
               )}
               <p className="text-sm text-muted-foreground mt-2">
-                Creado el {formatDate(planification.createdAt, 'dd/MM/yyyy')}
+                Creado el {formatDate(planification.createdAt, "dd/MM/yyyy")}
               </p>
             </div>
 
@@ -162,17 +162,17 @@ export default function PlanificationViewPage({
                     {assignments
                       .slice(0, 3)
                       .map((assignment: AssignmentWithUser) => {
-                        const user = assignment.user
+                        const user = assignment.user;
                         const initials = user?.fullName
                           ? user.fullName
-                              .split(' ')
+                              .split(" ")
                               .map((n) => n[0])
-                              .join('')
+                              .join("")
                               .toUpperCase()
                               .slice(0, 2)
                           : user?.email
                             ? user.email[0].toUpperCase()
-                            : '?'
+                            : "?";
 
                         return (
                           <Tooltip key={assignment._id}>
@@ -181,7 +181,7 @@ export default function PlanificationViewPage({
                                 {user?.imageUrl && (
                                   <AvatarImage
                                     src={user.imageUrl}
-                                    alt={user.fullName || user.email || 'User'}
+                                    alt={user.fullName || user.email || "User"}
                                   />
                                 )}
                                 <AvatarFallback className="text-xs">
@@ -192,10 +192,10 @@ export default function PlanificationViewPage({
                             <TooltipContent>
                               {user?.fullName ||
                                 user?.email ||
-                                'Usuario no encontrado'}
+                                "Usuario no encontrado"}
                             </TooltipContent>
                           </Tooltip>
-                        )
+                        );
                       })}
                     {assignments.length > 3 && (
                       <Tooltip>
@@ -252,7 +252,7 @@ export default function PlanificationViewPage({
                     <DropdownMenuItem
                       onClick={() =>
                         router.push(
-                          `/dashboard/planifications?createFrom=${planification._id}`
+                          `/dashboard/planifications?createFrom=${planification._id}`,
                         )
                       }
                     >
@@ -282,7 +282,7 @@ export default function PlanificationViewPage({
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
           planification={planification}
-          onSuccess={() => router.push('/dashboard/planifications')}
+          onSuccess={() => router.push("/dashboard/planifications")}
         />
         {!planification.isTemplate && (
           <>
@@ -336,11 +336,11 @@ export default function PlanificationViewPage({
                   </SelectContent>
                 </Select>
               </div>
-              {viewMode === 'vertical'
-                ? workoutWeeks.map((week: Doc<'workoutWeeks'>) => (
+              {viewMode === "vertical"
+                ? workoutWeeks.map((week: Doc<"workoutWeeks">) => (
                     <WorkoutWeekCard key={week._id} week={week} />
                   ))
-                : workoutWeeks.map((week: Doc<'workoutWeeks'>) => (
+                : workoutWeeks.map((week: Doc<"workoutWeeks">) => (
                     <WorkoutWeekHorizontalView key={week._id} week={week} />
                   ))}
             </>
@@ -348,5 +348,5 @@ export default function PlanificationViewPage({
         </div>
       </div>
     </div>
-  )
+  );
 }

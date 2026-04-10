@@ -1,15 +1,15 @@
-import React from 'react'
-import { View, Text } from 'react-native'
-import { ThemedText } from '@/components/ui/themed-text'
-import { assignmentDetailStyles as styles } from './assignment-detail-styles'
+import React from "react";
+import { View, Text } from "react-native";
+import { ThemedText } from "@/components/ui/themed-text";
+import { assignmentDetailStyles as styles } from "./assignment-detail-styles";
 
 interface AssignmentDetailHeroProps {
-  name: string
-  weeksCount: number
-  dateRange: string | null
-  description: string | null
-  muted: string
-  statusLabel?: string | null
+  name: string;
+  weeksCount: number;
+  dateRange: string | null;
+  description: string | null;
+  muted: string;
+  statusLabel?: string | null;
 }
 
 export function AssignmentDetailHero({
@@ -27,8 +27,8 @@ export function AssignmentDetailHero({
       </ThemedText>
       <View style={styles.heroMeta}>
         <Text style={[styles.heroMetaText, { color: muted }]}>
-          {weeksCount === 1 ? '1 semana' : `${weeksCount} semanas`}
-          {dateRange ? ` · ${dateRange}` : ''}
+          {weeksCount === 1 ? "1 semana" : `${weeksCount} semanas`}
+          {dateRange ? ` · ${dateRange}` : ""}
         </Text>
       </View>
       {description ? (
@@ -42,5 +42,5 @@ export function AssignmentDetailHero({
         </ThemedText>
       ) : null}
     </View>
-  )
+  );
 }

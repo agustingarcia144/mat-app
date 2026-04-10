@@ -1,40 +1,40 @@
-'use client'
+"use client";
 
-import Image from 'next/image'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
+import Image from "next/image";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
-import PlanificationListTable from '@/components/features/planifications/library/planification-list-table'
-import type { PlanificationData } from '@/components/features/planifications/library/planification-list'
-import matWolfLooking from '@/assets/mat-wolf-looking.png'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+} from "@/components/ui/empty";
+import PlanificationListTable from "@/components/features/planifications/library/planification-list-table";
+import type { PlanificationData } from "@/components/features/planifications/library/planification-list";
+import matWolfLooking from "@/assets/mat-wolf-looking.png";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 export default function TemplatesDialog({
   open,
   onOpenChange,
   onUseTemplate,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onUseTemplate?: (template: PlanificationData) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUseTemplate?: (template: PlanificationData) => void;
 }) {
-  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
   const templates = useQuery(
     api.planifications.getTemplates,
-    open && canQueryCurrentOrganization ? {} : 'skip'
-  )
+    open && canQueryCurrentOrganization ? {} : "skip",
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -74,5 +74,5 @@ export default function TemplatesDialog({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

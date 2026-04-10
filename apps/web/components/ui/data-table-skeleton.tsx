@@ -1,10 +1,17 @@
-import React from 'react'
-import { Skeleton } from './skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table'
+import React from "react";
+import { Skeleton } from "./skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./table";
 
 interface DataTableSkeletonProps {
-  columns: number
-  rows: number
+  columns: number;
+  rows: number;
 }
 
 function DataTableSkeleton({ columns, rows }: DataTableSkeletonProps) {
@@ -31,7 +38,7 @@ function DataTableSkeleton({ columns, rows }: DataTableSkeletonProps) {
         </TableBody>
       </Table>
     </div>
-  )
+  );
 }
 
-export default DataTableSkeleton
+export default DataTableSkeleton;
