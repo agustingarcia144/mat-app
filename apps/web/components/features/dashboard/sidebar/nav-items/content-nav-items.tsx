@@ -1,47 +1,46 @@
-import React, { useMemo, useOptimistic, useTransition } from 'react'
+import React, { useMemo, useOptimistic, useTransition } from "react";
 import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-} from '@/components/ui/sidebar'
-import { usePathname, useRouter } from 'next/navigation'
-import { useQuery } from 'convex/react'
-import { DASHBOARD_NAV_ITEMS } from '@/lib/dashboard-nav'
-import { useUnsavedNavigationGuard } from '@/contexts/unsaved-changes-context'
-import { isOrgAdminRole } from '@/lib/security/roles'
-import { api } from '@/convex/_generated/api'
+} from "@/components/ui/sidebar";
+import { usePathname, useRouter } from "next/navigation";
+import { useQuery } from "convex/react";
+import { DASHBOARD_NAV_ITEMS } from "@/lib/dashboard-nav";
+import { useUnsavedNavigationGuard } from "@/contexts/unsaved-changes-context";
+import { isOrgAdminRole } from "@/lib/security/roles";
+import { api } from "@/convex/_generated/api";
 
 export default function ContentNavItems() {
-  const pathname = usePathname()
-  const router = useRouter()
-  const membership = useQuery(api.organizationMemberships.getCurrentMembership)
-  const { requestNavigation } = useUnsavedNavigationGuard()
-  const [optimisticPath, setOptimisticPath] = useOptimistic(pathname)
-  const [, startTransition] = useTransition()
+  const pathname = usePathname();
+  const router = useRouter();
+  const membership = useQuery(api.organizationMemberships.getCurrentMembership);
+  const { requestNavigation } = useUnsavedNavigationGuard();
+  const [optimisticPath, setOptimisticPath] = useOptimistic(pathname);
+  const [, startTransition] = useTransition();
 
   const visibleNavItems = useMemo(() => {
-    const isAdmin = isOrgAdminRole(membership?.role)
+    const isAdmin = isOrgAdminRole(membership?.role);
     return DASHBOARD_NAV_ITEMS.filter(
-      (item) =>
-        !('adminOnly' in item && item.adminOnly) || isAdmin
-    )
-  }, [membership?.role])
+      (item) => !("adminOnly" in item && item.adminOnly) || isAdmin,
+    );
+  }, [membership?.role]);
 
   const handleNavigation = (url: string) => {
-    const dashboardUrl = `/dashboard${url}`
-    if (!requestNavigation(dashboardUrl)) return
+    const dashboardUrl = `/dashboard${url}`;
+    if (!requestNavigation(dashboardUrl)) return;
     startTransition(() => {
-      setOptimisticPath(dashboardUrl)
-      router.push(dashboardUrl)
-    })
-  }
+      setOptimisticPath(dashboardUrl);
+      router.push(dashboardUrl);
+    });
+  };
 
   return (
     <SidebarMenu>
       {visibleNavItems.map((item) => {
         const isActive =
           optimisticPath === item.url ||
-          optimisticPath === `/dashboard${item.url}`
+          optimisticPath === `/dashboard${item.url}`;
         return (
           <SidebarMenuItem key={item.url}>
             <SidebarMenuButton
@@ -52,8 +51,8 @@ export default function ContentNavItems() {
               <span className="truncate">{item.label}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
-        )
+        );
       })}
     </SidebarMenu>
-  )
+  );
 }

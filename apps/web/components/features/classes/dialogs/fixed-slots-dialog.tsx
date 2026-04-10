@@ -1,18 +1,18 @@
-'use client'
+"use client";
 
-import { useMemo, useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import type { Doc, Id } from '@/convex/_generated/dataModel'
+import { useMemo, useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Command,
   CommandEmpty,
@@ -20,21 +20,21 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
+} from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover'
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { mapMembershipsToMembers } from '@repo/core/utils'
-import { cn } from '@/lib/utils'
+} from "@/components/ui/select";
+import { mapMembershipsToMembers } from "@repo/core/utils";
+import { cn } from "@/lib/utils";
 import {
   Check,
   ChevronDown,
@@ -43,157 +43,157 @@ import {
   RefreshCw,
   Trash2,
   Users,
-} from 'lucide-react'
-import { toast } from 'sonner'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+} from "lucide-react";
+import { toast } from "sonner";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 const DAYS_OF_WEEK = [
-  { value: 1, label: 'Lunes' },
-  { value: 2, label: 'Martes' },
-  { value: 3, label: 'Miércoles' },
-  { value: 4, label: 'Jueves' },
-  { value: 5, label: 'Viernes' },
-  { value: 6, label: 'Sábado' },
-  { value: 0, label: 'Domingo' },
-]
+  { value: 1, label: "Lunes" },
+  { value: 2, label: "Martes" },
+  { value: 3, label: "Miércoles" },
+  { value: 4, label: "Jueves" },
+  { value: 5, label: "Viernes" },
+  { value: 6, label: "Sábado" },
+  { value: 0, label: "Domingo" },
+];
 
-const normalize = (v?: string) => v?.toString().trim().toLowerCase() ?? ''
+const normalize = (v?: string) => v?.toString().trim().toLowerCase() ?? "";
 
 function formatSlotTime(startTimeMinutes: number) {
-  const h = Math.floor(startTimeMinutes / 60)
-  const m = startTimeMinutes % 60
-  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+  const h = Math.floor(startTimeMinutes / 60);
+  const m = startTimeMinutes % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 }
 
 type Props = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
 
 export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
-  const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
-  const [classFilter, setClassFilter] = useState<string>('all')
-  const [addOpen, setAddOpen] = useState(false)
-  const [memberSearchOpen, setMemberSearchOpen] = useState(false)
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
-  const [addClassId, setAddClassId] = useState<Id<'classes'> | ''>('')
-  const [addDaysOfWeek, setAddDaysOfWeek] = useState<number[]>([1])
-  const [addHour, setAddHour] = useState(9)
-  const [addMinute, setAddMinute] = useState(0)
+  const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [addOpen, setAddOpen] = useState(false);
+  const [memberSearchOpen, setMemberSearchOpen] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [addClassId, setAddClassId] = useState<Id<"classes"> | "">("");
+  const [addDaysOfWeek, setAddDaysOfWeek] = useState<number[]>([1]);
+  const [addHour, setAddHour] = useState(9);
+  const [addMinute, setAddMinute] = useState(0);
 
   const fixedSlots = useQuery(
     api.fixedClassSlots.listByOrganizationAndClass,
     open && canQueryCurrentOrganization
       ? {
           classId:
-            classFilter === 'all'
-              ? undefined
-              : (classFilter as Id<'classes'>),
+            classFilter === "all" ? undefined : (classFilter as Id<"classes">),
         }
-      : 'skip'
-  )
+      : "skip",
+  );
   const classes = useQuery(
     api.classes.getByOrganization,
-    open && canQueryCurrentOrganization ? { activeOnly: false } : 'skip'
-  )
+    open && canQueryCurrentOrganization ? { activeOnly: false } : "skip",
+  );
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    open && canQueryCurrentOrganization ? {} : 'skip'
-  )
-  const createFixedSlot = useMutation(api.fixedClassSlots.create)
-  const removeFixedSlot = useMutation(api.fixedClassSlots.remove)
+    open && canQueryCurrentOrganization ? {} : "skip",
+  );
+  const createFixedSlot = useMutation(api.fixedClassSlots.create);
+  const removeFixedSlot = useMutation(api.fixedClassSlots.remove);
   const backfillToExisting = useMutation(
-    api.fixedClassSlots.backfillToExistingSchedules
-  )
-  const [backfilling, setBackfilling] = useState(false)
+    api.fixedClassSlots.backfillToExistingSchedules,
+  );
+  const [backfilling, setBackfilling] = useState(false);
 
   const members = useMemo(
     () =>
       memberships
         ? mapMembershipsToMembers(memberships).filter(
             (m) =>
-              normalize(m.role) === 'member' || normalize(m.role) === 'miembro'
+              normalize(m.role) === "member" || normalize(m.role) === "miembro",
           )
         : [],
-    [memberships]
-  )
+    [memberships],
+  );
 
   const handleAdd = async () => {
     if (selectedUserIds.length === 0 || !addClassId) {
-      toast.error('Seleccioná miembro y clase')
-      return
+      toast.error("Seleccioná miembro y clase");
+      return;
     }
     if (addDaysOfWeek.length === 0) {
-      toast.error('Seleccioná al menos un día')
-      return
+      toast.error("Seleccioná al menos un día");
+      return;
     }
 
-    const startTimeMinutes = addHour * 60 + addMinute
+    const startTimeMinutes = addHour * 60 + addMinute;
     const timezone =
-      typeof Intl !== 'undefined'
+      typeof Intl !== "undefined"
         ? Intl.DateTimeFormat().resolvedOptions().timeZone
-        : undefined
+        : undefined;
 
     try {
       for (const userId of selectedUserIds) {
         for (const dayOfWeek of addDaysOfWeek) {
           await createFixedSlot({
             userId,
-            classId: addClassId as Id<'classes'>,
+            classId: addClassId as Id<"classes">,
             dayOfWeek,
             startTimeMinutes,
             timezone,
-          })
+          });
         }
       }
 
-      const totalCreated = selectedUserIds.length * addDaysOfWeek.length
+      const totalCreated = selectedUserIds.length * addDaysOfWeek.length;
 
       toast.success(
         totalCreated === 1
-          ? 'Turno fijo agregado'
-          : `${totalCreated} turnos fijos agregados`
-      )
-      setAddOpen(false)
-      setSelectedUserIds([])
-      setMemberSearchOpen(false)
-      setAddClassId('')
-      setAddDaysOfWeek([1])
-      setAddHour(9)
-      setAddMinute(0)
+          ? "Turno fijo agregado"
+          : `${totalCreated} turnos fijos agregados`,
+      );
+      setAddOpen(false);
+      setSelectedUserIds([]);
+      setMemberSearchOpen(false);
+      setAddClassId("");
+      setAddDaysOfWeek([1]);
+      setAddHour(9);
+      setAddMinute(0);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error al agregar turno fijo')
+      toast.error(
+        e instanceof Error ? e.message : "Error al agregar turno fijo",
+      );
     }
-  }
+  };
 
-  const handleRemove = async (id: Id<'fixedClassSlots'>) => {
+  const handleRemove = async (id: Id<"fixedClassSlots">) => {
     try {
-      await removeFixedSlot({ id })
-      toast.success('Turno fijo eliminado')
+      await removeFixedSlot({ id });
+      toast.success("Turno fijo eliminado");
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error al eliminar')
+      toast.error(e instanceof Error ? e.message : "Error al eliminar");
     }
-  }
+  };
 
   const handleBackfill = async () => {
-    setBackfilling(true)
+    setBackfilling(true);
     try {
       const timezone =
-        typeof Intl !== 'undefined'
+        typeof Intl !== "undefined"
           ? Intl.DateTimeFormat().resolvedOptions().timeZone
-          : undefined
-      const result = await backfillToExisting({ timezone })
+          : undefined;
+      const result = await backfillToExisting({ timezone });
       toast.success(
         result.processedSlots === 0
-          ? 'No hay turnos fijos para aplicar'
-          : `Se aplicaron los turnos fijos a los horarios existentes (${result.processedSlots} turno${result.processedSlots === 1 ? '' : 's'} fijo${result.processedSlots === 1 ? '' : 's'})`
-      )
+          ? "No hay turnos fijos para aplicar"
+          : `Se aplicaron los turnos fijos a los horarios existentes (${result.processedSlots} turno${result.processedSlots === 1 ? "" : "s"} fijo${result.processedSlots === 1 ? "" : "s"})`,
+      );
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error al aplicar')
+      toast.error(e instanceof Error ? e.message : "Error al aplicar");
     } finally {
-      setBackfilling(false)
+      setBackfilling(false);
     }
-  }
+  };
 
   return (
     <>
@@ -208,14 +208,16 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
 
           <div className="flex flex-col gap-4 flex-1 min-h-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Label className="text-muted-foreground">Filtrar por clase:</Label>
+              <Label className="text-muted-foreground">
+                Filtrar por clase:
+              </Label>
               <Select value={classFilter} onValueChange={setClassFilter}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las clases</SelectItem>
-                  {classes?.map((c: Doc<'classes'>) => (
+                  {classes?.map((c: Doc<"classes">) => (
                     <SelectItem key={c._id} value={c._id}>
                       {c.name}
                     </SelectItem>
@@ -232,7 +234,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                   title="Aplicar miembros con turno fijo a los horarios ya creados"
                 >
                   <RefreshCw
-                    className={`h-4 w-4 ${backfilling ? 'animate-spin' : ''}`}
+                    className={`h-4 w-4 ${backfilling ? "animate-spin" : ""}`}
                   />
                   Aplicar a turnos existentes
                 </Button>
@@ -272,10 +274,10 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                   <tbody>
                     {fixedSlots.map(
                       (
-                        slot: Doc<'fixedClassSlots'> & {
-                          className: string | null
-                          userFullName: string
-                        }
+                        slot: Doc<"fixedClassSlots"> & {
+                          className: string | null;
+                          userFullName: string;
+                        },
                       ) => (
                         <tr
                           key={slot._id}
@@ -284,10 +286,11 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                           <td className="p-3">
                             {slot.userFullName ?? slot.userId}
                           </td>
-                          <td className="p-3">{slot.className ?? '-'}</td>
+                          <td className="p-3">{slot.className ?? "-"}</td>
                           <td className="p-3">
-                            {DAYS_OF_WEEK.find((d) => d.value === slot.dayOfWeek)
-                              ?.label ?? slot.dayOfWeek}
+                            {DAYS_OF_WEEK.find(
+                              (d) => d.value === slot.dayOfWeek,
+                            )?.label ?? slot.dayOfWeek}
                           </td>
                           <td className="p-3 flex items-center gap-1">
                             <Clock className="h-4 w-4 text-muted-foreground" />
@@ -304,7 +307,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                             </Button>
                           </td>
                         </tr>
-                      )
+                      ),
                     )}
                   </tbody>
                 </table>
@@ -317,9 +320,9 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
       <Dialog
         open={addOpen}
         onOpenChange={(nextOpen) => {
-          setAddOpen(nextOpen)
+          setAddOpen(nextOpen);
           if (!nextOpen) {
-            setMemberSearchOpen(false)
+            setMemberSearchOpen(false);
           }
         }}
       >
@@ -330,23 +333,27 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label>Miembros</Label>
-              <Popover open={memberSearchOpen} onOpenChange={setMemberSearchOpen}>
+              <Popover
+                open={memberSearchOpen}
+                onOpenChange={setMemberSearchOpen}
+              >
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     role="combobox"
                     aria-expanded={memberSearchOpen}
                     className={cn(
-                      'w-full justify-between',
-                      selectedUserIds.length === 0 && 'text-muted-foreground'
+                      "w-full justify-between",
+                      selectedUserIds.length === 0 && "text-muted-foreground",
                     )}
                     type="button"
                   >
                     {selectedUserIds.length === 0
-                      ? 'Seleccionar miembros'
+                      ? "Seleccionar miembros"
                       : selectedUserIds.length === 1
-                        ? members.find((member) => member.id === selectedUserIds[0])
-                            ?.name ?? '1 miembro seleccionado'
+                        ? (members.find(
+                            (member) => member.id === selectedUserIds[0],
+                          )?.name ?? "1 miembro seleccionado")
                         : `${selectedUserIds.length} miembros seleccionados`}
                     <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
@@ -358,18 +365,20 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                       <CommandEmpty>No se encontraron miembros.</CommandEmpty>
                       <CommandGroup>
                         {members.map((member) => {
-                          const isSelected = selectedUserIds.includes(member.id)
+                          const isSelected = selectedUserIds.includes(
+                            member.id,
+                          );
 
                           return (
                             <CommandItem
                               key={member.id}
-                              value={`${member.name} ${member.email ?? ''}`}
+                              value={`${member.name} ${member.email ?? ""}`}
                               onSelect={() => {
                                 setSelectedUserIds((prev) =>
                                   isSelected
                                     ? prev.filter((id) => id !== member.id)
-                                    : [...prev, member.id]
-                                )
+                                    : [...prev, member.id],
+                                );
                               }}
                             >
                               <Checkbox
@@ -388,12 +397,12 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                               </div>
                               <Check
                                 className={cn(
-                                  'ml-2 h-4 w-4',
-                                  isSelected ? 'opacity-100' : 'opacity-0'
+                                  "ml-2 h-4 w-4",
+                                  isSelected ? "opacity-100" : "opacity-0",
                                 )}
                               />
                             </CommandItem>
-                          )
+                          );
                         })}
                       </CommandGroup>
                     </CommandList>
@@ -405,13 +414,13 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
               <Label>Clase</Label>
               <Select
                 value={addClassId}
-                onValueChange={(v) => setAddClassId(v as Id<'classes'>)}
+                onValueChange={(v) => setAddClassId(v as Id<"classes">)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar clase" />
                 </SelectTrigger>
                 <SelectContent>
-                  {classes?.map((c: Doc<'classes'>) => (
+                  {classes?.map((c: Doc<"classes">) => (
                     <SelectItem key={c._id} value={c._id}>
                       {c.name}
                     </SelectItem>
@@ -431,8 +440,8 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                         setAddDaysOfWeek((prev) =>
                           checked
                             ? [...prev, day.value].sort((a, b) => a - b)
-                            : prev.filter((d) => d !== day.value)
-                        )
+                            : prev.filter((d) => d !== day.value),
+                        );
                       }}
                     />
                     <Label
@@ -458,7 +467,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                   <SelectContent>
                     {Array.from({ length: 24 }, (_, i) => (
                       <SelectItem key={i} value={String(i)}>
-                        {i.toString().padStart(2, '0')}:00
+                        {i.toString().padStart(2, "0")}:00
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -476,7 +485,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                   <SelectContent>
                     {[0, 15, 30, 45].map((m) => (
                       <SelectItem key={m} value={String(m)}>
-                        :{m.toString().padStart(2, '0')}
+                        :{m.toString().padStart(2, "0")}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -493,5 +502,5 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

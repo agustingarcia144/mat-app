@@ -1,135 +1,137 @@
-'use client'
+"use client";
 
-import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from 'convex/react'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Clock } from 'lucide-react'
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "convex/react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
 
-import { Button } from '@/components/ui/button'
-import { api } from '@/convex/_generated/api'
-import { type Doc, type Id } from '@/convex/_generated/dataModel'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
-import { cn } from '@/lib/utils'
+import { Button } from "@/components/ui/button";
+import { api } from "@/convex/_generated/api";
+import { type Doc, type Id } from "@/convex/_generated/dataModel";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { cn } from "@/lib/utils";
 
 type Props = {
-  onOpenDetail: (id: Id<'classSchedules'>) => void
-  pageSize?: number
-  className?: string
-}
+  onOpenDetail: (id: Id<"classSchedules">) => void;
+  pageSize?: number;
+  className?: string;
+};
 
 export default function NextClassCard({
   onOpenDetail,
   pageSize = 3,
   className,
 }: Props) {
-  const upcomingWindowMs = 7 * 24 * 60 * 60 * 1000
-  const canQuery = useCanQueryCurrentOrganization()
-  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now())
-  const [pageIndex, setPageIndex] = useState(0)
+  const upcomingWindowMs = 7 * 24 * 60 * 60 * 1000;
+  const canQuery = useCanQueryCurrentOrganization();
+  const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
+  const [pageIndex, setPageIndex] = useState(0);
 
   const schedules = useQuery(
     api.classSchedules.getUpcoming,
-    canQuery ? { limit: 20 } : 'skip'
-  )
+    canQuery ? { limit: 20 } : "skip",
+  );
 
   const classes = useQuery(
     api.classes.getByOrganization,
-    canQuery ? { activeOnly: true } : 'skip'
-  )
+    canQuery ? { activeOnly: true } : "skip",
+  );
 
   const enriched = useMemo(() => {
-    if (!schedules || !classes) return []
+    if (!schedules || !classes) return [];
 
-    const next7Days = nowTimestamp + upcomingWindowMs
+    const next7Days = nowTimestamp + upcomingWindowMs;
 
     return schedules
       .filter(
-        (schedule: Doc<'classSchedules'>) =>
+        (schedule: Doc<"classSchedules">) =>
           schedule.startTime >= nowTimestamp &&
           schedule.startTime <= next7Days &&
-          schedule.status !== 'cancelled'
+          schedule.status !== "cancelled",
       )
-      .map((schedule: Doc<'classSchedules'>) => ({
+      .map((schedule: Doc<"classSchedules">) => ({
         ...schedule,
-        class: classes.find((item: Doc<'classes'>) => item._id === schedule.classId),
+        class: classes.find(
+          (item: Doc<"classes">) => item._id === schedule.classId,
+        ),
       }))
       .sort(
         (a: { startTime: number }, b: { startTime: number }) =>
-          a.startTime - b.startTime
-      )
-  }, [classes, nowTimestamp, schedules, upcomingWindowMs])
+          a.startTime - b.startTime,
+      );
+  }, [classes, nowTimestamp, schedules, upcomingWindowMs]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      setNowTimestamp(Date.now())
-    }, 60000)
+      setNowTimestamp(Date.now());
+    }, 60000);
 
-    return () => window.clearInterval(interval)
-  }, [])
+    return () => window.clearInterval(interval);
+  }, []);
 
-  const totalPages = Math.max(1, Math.ceil(enriched.length / pageSize))
-  const currentPage = Math.min(pageIndex, totalPages - 1)
+  const totalPages = Math.max(1, Math.ceil(enriched.length / pageSize));
+  const currentPage = Math.min(pageIndex, totalPages - 1);
   const visibleClasses = enriched.slice(
     currentPage * pageSize,
-    currentPage * pageSize + pageSize
-  )
+    currentPage * pageSize + pageSize,
+  );
 
   const next = () => {
     if (currentPage < totalPages - 1) {
-      setPageIndex(currentPage + 1)
+      setPageIndex(currentPage + 1);
     }
-  }
+  };
 
   const prev = () => {
     if (currentPage > 0) {
-      setPageIndex(currentPage - 1)
+      setPageIndex(currentPage - 1);
     }
-  }
+  };
 
   const getTimeLeft = (schedule: (typeof enriched)[number]) => {
-    const diff = schedule.startTime - nowTimestamp
+    const diff = schedule.startTime - nowTimestamp;
 
     if (diff <= 0) {
-      return 'En curso'
+      return "En curso";
     }
 
-    const hours = Math.floor(diff / 3600000)
-    const minutes = Math.floor((diff % 3600000) / 60000)
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
 
     return hours > 0
       ? `Empieza en ${hours}h ${minutes}m`
-      : `Empieza en ${minutes}m`
-  }
+      : `Empieza en ${minutes}m`;
+  };
 
   const getColor = (schedule: (typeof enriched)[number]) => {
-    const capacity = schedule.capacity ?? 0
+    const capacity = schedule.capacity ?? 0;
 
-    if (capacity <= 0) return 'bg-gray-500'
+    if (capacity <= 0) return "bg-gray-500";
 
-    const percentage = (schedule.currentReservations / capacity) * 100
+    const percentage = (schedule.currentReservations / capacity) * 100;
 
-    if (percentage >= 100) return 'bg-red-500'
-    if (percentage >= 80) return 'bg-orange-500'
-    if (percentage >= 50) return 'bg-yellow-500'
-    return 'bg-green-500'
-  }
+    if (percentage >= 100) return "bg-red-500";
+    if (percentage >= 80) return "bg-orange-500";
+    if (percentage >= 50) return "bg-yellow-500";
+    return "bg-green-500";
+  };
 
   if (visibleClasses.length === 0) {
     return (
       <div
         className={cn(
-          'flex h-[180px] w-full items-center justify-center rounded-xl border p-5',
-          className
+          "flex h-[180px] w-full items-center justify-center rounded-xl border p-5",
+          className,
         )}
       >
         No hay clases programadas en los proximos 7 dias.
       </div>
-    )
+    );
   }
 
   return (
-    <div className={cn('w-full rounded-xl border p-5', className)}>
+    <div className={cn("w-full rounded-xl border p-5", className)}>
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Proximas clases</h3>
 
@@ -158,8 +160,8 @@ export default function NextClassCard({
 
       <div className="mt-4 flex flex-col gap-4">
         {visibleClasses.map((schedule: (typeof enriched)[number]) => {
-          const start = new Date(schedule.startTime)
-          const end = new Date(schedule.endTime)
+          const start = new Date(schedule.startTime);
+          const end = new Date(schedule.endTime);
 
           return (
             <div
@@ -168,7 +170,7 @@ export default function NextClassCard({
             >
               <div className="space-y-1">
                 <p className="font-medium leading-tight">
-                  {schedule.class?.name || 'Clase'}
+                  {schedule.class?.name || "Clase"}
                 </p>
 
                 <p className="text-sm leading-tight text-muted-foreground">
@@ -176,7 +178,7 @@ export default function NextClassCard({
                 </p>
 
                 <p className="text-sm leading-tight">
-                  {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
+                  {format(start, "HH:mm")} - {format(end, "HH:mm")}
                 </p>
               </div>
 
@@ -196,16 +198,16 @@ export default function NextClassCard({
 
                   <div className="flex items-center gap-2 text-sm">
                     <span
-                      className={cn('h-3 w-3 rounded-full', getColor(schedule))}
+                      className={cn("h-3 w-3 rounded-full", getColor(schedule))}
                     />
                     {schedule.currentReservations}/{schedule.capacity}
                   </div>
                 </div>
               </div>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }

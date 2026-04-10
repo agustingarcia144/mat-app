@@ -1,42 +1,52 @@
-'use client'
+"use client";
 
-import Image from 'next/image'
-import { useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Button } from '@/components/ui/button'
+import Image from "next/image";
+import { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import matWolfLooking from '@/assets/mat-wolf-looking.png'
+} from "@/components/ui/empty";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import matWolfLooking from "@/assets/mat-wolf-looking.png";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
+} from "@/components/ui/select";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import {
   CheckCircle2,
   XCircle,
@@ -45,71 +55,76 @@ import {
   MoreHorizontal,
   Eye,
   Users,
-} from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import { type Doc, type Id } from '@/convex/_generated/dataModel'
-import ClassStatusBadge from '@/components/shared/badges/class-status-badge'
-import { toast } from 'sonner'
+  AlertTriangle,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { type Doc, type Id } from "@/convex/_generated/dataModel";
+import ClassStatusBadge from "@/components/shared/badges/class-status-badge";
+import { toast } from "sonner";
 
 interface ScheduleDetailDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  scheduleId: Id<'classSchedules'>
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  scheduleId: Id<"classSchedules">;
 }
 
 function safeDate(value: unknown): Date | null {
-  if (value == null) return null
-  if (typeof value === 'string' && value.includes('/')) {
-    const parts = value.split('/')
+  if (value == null) return null;
+  if (typeof value === "string" && value.includes("/")) {
+    const parts = value.split("/");
     if (parts.length === 3) {
-      const [day, month, year] = parts
-      const parsed = new Date(`${year}-${month}-${day}`)
-      return isNaN(parsed.getTime()) ? null : parsed
+      const [day, month, year] = parts;
+      const parsed = new Date(`${year}-${month}-${day}`);
+      return isNaN(parsed.getTime()) ? null : parsed;
     }
   }
-  const d = new Date(value as number | string)
-  return isNaN(d.getTime()) ? null : d
+  const d = new Date(value as number | string);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 function getPlanStatus(assignment: {
-  startDate?: number | string | null
-  endDate?: number | string | null
+  startDate?: number | string | null;
+  endDate?: number | string | null;
 }) {
-  const start = safeDate(assignment.startDate)
-  const end = safeDate(assignment.endDate)
-  const now = new Date()
+  const start = safeDate(assignment.startDate);
+  const end = safeDate(assignment.endDate);
+  const now = new Date();
   const diffDays = (from: Date, to: Date) =>
-    Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24))
+    Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
   if (!start || !end)
-    return { status: 'not_started' as const, daysLeft: null, daysExpired: null }
-  const daysLeftRaw = diffDays(now, end)
-  const daysLeft = Math.max(daysLeftRaw, 0)
-  const daysExpiredRaw = diffDays(end, now)
-  const daysExpired = end <= now ? Math.max(daysExpiredRaw, 0) : null
+    return {
+      status: "not_started" as const,
+      daysLeft: null,
+      daysExpired: null,
+    };
+  const daysLeftRaw = diffDays(now, end);
+  const daysLeft = Math.max(daysLeftRaw, 0);
+  const daysExpiredRaw = diffDays(end, now);
+  const daysExpired = end <= now ? Math.max(daysExpiredRaw, 0) : null;
   if (end <= now)
-    return { status: 'expired' as const, daysLeft: 0, daysExpired }
+    return { status: "expired" as const, daysLeft: 0, daysExpired };
   if (start > now)
-    return { status: 'not_started' as const, daysLeft, daysExpired: null }
+    return { status: "not_started" as const, daysLeft, daysExpired: null };
   if (daysLeft <= 5)
-    return { status: 'expiring_soon' as const, daysLeft, daysExpired: null }
-  return { status: 'active' as const, daysLeft, daysExpired: null }
+    return { status: "expiring_soon" as const, daysLeft, daysExpired: null };
+  return { status: "active" as const, daysLeft, daysExpired: null };
 }
 
 type ReservationWithUser = {
-  _id: Id<'classReservations'>
-  userId: string
-  status: string
-  notes?: string | null
-  checkedInAt?: number | null
-  isFixedSlot?: boolean
+  _id: Id<"classReservations">;
+  userId: string;
+  status: string;
+  notes?: string | null;
+  checkedInAt?: number | null;
+  isFixedSlot?: boolean;
   user: {
-    firstName?: string | null
-    lastName?: string | null
-    fullName?: string | null
-    email?: string | null
-    imageUrl?: string | null
-  } | null
-}
+    firstName?: string | null;
+    lastName?: string | null;
+    fullName?: string | null;
+    email?: string | null;
+    imageUrl?: string | null;
+  } | null;
+};
 
 function ReservationRow({
   reservation,
@@ -119,46 +134,52 @@ function ReservationRow({
   handleCheckIn,
   handleMarkNoShow,
 }: {
-  reservation: ReservationWithUser
-  getStatusBadge: (status: string) => React.ReactNode
-  isPastClass: boolean
-  actionLoading: string | null
-  handleCheckIn: (id: Id<'classReservations'>) => void
-  handleMarkNoShow: (id: Id<'classReservations'>) => void
+  reservation: ReservationWithUser;
+  getStatusBadge: (status: string) => React.ReactNode;
+  isPastClass: boolean;
+  actionLoading: string | null;
+  handleCheckIn: (id: Id<"classReservations">) => void;
+  handleMarkNoShow: (id: Id<"classReservations">) => void;
 }) {
-  const router = useRouter()
+  const router = useRouter();
   const assignments = useQuery(
     api.planificationAssignments.getByUser,
-    reservation.userId ? { userId: reservation.userId } : 'skip'
-  )
-  const assignment = assignments?.find((a: Doc<'planificationAssignments'> & { planification?: { _id: Id<'planifications'>; name: string } | null }) => a.status === 'active')
-  const planStatus = assignment ? getPlanStatus(assignment) : null
-  const showAssign = !assignment || planStatus?.status === 'expired'
+    reservation.userId ? { userId: reservation.userId } : "skip",
+  );
+  const assignment = assignments?.find(
+    (
+      a: Doc<"planificationAssignments"> & {
+        planification?: { _id: Id<"planifications">; name: string } | null;
+      },
+    ) => a.status === "active",
+  );
+  const planStatus = assignment ? getPlanStatus(assignment) : null;
+  const showAssign = !assignment || planStatus?.status === "expired";
 
   const handleViewPlan = () => {
     if (assignment?.planification?._id)
-      router.push(`/dashboard/planifications/${assignment.planification._id}`)
-  }
-  const handleAssign = () => router.push('/dashboard/planifications')
+      router.push(`/dashboard/planifications/${assignment.planification._id}`);
+  };
+  const handleAssign = () => router.push("/dashboard/planifications");
 
   const planBadge =
     assignment && planStatus ? (
-      planStatus.status === 'expired' ? (
+      planStatus.status === "expired" ? (
         <Badge variant="outline" className="text-xs">
           Vencida
         </Badge>
-      ) : planStatus.status === 'active' && planStatus.daysLeft != null ? (
+      ) : planStatus.status === "active" && planStatus.daysLeft != null ? (
         <Badge className="bg-green-600 text-xs">
           {planStatus.daysLeft}d rest.
         </Badge>
-      ) : planStatus.status === 'expiring_soon' ? (
+      ) : planStatus.status === "expiring_soon" ? (
         <Badge className="bg-yellow-500 text-black text-xs">Próx. vencer</Badge>
-      ) : planStatus.status === 'not_started' ? (
+      ) : planStatus.status === "not_started" ? (
         <Badge variant="secondary" className="text-xs">
           No iniciada
         </Badge>
       ) : null
-    ) : null
+    ) : null;
 
   return (
     <div className="flex items-center justify-between gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
@@ -173,7 +194,7 @@ function ReservationRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-medium truncate">
-              {reservation.user?.fullName || 'Usuario'}
+              {reservation.user?.fullName || "Usuario"}
             </p>
             {reservation.isFixedSlot && (
               <Badge variant="secondary" className="text-xs font-normal">
@@ -190,7 +211,7 @@ function ReservationRow({
             <span className="text-xs text-muted-foreground">
               {assignment?.planification?.name
                 ? `Planificación: ${assignment.planification.name}`
-                : 'Sin planificación'}
+                : "Sin planificación"}
             </span>
             {planBadge}
             <DropdownMenu>
@@ -225,7 +246,7 @@ function ReservationRow({
       <div className="flex items-center gap-2 shrink-0">
         {getStatusBadge(reservation.status)}
 
-        {reservation.status === 'confirmed' && isPastClass && (
+        {reservation.status === "confirmed" && isPastClass && (
           <div className="flex gap-2">
             <Button
               size="sm"
@@ -248,12 +269,12 @@ function ReservationRow({
 
         {reservation.checkedInAt && (
           <p className="text-xs text-muted-foreground">
-            {format(new Date(reservation.checkedInAt), 'HH:mm', { locale: es })}
+            {format(new Date(reservation.checkedInAt), "HH:mm", { locale: es })}
           </p>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 export default function ScheduleDetailDialog({
@@ -263,156 +284,183 @@ export default function ScheduleDetailDialog({
 }: ScheduleDetailDialogProps) {
   const schedule = useQuery(api.classSchedules.getScheduleWithDetails, {
     id: scheduleId,
-  })
+  });
   const reservations = useQuery(api.classReservations.getByScheduleWithUsers, {
     scheduleId,
-  })
-  const checkIn = useMutation(api.classReservations.checkIn)
-  const markNoShow = useMutation(api.classReservations.markNoShow)
-  const cancelSchedule = useMutation(api.classSchedules.cancel)
-  const removeSchedule = useMutation(api.classSchedules.remove)
+  });
+  const checkIn = useMutation(api.classReservations.checkIn);
+  const markNoShow = useMutation(api.classReservations.markNoShow);
+  const cancelSchedule = useMutation(api.classSchedules.cancel);
+  const removeSchedule = useMutation(api.classSchedules.remove);
 
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [isRemoving, setIsRemoving] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    "cancel" | "remove" | null
+  >(null);
 
   const filteredReservations =
     !schedule || !reservations
       ? []
-      : statusFilter === 'all'
+      : statusFilter === "all"
         ? reservations
-        : reservations.filter((r: Doc<'classReservations'>) => r.status === statusFilter)
+        : reservations.filter(
+            (r: Doc<"classReservations">) => r.status === statusFilter,
+          );
 
   const confirmedCount = reservations
-    ? reservations.filter((r: Doc<'classReservations'>) => r.status === 'confirmed').length
-    : 0
+    ? reservations.filter(
+        (r: Doc<"classReservations">) => r.status === "confirmed",
+      ).length
+    : 0;
   const attendedCount = reservations
-    ? reservations.filter((r: Doc<'classReservations'>) => r.status === 'attended').length
-    : 0
+    ? reservations.filter(
+        (r: Doc<"classReservations">) => r.status === "attended",
+      ).length
+    : 0;
   const noShowCount = reservations
-    ? reservations.filter((r: Doc<'classReservations'>) => r.status === 'no_show').length
-    : 0
+    ? reservations.filter(
+        (r: Doc<"classReservations">) => r.status === "no_show",
+      ).length
+    : 0;
 
-  const handleCheckIn = async (reservationId: Id<'classReservations'>) => {
-    setActionLoading(reservationId)
+  const hasActiveReservationsOrAttendance =
+    confirmedCount > 0 || attendedCount > 0 || noShowCount > 0;
+
+  const handleCheckIn = async (reservationId: Id<"classReservations">) => {
+    setActionLoading(reservationId);
     try {
-      await checkIn({ id: reservationId })
+      await checkIn({ id: reservationId });
     } catch (error) {
-      console.error('Error checking in:', error)
+      console.error("Error checking in:", error);
       toast.error(
-        error instanceof Error ? error.message : 'Error al registrar asistencia'
-      )
+        error instanceof Error
+          ? error.message
+          : "Error al registrar asistencia",
+      );
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
-  const handleMarkNoShow = async (reservationId: Id<'classReservations'>) => {
-    setActionLoading(reservationId)
+  const handleMarkNoShow = async (reservationId: Id<"classReservations">) => {
+    setActionLoading(reservationId);
     try {
-      await markNoShow({ id: reservationId })
+      await markNoShow({ id: reservationId });
     } catch (error) {
-      console.error('Error marking no-show:', error)
+      console.error("Error marking no-show:", error);
       toast.error(
-        error instanceof Error ? error.message : 'Error al marcar ausencia'
-      )
+        error instanceof Error ? error.message : "Error al marcar ausencia",
+      );
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
-  const hasReservations =
-    schedule != null && schedule.currentReservations > 0
+  const handleRequestCancelOrRemove = (action: "cancel" | "remove") => {
+    if (!schedule) return;
 
-  const handleRemoveOrCancelTurno = async () => {
-    if (!schedule) return
-    if (hasReservations) {
-      if (
-        !confirm(
-          '¿Estás seguro de cancelar este turno? Se cancelarán todas las reservas.'
-        )
-      ) {
-        return
-      }
-      setIsRemoving(true)
-      try {
-        await cancelSchedule({ id: scheduleId })
-        toast.success('Turno cancelado')
-        onOpenChange(false)
-      } catch (error) {
-        console.error('Error cancelling schedule:', error)
-        toast.error(
-          error instanceof Error ? error.message : 'Error al cancelar el turno'
-        )
-      } finally {
-        setIsRemoving(false)
-      }
+    // If the schedule has active reservations or attendance, show confirmation dialog
+    if (hasActiveReservationsOrAttendance) {
+      setConfirmAction(action);
+      return;
+    }
+
+    // No reservations/attendance — proceed directly
+    if (action === "cancel") {
+      executeCancelSchedule();
     } else {
-      if (
-        !confirm('¿Eliminar este turno? Se quitará del calendario.')
-      ) {
-        return
-      }
-      setIsRemoving(true)
-      try {
-        await removeSchedule({ id: scheduleId })
-        toast.success('Turno eliminado')
-        onOpenChange(false)
-      } catch (error) {
-        console.error('Error removing schedule:', error)
-        toast.error(
-          error instanceof Error ? error.message : 'Error al eliminar el turno'
-        )
-      } finally {
-        setIsRemoving(false)
-      }
+      executeRemoveSchedule();
     }
-  }
+  };
+
+  const executeCancelSchedule = async () => {
+    setConfirmAction(null);
+    setIsRemoving(true);
+    try {
+      await cancelSchedule({ id: scheduleId });
+      toast.success("Turno cancelado");
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error cancelling schedule:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Error al cancelar el turno",
+      );
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  const executeRemoveSchedule = async () => {
+    setConfirmAction(null);
+    setIsRemoving(true);
+    try {
+      await removeSchedule({ id: scheduleId, force: true });
+      toast.success("Turno eliminado");
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Error removing schedule:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Error al eliminar el turno",
+      );
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  const handleConfirmAction = () => {
+    if (confirmAction === "cancel") {
+      executeCancelSchedule();
+    } else if (confirmAction === "remove") {
+      executeRemoveSchedule();
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'confirmed':
+      case "confirmed":
         return (
           <Badge variant="default" className="gap-1">
             <Clock className="h-3 w-3" />
             Confirmada
           </Badge>
-        )
-      case 'attended':
+        );
+      case "attended":
         return (
           <Badge variant="default" className="gap-1 bg-green-500">
             <CheckCircle2 className="h-3 w-3" />
             Asistió
           </Badge>
-        )
-      case 'no_show':
+        );
+      case "no_show":
         return (
           <Badge variant="destructive" className="gap-1">
             <XCircle className="h-3 w-3" />
             No asistió
           </Badge>
-        )
-      case 'cancelled':
+        );
+      case "cancelled":
         return (
           <Badge variant="secondary" className="gap-1">
             <AlertCircle className="h-3 w-3" />
             Cancelada
           </Badge>
-        )
+        );
       default:
-        return null
+        return null;
     }
-  }
+  };
 
-  const isPastClass = schedule ? schedule.startTime < Date.now() : false
-  const isCancelled = schedule?.status === 'cancelled'
+  const isPastClass = schedule ? schedule.startTime < Date.now() : false;
+  const isCancelled = schedule?.status === "cancelled";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="sr-only">
           <DialogTitle>
-            {schedule?.class?.name ?? 'Detalle del turno'}
+            {schedule?.class?.name ?? "Detalle del turno"}
           </DialogTitle>
           <DialogDescription>
             Información y reservas del turno seleccionado.
@@ -434,7 +482,7 @@ export default function ScheduleDetailDialog({
                   "EEEE d 'de' MMMM 'a las' HH:mm",
                   {
                     locale: es,
-                  }
+                  },
                 )}
               </DialogDescription>
             </DialogHeader>
@@ -485,22 +533,24 @@ export default function ScheduleDetailDialog({
                     </SelectContent>
                   </Select>
 
-                  {!isPastClass && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRequestCancelOrRemove("cancel")}
+                      disabled={isRemoving}
+                    >
+                      {isRemoving ? "Procesando..." : "Cancelar turno"}
+                    </Button>
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={handleRemoveOrCancelTurno}
+                      onClick={() => handleRequestCancelOrRemove("remove")}
                       disabled={isRemoving}
                     >
-                      {isRemoving
-                        ? hasReservations
-                          ? 'Cancelando...'
-                          : 'Eliminando...'
-                        : hasReservations
-                          ? 'Cancelar turno'
-                          : 'Eliminar turno'}
+                      {isRemoving ? "Procesando..." : "Eliminar turno"}
                     </Button>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -522,25 +572,27 @@ export default function ScheduleDetailDialog({
                       </EmptyMedia>
                       <EmptyTitle>No hay reservas</EmptyTitle>
                       <EmptyDescription>
-                        {statusFilter === 'all'
-                          ? 'No hay reservas para este turno'
-                          : 'No hay reservas con este estado'}
+                        {statusFilter === "all"
+                          ? "No hay reservas para este turno"
+                          : "No hay reservas con este estado"}
                       </EmptyDescription>
                     </EmptyHeader>
                   </Empty>
                 ) : (
                   <div className="space-y-2">
-                    {filteredReservations.map((reservation: ReservationWithUser) => (
-                      <ReservationRow
-                        key={reservation._id}
-                        reservation={reservation}
-                        getStatusBadge={getStatusBadge}
-                        isPastClass={isPastClass}
-                        actionLoading={actionLoading}
-                        handleCheckIn={handleCheckIn}
-                        handleMarkNoShow={handleMarkNoShow}
-                      />
-                    ))}
+                    {filteredReservations.map(
+                      (reservation: ReservationWithUser) => (
+                        <ReservationRow
+                          key={reservation._id}
+                          reservation={reservation}
+                          getStatusBadge={getStatusBadge}
+                          isPastClass={isPastClass}
+                          actionLoading={actionLoading}
+                          handleCheckIn={handleCheckIn}
+                          handleMarkNoShow={handleMarkNoShow}
+                        />
+                      ),
+                    )}
                   </div>
                 )}
               </div>
@@ -548,6 +600,76 @@ export default function ScheduleDetailDialog({
           </>
         )}
       </DialogContent>
+
+      {/* Confirmation dialog for cancel/remove with reservations or attendance */}
+      <AlertDialog
+        open={confirmAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmAction(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {confirmAction === "cancel"
+                ? "Cancelar turno"
+                : "Eliminar turno"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  {confirmAction === "cancel"
+                    ? "Este turno tiene información asociada. Al cancelarlo:"
+                    : "Este turno tiene información asociada. Al eliminarlo:"}
+                </p>
+                <ul className="list-disc pl-4 space-y-1 text-sm">
+                  {confirmedCount > 0 && (
+                    <li>
+                      Se cancelarán{" "}
+                      <strong>{confirmedCount} reservas confirmadas</strong> y
+                      se notificará a los miembros.
+                    </li>
+                  )}
+                  {attendedCount > 0 && (
+                    <li>
+                      Hay{" "}
+                      <strong>
+                        {attendedCount} asistencias registradas
+                      </strong>{" "}
+                      que se verán afectadas.
+                    </li>
+                  )}
+                  {noShowCount > 0 && (
+                    <li>
+                      Hay <strong>{noShowCount} ausencias registradas</strong>.
+                    </li>
+                  )}
+                  {confirmAction === "remove" && (
+                    <li>
+                      El turno se eliminará permanentemente del calendario.
+                    </li>
+                  )}
+                </ul>
+                <p className="text-sm font-medium text-destructive">
+                  Esta acción no se puede deshacer.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, volver</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmAction}
+              className={buttonVariants({ variant: "destructive" })}
+            >
+              {confirmAction === "cancel"
+                ? "Sí, cancelar turno"
+                : "Sí, eliminar turno"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
-  )
+  );
 }

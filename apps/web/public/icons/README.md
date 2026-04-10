@@ -4,18 +4,18 @@ Place your app icons in this folder. Next.js serves files from `public/`, so the
 
 ## Required icon sizes
 
-| Filename | Size | Purpose |
-|----------|------|---------|
-| `icon-72x72.png` | 72×72 | General use |
-| `icon-96x96.png` | 96×96 | General use |
-| `icon-128x128.png` | 128×128 | General use |
-| `icon-144x144.png` | 144×144 | General use |
-| `icon-152x152.png` | 152×152 | General use (e.g. iPad) |
-| `icon-192x192.png` | 192×192 | General use (Android home screen) |
-| `icon-384x384.png` | 384×384 | General use |
-| `icon-512x512.png` | 512×512 | General use (splash / high-DPI) |
+| Filename                    | Size    | Purpose                              |
+| --------------------------- | ------- | ------------------------------------ |
+| `icon-72x72.png`            | 72×72   | General use                          |
+| `icon-96x96.png`            | 96×96   | General use                          |
+| `icon-128x128.png`          | 128×128 | General use                          |
+| `icon-144x144.png`          | 144×144 | General use                          |
+| `icon-152x152.png`          | 152×152 | General use (e.g. iPad)              |
+| `icon-192x192.png`          | 192×192 | General use (Android home screen)    |
+| `icon-384x384.png`          | 384×384 | General use                          |
+| `icon-512x512.png`          | 512×512 | General use (splash / high-DPI)      |
 | `icon-maskable-192x192.png` | 192×192 | **Maskable** (Android adaptive icon) |
-| `icon-maskable-512x512.png` | 512×512 | **Maskable** (splash / adaptive) |
+| `icon-maskable-512x512.png` | 512×512 | **Maskable** (splash / adaptive)     |
 
 ## Maskable icons
 

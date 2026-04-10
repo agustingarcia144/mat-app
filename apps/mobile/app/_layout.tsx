@@ -1,52 +1,54 @@
-import { Stack, useRouter, useSegments } from 'expo-router'
-import { StatusBar } from 'expo-status-bar'
-import * as WebBrowser from 'expo-web-browser'
-import 'react-native-reanimated'
-import { useEffect, useRef } from 'react'
-import { useColorScheme } from 'react-native'
-import { useConvexAuth, useMutation, useQuery } from 'convex/react'
-import { api } from '@repo/convex'
-import Providers from '@/components/providers/providers'
-import { Colors } from '@/constants/theme'
-import HeaderCloseButton from '@/components/ui/header-close-button'
-import { usePendingJoin } from '@/contexts/pending-join-context'
-import { registerForPushNotificationsAsync } from '@/lib/push-notifications'
+import { Stack, useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import * as WebBrowser from "expo-web-browser";
+import "react-native-reanimated";
+import { useEffect, useRef } from "react";
+import { useColorScheme } from "react-native";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { api } from "@repo/convex";
+import Providers from "@/components/providers/providers";
+import { Colors } from "@/constants/theme";
+import HeaderCloseButton from "@/components/ui/header-close-button";
+import { usePendingJoin } from "@/contexts/pending-join-context";
+import { registerForPushNotificationsAsync } from "@/lib/push-notifications";
 
-WebBrowser.maybeCompleteAuthSession()
+WebBrowser.maybeCompleteAuthSession();
 
 function RootLayoutNav() {
-  const { isAuthenticated, isLoading } = useConvexAuth()
-  const { pendingToken, isLoading: pendingLoading } = usePendingJoin()
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const { pendingToken, isLoading: pendingLoading } = usePendingJoin();
   const convexUser = useQuery(
     api.users.getCurrentUser,
-    isAuthenticated ? {} : 'skip'
-  )
+    isAuthenticated ? {} : "skip",
+  );
   const currentMembership = useQuery(
     api.organizationMemberships.getCurrentMembership,
-    isAuthenticated ? {} : 'skip'
-  )
-  const segments = useSegments()
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const upsertPushToken = useMutation(api.pushNotifications.registerDeviceToken)
-  const registeredForUserRef = useRef<string | null>(null)
+    isAuthenticated ? {} : "skip",
+  );
+  const segments = useSegments();
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const upsertPushToken = useMutation(
+    api.pushNotifications.registerDeviceToken,
+  );
+  const registeredForUserRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isLoading) return
+    if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(tabs)'
-    const topSegment = segments[0] as string | undefined
-    const inSettings = topSegment === 'profile'
+    const inAuthGroup = segments[0] === "(tabs)";
+    const topSegment = segments[0] as string | undefined;
+    const inSettings = topSegment === "profile";
     const inOnboarding =
-      segments[0] === 'onboarding-notifications' ||
-      segments[0] === 'onboarding' ||
-      segments[0] === 'onboarding-2'
-    const inOrgSelection = segments[0] === 'select-organization'
-    const inJoinConfirm = segments[0] === 'join-gym-confirm'
+      segments[0] === "onboarding-notifications" ||
+      segments[0] === "onboarding" ||
+      segments[0] === "onboarding-2";
+    const inOrgSelection = segments[0] === "select-organization";
+    const inJoinConfirm = segments[0] === "join-gym-confirm";
     const inAuthPage =
       segments[0] === undefined ||
-      segments[0] === 'sign-in' ||
-      segments[0] === 'sign-up'
+      segments[0] === "sign-in" ||
+      segments[0] === "sign-up";
 
     if (!isAuthenticated) {
       if (
@@ -56,65 +58,60 @@ function RootLayoutNav() {
         inOrgSelection ||
         inJoinConfirm
       ) {
-        router.replace('/')
+        router.replace("/");
       }
-      return
+      return;
     }
 
     // Deferred deep link: show join confirmation when we have a pending token
-    if (
-      !pendingLoading &&
-      pendingToken &&
-      !inJoinConfirm &&
-      !inAuthPage
-    ) {
-      router.replace('/join-gym-confirm')
-      return
+    if (!pendingLoading && pendingToken && !inJoinConfirm && !inAuthPage) {
+      router.replace("/join-gym-confirm");
+      return;
     }
 
-    if (
-      convexUser === undefined ||
-      currentMembership === undefined
-    ) {
-      return
+    if (convexUser === undefined || currentMembership === undefined) {
+      return;
     }
 
-    const hasActiveOrganization = currentMembership != null
+    const hasActiveOrganization = currentMembership != null;
 
     // Authenticated users must always have an active org before they can access app content.
     if (!hasActiveOrganization) {
       if (!inOrgSelection && !inJoinConfirm) {
-        router.replace('/select-organization')
+        router.replace("/select-organization");
       }
-      return
+      return;
     }
 
-    const needsOnboarding = convexUser == null || !convexUser.onboardingCompleted
+    const needsOnboarding =
+      convexUser == null || !convexUser.onboardingCompleted;
 
     if (inOrgSelection) {
       if (needsOnboarding) {
-        router.replace('/onboarding-notifications')
+        router.replace("/onboarding-notifications");
       } else {
-        router.replace('/(tabs)/home')
+        router.replace("/(tabs)/home");
       }
-      return
+      return;
     }
 
     if (needsOnboarding) {
       if (!inOnboarding) {
-        const step1Done = convexUser?.onboardingStep1Completed === true
-        router.replace(step1Done ? '/onboarding-2' : '/onboarding-notifications')
+        const step1Done = convexUser?.onboardingStep1Completed === true;
+        router.replace(
+          step1Done ? "/onboarding-2" : "/onboarding-notifications",
+        );
       }
-      return
+      return;
     }
 
     if (inOnboarding || inAuthPage) {
-      router.replace('/(tabs)/home')
-      return
+      router.replace("/(tabs)/home");
+      return;
     }
 
     if (!inAuthGroup && !inSettings) {
-      router.replace('/(tabs)/home')
+      router.replace("/(tabs)/home");
     }
   }, [
     isAuthenticated,
@@ -125,54 +122,54 @@ function RootLayoutNav() {
     currentMembership,
     segments,
     router,
-  ])
+  ]);
 
   useEffect(() => {
     if (!isAuthenticated) {
-      registeredForUserRef.current = null
-      return
+      registeredForUserRef.current = null;
+      return;
     }
 
     if (!convexUser || convexUser === undefined) {
-      return
+      return;
     }
 
     if (!convexUser.onboardingCompleted) {
-      return
+      return;
     }
 
     if (registeredForUserRef.current === convexUser.externalId) {
-      return
+      return;
     }
 
-    let cancelled = false
+    let cancelled = false;
 
     const registerPushToken = async () => {
       try {
-        const { token, platform } = await registerForPushNotificationsAsync()
+        const { token, platform } = await registerForPushNotificationsAsync();
         if (cancelled || !token || !platform) {
-          return
+          return;
         }
 
         await upsertPushToken({
           token,
           platform,
-        })
-        registeredForUserRef.current = convexUser.externalId
+        });
+        registeredForUserRef.current = convexUser.externalId;
       } catch (error) {
-        console.warn('Push notification setup failed', error)
+        console.warn("Push notification setup failed", error);
       }
-    }
+    };
 
-    void registerPushToken()
+    void registerPushToken();
 
     return () => {
-      cancelled = true
-    }
-  }, [isAuthenticated, convexUser, upsertPushToken])
+      cancelled = true;
+    };
+  }, [isAuthenticated, convexUser, upsertPushToken]);
 
-  const backgroundColor = Colors[colorScheme ?? 'light'].background
-  const headerTintColor = Colors[colorScheme ?? 'light'].text
+  const backgroundColor = Colors[colorScheme ?? "light"].background;
+  const headerTintColor = Colors[colorScheme ?? "light"].text;
 
   return (
     <>
@@ -190,10 +187,10 @@ function RootLayoutNav() {
         <Stack.Screen
           name="profile"
           options={{
-            presentation: 'modal',
+            presentation: "modal",
             headerShown: true,
             headerTransparent: true,
-            headerTitle: 'Configuración',
+            headerTitle: "Configuración",
             headerShadowVisible: false,
             headerStyle: { backgroundColor },
             headerTintColor,
@@ -205,7 +202,7 @@ function RootLayoutNav() {
       </Stack>
       <StatusBar style="auto" />
     </>
-  )
+  );
 }
 
 export default function RootLayout() {
@@ -213,5 +210,5 @@ export default function RootLayout() {
     <Providers>
       <RootLayoutNav />
     </Providers>
-  )
+  );
 }

@@ -1,22 +1,30 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
-import { Button } from '@/components/ui/button'
-import { Plus, UserPlus } from 'lucide-react'
-import PaymentReviewQueue from '@/components/features/payments/payment-review-queue'
-import PlanList from '@/components/features/payments/plan-list'
-import PaymentHistoryList from '@/components/features/payments/payment-history-list'
-import RecordPaymentDialog from '@/components/features/payments/dialogs/record-payment-dialog'
-import AssignPlanDialog from '@/components/features/payments/dialogs/assign-plan-dialog'
+import { useState } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Gift, MoreVertical, Plus, UserPlus } from "lucide-react";
+import PaymentReviewQueue from "@/components/features/payments/payment-review-queue";
+import PlanList from "@/components/features/payments/plan-list";
+import PaymentHistoryList from "@/components/features/payments/payment-history-list";
+import RecordPaymentDialog from "@/components/features/payments/dialogs/record-payment-dialog";
+import AssignPlanDialog from "@/components/features/payments/dialogs/assign-plan-dialog";
+import BonificationDialog from "@/components/features/payments/dialogs/bonification-dialog";
 
 export default function PagosPage() {
-  const [tab, setTab] = useState<'pendientes' | 'planes' | 'historial'>(
-    'pendientes'
-  )
-  const [recordOpen, setRecordOpen] = useState(false)
-  const [assignOpen, setAssignOpen] = useState(false)
+  const [tab, setTab] = useState<"pendientes" | "planes" | "historial">(
+    "pendientes",
+  );
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [bonificationOpen, setBonificationOpen] = useState(false);
 
   return (
     <DashboardPageContainer className="space-y-4 py-4 md:space-y-6 md:py-6">
@@ -28,32 +36,44 @@ export default function PagosPage() {
             Gestiona planes de membresía y revisa comprobantes de pago
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <Button
-            variant="outline"
-            className="gap-2"
-            onClick={() => setAssignOpen(true)}
-          >
-            <UserPlus className="h-4 w-4" />
-            <span className="hidden sm:inline">Asignar plan</span>
-          </Button>
-          <Button className="gap-2" onClick={() => setRecordOpen(true)}>
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Registrar pago</span>
-            <span className="sm:hidden">Pago</span>
-          </Button>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="shrink-0 gap-2">
+              Acciones
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setBonificationOpen(true)}>
+              <Gift className="mr-2 h-4 w-4" />
+              Bonificar
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setAssignOpen(true)}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Asignar/Desasignar Plan
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setRecordOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Registrar pago
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <RecordPaymentDialog open={recordOpen} onOpenChange={setRecordOpen} />
 
       <AssignPlanDialog open={assignOpen} onOpenChange={setAssignOpen} />
 
+      <BonificationDialog
+        open={bonificationOpen}
+        onOpenChange={setBonificationOpen}
+      />
+
       {/* Tabs */}
       <Tabs
         value={tab}
         onValueChange={(v) =>
-          setTab(v as 'pendientes' | 'planes' | 'historial')
+          setTab(v as "pendientes" | "planes" | "historial")
         }
       >
         <TabsList>
@@ -75,5 +95,5 @@ export default function PagosPage() {
         </TabsContent>
       </Tabs>
     </DashboardPageContainer>
-  )
+  );
 }

@@ -1,21 +1,21 @@
-'use client'
+"use client";
 
-import { useMemo, useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import type { Doc } from '@/convex/_generated/dataModel'
+import { useMemo, useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Doc } from "@/convex/_generated/dataModel";
 
-import { Button } from '@/components/ui/button'
-import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from "@/components/ui/button";
+import { ResponsiveActionButton } from "@/components/ui/responsive-action-button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from "@/components/ui/dropdown-menu";
 
 import {
   Dialog,
@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 
 import {
   Sheet,
@@ -32,72 +32,83 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
+} from "@/components/ui/sheet";
 
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, SlidersHorizontal } from 'lucide-react'
+import {
+  Plus,
+  Search,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  SlidersHorizontal,
+} from "lucide-react";
 
-import CreateExerciseDialog from './create-exercise-dialog'
-import VideoPlayer from './videoplayer'
+import CreateExerciseDialog from "./create-exercise-dialog";
+import VideoPlayer from "./videoplayer";
 
-import Image from 'next/image'
-import wolfImg from '@/assets/mat-wolf-looking.png'
+import Image from "next/image";
+import wolfImg from "@/assets/mat-wolf-looking.png";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
+} from "@/components/ui/empty";
 
-import { CATEGORIES, EQUIPMENT_OPTIONS, MUSCLE_GROUPS } from '@repo/core'
+import { CATEGORIES, EQUIPMENT_OPTIONS, MUSCLE_GROUPS } from "@repo/core";
 
-const normalize = (v?: string) => (v ?? '').toString().trim().toLowerCase()
+const normalize = (v?: string) => (v ?? "").toString().trim().toLowerCase();
 
 export interface ExerciseLibraryProps {
-  showActions?: boolean
+  showActions?: boolean;
 }
 
 export default function ExerciseLibrary({
   showActions = true,
 }: ExerciseLibraryProps) {
-  const [search, setSearch] = useState('')
-  const [filterCategories, setFilterCategories] = useState<string[]>([])
-  const [filterMuscles, setFilterMuscles] = useState<string[]>([])
-  const [filterEquipment, setFilterEquipment] = useState<string[]>([])
-  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false)
-  const [sheetFilterCategories, setSheetFilterCategories] = useState<string[]>([])
-  const [sheetFilterMuscles, setSheetFilterMuscles] = useState<string[]>([])
-  const [sheetFilterEquipment, setSheetFilterEquipment] = useState<string[]>([])
-  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [search, setSearch] = useState("");
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [filterMuscles, setFilterMuscles] = useState<string[]>([]);
+  const [filterEquipment, setFilterEquipment] = useState<string[]>([]);
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
+  const [sheetFilterCategories, setSheetFilterCategories] = useState<string[]>(
+    [],
+  );
+  const [sheetFilterMuscles, setSheetFilterMuscles] = useState<string[]>([]);
+  const [sheetFilterEquipment, setSheetFilterEquipment] = useState<string[]>(
+    [],
+  );
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const toggleInArray = (
     arr: string[],
     value: string,
-    setter: (next: string[]) => void
+    setter: (next: string[]) => void,
   ) => {
     setter(
-      arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value]
-    )
-  }
+      arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value],
+    );
+  };
 
-  const [exerciseToEdit, setExerciseToEdit] = useState<Doc<'exercises'> | null>(
-    null
-  )
+  const [exerciseToEdit, setExerciseToEdit] = useState<Doc<"exercises"> | null>(
+    null,
+  );
 
   const [exerciseToDelete, setExerciseToDelete] =
-    useState<Doc<'exercises'> | null>(null)
+    useState<Doc<"exercises"> | null>(null);
 
-  const exercises = useQuery(api.exercises.getByOrganization)
-  const removeExercise = useMutation(api.exercises.remove)
+  const exercises = useQuery(api.exercises.getByOrganization);
+  const removeExercise = useMutation(api.exercises.remove);
 
   const filtered = useMemo(() => {
-    const list = exercises ?? []
-    const term = normalize(search)
-    const cats = filterCategories.map(normalize)
-    const muscles = filterMuscles.map(normalize)
-    const equip = filterEquipment.map(normalize)
+    const list = exercises ?? [];
+    const term = normalize(search);
+    const cats = filterCategories.map(normalize);
+    const muscles = filterMuscles.map(normalize);
+    const equip = filterEquipment.map(normalize);
 
-    return list.filter((e: Doc<'exercises'>) => {
+    return list.filter((e: Doc<"exercises">) => {
       const matchesSearch =
         !term ||
         normalize(e.name).includes(term) ||
@@ -105,25 +116,22 @@ export default function ExerciseLibrary({
         (Array.isArray(e.muscleGroups) &&
           e.muscleGroups.some((m: string) => normalize(m).includes(term))) ||
         normalize(e.category).includes(term) ||
-        normalize(e.equipment).includes(term)
+        normalize(e.equipment).includes(term);
 
       const matchesCategory =
-        cats.length === 0 || cats.includes(normalize(e.category))
+        cats.length === 0 || cats.includes(normalize(e.category));
       const matchesMuscle =
         muscles.length === 0 ||
         (Array.isArray(e.muscleGroups) &&
-          e.muscleGroups.some((m: string) => muscles.includes(normalize(m))))
+          e.muscleGroups.some((m: string) => muscles.includes(normalize(m))));
       const matchesEquipment =
-        equip.length === 0 || equip.includes(normalize(e.equipment))
+        equip.length === 0 || equip.includes(normalize(e.equipment));
 
       return (
-        matchesSearch &&
-        matchesCategory &&
-        matchesMuscle &&
-        matchesEquipment
-      )
-    })
-  }, [exercises, search, filterCategories, filterMuscles, filterEquipment])
+        matchesSearch && matchesCategory && matchesMuscle && matchesEquipment
+      );
+    });
+  }, [exercises, search, filterCategories, filterMuscles, filterEquipment]);
 
   return (
     <div className="space-y-4">
@@ -141,26 +149,38 @@ export default function ExerciseLibrary({
         <div className="flex flex-wrap items-center gap-2">
           <ResponsiveActionButton
             variant="outline"
-            mobileSize='sm'
+            mobileSize="sm"
             onClick={() => {
-              setSheetFilterCategories([...filterCategories])
-              setSheetFilterMuscles([...filterMuscles])
-              setSheetFilterEquipment([...filterEquipment])
-              setFiltersSheetOpen(true)
+              setSheetFilterCategories([...filterCategories]);
+              setSheetFilterMuscles([...filterMuscles]);
+              setSheetFilterEquipment([...filterEquipment]);
+              setFiltersSheetOpen(true);
             }}
-            icon={<SlidersHorizontal className='h-4 w-4' aria-hidden />}
-            label='Filtros'
-            tooltip='Filtros'
+            icon={<SlidersHorizontal className="h-4 w-4" aria-hidden />}
+            label="Filtros"
+            tooltip="Filtros"
           />
 
           {(() => {
             const allBadges = [
-              ...filterCategories.map((v) => ({ key: `cat-${v}`, label: 'Categoría', value: v })),
-              ...filterMuscles.map((v) => ({ key: `muscle-${v}`, label: 'Músculo', value: v })),
-              ...filterEquipment.map((v) => ({ key: `equip-${v}`, label: 'Equipo', value: v })),
-            ]
-            const visible = allBadges.slice(0, 3)
-            const remaining = allBadges.length - 3
+              ...filterCategories.map((v) => ({
+                key: `cat-${v}`,
+                label: "Categoría",
+                value: v,
+              })),
+              ...filterMuscles.map((v) => ({
+                key: `muscle-${v}`,
+                label: "Músculo",
+                value: v,
+              })),
+              ...filterEquipment.map((v) => ({
+                key: `equip-${v}`,
+                label: "Equipo",
+                value: v,
+              })),
+            ];
+            const visible = allBadges.slice(0, 3);
+            const remaining = allBadges.length - 3;
             return (
               <>
                 {visible.map(({ key, label, value }) => (
@@ -174,7 +194,7 @@ export default function ExerciseLibrary({
                   </Badge>
                 )}
               </>
-            )
+            );
           })()}
         </div>
 
@@ -182,12 +202,12 @@ export default function ExerciseLibrary({
           <ResponsiveActionButton
             className="md:ml-auto"
             onClick={() => {
-              setExerciseToEdit(null)
-              setShowCreateDialog(true)
+              setExerciseToEdit(null);
+              setShowCreateDialog(true);
             }}
-            icon={<Plus className='h-4 w-4' aria-hidden />}
-            label='Nuevo ejercicio'
-            tooltip='Nuevo ejercicio'
+            icon={<Plus className="h-4 w-4" aria-hidden />}
+            label="Nuevo ejercicio"
+            tooltip="Nuevo ejercicio"
           />
         )}
       </div>
@@ -218,7 +238,7 @@ export default function ExerciseLibrary({
             </EmptyHeader>
           </Empty>
         ) : (
-          filtered.map((e: Doc<'exercises'>) => (
+          filtered.map((e: Doc<"exercises">) => (
             <div
               key={e._id}
               className="border rounded-lg overflow-hidden hover:border-primary transition-colors group relative"
@@ -302,8 +322,8 @@ export default function ExerciseLibrary({
                           <>
                             <DropdownMenuItem
                               onClick={(ev) => {
-                                ev.stopPropagation()
-                                setExerciseToEdit(e)
+                                ev.stopPropagation();
+                                setExerciseToEdit(e);
                               }}
                             >
                               <Pencil className="h-4 w-4 mr-2" />
@@ -311,8 +331,8 @@ export default function ExerciseLibrary({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={(ev) => {
-                                ev.stopPropagation()
-                                setExerciseToDelete(e)
+                                ev.stopPropagation();
+                                setExerciseToDelete(e);
                               }}
                               className="text-destructive focus:text-destructive"
                             >
@@ -340,8 +360,8 @@ export default function ExerciseLibrary({
         open={showCreateDialog || !!exerciseToEdit}
         onOpenChange={(open) => {
           if (!open) {
-            setShowCreateDialog(false)
-            setExerciseToEdit(null)
+            setShowCreateDialog(false);
+            setExerciseToEdit(null);
           }
         }}
         exercise={exerciseToEdit}
@@ -361,7 +381,7 @@ export default function ExerciseLibrary({
               <div className="flex flex-wrap gap-2">
                 <Badge
                   variant={
-                    sheetFilterCategories.length === 0 ? 'default' : 'outline'
+                    sheetFilterCategories.length === 0 ? "default" : "outline"
                   }
                   className="rounded-full cursor-pointer"
                   onClick={() => setSheetFilterCategories([])}
@@ -372,14 +392,14 @@ export default function ExerciseLibrary({
                   <Badge
                     key={v}
                     variant={
-                      sheetFilterCategories.includes(v) ? 'default' : 'outline'
+                      sheetFilterCategories.includes(v) ? "default" : "outline"
                     }
                     className="rounded-full cursor-pointer"
                     onClick={() =>
                       toggleInArray(
                         sheetFilterCategories,
                         v,
-                        setSheetFilterCategories
+                        setSheetFilterCategories,
                       )
                     }
                   >
@@ -396,7 +416,7 @@ export default function ExerciseLibrary({
               <div className="flex flex-wrap gap-2">
                 <Badge
                   variant={
-                    sheetFilterMuscles.length === 0 ? 'default' : 'outline'
+                    sheetFilterMuscles.length === 0 ? "default" : "outline"
                   }
                   className="rounded-full cursor-pointer"
                   onClick={() => setSheetFilterMuscles([])}
@@ -407,11 +427,15 @@ export default function ExerciseLibrary({
                   <Badge
                     key={v}
                     variant={
-                      sheetFilterMuscles.includes(v) ? 'default' : 'outline'
+                      sheetFilterMuscles.includes(v) ? "default" : "outline"
                     }
                     className="rounded-full cursor-pointer"
                     onClick={() =>
-                      toggleInArray(sheetFilterMuscles, v, setSheetFilterMuscles)
+                      toggleInArray(
+                        sheetFilterMuscles,
+                        v,
+                        setSheetFilterMuscles,
+                      )
                     }
                   >
                     {v}
@@ -427,7 +451,7 @@ export default function ExerciseLibrary({
               <div className="flex flex-wrap gap-2">
                 <Badge
                   variant={
-                    sheetFilterEquipment.length === 0 ? 'default' : 'outline'
+                    sheetFilterEquipment.length === 0 ? "default" : "outline"
                   }
                   className="rounded-full cursor-pointer"
                   onClick={() => setSheetFilterEquipment([])}
@@ -438,14 +462,14 @@ export default function ExerciseLibrary({
                   <Badge
                     key={v}
                     variant={
-                      sheetFilterEquipment.includes(v) ? 'default' : 'outline'
+                      sheetFilterEquipment.includes(v) ? "default" : "outline"
                     }
                     className="rounded-full cursor-pointer"
                     onClick={() =>
                       toggleInArray(
                         sheetFilterEquipment,
                         v,
-                        setSheetFilterEquipment
+                        setSheetFilterEquipment,
                       )
                     }
                   >
@@ -457,32 +481,29 @@ export default function ExerciseLibrary({
           </div>
 
           <SheetFooter className="mt-8 gap-2 sm:gap-0">
-            <Button
-              variant="ghost"
-              onClick={() => setFiltersSheetOpen(false)}
-            >
+            <Button variant="ghost" onClick={() => setFiltersSheetOpen(false)}>
               Cancelar
             </Button>
             <Button
               variant="outline"
               onClick={() => {
-                setSheetFilterCategories([])
-                setSheetFilterMuscles([])
-                setSheetFilterEquipment([])
-                setFilterCategories([])
-                setFilterMuscles([])
-                setFilterEquipment([])
-                setFiltersSheetOpen(false)
+                setSheetFilterCategories([]);
+                setSheetFilterMuscles([]);
+                setSheetFilterEquipment([]);
+                setFilterCategories([]);
+                setFilterMuscles([]);
+                setFilterEquipment([]);
+                setFiltersSheetOpen(false);
               }}
             >
               Limpiar filtros
             </Button>
             <Button
               onClick={() => {
-                setFilterCategories([...sheetFilterCategories])
-                setFilterMuscles([...sheetFilterMuscles])
-                setFilterEquipment([...sheetFilterEquipment])
-                setFiltersSheetOpen(false)
+                setFilterCategories([...sheetFilterCategories]);
+                setFilterMuscles([...sheetFilterMuscles]);
+                setFilterEquipment([...sheetFilterEquipment]);
+                setFiltersSheetOpen(false);
               }}
             >
               Aplicar filtros
@@ -512,12 +533,12 @@ export default function ExerciseLibrary({
             <Button
               variant="destructive"
               onClick={async () => {
-                if (!exerciseToDelete) return
-                if (exerciseToDelete.isStandard) return
+                if (!exerciseToDelete) return;
+                if (exerciseToDelete.isStandard) return;
                 await removeExercise({
                   id: exerciseToDelete._id,
-                })
-                setExerciseToDelete(null)
+                });
+                setExerciseToDelete(null);
               }}
               disabled={exerciseToDelete?.isStandard}
             >
@@ -527,5 +548,5 @@ export default function ExerciseLibrary({
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

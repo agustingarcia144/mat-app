@@ -1,15 +1,13 @@
-import React from 'react'
-import { SidebarProvider } from '@/components/ui/sidebar'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import React from "react";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 function DashboardProviders({ children }: { children: React.ReactNode }) {
   return (
     <TooltipProvider>
-      <SidebarProvider>
-        {children}
-      </SidebarProvider>
+      <SidebarProvider>{children}</SidebarProvider>
     </TooltipProvider>
-  )
+  );
 }
 
-export default DashboardProviders
+export default DashboardProviders;

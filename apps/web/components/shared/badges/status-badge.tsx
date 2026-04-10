@@ -1,31 +1,30 @@
-import { Badge } from '@/components/ui/badge'
-import { CheckCircle, CircleX } from 'lucide-react'
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, CircleX } from "lucide-react";
 
 function StatusBadge({ status }: { status: string }) {
   const getStatusText = (status: string): string => {
     switch (status) {
-      case 'active':
-        return 'Activo'
-      case 'inactive':
-        return 'Inactivo'
+      case "active":
+        return "Activo";
+      case "inactive":
+        return "Inactivo";
       default:
-        return 'Desconocido'
+        return "Desconocido";
     }
-  }
+  };
 
-  const getVariant = (status: string): 'dark' | 'outline' => {
+  const getVariant = (status: string): "dark" | "outline" => {
     switch (status) {
-      case 'active':
-      case 'inactive':
-        return 'outline'
+      case "active":
+      case "inactive":
+        return "outline";
       default:
-        return 'outline'
+        return "outline";
     }
-  }
+  };
 
-  const Icon = status === 'inactive' ? CircleX : CheckCircle
-  const iconColor =
-    status === 'inactive' ? 'text-red-500' : 'text-green-500'
+  const Icon = status === "inactive" ? CircleX : CheckCircle;
+  const iconColor = status === "inactive" ? "text-red-500" : "text-green-500";
 
   return (
     <Badge
@@ -35,7 +34,7 @@ function StatusBadge({ status }: { status: string }) {
       <Icon className={`h-4 w-4 shrink-0 ${iconColor}`} />
       {getStatusText(status)}
     </Badge>
-  )
+  );
 }
 
-export default StatusBadge
+export default StatusBadge;

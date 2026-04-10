@@ -1,23 +1,23 @@
-'use client'
+"use client";
 
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Doc } from '@/convex/_generated/dataModel'
-import { Skeleton } from '@/components/ui/skeleton'
-import WorkoutDayCard from './workout-day-card'
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Doc } from "@/convex/_generated/dataModel";
+import { Skeleton } from "@/components/ui/skeleton";
+import WorkoutDayCard from "./workout-day-card";
 
 const DAY_NAMES = [
-  { value: 1, label: 'Lunes' },
-  { value: 2, label: 'Martes' },
-  { value: 3, label: 'Miércoles' },
-  { value: 4, label: 'Jueves' },
-  { value: 5, label: 'Viernes' },
-  { value: 6, label: 'Sábado' },
-  { value: 7, label: 'Domingo' },
-] as const
+  { value: 1, label: "Lunes" },
+  { value: 2, label: "Martes" },
+  { value: 3, label: "Miércoles" },
+  { value: 4, label: "Jueves" },
+  { value: 5, label: "Viernes" },
+  { value: 6, label: "Sábado" },
+  { value: 7, label: "Domingo" },
+] as const;
 
 interface WorkoutWeekHorizontalViewProps {
-  week: Doc<'workoutWeeks'>
+  week: Doc<"workoutWeeks">;
 }
 
 export default function WorkoutWeekHorizontalView({
@@ -25,17 +25,17 @@ export default function WorkoutWeekHorizontalView({
 }: WorkoutWeekHorizontalViewProps) {
   const workoutDays = useQuery(api.workoutDays.getByWeek, {
     weekId: week._id,
-  })
+  });
   const daysByWeekday = (() => {
-    const map = new Map<number, Doc<'workoutDays'>[]>()
-    for (let dow = 1; dow <= 7; dow++) map.set(dow, [])
-    ;(workoutDays ?? []).forEach((day: Doc<'workoutDays'>) => {
-      const dow = day.dayOfWeek ?? 1
-      const key = dow >= 1 && dow <= 7 ? dow : 1
-      map.get(key)!.push(day)
-    })
-    return map
-  })()
+    const map = new Map<number, Doc<"workoutDays">[]>();
+    for (let dow = 1; dow <= 7; dow++) map.set(dow, []);
+    (workoutDays ?? []).forEach((day: Doc<"workoutDays">) => {
+      const dow = day.dayOfWeek ?? 1;
+      const key = dow >= 1 && dow <= 7 ? dow : 1;
+      map.get(key)!.push(day);
+    });
+    return map;
+  })();
 
   if (workoutDays === undefined) {
     return (
@@ -55,7 +55,7 @@ export default function WorkoutWeekHorizontalView({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -66,8 +66,8 @@ export default function WorkoutWeekHorizontalView({
         {/* sm+: flex row; empty columns stay narrow, columns with exercises grow. */}
         <div className="flex flex-col gap-3 sm:flex-row sm:min-w-0 sm:gap-2">
           {DAY_NAMES.map(({ value: dow, label }) => {
-            const days = daysByWeekday.get(dow) ?? []
-            const hasExercises = days.length > 0
+            const days = daysByWeekday.get(dow) ?? [];
+            const hasExercises = days.length > 0;
 
             return (
               <div
@@ -75,7 +75,7 @@ export default function WorkoutWeekHorizontalView({
                 className={`
                   flex flex-col rounded-lg border bg-muted/20 overflow-hidden
                   min-h-[60px] max-h-[70vh]
-                  ${hasExercises ? 'sm:min-w-[200px] sm:flex-1 sm:basis-0 p-2' : 'sm:w-14 sm:flex-none p-1.5'}
+                  ${hasExercises ? "sm:min-w-[200px] sm:flex-1 sm:basis-0 p-2" : "sm:w-14 sm:flex-none p-1.5"}
                 `}
               >
                 <div className="mb-1.5 flex shrink-0">
@@ -93,10 +93,10 @@ export default function WorkoutWeekHorizontalView({
                   )}
                 </div>
               </div>
-            )
+            );
           })}
         </div>
       </div>
     </div>
-  )
+  );
 }

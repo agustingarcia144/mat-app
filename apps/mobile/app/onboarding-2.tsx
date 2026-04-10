@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,77 +11,77 @@ import {
   Image,
   Modal,
   Pressable,
-} from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
-import { useMutation, Authenticated } from 'convex/react'
-import { api } from '@repo/convex'
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
-import { Picker } from '@react-native-picker/picker'
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { useMutation, Authenticated } from "convex/react";
+import { api } from "@repo/convex";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { Picker } from "@react-native-picker/picker";
 
-const HEIGHT_CM = Array.from({ length: 151 }, (_, i) => 100 + i) // 100–250 cm
-const WEIGHT_KG = Array.from({ length: 171 }, (_, i) => 30 + i) // 30–200 kg
+const HEIGHT_CM = Array.from({ length: 151 }, (_, i) => 100 + i); // 100–250 cm
+const WEIGHT_KG = Array.from({ length: 171 }, (_, i) => 30 + i); // 30–200 kg
 
 function Onboarding2Content() {
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
-  const insets = useSafeAreaInsets()
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const insets = useSafeAreaInsets();
 
-  const completeOnboarding2 = useMutation(api.users.completeOnboarding2)
+  const completeOnboarding2 = useMutation(api.users.completeOnboarding2);
 
-  const [heightCm, setHeightCm] = useState<number | null>(null)
-  const [weightKg, setWeightKg] = useState<number | null>(null)
-  const [heightText, setHeightText] = useState(String(HEIGHT_CM[50]))
-  const [weightText, setWeightText] = useState(String(WEIGHT_KG[40]))
-  const [description, setDescription] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [activePicker, setActivePicker] = useState<'height' | 'weight' | null>(
+  const [heightCm, setHeightCm] = useState<number | null>(null);
+  const [weightKg, setWeightKg] = useState<number | null>(null);
+  const [heightText, setHeightText] = useState(String(HEIGHT_CM[50]));
+  const [weightText, setWeightText] = useState(String(WEIGHT_KG[40]));
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [activePicker, setActivePicker] = useState<"height" | "weight" | null>(
     null,
-  )
+  );
 
   const handleSubmit = async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true);
+    setError("");
 
     try {
       await completeOnboarding2({
         height: heightCm ?? HEIGHT_CM[50],
         weight: weightKg ?? WEIGHT_KG[40],
         description: description.trim() || undefined,
-      })
-      router.replace('/')
+      });
+      router.replace("/");
     } catch (err: unknown) {
       setError(
-        err instanceof Error ? err.message : 'Error al guardar la información'
-      )
+        err instanceof Error ? err.message : "Error al guardar la información",
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSkip = async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true);
+    setError("");
     try {
-      await completeOnboarding2({})
-      router.replace('/')
+      await completeOnboarding2({});
+      router.replace("/");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Error al omitir')
+      setError(err instanceof Error ? err.message : "Error al omitir");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const selectedHeight = heightCm ?? HEIGHT_CM[50]
-  const selectedWeight = weightKg ?? WEIGHT_KG[40]
+  const selectedHeight = heightCm ?? HEIGHT_CM[50];
+  const selectedWeight = weightKg ?? WEIGHT_KG[40];
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={[styles.container, { backgroundColor: isDark ? "#000" : "#fff" }]}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -89,16 +89,16 @@ function Onboarding2Content() {
       >
         <View style={styles.content}>
           <Image
-            source={require('@/assets/images/mat-wolf-measure.png')}
+            source={require("@/assets/images/mat-wolf-measure.png")}
             style={styles.logo}
             resizeMode="contain"
             accessibilityLabel="Mat wolf mascot"
           />
-          <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
+          <Text style={[styles.title, { color: isDark ? "#fff" : "#000" }]}>
             Un poco más sobre vos
           </Text>
           <Text
-            style={[styles.subtitle, { color: isDark ? '#a1a1aa' : '#71717a' }]}
+            style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}
           >
             Altura, peso y descripción (opcional)
           </Text>
@@ -111,41 +111,43 @@ function Onboarding2Content() {
 
           <View style={styles.form}>
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
+              <Text style={[styles.label, { color: isDark ? "#fff" : "#000" }]}>
                 Altura (cm)
               </Text>
-              {Platform.OS === 'android' ? (
+              {Platform.OS === "android" ? (
                 <TextInput
                   style={[
                     styles.input,
                     {
-                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                      color: isDark ? '#fff' : '#000',
-                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                      backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                      color: isDark ? "#fff" : "#000",
+                      borderColor: isDark ? "#27272a" : "#e4e4e7",
                     },
                   ]}
                   keyboardType="number-pad"
                   value={heightText}
                   onChangeText={setHeightText}
                   onBlur={() => {
-                    const n = parseInt(heightText, 10)
-                    const clamped = isNaN(n) ? HEIGHT_CM[50] : Math.min(250, Math.max(100, n))
-                    setHeightCm(clamped)
-                    setHeightText(String(clamped))
+                    const n = parseInt(heightText, 10);
+                    const clamped = isNaN(n)
+                      ? HEIGHT_CM[50]
+                      : Math.min(250, Math.max(100, n));
+                    setHeightCm(clamped);
+                    setHeightText(String(clamped));
                   }}
                   placeholder="170"
-                  placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                  placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
                   editable={!loading}
                 />
               ) : (
                 <ThemedPressable
-                  onPress={() => !loading && setActivePicker('height')}
+                  onPress={() => !loading && setActivePicker("height")}
                   style={[
                     styles.input,
                     styles.pickerInput,
                     {
-                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                      backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                      borderColor: isDark ? "#27272a" : "#e4e4e7",
                     },
                   ]}
                   disabled={loading}
@@ -153,7 +155,7 @@ function Onboarding2Content() {
                   <Text
                     style={[
                       styles.pickerInputText,
-                      { color: isDark ? '#fff' : '#000' },
+                      { color: isDark ? "#fff" : "#000" },
                     ]}
                   >
                     {`${selectedHeight} cm`}
@@ -163,41 +165,43 @@ function Onboarding2Content() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
+              <Text style={[styles.label, { color: isDark ? "#fff" : "#000" }]}>
                 Peso (kg)
               </Text>
-              {Platform.OS === 'android' ? (
+              {Platform.OS === "android" ? (
                 <TextInput
                   style={[
                     styles.input,
                     {
-                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                      color: isDark ? '#fff' : '#000',
-                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                      backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                      color: isDark ? "#fff" : "#000",
+                      borderColor: isDark ? "#27272a" : "#e4e4e7",
                     },
                   ]}
                   keyboardType="number-pad"
                   value={weightText}
                   onChangeText={setWeightText}
                   onBlur={() => {
-                    const n = parseInt(weightText, 10)
-                    const clamped = isNaN(n) ? WEIGHT_KG[40] : Math.min(200, Math.max(30, n))
-                    setWeightKg(clamped)
-                    setWeightText(String(clamped))
+                    const n = parseInt(weightText, 10);
+                    const clamped = isNaN(n)
+                      ? WEIGHT_KG[40]
+                      : Math.min(200, Math.max(30, n));
+                    setWeightKg(clamped);
+                    setWeightText(String(clamped));
                   }}
                   placeholder="70"
-                  placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                  placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
                   editable={!loading}
                 />
               ) : (
                 <ThemedPressable
-                  onPress={() => !loading && setActivePicker('weight')}
+                  onPress={() => !loading && setActivePicker("weight")}
                   style={[
                     styles.input,
                     styles.pickerInput,
                     {
-                      backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                      borderColor: isDark ? '#27272a' : '#e4e4e7',
+                      backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                      borderColor: isDark ? "#27272a" : "#e4e4e7",
                     },
                   ]}
                   disabled={loading}
@@ -205,7 +209,7 @@ function Onboarding2Content() {
                   <Text
                     style={[
                       styles.pickerInputText,
-                      { color: isDark ? '#fff' : '#000' },
+                      { color: isDark ? "#fff" : "#000" },
                     ]}
                   >
                     {`${selectedWeight} kg`}
@@ -215,7 +219,7 @@ function Onboarding2Content() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
+              <Text style={[styles.label, { color: isDark ? "#fff" : "#000" }]}>
                 Descripción (opcional)
               </Text>
               <TextInput
@@ -223,13 +227,13 @@ function Onboarding2Content() {
                   styles.input,
                   styles.textArea,
                   {
-                    backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                    color: isDark ? '#fff' : '#000',
-                    borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                    color: isDark ? "#fff" : "#000",
+                    borderColor: isDark ? "#27272a" : "#e4e4e7",
                   },
                 ]}
                 placeholder="Objetivos, notas para tu entrenador..."
-                placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
                 value={description}
                 onChangeText={setDescription}
                 multiline
@@ -238,35 +242,32 @@ function Onboarding2Content() {
               />
             </View>
 
-            {Platform.OS === 'ios' && (
+            {Platform.OS === "ios" && (
               <Modal
                 visible={activePicker !== null}
                 transparent
                 animationType="slide"
                 onRequestClose={() => setActivePicker(null)}
               >
-                <Pressable
-                  style={styles.sheetBackdrop}
-                  onPress={() => {}}
-                >
+                <Pressable style={styles.sheetBackdrop} onPress={() => {}}>
                   <View
                     style={[
                       styles.sheet,
-                    {
-                      backgroundColor: isDark ? '#000' : '#fff',
-                      paddingBottom: 96 + insets.bottom,
-                    },
+                      {
+                        backgroundColor: isDark ? "#000" : "#fff",
+                        paddingBottom: 96 + insets.bottom,
+                      },
                     ]}
                   >
                     <Text
                       style={[
                         styles.sheetTitle,
-                        { color: isDark ? '#fff' : '#000' },
+                        { color: isDark ? "#fff" : "#000" },
                       ]}
                     >
-                      {activePicker === 'height' ? 'Altura (cm)' : 'Peso (kg)'}
+                      {activePicker === "height" ? "Altura (cm)" : "Peso (kg)"}
                     </Text>
-                    {activePicker === 'height' ? (
+                    {activePicker === "height" ? (
                       <Picker
                         selectedValue={selectedHeight}
                         onValueChange={(v: number) => setHeightCm(v)}
@@ -298,7 +299,7 @@ function Onboarding2Content() {
                       <Text
                         style={[
                           styles.sheetDoneText,
-                          { color: isDark ? '#fff' : '#000' },
+                          { color: isDark ? "#fff" : "#000" },
                         ]}
                       >
                         Listo
@@ -318,12 +319,12 @@ function Onboarding2Content() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={isDark ? '#000' : '#fff'} />
+                <ActivityIndicator color={isDark ? "#000" : "#fff"} />
               ) : (
                 <Text
                   style={[
                     styles.buttonText,
-                    { color: isDark ? '#000' : '#fff' },
+                    { color: isDark ? "#000" : "#fff" },
                   ]}
                 >
                   Continuar
@@ -339,7 +340,7 @@ function Onboarding2Content() {
               <Text
                 style={[
                   styles.skipText,
-                  { color: isDark ? '#a1a1aa' : '#71717a' },
+                  { color: isDark ? "#a1a1aa" : "#71717a" },
                 ]}
               >
                 Omitir por ahora
@@ -349,7 +350,7 @@ function Onboarding2Content() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
-  )
+  );
 }
 
 export default function Onboarding2Screen() {
@@ -357,7 +358,7 @@ export default function Onboarding2Screen() {
     <Authenticated>
       <Onboarding2Content />
     </Authenticated>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -369,19 +370,19 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 24,
     paddingVertical: 48,
   },
   logo: {
     width: 220,
     height: 220,
-    alignSelf: 'center',
+    alignSelf: "center",
     marginBottom: 24,
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
   },
   subtitle: {
@@ -389,13 +390,13 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   errorContainer: {
-    backgroundColor: '#262626',
+    backgroundColor: "#262626",
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
   errorText: {
-    color: '#fafafa',
+    color: "#fafafa",
     fontSize: 14,
   },
   form: {
@@ -406,7 +407,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   input: {
     borderRadius: 9999,
@@ -418,11 +419,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     minHeight: 88,
     paddingTop: 12,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   pickerInput: {
     height: 48,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   pickerInputText: {
     fontSize: 16,
@@ -431,16 +432,16 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 9999,
     borderWidth: 1,
-    overflow: 'hidden',
-    justifyContent: 'center',
+    overflow: "hidden",
+    justifyContent: "center",
   },
   picker: {
     height: 48,
   },
   sheetBackdrop: {
     flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.4)",
   },
   sheet: {
     paddingHorizontal: 16,
@@ -451,27 +452,27 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
   },
   sheetDone: {
-    position: 'absolute',
+    position: "absolute",
     right: 16,
     // bottom is overridden from component with safe area inset.
     bottom: 16,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     zIndex: 50,
     elevation: 50,
   },
   sheetDoneText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   button: {
     height: 48,
     borderRadius: 9999,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 8,
   },
   buttonDisabled: {
@@ -479,14 +480,14 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   skipButton: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 12,
   },
   skipText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
-})
+});

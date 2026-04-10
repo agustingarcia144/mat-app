@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { useMemo, useState } from 'react'
-import { useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import type { Id } from '@/convex/_generated/dataModel'
+import { useMemo, useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
@@ -11,33 +11,29 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
-import {
-  Field,
-  FieldDescription,
-  FieldLabel,
-} from '@/components/ui/field'
-import { toast } from 'sonner'
-import type { DateRange } from 'react-day-picker'
-import { addDays, startOfWeek } from 'date-fns'
-import { es } from 'date-fns/locale'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { toast } from "sonner";
+import type { DateRange } from "react-day-picker";
+import { addDays, startOfWeek } from "date-fns";
+import { es } from "date-fns/locale";
 
 export type ModelScheduleTemplate = {
-  classId: Id<'classes'>
-  startTime: number
-  endTime: number
-  capacity: number
-  notes?: string | undefined
-}
+  classId: Id<"classes">;
+  startTime: number;
+  endTime: number;
+  capacity: number;
+  notes?: string | undefined;
+};
 
 type Props = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  sourceWeekStartDate: number
-  templates: ModelScheduleTemplate[]
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sourceWeekStartDate: number;
+  templates: ModelScheduleTemplate[];
+};
 
 export default function CopyModelWeekDialog({
   open,
@@ -45,83 +41,89 @@ export default function CopyModelWeekDialog({
   sourceWeekStartDate,
   templates,
 }: Props) {
-  const [targetRange, setTargetRange] = useState<DateRange | undefined>(undefined)
-  const [actionLoading, setActionLoading] = useState(false)
+  const [targetRange, setTargetRange] = useState<DateRange | undefined>(
+    undefined,
+  );
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const copyModelWeek = useMutation(api.classSchedules.copyModelWeekToDateRange)
+  const copyModelWeek = useMutation(
+    api.classSchedules.copyModelWeekToDateRange,
+  );
 
   const todayStart = useMemo(() => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    return d.getTime()
-  }, [])
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
 
-  const canSubmit = templates.length > 0
+  const canSubmit = templates.length > 0;
 
   const handleSubmit = async () => {
     if (!canSubmit) {
-      toast.error('No hay un modelo de semana para copiar.')
-      return
+      toast.error("No hay un modelo de semana para copiar.");
+      return;
     }
 
     if (!targetRange?.from) {
-      toast.error('Selecciona un rango de fechas.')
-      return
+      toast.error("Selecciona un rango de fechas.");
+      return;
     }
 
-    const rangeFrom = targetRange.from
-    const rangeTo = targetRange.to ?? rangeFrom
+    const rangeFrom = targetRange.from;
+    const rangeTo = targetRange.to ?? rangeFrom;
 
-    const targetStartWeek = startOfWeek(rangeFrom, { weekStartsOn: 1 })
-    const targetEndWeek = startOfWeek(rangeTo, { weekStartsOn: 1 })
+    const targetStartWeek = startOfWeek(rangeFrom, { weekStartsOn: 1 });
+    const targetEndWeek = startOfWeek(rangeTo, { weekStartsOn: 1 });
 
-    const targetWeekStarts: number[] = []
-    let current = targetStartWeek
+    const targetWeekStarts: number[] = [];
+    let current = targetStartWeek;
     while (current.getTime() <= targetEndWeek.getTime()) {
-      targetWeekStarts.push(current.getTime())
-      current = addDays(current, 7)
+      targetWeekStarts.push(current.getTime());
+      current = addDays(current, 7);
     }
 
     if (targetWeekStarts.length === 0) {
-      toast.error('Seleccioná al menos una semana válida.')
-      return
+      toast.error("Seleccioná al menos una semana válida.");
+      return;
     }
 
-    setActionLoading(true)
+    setActionLoading(true);
     try {
       const result = await copyModelWeek({
         sourceWeekStartDate,
         templates,
         targetWeekStarts,
-      })
+      });
 
       toast.success(
-        `Se copiaron ${result.createdSchedules} turnos en ${result.batchesCreated} lote(s).`
-      )
-      onOpenChange(false)
+        `Se copiaron ${result.createdSchedules} turnos en ${result.batchesCreated} lote(s).`,
+      );
+      onOpenChange(false);
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error al copiar la semana.')
+      toast.error(
+        e instanceof Error ? e.message : "Error al copiar la semana.",
+      );
     } finally {
-      setActionLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         if (!next) {
-          setTargetRange(undefined)
+          setTargetRange(undefined);
         }
-        onOpenChange(next)
+        onOpenChange(next);
       }}
     >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Copiar semana (modelo)</DialogTitle>
           <DialogDescription>
-            Genera turnos en el/los rangos seleccionados copiando el modelo de la
-            semana actual (incluye turnos fijos).
+            Genera turnos en el/los rangos seleccionados copiando el modelo de
+            la semana actual (incluye turnos fijos).
           </DialogDescription>
         </DialogHeader>
 
@@ -131,22 +133,20 @@ export default function CopyModelWeekDialog({
             Desde qué semana hasta qué semana se copiará el modelo.
           </FieldDescription>
           <Calendar
-            mode='range'
+            mode="range"
             selected={targetRange}
             onSelect={(range) => setTargetRange(range)}
             numberOfMonths={2}
             showOutsideDays={false}
             locale={es}
-            disabled={(date) =>
-              date.getTime() < todayStart || actionLoading
-            }
-            className='rounded-md border'
+            disabled={(date) => date.getTime() < todayStart || actionLoading}
+            className="rounded-md border"
           />
         </Field>
 
         <DialogFooter>
           <Button
-            variant='outline'
+            variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={actionLoading}
           >
@@ -158,6 +158,5 @@ export default function CopyModelWeekDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
-

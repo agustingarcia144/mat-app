@@ -1,29 +1,29 @@
-import React, { useState } from 'react'
+import React, { useState } from "react";
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuSkeleton,
-} from '@/components/ui/sidebar'
+} from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { useClerk, useUser } from '@clerk/nextjs'
-import Image from 'next/image'
-import { ChevronsUpDown, LogOut, User } from 'lucide-react'
-import EditProfileDialog from './edit-profile-dialog'
+} from "@/components/ui/dropdown-menu";
+import { useClerk, useUser } from "@clerk/nextjs";
+import Image from "next/image";
+import { ChevronsUpDown, LogOut, User } from "lucide-react";
+import EditProfileDialog from "./edit-profile-dialog";
 
 export default function FooterNavItems() {
-  const { signOut } = useClerk()
-  const { user, isLoaded } = useUser()
-  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
+  const { signOut } = useClerk();
+  const { user, isLoaded } = useUser();
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
 
   if (!isLoaded) {
-    return <SidebarMenuSkeleton />
+    return <SidebarMenuSkeleton />;
   }
 
   return (
@@ -37,7 +37,7 @@ export default function FooterNavItems() {
                   {user?.imageUrl ? (
                     <Image
                       src={user.imageUrl}
-                      alt={user?.fullName || 'User'}
+                      alt={user?.fullName || "User"}
                       width={32}
                       height={32}
                       className="rounded-full"
@@ -49,13 +49,15 @@ export default function FooterNavItems() {
                           user?.emailAddresses?.[0]?.emailAddress
                             ?.charAt(0)
                             .toUpperCase() ||
-                          'U'}
+                          "U"}
                       </span>
                     </div>
                   )}
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight max-w-42">
-                  <span className="truncate font-semibold">{user?.fullName}</span>
+                  <span className="truncate font-semibold">
+                    {user?.fullName}
+                  </span>
                   <span className="truncate text-xs text-muted-foreground">
                     {user?.emailAddresses?.[0]?.emailAddress}
                   </span>
@@ -66,15 +68,15 @@ export default function FooterNavItems() {
             <DropdownMenuContent side="top" align="start" className="w-56">
               <DropdownMenuItem
                 onSelect={(event) => {
-                  event.preventDefault()
-                  setIsProfileDialogOpen(true)
+                  event.preventDefault();
+                  setIsProfileDialogOpen(true);
                 }}
               >
                 <User className="mr-2 size-4" />
                 Editar perfil
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut({ redirectUrl: '/' })}>
+              <DropdownMenuItem onClick={() => signOut({ redirectUrl: "/" })}>
                 <LogOut className="mr-2 size-4" />
                 Cerrar sesión
               </DropdownMenuItem>
@@ -87,5 +89,5 @@ export default function FooterNavItems() {
         onOpenChange={setIsProfileDialogOpen}
       />
     </>
-  )
+  );
 }

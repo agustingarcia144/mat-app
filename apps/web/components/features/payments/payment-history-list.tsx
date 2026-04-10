@@ -1,25 +1,25 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { type Id } from '@/convex/_generated/dataModel'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { type Id } from "@/convex/_generated/dataModel";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -27,107 +27,133 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { MoreHorizontal, Eye, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
-import PaymentReviewDialog from './dialogs/payment-review-dialog'
-import PaymentDetailDialog from './dialogs/payment-detail-dialog'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+} from "@/components/ui/dialog";
+import { Gift, MoreHorizontal, Eye, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import PaymentReviewDialog from "./dialogs/payment-review-dialog";
+import PaymentDetailDialog from "./dialogs/payment-detail-dialog";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
-type PaymentStatusFilter = 'all' | 'pending' | 'in_review' | 'approved' | 'declined'
+type PaymentStatusFilter =
+  | "all"
+  | "pending"
+  | "in_review"
+  | "approved"
+  | "declined";
 
-const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  pending: { label: 'Pendiente', variant: 'secondary' },
-  in_review: { label: 'En revisión', variant: 'outline' },
-  approved: { label: 'Aprobado', variant: 'default' },
-  declined: { label: 'Rechazado', variant: 'destructive' },
-}
+const STATUS_LABELS: Record<
+  string,
+  {
+    label: string;
+    variant: "default" | "secondary" | "destructive" | "outline";
+  }
+> = {
+  pending: { label: "Pendiente", variant: "secondary" },
+  in_review: { label: "En revisión", variant: "outline" },
+  approved: { label: "Aprobado", variant: "default" },
+  declined: { label: "Rechazado", variant: "destructive" },
+};
 
 function formatBillingPeriod(period: string): string {
-  const [year, month] = period.split('-')
+  const [year, month] = period.split("-");
   const monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-  ]
-  const monthIndex = parseInt(month!, 10) - 1
-  return `${monthNames[monthIndex]} ${year}`
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ];
+  const monthIndex = parseInt(month!, 10) - 1;
+  return `${monthNames[monthIndex]} ${year}`;
 }
 
 function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString('es-AR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  })
+  return new Date(timestamp).toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export default function PaymentHistoryList() {
-  const canQuery = useCanQueryCurrentOrganization()
-  const [statusFilter, setStatusFilter] = useState<PaymentStatusFilter>('all')
+  const canQuery = useCanQueryCurrentOrganization();
+  const [statusFilter, setStatusFilter] = useState<PaymentStatusFilter>("all");
 
   const payments = useQuery(
     api.planPayments.getByOrganization,
     canQuery
-      ? statusFilter === 'all'
+      ? statusFilter === "all"
         ? {}
         : { status: statusFilter }
-      : 'skip'
-  )
+      : "skip",
+  );
 
   type SelectedPayment = {
-    id: Id<'planPayments'>
-    memberName: string
-    planName: string
-    billingPeriod: string
-    amountArs: number
-    status: string
-  }
+    id: Id<"planPayments">;
+    memberName: string;
+    planName: string;
+    billingPeriod: string;
+    amountArs: number;
+    status: string;
+  };
 
-  const [reviewOpen, setReviewOpen] = useState(false)
-  const [detailOpen, setDetailOpen] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [selectedPayment, setSelectedPayment] = useState<SelectedPayment | null>(null)
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [selectedPayment, setSelectedPayment] =
+    useState<SelectedPayment | null>(null);
 
-  const removePayment = useMutation(api.planPayments.remove)
+  const removePayment = useMutation(api.planPayments.remove);
 
-  const buildSelected = (payment: NonNullable<typeof payments>[number]): SelectedPayment => ({
+  const buildSelected = (
+    payment: NonNullable<typeof payments>[number],
+  ): SelectedPayment => ({
     id: payment._id,
     memberName: payment.userFullName,
     planName: payment.planName,
     billingPeriod: payment.billingPeriod,
     amountArs: payment.amountArs,
     status: payment.status,
-  })
+  });
 
   const handleView = (payment: NonNullable<typeof payments>[number]) => {
-    setSelectedPayment(buildSelected(payment))
-    if (payment.status === 'in_review') {
-      setReviewOpen(true)
+    setSelectedPayment(buildSelected(payment));
+    if (payment.status === "in_review") {
+      setReviewOpen(true);
     } else {
-      setDetailOpen(true)
+      setDetailOpen(true);
     }
-  }
+  };
 
   const handleDeleteClick = (payment: NonNullable<typeof payments>[number]) => {
-    setSelectedPayment(buildSelected(payment))
-    setDeleteOpen(true)
-  }
+    setSelectedPayment(buildSelected(payment));
+    setDeleteOpen(true);
+  };
 
   const handleDeleteConfirm = async () => {
-    if (!selectedPayment) return
-    setDeleting(true)
+    if (!selectedPayment) return;
+    setDeleting(true);
     try {
-      await removePayment({ paymentId: selectedPayment.id })
-      toast.success('Pago eliminado')
-      setDeleteOpen(false)
-      setSelectedPayment(null)
+      await removePayment({ paymentId: selectedPayment.id });
+      toast.success("Pago eliminado");
+      setDeleteOpen(false);
+      setSelectedPayment(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al eliminar el pago')
+      toast.error(
+        err instanceof Error ? err.message : "Error al eliminar el pago",
+      );
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
-  }
+  };
 
   return (
     <>
@@ -175,7 +201,7 @@ export default function PaymentHistoryList() {
               </thead>
               <tbody>
                 {payments.map((payment) => {
-                  const statusInfo = STATUS_LABELS[payment.status]
+                  const statusInfo = STATUS_LABELS[payment.status];
                   return (
                     <tr
                       key={payment._id}
@@ -187,12 +213,23 @@ export default function PaymentHistoryList() {
                         {formatBillingPeriod(payment.billingPeriod)}
                       </td>
                       <td className="p-3">
-                        ${payment.amountArs.toLocaleString('es-AR')}
+                        ${payment.amountArs.toLocaleString("es-AR")}
                       </td>
                       <td className="p-3">
-                        <Badge variant={statusInfo?.variant ?? 'secondary'}>
-                          {statusInfo?.label ?? payment.status}
-                        </Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant={statusInfo?.variant ?? "secondary"}>
+                            {statusInfo?.label ?? payment.status}
+                          </Badge>
+                          {payment.isBonification && (
+                            <Badge
+                              variant="outline"
+                              className="gap-1 border-purple-300 text-purple-600 dark:border-purple-700 dark:text-purple-400"
+                            >
+                              <Gift className="h-3 w-3" />
+                              Bonificado
+                            </Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 text-muted-foreground">
                         {formatDate(payment.createdAt)}
@@ -229,7 +266,7 @@ export default function PaymentHistoryList() {
                         </DropdownMenu>
                       </td>
                     </tr>
-                  )
+                  );
                 })}
               </tbody>
             </table>
@@ -241,8 +278,8 @@ export default function PaymentHistoryList() {
         <PaymentReviewDialog
           open={reviewOpen}
           onOpenChange={(open) => {
-            setReviewOpen(open)
-            if (!open) setSelectedPayment(null)
+            setReviewOpen(open);
+            if (!open) setSelectedPayment(null);
           }}
           paymentId={selectedPayment.id}
           memberName={selectedPayment.memberName}
@@ -256,8 +293,8 @@ export default function PaymentHistoryList() {
         <PaymentDetailDialog
           open={detailOpen}
           onOpenChange={(open) => {
-            setDetailOpen(open)
-            if (!open) setSelectedPayment(null)
+            setDetailOpen(open);
+            if (!open) setSelectedPayment(null);
           }}
           paymentId={selectedPayment.id}
           memberName={selectedPayment.memberName}
@@ -296,11 +333,11 @@ export default function PaymentHistoryList() {
               onClick={handleDeleteConfirm}
               disabled={deleting}
             >
-              {deleting ? 'Eliminando...' : 'Eliminar'}
+              {deleting ? "Eliminando..." : "Eliminar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

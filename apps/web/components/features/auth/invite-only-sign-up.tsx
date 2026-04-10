@@ -1,30 +1,30 @@
-'use client';
-import Link from 'next/link'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+"use client";
+import Link from "next/link";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SignUp, useClerk, useUser } from "@clerk/nextjs";
 import { useSignIn } from "@clerk/nextjs/legacy";
-import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
+} from "@/components/ui/card";
 
-const STAFF_REDIRECT = '/select-organization'
+const STAFF_REDIRECT = "/select-organization";
 
 function getSafeRedirectUrl(value: string | null, fallback: string) {
-  if (!value) return fallback
+  if (!value) return fallback;
   try {
-    const decoded = decodeURIComponent(value)
-    if (decoded.startsWith('/')) return decoded
+    const decoded = decodeURIComponent(value);
+    if (decoded.startsWith("/")) return decoded;
   } catch {
     // Ignore malformed redirect values.
   }
-  return fallback
+  return fallback;
 }
 
 function InvitationStatusCard({
@@ -32,9 +32,9 @@ function InvitationStatusCard({
   description,
   children,
 }: {
-  title: string
-  description: string
-  children?: ReactNode
+  title: string;
+  description: string;
+  children?: ReactNode;
 }) {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
@@ -43,84 +43,95 @@ function InvitationStatusCard({
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
-        {children ? <CardContent className="flex gap-2">{children}</CardContent> : null}
+        {children ? (
+          <CardContent className="flex gap-2">{children}</CardContent>
+        ) : null}
       </Card>
     </div>
-  )
+  );
 }
 
 export default function InviteOnlySignUp() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { signOut } = useClerk()
-  const { isLoaded, signIn, setActive } = useSignIn()
-  const { isSignedIn } = useUser()
-  const ticket = searchParams.get('__clerk_ticket')
-  const accountStatus = searchParams.get('__clerk_status')
-  const inviteToken = searchParams.get('invite_token')
-  const redirectUrl = searchParams.get('redirect_url')
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { signOut } = useClerk();
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const { isSignedIn } = useUser();
+  const ticket = searchParams.get("__clerk_ticket");
+  const accountStatus = searchParams.get("__clerk_status");
+  const inviteToken = searchParams.get("invite_token");
+  const redirectUrl = searchParams.get("redirect_url");
   const fallbackRedirect = inviteToken
     ? `/invitations/accept?token=${encodeURIComponent(inviteToken)}`
-    : STAFF_REDIRECT
-  const postSignUpRedirect = getSafeRedirectUrl(redirectUrl, fallbackRedirect)
-  const attemptedRef = useRef(false)
-  const [retryKey, setRetryKey] = useState(0)
-  const [signInError, setSignInError] = useState<string | null>(null)
+    : STAFF_REDIRECT;
+  const postSignUpRedirect = getSafeRedirectUrl(redirectUrl, fallbackRedirect);
+  const attemptedRef = useRef(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [signInError, setSignInError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isSignedIn && !ticket) {
-      router.replace(postSignUpRedirect)
+      router.replace(postSignUpRedirect);
     }
-  }, [isSignedIn, postSignUpRedirect, router, ticket])
+  }, [isSignedIn, postSignUpRedirect, router, ticket]);
 
   useEffect(() => {
     if (
       !ticket ||
-      accountStatus !== 'sign_in' ||
+      accountStatus !== "sign_in" ||
       !isLoaded ||
       !signIn ||
       attemptedRef.current
     ) {
-      return
+      return;
     }
 
-    attemptedRef.current = true
+    attemptedRef.current = true;
 
     void signIn
       .create({
-        strategy: 'ticket',
+        strategy: "ticket",
         ticket,
       })
       .then(async (attempt) => {
-        if (attempt.status !== 'complete') {
-          throw new Error('No se pudo completar el acceso con la invitación.')
+        if (attempt.status !== "complete") {
+          throw new Error("No se pudo completar el acceso con la invitación.");
         }
 
         await setActive({
           session: attempt.createdSessionId,
           navigate: () => router.replace(STAFF_REDIRECT),
-        })
+        });
       })
       .catch(async (error: unknown) => {
         const message =
-          error && typeof error === 'object' && 'errors' in error
-            ? (error as { errors?: Array<{ longMessage?: string }> }).errors?.[0]
-                ?.longMessage
-            : null
+          error && typeof error === "object" && "errors" in error
+            ? (error as { errors?: Array<{ longMessage?: string }> })
+                .errors?.[0]?.longMessage
+            : null;
 
         if (message && /already signed in/i.test(message)) {
-          attemptedRef.current = false
-          await signOut()
-          setRetryKey((current) => current + 1)
-          return
+          attemptedRef.current = false;
+          await signOut();
+          setRetryKey((current) => current + 1);
+          return;
         }
 
         setSignInError(
           message ??
-            'No se pudo completar el ingreso con esta invitación. Vuelve a intentarlo.'
-        )
-      })
-  }, [accountStatus, isLoaded, retryKey, router, setActive, signIn, signOut, ticket])
+            "No se pudo completar el ingreso con esta invitación. Vuelve a intentarlo.",
+        );
+      });
+  }, [
+    accountStatus,
+    isLoaded,
+    retryKey,
+    router,
+    setActive,
+    signIn,
+    signOut,
+    ticket,
+  ]);
 
   if (!ticket && !inviteToken) {
     return (
@@ -135,10 +146,10 @@ export default function InviteOnlySignUp() {
           <Link href="/">Volver al inicio</Link>
         </Button>
       </InvitationStatusCard>
-    )
+    );
   }
 
-  if (accountStatus === 'sign_in') {
+  if (accountStatus === "sign_in") {
     if (signInError) {
       return (
         <InvitationStatusCard
@@ -148,9 +159,9 @@ export default function InviteOnlySignUp() {
           <Button
             type="button"
             onClick={() => {
-              attemptedRef.current = false
-              setSignInError(null)
-              setRetryKey((current) => current + 1)
+              attemptedRef.current = false;
+              setSignInError(null);
+              setRetryKey((current) => current + 1);
             }}
           >
             Reintentar
@@ -159,7 +170,7 @@ export default function InviteOnlySignUp() {
             <Link href="/">Volver al inicio</Link>
           </Button>
         </InvitationStatusCard>
-      )
+      );
     }
 
     return (
@@ -172,7 +183,7 @@ export default function InviteOnlySignUp() {
           Ingresando…
         </div>
       </InvitationStatusCard>
-    )
+    );
   }
 
   return (
@@ -180,5 +191,5 @@ export default function InviteOnlySignUp() {
       <div id="clerk-captcha" data-cl-theme="auto" data-cl-size="flexible" />
       <SignUp forceRedirectUrl={postSignUpRedirect} signInUrl="/sign-in" />
     </div>
-  )
+  );
 }

@@ -1,9 +1,9 @@
-'use client'
+"use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useConvexAuth, useMutation, useQuery } from 'convex/react'
-import { toast } from 'sonner'
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -11,139 +11,141 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { isOrgAdminRole } from '@/lib/security/roles'
-import { api } from '@/convex/_generated/api'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { isOrgAdminRole } from "@/lib/security/roles";
+import { api } from "@/convex/_generated/api";
 
 type Props = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
 
 type FormState = {
-  name: string
-  address: string
-  phone: string
-  email: string
-}
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+};
 
 const EMPTY_STATE: FormState = {
-  name: '',
-  address: '',
-  phone: '',
-  email: '',
-}
+  name: "",
+  address: "",
+  phone: "",
+  email: "",
+};
 
 export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
-  const router = useRouter()
-  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth()
-  const currentOrganization = useQuery(api.organizations.getCurrentOrganization)
+  const router = useRouter();
+  const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
+  const currentOrganization = useQuery(
+    api.organizations.getCurrentOrganization,
+  );
   const updateOrganization = useMutation(
-    api.organizations.updateCurrentOrganization
-  )
+    api.organizations.updateCurrentOrganization,
+  );
   const generateLogoUploadUrl = useMutation(
-    api.organizations.generateOrganizationLogoUploadUrl
-  )
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [form, setForm] = useState<FormState>(EMPTY_STATE)
-  const [initialForm, setInitialForm] = useState<FormState>(EMPTY_STATE)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null)
-  const isLoaded = !isAuthLoading && currentOrganization !== undefined
+    api.organizations.generateOrganizationLogoUploadUrl,
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState<FormState>(EMPTY_STATE);
+  const [initialForm, setInitialForm] = useState<FormState>(EMPTY_STATE);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const isLoaded = !isAuthLoading && currentOrganization !== undefined;
 
   const canEdit = useMemo(
     () => isOrgAdminRole(currentOrganization?.role),
-    [currentOrganization?.role]
-  )
+    [currentOrganization?.role],
+  );
 
   useEffect(() => {
-    if (!open || !currentOrganization) return
+    if (!open || !currentOrganization) return;
     setForm({
-      name: currentOrganization.name ?? '',
-      address: currentOrganization.address ?? '',
-      phone: currentOrganization.phone ?? '',
-      email: currentOrganization.email ?? '',
-    })
+      name: currentOrganization.name ?? "",
+      address: currentOrganization.address ?? "",
+      phone: currentOrganization.phone ?? "",
+      email: currentOrganization.email ?? "",
+    });
     setInitialForm({
-      name: currentOrganization.name ?? '',
-      address: currentOrganization.address ?? '',
-      phone: currentOrganization.phone ?? '',
-      email: currentOrganization.email ?? '',
-    })
-    setLogoFile(null)
-    setLogoPreviewUrl(null)
-  }, [open, currentOrganization])
+      name: currentOrganization.name ?? "",
+      address: currentOrganization.address ?? "",
+      phone: currentOrganization.phone ?? "",
+      email: currentOrganization.email ?? "",
+    });
+    setLogoFile(null);
+    setLogoPreviewUrl(null);
+  }, [open, currentOrganization]);
 
   useEffect(() => {
-    if (isAuthLoading || !isAuthenticated) return
+    if (isAuthLoading || !isAuthenticated) return;
     if (currentOrganization === null) {
-      router.replace('/access-denied')
+      router.replace("/access-denied");
     }
-  }, [currentOrganization, isAuthenticated, isAuthLoading, router])
+  }, [currentOrganization, isAuthenticated, isAuthLoading, router]);
 
   useEffect(() => {
     return () => {
       if (logoPreviewUrl) {
-        URL.revokeObjectURL(logoPreviewUrl)
+        URL.revokeObjectURL(logoPreviewUrl);
       }
-    }
-  }, [logoPreviewUrl])
+    };
+  }, [logoPreviewUrl]);
 
   const handleLogoFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0] ?? null
+    const selectedFile = event.target.files?.[0] ?? null;
     if (logoPreviewUrl) {
-      URL.revokeObjectURL(logoPreviewUrl)
+      URL.revokeObjectURL(logoPreviewUrl);
     }
-    setLogoFile(selectedFile)
-    setLogoPreviewUrl(selectedFile ? URL.createObjectURL(selectedFile) : null)
-  }
+    setLogoFile(selectedFile);
+    setLogoPreviewUrl(selectedFile ? URL.createObjectURL(selectedFile) : null);
+  };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+    event.preventDefault();
     if (!canEdit) {
-      toast.error('Solo administradores pueden editar la organización')
-      return
+      toast.error("Solo administradores pueden editar la organización");
+      return;
     }
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
       const hasFormChanges =
         form.name !== initialForm.name ||
         form.address !== initialForm.address ||
         form.phone !== initialForm.phone ||
         form.email !== initialForm.email ||
-        logoFile !== null
+        logoFile !== null;
 
       if (!hasFormChanges) {
-        toast.info('No hay cambios para guardar')
-        onOpenChange(false)
-        return
+        toast.info("No hay cambios para guardar");
+        onOpenChange(false);
+        return;
       }
 
-      let uploadedLogoStorageId: string | undefined
+      let uploadedLogoStorageId: string | undefined;
       if (logoFile) {
-        const uploadUrl = await generateLogoUploadUrl({})
+        const uploadUrl = await generateLogoUploadUrl({});
         const uploadResponse = await fetch(uploadUrl, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': logoFile.type || 'application/octet-stream',
+            "Content-Type": logoFile.type || "application/octet-stream",
           },
           body: logoFile,
-        })
+        });
         if (!uploadResponse.ok) {
-          throw new Error('No se pudo subir el logo')
+          throw new Error("No se pudo subir el logo");
         }
 
         const uploadResult = (await uploadResponse.json()) as {
-          storageId?: string
-        }
+          storageId?: string;
+        };
         if (!uploadResult.storageId) {
-          throw new Error('La subida no devolvio un storageId valido')
+          throw new Error("La subida no devolvio un storageId valido");
         }
-        uploadedLogoStorageId = uploadResult.storageId
+        uploadedLogoStorageId = uploadResult.storageId;
       }
 
       await updateOrganization({
@@ -156,19 +158,19 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
             ? { logoStorageId: uploadedLogoStorageId as never }
             : {}),
         },
-      })
-      router.refresh()
-      toast.success('Organización actualizada')
-      onOpenChange(false)
+      });
+      router.refresh();
+      toast.success("Organización actualizada");
+      onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error inesperado')
+      toast.error(error instanceof Error ? error.message : "Error inesperado");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   if (!isLoaded) {
-    return null
+    return null;
   }
 
   return (
@@ -202,7 +204,7 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
               <div className="h-16 w-16 overflow-hidden rounded-md border">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={logoPreviewUrl ?? currentOrganization?.logoUrl ?? ''}
+                  src={logoPreviewUrl ?? currentOrganization?.logoUrl ?? ""}
                   alt="Logo de la organizacion"
                   className="h-full w-full object-cover"
                 />
@@ -280,11 +282,11 @@ export default function EditOrganizationDialog({ open, onOpenChange }: Props) {
               Cancelar
             </Button>
             <Button type="submit" disabled={!canEdit || isSubmitting}>
-              {isSubmitting ? 'Guardando...' : 'Guardar cambios'}
+              {isSubmitting ? "Guardando..." : "Guardar cambios"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

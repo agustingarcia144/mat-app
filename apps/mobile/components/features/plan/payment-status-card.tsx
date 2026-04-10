@@ -1,83 +1,91 @@
-import React from 'react'
-import { StyleSheet, View, Text } from 'react-native'
+import React from "react";
+import { StyleSheet, View, Text } from "react-native";
 
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
-import { ThemedText } from '@/components/ui/themed-text'
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { ThemedText } from "@/components/ui/themed-text";
 
 const PAYMENT_STATUS: Record<
   string,
   { label: string; color: string; bgColor: string }
 > = {
-  pending: { label: 'Pendiente', color: '#f59e0b', bgColor: '#fef3c7' },
-  in_review: { label: 'En revisión', color: '#3b82f6', bgColor: '#dbeafe' },
-  approved: { label: 'Aprobado', color: '#22c55e', bgColor: '#dcfce7' },
-  declined: { label: 'Rechazado', color: '#ef4444', bgColor: '#fee2e2' },
-}
+  pending: { label: "Pendiente", color: "#f59e0b", bgColor: "#fef3c7" },
+  in_review: { label: "En revisión", color: "#3b82f6", bgColor: "#dbeafe" },
+  approved: { label: "Aprobado", color: "#22c55e", bgColor: "#dcfce7" },
+  declined: { label: "Rechazado", color: "#ef4444", bgColor: "#fee2e2" },
+  bonification: { label: "Bonificado", color: "#a855f7", bgColor: "#f3e8ff" },
+};
 
 function formatBillingPeriod(period: string): string {
-  const [year, month] = period.split('-')
+  const [year, month] = period.split("-");
   const monthNames = [
-    'Enero',
-    'Febrero',
-    'Marzo',
-    'Abril',
-    'Mayo',
-    'Junio',
-    'Julio',
-    'Agosto',
-    'Septiembre',
-    'Octubre',
-    'Noviembre',
-    'Diciembre',
-  ]
-  const monthIndex = parseInt(month!, 10) - 1
-  return `${monthNames[monthIndex]} ${year}`
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ];
+  const monthIndex = parseInt(month!, 10) - 1;
+  return `${monthNames[monthIndex]} ${year}`;
 }
 
 interface AppliedTier {
-  daysAfterWindowEnd: number
-  type: 'percentage' | 'fixed'
-  value: number
-  amountArs: number
+  daysAfterWindowEnd: number;
+  type: "percentage" | "fixed";
+  value: number;
+  amountArs: number;
 }
 
 interface PaymentStatusCardProps {
   payment:
     | {
-        _id: string
-        billingPeriod: string
-        amountArs: number
-        totalAmountArs?: number
-        interestApplied?: AppliedTier[]
-        status: string
-        reviewNotes?: string
+        _id: string;
+        billingPeriod: string;
+        amountArs: number;
+        totalAmountArs?: number;
+        interestApplied?: AppliedTier[];
+        status: string;
+        reviewNotes?: string;
+        isBonification?: boolean;
+        paymentMethod?: string;
       }
     | null
-    | undefined
-  onUploadPress: () => void
+    | undefined;
+  onUploadPress: () => void;
 }
 
 export default function PaymentStatusCard({
   payment,
   onUploadPress,
 }: PaymentStatusCardProps) {
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
 
-  if (payment === undefined) return null // Loading
-  if (!payment) return null // No payment record yet
+  if (payment === undefined) return null; // Loading
+  if (!payment) return null; // No payment record yet
 
-  const statusInfo = PAYMENT_STATUS[payment.status] ?? PAYMENT_STATUS.pending
+  const isBonification =
+    payment.isBonification || payment.paymentMethod === "bonification";
+  const statusInfo = isBonification
+    ? PAYMENT_STATUS.bonification
+    : (PAYMENT_STATUS[payment.status] ?? PAYMENT_STATUS.pending);
   const canUpload =
-    payment.status === 'pending' || payment.status === 'declined'
+    !isBonification &&
+    (payment.status === "pending" || payment.status === "declined");
 
   return (
     <View
-      style={[styles.card, { backgroundColor: isDark ? '#1c1c1e' : '#f5f5f5' }]}
+      style={[styles.card, { backgroundColor: isDark ? "#1c1c1e" : "#f5f5f5" }]}
     >
       <View style={styles.header}>
-        <Text style={[styles.periodText, { color: isDark ? '#fff' : '#000' }]}>
+        <Text style={[styles.periodText, { color: isDark ? "#fff" : "#000" }]}>
           Pago: {formatBillingPeriod(payment.billingPeriod)}
         </Text>
         <View
@@ -85,7 +93,7 @@ export default function PaymentStatusCard({
             styles.statusBadge,
             {
               backgroundColor: isDark
-                ? statusInfo.color + '33'
+                ? statusInfo.color + "33"
                 : statusInfo.bgColor,
             },
           ]}
@@ -98,26 +106,36 @@ export default function PaymentStatusCard({
 
       {payment.interestApplied?.length ? (
         <View style={styles.amountBreakdown}>
-          <Text style={[styles.amountBase, { color: isDark ? '#aaa' : '#888' }]}>
-            Base: ${payment.amountArs.toLocaleString('es-AR')}
+          <Text
+            style={[styles.amountBase, { color: isDark ? "#aaa" : "#888" }]}
+          >
+            Base: ${payment.amountArs.toLocaleString("es-AR")}
           </Text>
           {payment.interestApplied.map((tier, i) => (
             <Text key={i} style={styles.amountInterest}>
-              + Mora ({tier.type === 'percentage' ? `${tier.value}%` : `$${tier.value.toLocaleString('es-AR')} fijo`}
-              ): +${tier.amountArs.toLocaleString('es-AR')}
+              + Mora (
+              {tier.type === "percentage"
+                ? `${tier.value}%`
+                : `$${tier.value.toLocaleString("es-AR")} fijo`}
+              ): +${tier.amountArs.toLocaleString("es-AR")}
             </Text>
           ))}
-          <Text style={[styles.amountTotal, { color: isDark ? '#fff' : '#000' }]}>
-            Total: ${(payment.totalAmountArs ?? payment.amountArs).toLocaleString('es-AR')}
+          <Text
+            style={[styles.amountTotal, { color: isDark ? "#fff" : "#000" }]}
+          >
+            Total: $
+            {(payment.totalAmountArs ?? payment.amountArs).toLocaleString(
+              "es-AR",
+            )}
           </Text>
         </View>
       ) : (
-        <Text style={[styles.amount, { color: isDark ? '#ccc' : '#444' }]}>
-          Monto: ${payment.amountArs.toLocaleString('es-AR')}
+        <Text style={[styles.amount, { color: isDark ? "#ccc" : "#444" }]}>
+          Monto: ${payment.amountArs.toLocaleString("es-AR")}
         </Text>
       )}
 
-      {payment.status === 'declined' && payment.reviewNotes ? (
+      {payment.status === "declined" && payment.reviewNotes ? (
         <Text style={styles.declinedNote}>
           Motivo del rechazo: {payment.reviewNotes}
         </Text>
@@ -130,16 +148,16 @@ export default function PaymentStatusCard({
           onPress={onUploadPress}
         >
           <ThemedText
-            style={[styles.uploadText, { color: isDark ? '#000' : '#fff' }]}
+            style={[styles.uploadText, { color: isDark ? "#000" : "#fff" }]}
           >
-            {payment.status === 'declined'
-              ? 'Subir nuevo comprobante'
-              : 'Subir comprobante'}
+            {payment.status === "declined"
+              ? "Subir nuevo comprobante"
+              : "Subir comprobante"}
           </ThemedText>
         </ThemedPressable>
       ) : null}
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -149,13 +167,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   periodText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -164,7 +182,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   amount: {
     fontSize: 14,
@@ -177,24 +195,24 @@ const styles = StyleSheet.create({
   },
   amountInterest: {
     fontSize: 13,
-    color: '#d97706',
+    color: "#d97706",
   },
   amountTotal: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 2,
   },
   declinedNote: {
     fontSize: 13,
-    color: '#ef4444',
-    fontStyle: 'italic',
+    color: "#ef4444",
+    fontStyle: "italic",
   },
   uploadButton: {
     marginTop: 4,
   },
   uploadText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
-})
+});

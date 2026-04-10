@@ -1,31 +1,31 @@
-import { mutation, query } from './_generated/server'
-import type { MutationCtx } from './_generated/server'
-import type { Id } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { v } from "convex/values";
 import {
   requireAuth,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
-} from './permissions'
+} from "./permissions";
 
 /**
  * Compute folder path for breadcrumbs
  */
 async function computeFolderPath(
   ctx: any,
-  folderId: string | null
+  folderId: string | null,
 ): Promise<string> {
-  if (!folderId) return ''
+  if (!folderId) return "";
 
-  const folder = await ctx.db.get(folderId)
-  if (!folder) return ''
+  const folder = await ctx.db.get(folderId);
+  if (!folder) return "";
 
   if (!folder.parentId) {
-    return folder.name
+    return folder.name;
   }
 
-  const parentPath = await computeFolderPath(ctx, folder.parentId)
-  return parentPath ? `${parentPath}/${folder.name}` : folder.name
+  const parentPath = await computeFolderPath(ctx, folder.parentId);
+  return parentPath ? `${parentPath}/${folder.name}` : folder.name;
 }
 
 /**
@@ -34,32 +34,32 @@ async function computeFolderPath(
 async function wouldCreateCircularReference(
   ctx: any,
   folderId: string,
-  newParentId: string | null
+  newParentId: string | null,
 ): Promise<boolean> {
-  if (!newParentId) return false
-  if (folderId === newParentId) return true
+  if (!newParentId) return false;
+  if (folderId === newParentId) return true;
 
-  let currentParent = newParentId
+  let currentParent = newParentId;
   while (currentParent) {
-    const parent = await ctx.db.get(currentParent)
-    if (!parent) break
-    if (parent._id === folderId) return true
-    currentParent = parent.parentId
+    const parent = await ctx.db.get(currentParent);
+    if (!parent) break;
+    if (parent._id === folderId) return true;
+    currentParent = parent.parentId;
   }
 
-  return false
+  return false;
 }
 
 async function requireFolderInOrganization(
   ctx: MutationCtx,
-  folderId: Id<'folders'>,
-  organizationId: Id<'organizations'>
+  folderId: Id<"folders">,
+  organizationId: Id<"organizations">,
 ) {
-  const folder = await ctx.db.get(folderId)
+  const folder = await ctx.db.get(folderId);
   if (!folder || folder.organizationId !== organizationId) {
-    throw new Error('Invalid parent folder for this organization')
+    throw new Error("Invalid parent folder for this organization");
   }
-  return folder
+  return folder;
 }
 
 /**
@@ -68,38 +68,42 @@ async function requireFolderInOrganization(
 export const create = mutation({
   args: {
     name: v.string(),
-    parentId: v.optional(v.id('folders')),
+    parentId: v.optional(v.id("folders")),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
-    await requireAdminOrTrainer(ctx, membership.organizationId)
+    await requireAdminOrTrainer(ctx, membership.organizationId);
 
     if (args.parentId) {
-      await requireFolderInOrganization(ctx, args.parentId, membership.organizationId)
+      await requireFolderInOrganization(
+        ctx,
+        args.parentId,
+        membership.organizationId,
+      );
     }
 
-    const now = Date.now()
+    const now = Date.now();
 
     // Get next order number for this parent
     const siblings = await ctx.db
-      .query('folders')
-      .withIndex('by_organization_parent', (q) =>
+      .query("folders")
+      .withIndex("by_organization_parent", (q) =>
         q
-          .eq('organizationId', membership.organizationId)
-          .eq('parentId', args.parentId ?? undefined)
+          .eq("organizationId", membership.organizationId)
+          .eq("parentId", args.parentId ?? undefined),
       )
-      .collect()
+      .collect();
 
-    const order = siblings.length
+    const order = siblings.length;
 
     // Compute path
-    const path = await computeFolderPath(ctx, args.parentId ?? null)
-    const fullPath = path ? `${path}/${args.name}` : args.name
+    const path = await computeFolderPath(ctx, args.parentId ?? null);
+    const fullPath = path ? `${path}/${args.name}` : args.name;
 
-    const folderId = await ctx.db.insert('folders', {
+    const folderId = await ctx.db.insert("folders", {
       organizationId: membership.organizationId,
       name: args.name,
       parentId: args.parentId,
@@ -108,68 +112,68 @@ export const create = mutation({
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
-    })
+    });
 
-    return folderId
+    return folderId;
   },
-})
+});
 
 /**
  * Update folder name
  */
 export const update = mutation({
   args: {
-    id: v.id('folders'),
+    id: v.id("folders"),
     name: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const folder = await ctx.db.get(args.id)
+    const folder = await ctx.db.get(args.id);
     if (!folder) {
-      throw new Error('Folder not found')
+      throw new Error("Folder not found");
     }
 
-    await requireAdminOrTrainer(ctx, folder.organizationId)
+    await requireAdminOrTrainer(ctx, folder.organizationId);
 
     // Recompute path for this folder and all descendants
-    const newPath = await computeFolderPath(ctx, folder.parentId ?? null)
-    const fullPath = newPath ? `${newPath}/${args.name}` : args.name
+    const newPath = await computeFolderPath(ctx, folder.parentId ?? null);
+    const fullPath = newPath ? `${newPath}/${args.name}` : args.name;
 
     await ctx.db.patch(args.id, {
       name: args.name,
       path: fullPath,
       updatedAt: Date.now(),
-    })
+    });
 
     // Update paths for all descendants
-    await updateDescendantPaths(ctx, args.id, folder.organizationId)
+    await updateDescendantPaths(ctx, args.id, folder.organizationId);
   },
-})
+});
 
 /**
  * Helper: Update paths for all descendant folders
  */
 async function updateDescendantPaths(
   ctx: MutationCtx,
-  folderId: Id<'folders'>,
-  organizationId: Id<'organizations'>
+  folderId: Id<"folders">,
+  organizationId: Id<"organizations">,
 ) {
   const children = await ctx.db
-    .query('folders')
-    .withIndex('by_organization_parent', (q) =>
-      q.eq('organizationId', organizationId).eq('parentId', folderId)
+    .query("folders")
+    .withIndex("by_organization_parent", (q) =>
+      q.eq("organizationId", organizationId).eq("parentId", folderId),
     )
-    .collect()
+    .collect();
 
   for (const child of children) {
-    const newPath = await computeFolderPath(ctx, child.parentId ?? null)
+    const newPath = await computeFolderPath(ctx, child.parentId ?? null);
     await ctx.db.patch(child._id, {
       path: newPath,
       updatedAt: Date.now(),
-    })
+    });
     // Recursively update children
-    await updateDescendantPaths(ctx, child._id, organizationId)
+    await updateDescendantPaths(ctx, child._id, organizationId);
   }
 }
 
@@ -178,90 +182,94 @@ async function updateDescendantPaths(
  */
 export const move = mutation({
   args: {
-    id: v.id('folders'),
-    newParentId: v.optional(v.id('folders')),
+    id: v.id("folders"),
+    newParentId: v.optional(v.id("folders")),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const folder = await ctx.db.get(args.id)
+    const folder = await ctx.db.get(args.id);
     if (!folder) {
-      throw new Error('Folder not found')
+      throw new Error("Folder not found");
     }
 
-    await requireAdminOrTrainer(ctx, folder.organizationId)
+    await requireAdminOrTrainer(ctx, folder.organizationId);
 
     if (args.newParentId) {
-      await requireFolderInOrganization(ctx, args.newParentId, folder.organizationId)
+      await requireFolderInOrganization(
+        ctx,
+        args.newParentId,
+        folder.organizationId,
+      );
     }
 
     // Check for circular reference
     const wouldBeCircular = await wouldCreateCircularReference(
       ctx,
       args.id,
-      args.newParentId ?? null
-    )
+      args.newParentId ?? null,
+    );
     if (wouldBeCircular) {
-      throw new Error('Cannot move folder: would create circular reference')
+      throw new Error("Cannot move folder: would create circular reference");
     }
 
     // Recompute path
-    const newPath = await computeFolderPath(ctx, args.newParentId ?? null)
-    const fullPath = newPath ? `${newPath}/${folder.name}` : folder.name
+    const newPath = await computeFolderPath(ctx, args.newParentId ?? null);
+    const fullPath = newPath ? `${newPath}/${folder.name}` : folder.name;
 
     await ctx.db.patch(args.id, {
       parentId: args.newParentId,
       path: fullPath,
       updatedAt: Date.now(),
-    })
+    });
 
     // Update paths for all descendants
-    await updateDescendantPaths(ctx, args.id, folder.organizationId)
+    await updateDescendantPaths(ctx, args.id, folder.organizationId);
   },
-})
+});
 
 /**
  * Delete a folder
  */
 export const remove = mutation({
   args: {
-    id: v.id('folders'),
+    id: v.id("folders"),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const folder = await ctx.db.get(args.id)
+    const folder = await ctx.db.get(args.id);
     if (!folder) {
-      throw new Error('Folder not found')
+      throw new Error("Folder not found");
     }
 
-    await requireAdminOrTrainer(ctx, folder.organizationId)
+    await requireAdminOrTrainer(ctx, folder.organizationId);
 
     // Check for child folders
     const hasChildren = await ctx.db
-      .query('folders')
-      .withIndex('by_organization_parent', (q) =>
-        q.eq('organizationId', folder.organizationId).eq('parentId', args.id)
+      .query("folders")
+      .withIndex("by_organization_parent", (q) =>
+        q.eq("organizationId", folder.organizationId).eq("parentId", args.id),
       )
-      .first()
+      .first();
 
     if (hasChildren) {
-      throw new Error('Cannot delete folder: it contains subfolders')
+      throw new Error("Cannot delete folder: it contains subfolders");
     }
 
     // Check for planifications
     const hasPlanifications = await ctx.db
-      .query('planifications')
-      .withIndex('by_folder', (q) => q.eq('folderId', args.id))
-      .first()
+      .query("planifications")
+      .withIndex("by_folder", (q) => q.eq("folderId", args.id))
+      .first();
 
     if (hasPlanifications) {
-      throw new Error('Cannot delete folder: it contains planifications')
+      throw new Error("Cannot delete folder: it contains planifications");
     }
 
-    await ctx.db.delete(args.id)
+    await ctx.db.delete(args.id);
   },
-})
+});
 
 /**
  * Get folder tree for the current user's organization
@@ -269,17 +277,17 @@ export const remove = mutation({
 export const getTree = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuth(ctx)
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
     return await ctx.db
-      .query('folders')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', membership.organizationId)
+      .query("folders")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
       )
-      .collect()
+      .collect();
   },
-})
+});
 
 /**
  * Get folder IDs that can be deleted (no subfolders, no planifications).
@@ -288,56 +296,58 @@ export const getTree = query({
 export const getDeletableFolderIds = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuth(ctx)
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
     const folders = await ctx.db
-      .query('folders')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', membership.organizationId)
+      .query("folders")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
       )
-      .collect()
+      .collect();
 
-    const deletableIds: Id<'folders'>[] = []
+    const deletableIds: Id<"folders">[] = [];
     for (const folder of folders) {
       const hasChildren = await ctx.db
-        .query('folders')
-        .withIndex('by_organization_parent', (q) =>
-          q.eq('organizationId', membership.organizationId).eq('parentId', folder._id)
+        .query("folders")
+        .withIndex("by_organization_parent", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("parentId", folder._id),
         )
-        .first()
-      if (hasChildren) continue
+        .first();
+      if (hasChildren) continue;
 
       const hasPlanifications = await ctx.db
-        .query('planifications')
-        .withIndex('by_folder', (q) => q.eq('folderId', folder._id))
-        .first()
-      if (hasPlanifications) continue
+        .query("planifications")
+        .withIndex("by_folder", (q) => q.eq("folderId", folder._id))
+        .first();
+      if (hasPlanifications) continue;
 
-      deletableIds.push(folder._id)
+      deletableIds.push(folder._id);
     }
-    return deletableIds
+    return deletableIds;
   },
-})
+});
 
 /**
  * Get folders by parent for the current user's organization (for lazy loading)
  */
 export const getByParent = query({
   args: {
-    parentId: v.optional(v.id('folders')),
+    parentId: v.optional(v.id("folders")),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
     return await ctx.db
-      .query('folders')
-      .withIndex('by_organization_parent', (q) =>
+      .query("folders")
+      .withIndex("by_organization_parent", (q) =>
         q
-          .eq('organizationId', membership.organizationId)
-          .eq('parentId', args.parentId ?? undefined)
+          .eq("organizationId", membership.organizationId)
+          .eq("parentId", args.parentId ?? undefined),
       )
-      .collect()
+      .collect();
   },
-})
+});

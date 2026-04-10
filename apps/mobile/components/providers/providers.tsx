@@ -1,44 +1,44 @@
-import { ClerkProvider, useAuth } from "@clerk/expo"
-import { tokenCache } from '@clerk/expo/token-cache'
+import { ClerkProvider, useAuth } from "@clerk/expo";
+import { tokenCache } from "@clerk/expo/token-cache";
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
-} from '@react-navigation/native'
+} from "@react-navigation/native";
 import React, {
   createContext,
   useCallback,
   useContext,
   useMemo,
   useState,
-} from 'react'
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ConvexProviderWithClerk } from 'convex/react-clerk'
-import { ConvexReactClient } from 'convex/react'
-import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { PendingJoinProvider } from '@/contexts/pending-join-context'
+} from "react";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { ConvexReactClient } from "convex/react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { PendingJoinProvider } from "@/contexts/pending-join-context";
 
 type AppResetContextValue = {
-  resetApp: () => void
-}
+  resetApp: () => void;
+};
 
-const AppResetContext = createContext<AppResetContextValue | null>(null)
+const AppResetContext = createContext<AppResetContextValue | null>(null);
 
 export function useAppReset() {
-  const context = useContext(AppResetContext)
+  const context = useContext(AppResetContext);
   if (!context) {
-    throw new Error('useAppReset must be used within Providers')
+    throw new Error("useAppReset must be used within Providers");
   }
-  return context
+  return context;
 }
 
 function Providers({ children }: { children: React.ReactNode }) {
-  const colorScheme = useColorScheme()
-  const [resetKey, setResetKey] = useState(0)
+  const colorScheme = useColorScheme();
+  const [resetKey, setResetKey] = useState(0);
 
   const resetApp = useCallback(() => {
-    setResetKey((current) => current + 1)
-  }, [])
+    setResetKey((current) => current + 1);
+  }, []);
 
   const convex = useMemo(
     () =>
@@ -47,10 +47,10 @@ function Providers({ children }: { children: React.ReactNode }) {
       }),
     // resetKey intentionally forces a fresh Convex client on org switch reset.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resetKey]
-  )
+    [resetKey],
+  );
 
-  const contextValue = useMemo(() => ({ resetApp }), [resetApp])
+  const contextValue = useMemo(() => ({ resetApp }), [resetApp]);
 
   return (
     <AppResetContext.Provider value={contextValue}>
@@ -62,7 +62,7 @@ function Providers({ children }: { children: React.ReactNode }) {
           <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
             <PendingJoinProvider>
               <ThemeProvider
-                value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}
+                value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
               >
                 {children}
               </ThemeProvider>
@@ -71,7 +71,7 @@ function Providers({ children }: { children: React.ReactNode }) {
         </ClerkProvider>
       </GestureHandlerRootView>
     </AppResetContext.Provider>
-  )
+  );
 }
 
-export default Providers
+export default Providers;

@@ -1,68 +1,74 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { useQuery } from 'convex/react'
+import Link from "next/link";
+import { useQuery } from "convex/react";
 import {
   ArrowRight,
   CheckCircle2,
   Clock3,
   CreditCard,
   TrendingUp,
-} from 'lucide-react'
+} from "lucide-react";
 
-import { api } from '@/convex/_generated/api'
-import { Card } from '@/components/ui/card'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
-import { cn } from '@/lib/utils'
+import { api } from "@/convex/_generated/api";
+import { Card } from "@/components/ui/card";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { cn } from "@/lib/utils";
 
 function formatCurrency(value?: number | null) {
-  if (value === null || value === undefined) return '-'
-  return `$${Math.round(value).toLocaleString('es-AR')}`
+  if (value === null || value === undefined) return "-";
+  return `$${Math.round(value).toLocaleString("es-AR")}`;
 }
 
 function formatCompactCurrency(value?: number | null) {
-  if (value === null || value === undefined) return '-'
+  if (value === null || value === undefined) return "-";
 
-  const rounded = Math.round(value)
-  const compact = new Intl.NumberFormat('es-AR', {
-    notation: 'compact',
-    compactDisplay: 'short',
+  const rounded = Math.round(value);
+  const compact = new Intl.NumberFormat("es-AR", {
+    notation: "compact",
+    compactDisplay: "short",
     maximumFractionDigits: rounded >= 1000000 ? 1 : 0,
-  }).format(rounded)
+  }).format(rounded);
 
-  return `$${compact}`
+  return `$${compact}`;
 }
 
 function formatPercent(value?: number | null) {
-  if (value === null || value === undefined) return '-'
-  return `${value.toLocaleString('es-AR', {
+  if (value === null || value === undefined) return "-";
+  return `${value.toLocaleString("es-AR", {
     minimumFractionDigits: value % 1 === 0 ? 0 : 1,
     maximumFractionDigits: 1,
-  })}%`
+  })}%`;
 }
 
 function formatShortPeriod(period: string) {
-  const [year, month] = period.split('-')
-  return new Intl.DateTimeFormat('es-AR', {
-    month: 'short',
-  }).format(new Date(Number(year), Number(month) - 1, 1))
+  const [year, month] = period.split("-");
+  return new Intl.DateTimeFormat("es-AR", {
+    month: "short",
+  }).format(new Date(Number(year), Number(month) - 1, 1));
 }
 
 export default function PaymentsOverview() {
-  const canQuery = useCanQueryCurrentOrganization()
-  const data = useQuery(api.planPayments.getOrganizationMetrics, canQuery ? {} : 'skip')
+  const canQuery = useCanQueryCurrentOrganization();
+  const data = useQuery(
+    api.planPayments.getOrganizationMetrics,
+    canQuery ? {} : "skip",
+  );
 
   const chartData = !data?.monthlyOverview?.length
     ? []
     : (() => {
-        const periods = [...data.monthlyOverview].slice(0, 6).reverse()
-        const maxAmount = Math.max(...periods.map((period) => period.approvedAmountArs), 1)
+        const periods = [...data.monthlyOverview].slice(0, 6).reverse();
+        const maxAmount = Math.max(
+          ...periods.map((period) => period.approvedAmountArs),
+          1,
+        );
 
         return periods.map((period) => ({
           ...period,
           heightPct: Math.max((period.approvedAmountArs / maxAmount) * 100, 10),
-        }))
-      })()
+        }));
+      })();
 
   if (!canQuery || data === undefined) {
     return (
@@ -72,10 +78,10 @@ export default function PaymentsOverview() {
           Cargando resumen financiero...
         </div>
       </Card>
-    )
+    );
   }
 
-  const selectedOverview = data.selectedOverview
+  const selectedOverview = data.selectedOverview;
 
   return (
     <Card className="flex h-full min-h-[220px] w-full flex-col overflow-hidden rounded-2xl border bg-background/60 p-4 md:h-[220px] md:px-5 md:pb-5 md:pt-3">
@@ -114,7 +120,8 @@ export default function PaymentsOverview() {
               {formatPercent(selectedOverview?.collectionRatePct ?? 0)}
             </p>
             <p className="mt-auto pt-2 text-[11px] text-muted-foreground">
-              Sobre {formatCompactCurrency(selectedOverview?.expectedAmountArs ?? 0)}
+              Sobre{" "}
+              {formatCompactCurrency(selectedOverview?.expectedAmountArs ?? 0)}
             </p>
           </div>
 
@@ -161,9 +168,9 @@ export default function PaymentsOverview() {
                   <div className="flex h-full w-full items-end">
                     <div
                       className={cn(
-                        'w-full rounded-t-xl bg-gradient-to-t from-emerald-500 to-emerald-300 transition-all',
+                        "w-full rounded-t-xl bg-gradient-to-t from-emerald-500 to-emerald-300 transition-all",
                         period.billingPeriod === data.selectedPeriod &&
-                          'from-primary to-primary/70'
+                          "from-primary to-primary/70",
                       )}
                       style={{ height: `${period.heightPct}%` }}
                     />
@@ -183,5 +190,5 @@ export default function PaymentsOverview() {
         </div>
       </div>
     </Card>
-  )
+  );
 }

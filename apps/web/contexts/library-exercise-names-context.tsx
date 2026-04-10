@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import {
   createContext,
@@ -7,41 +7,41 @@ import {
   useMemo,
   useRef,
   type ReactNode,
-} from 'react'
+} from "react";
 
 type LibraryExerciseNamesContextValue = {
-  setNames: (names: Record<string, string>) => void
-  getName: (id: string) => string | undefined
-}
+  setNames: (names: Record<string, string>) => void;
+  getName: (id: string) => string | undefined;
+};
 
 const LibraryExerciseNamesContext =
-  createContext<LibraryExerciseNamesContextValue | null>(null)
+  createContext<LibraryExerciseNamesContextValue | null>(null);
 
 export function LibraryExerciseNamesProvider({
   children,
 }: {
-  children: ReactNode
+  children: ReactNode;
 }) {
-  const namesRef = useRef<Record<string, string>>({})
+  const namesRef = useRef<Record<string, string>>({});
 
   const setNames = useCallback((names: Record<string, string>) => {
-    namesRef.current = names
-  }, [])
+    namesRef.current = names;
+  }, []);
 
   const getName = useCallback((id: string) => {
-    return namesRef.current[id]
-  }, [])
+    return namesRef.current[id];
+  }, []);
 
-  const value = useMemo(() => ({ setNames, getName }), [setNames, getName])
+  const value = useMemo(() => ({ setNames, getName }), [setNames, getName]);
 
   return (
     <LibraryExerciseNamesContext.Provider value={value}>
       {children}
     </LibraryExerciseNamesContext.Provider>
-  )
+  );
 }
 
 export function useLibraryExerciseNames() {
-  const ctx = useContext(LibraryExerciseNamesContext)
-  return ctx
+  const ctx = useContext(LibraryExerciseNamesContext);
+  return ctx;
 }

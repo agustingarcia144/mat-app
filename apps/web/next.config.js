@@ -5,16 +5,16 @@ module.exports = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384, 512],
     qualities: [60, 75],
     minimumCacheTTL: 2678400,
-    formats: ['image/webp'],
+    formats: ["image/webp"],
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'img.clerk.com',
+        protocol: "https",
+        hostname: "img.clerk.com",
       },
       {
-        protocol: 'https',
-        hostname: 'img.youtube.com',
+        protocol: "https",
+        hostname: "img.youtube.com",
       },
     ],
   },
-}
+};

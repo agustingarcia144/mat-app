@@ -1,49 +1,62 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { createPortal } from 'react-dom'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { type Id } from '@/convex/_generated/dataModel'
+import { useState } from "react";
+import { createPortal } from "react-dom";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { type Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Expand, X } from 'lucide-react'
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Expand, X } from "lucide-react";
 
 interface PaymentDetailDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  paymentId: Id<'planPayments'>
-  memberName: string
-  planName: string
-  billingPeriod: string
-  amountArs: number
-  status: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  paymentId: Id<"planPayments">;
+  memberName: string;
+  planName: string;
+  billingPeriod: string;
+  amountArs: number;
+  status: string;
 }
 
 const STATUS_LABELS: Record<
   string,
-  { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
+  {
+    label: string;
+    variant: "default" | "secondary" | "destructive" | "outline";
+  }
 > = {
-  pending: { label: 'Pendiente', variant: 'secondary' },
-  in_review: { label: 'En revisión', variant: 'outline' },
-  approved: { label: 'Aprobado', variant: 'default' },
-  declined: { label: 'Rechazado', variant: 'destructive' },
-}
+  pending: { label: "Pendiente", variant: "secondary" },
+  in_review: { label: "En revisión", variant: "outline" },
+  approved: { label: "Aprobado", variant: "default" },
+  declined: { label: "Rechazado", variant: "destructive" },
+};
 
 function formatBillingPeriod(period: string): string {
-  const [year, month] = period.split('-')
+  const [year, month] = period.split("-");
   const monthNames = [
-    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
-  ]
-  const monthIndex = parseInt(month!, 10) - 1
-  return `${monthNames[monthIndex]} ${year}`
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ];
+  const monthIndex = parseInt(month!, 10) - 1;
+  return `${monthNames[monthIndex]} ${year}`;
 }
 
 export default function PaymentDetailDialog({
@@ -56,18 +69,18 @@ export default function PaymentDetailDialog({
   amountArs,
   status,
 }: PaymentDetailDialogProps) {
-  const [fullscreen, setFullscreen] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false);
 
   const proofUrl = useQuery(
     api.planPayments.getProofUrl,
-    open ? { paymentId } : 'skip'
-  )
+    open ? { paymentId } : "skip",
+  );
   const payment = useQuery(
     api.planPayments.getById,
-    open ? { paymentId } : 'skip'
-  )
+    open ? { paymentId } : "skip",
+  );
 
-  const statusInfo = STATUS_LABELS[status]
+  const statusInfo = STATUS_LABELS[status];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -89,12 +102,14 @@ export default function PaymentDetailDialog({
             </div>
             <div>
               <span className="text-muted-foreground">Periodo:</span>
-              <p className="font-medium">{formatBillingPeriod(billingPeriod)}</p>
+              <p className="font-medium">
+                {formatBillingPeriod(billingPeriod)}
+              </p>
             </div>
             <div>
               <span className="text-muted-foreground">Estado:</span>
               <div className="mt-0.5">
-                <Badge variant={statusInfo?.variant ?? 'secondary'}>
+                <Badge variant={statusInfo?.variant ?? "secondary"}>
                   {statusInfo?.label ?? status}
                 </Badge>
               </div>
@@ -104,27 +119,27 @@ export default function PaymentDetailDialog({
               {payment?.interestApplied?.length ? (
                 <div className="mt-0.5 space-y-0.5">
                   <p className="text-sm text-muted-foreground">
-                    Base: ${amountArs.toLocaleString('es-AR')}
+                    Base: ${amountArs.toLocaleString("es-AR")}
                   </p>
                   {payment.interestApplied.map((tier, i) => (
                     <p key={i} className="text-sm text-amber-600">
                       + Mora (
-                      {tier.type === 'percentage'
+                      {tier.type === "percentage"
                         ? `${tier.value}%`
-                        : `$${tier.value.toLocaleString('es-AR')} fijo`}
-                      ): +${tier.amountArs.toLocaleString('es-AR')}
+                        : `$${tier.value.toLocaleString("es-AR")} fijo`}
+                      ): +${tier.amountArs.toLocaleString("es-AR")}
                     </p>
                   ))}
                   <p className="font-semibold">
                     Total: $
                     {(payment.totalAmountArs ?? amountArs).toLocaleString(
-                      'es-AR'
+                      "es-AR",
                     )}
                   </p>
                 </div>
               ) : (
                 <p className="font-medium">
-                  ${amountArs.toLocaleString('es-AR')}
+                  ${amountArs.toLocaleString("es-AR")}
                 </p>
               )}
             </div>
@@ -146,7 +161,7 @@ export default function PaymentDetailDialog({
               <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
                 Sin comprobante adjunto
               </div>
-            ) : proofUrl.contentType === 'application/pdf' ? (
+            ) : proofUrl.contentType === "application/pdf" ? (
               <div className="relative">
                 <iframe
                   src={proofUrl.url}
@@ -185,7 +200,7 @@ export default function PaymentDetailDialog({
                 >
                   <X className="h-6 w-6" />
                 </button>
-                {proofUrl.contentType === 'application/pdf' ? (
+                {proofUrl.contentType === "application/pdf" ? (
                   <iframe
                     src={proofUrl.url}
                     className="h-[90vh] w-[90vw] rounded-lg"
@@ -201,7 +216,7 @@ export default function PaymentDetailDialog({
                   />
                 )}
               </div>,
-              document.body
+              document.body,
             )}
 
           <div className="flex justify-end pt-2">
@@ -212,5 +227,5 @@ export default function PaymentDetailDialog({
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

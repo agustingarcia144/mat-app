@@ -1,6 +1,6 @@
-import { Stack } from 'expo-router'
-import HeaderBackButton from '@/components/ui/header-back-button'
-import HeaderCloseButton from '@/components/ui/header-close-button'
+import { Stack } from "expo-router";
+import HeaderBackButton from "@/components/ui/header-back-button";
+import HeaderCloseButton from "@/components/ui/header-close-button";
 
 export default function InicioLayout() {
   return (
@@ -11,7 +11,7 @@ export default function InicioLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: '',
+          title: "",
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
         }}
@@ -19,10 +19,10 @@ export default function InicioLayout() {
       <Stack.Screen
         name="workout/log-set"
         options={{
-          presentation: 'formSheet',
+          presentation: "formSheet",
           headerShown: true,
           headerTransparent: true,
-          title: '',
+          title: "",
           headerRight: () => <HeaderCloseButton />,
           headerShadowVisible: false,
           gestureEnabled: true,
@@ -34,7 +34,7 @@ export default function InicioLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: '',
+          title: "",
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
         }}
@@ -42,11 +42,11 @@ export default function InicioLayout() {
       <Stack.Screen
         name="exercise/video/[exerciseId]"
         options={{
-          presentation: 'formSheet',
+          presentation: "formSheet",
           headerShown: true,
           headerTransparent: true,
-          contentStyle: { backgroundColor: 'transparent' },
-          title: '',
+          contentStyle: { backgroundColor: "transparent" },
+          title: "",
           headerRight: () => <HeaderCloseButton />,
           headerLeft: () => null,
           headerShadowVisible: false,
@@ -60,7 +60,7 @@ export default function InicioLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: '',
+          title: "",
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
         }}
@@ -70,11 +70,11 @@ export default function InicioLayout() {
         options={{
           headerShown: true,
           headerTransparent: true,
-          title: '',
+          title: "",
           headerLeft: () => <HeaderBackButton />,
           headerShadowVisible: false,
         }}
       />
     </Stack>
-  )
+  );
 }

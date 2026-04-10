@@ -1,21 +1,21 @@
-'use client'
+"use client";
 
-import { createContext, useContext, type ReactNode } from 'react'
-import type { UseFormReturn } from 'react-hook-form'
-import type { PlanificationForm } from '@repo/core/schemas'
+import { createContext, useContext, type ReactNode } from "react";
+import type { UseFormReturn } from "react-hook-form";
+import type { PlanificationForm } from "@repo/core/schemas";
 
-type RedirectAfterSave = 'view' | 'edit'
+type RedirectAfterSave = "view" | "edit";
 
 type PlanificationFormContextValue = {
-  form: UseFormReturn<PlanificationForm> | null
-  planificationId: string | null
+  form: UseFormReturn<PlanificationForm> | null;
+  planificationId: string | null;
   /** Original week IDs from API (for submit: delete these before creating from form) */
-  originalWeekIds: string[]
-  onSubmit: (data: PlanificationForm) => Promise<void>
-  isSaving: boolean
+  originalWeekIds: string[];
+  onSubmit: (data: PlanificationForm) => Promise<void>;
+  isSaving: boolean;
   /** When 'view', redirect to planification view after save; when 'edit', redirect to edit page. Day page sets 'edit'. */
-  setRedirectAfterSave: (to: RedirectAfterSave) => void
-}
+  setRedirectAfterSave: (to: RedirectAfterSave) => void;
+};
 
 const PlanificationFormContext = createContext<PlanificationFormContextValue>({
   form: null,
@@ -24,21 +24,21 @@ const PlanificationFormContext = createContext<PlanificationFormContextValue>({
   onSubmit: async () => {},
   isSaving: false,
   setRedirectAfterSave: () => {},
-})
+});
 
 export function usePlanificationForm(): {
-  form: UseFormReturn<PlanificationForm>
-  planificationId: string
-  originalWeekIds: string[]
-  onSubmit: (data: PlanificationForm) => Promise<void>
-  isSaving: boolean
-  setRedirectAfterSave: (to: RedirectAfterSave) => void
+  form: UseFormReturn<PlanificationForm>;
+  planificationId: string;
+  originalWeekIds: string[];
+  onSubmit: (data: PlanificationForm) => Promise<void>;
+  isSaving: boolean;
+  setRedirectAfterSave: (to: RedirectAfterSave) => void;
 } {
-  const ctx = useContext(PlanificationFormContext)
+  const ctx = useContext(PlanificationFormContext);
   if (!ctx.form || ctx.planificationId == null) {
     throw new Error(
-      'usePlanificationForm must be used within PlanificationFormProvider'
-    )
+      "usePlanificationForm must be used within PlanificationFormProvider",
+    );
   }
   return {
     form: ctx.form,
@@ -47,11 +47,11 @@ export function usePlanificationForm(): {
     onSubmit: ctx.onSubmit,
     isSaving: ctx.isSaving,
     setRedirectAfterSave: ctx.setRedirectAfterSave,
-  }
+  };
 }
 
 export function usePlanificationFormOptional() {
-  return useContext(PlanificationFormContext)
+  return useContext(PlanificationFormContext);
 }
 
 export function PlanificationFormProvider({
@@ -63,13 +63,13 @@ export function PlanificationFormProvider({
   setRedirectAfterSave,
   children,
 }: {
-  form: UseFormReturn<PlanificationForm>
-  planificationId: string
-  originalWeekIds: string[]
-  onSubmit: (data: PlanificationForm) => Promise<void>
-  isSaving: boolean
-  setRedirectAfterSave: (to: RedirectAfterSave) => void
-  children: ReactNode
+  form: UseFormReturn<PlanificationForm>;
+  planificationId: string;
+  originalWeekIds: string[];
+  onSubmit: (data: PlanificationForm) => Promise<void>;
+  isSaving: boolean;
+  setRedirectAfterSave: (to: RedirectAfterSave) => void;
+  children: ReactNode;
 }) {
   return (
     <PlanificationFormContext.Provider
@@ -84,5 +84,5 @@ export function PlanificationFormProvider({
     >
       {children}
     </PlanificationFormContext.Provider>
-  )
+  );
 }

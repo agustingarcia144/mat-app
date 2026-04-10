@@ -1,17 +1,17 @@
-import { mutation, query } from './_generated/server'
-import type { Id } from './_generated/dataModel'
-import { v } from 'convex/values'
+import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { v } from "convex/values";
 import {
   requireAuth,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
   requireOrganizationMembership,
   tryActiveOrgContext,
-} from './permissions'
+} from "./permissions";
 import {
   createBatchWithSchedules,
   type ClassScheduleInsert,
-} from './scheduleBatchUtils'
+} from "./scheduleBatchUtils";
 
 /**
  * Create a new class template
@@ -28,28 +28,28 @@ export const create = mutation({
     recurrencePattern: v.optional(
       v.object({
         frequency: v.union(
-          v.literal('hourly'),
-          v.literal('daily'),
-          v.literal('weekly'),
-          v.literal('monthly')
+          v.literal("hourly"),
+          v.literal("daily"),
+          v.literal("weekly"),
+          v.literal("monthly"),
         ),
         interval: v.number(),
         daysOfWeek: v.optional(v.array(v.number())),
         endDate: v.optional(v.number()),
-      })
+      }),
     ),
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
-    await requireAdminOrTrainer(ctx, membership.organizationId)
+    await requireAdminOrTrainer(ctx, membership.organizationId);
 
-    const now = Date.now()
+    const now = Date.now();
 
-    const classId = await ctx.db.insert('classes', {
+    const classId = await ctx.db.insert("classes", {
       organizationId: membership.organizationId,
       name: args.name,
       description: args.description,
@@ -63,18 +63,18 @@ export const create = mutation({
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
-    })
+    });
 
-    return classId
+    return classId;
   },
-})
+});
 
 /**
  * Update a class template
  */
 export const update = mutation({
   args: {
-    id: v.id('classes'),
+    id: v.id("classes"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     capacity: v.optional(v.number()),
@@ -85,63 +85,63 @@ export const update = mutation({
     recurrencePattern: v.optional(
       v.object({
         frequency: v.union(
-          v.literal('hourly'),
-          v.literal('daily'),
-          v.literal('weekly'),
-          v.literal('monthly')
+          v.literal("hourly"),
+          v.literal("daily"),
+          v.literal("weekly"),
+          v.literal("monthly"),
         ),
         interval: v.number(),
         daysOfWeek: v.optional(v.array(v.number())),
         endDate: v.optional(v.number()),
-      })
+      }),
     ),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const classTemplate = await ctx.db.get(args.id)
+    const classTemplate = await ctx.db.get(args.id);
     if (!classTemplate) {
-      throw new Error('Class not found')
+      throw new Error("Class not found");
     }
 
-    await requireAdminOrTrainer(ctx, classTemplate.organizationId)
+    await requireAdminOrTrainer(ctx, classTemplate.organizationId);
 
-    const now = Date.now()
-    const { id, ...updates } = args
+    const now = Date.now();
+    const { id, ...updates } = args;
 
     if (updates.capacity !== undefined) {
       const upcomingSchedules = await ctx.db
-        .query('classSchedules')
-        .withIndex('by_class', (q) => q.eq('classId', args.id))
-        .filter((q) => q.gte(q.field('startTime'), now))
-        .collect()
+        .query("classSchedules")
+        .withIndex("by_class", (q) => q.eq("classId", args.id))
+        .filter((q) => q.gte(q.field("startTime"), now))
+        .collect();
 
       const overbookedSchedules = upcomingSchedules.filter(
-        (schedule) => schedule.currentReservations > updates.capacity!
-      )
+        (schedule) => schedule.currentReservations > updates.capacity!,
+      );
       if (overbookedSchedules.length > 0) {
         throw new Error(
-          `No se puede actualizar la capacidad: ${overbookedSchedules.length} turnos futuros ya tienen más reservas que la nueva capacidad.`
-        )
+          `No se puede actualizar la capacidad: ${overbookedSchedules.length} turnos futuros ya tienen más reservas que la nueva capacidad.`,
+        );
       }
 
       for (const schedule of upcomingSchedules) {
         await ctx.db.patch(schedule._id, {
           capacity: updates.capacity,
           updatedAt: now,
-        })
+        });
       }
     }
 
     await ctx.db.patch(id, {
       ...updates,
       updatedAt: now,
-    })
+    });
   },
-})
+});
 
-const MAX_SCHEDULES_ON_CLASS_DELETE = 400
+const MAX_SCHEDULES_ON_CLASS_DELETE = 400;
 
 /**
  * Delete a class and all future schedules.
@@ -150,76 +150,76 @@ const MAX_SCHEDULES_ON_CLASS_DELETE = 400
  */
 export const remove = mutation({
   args: {
-    id: v.id('classes'),
+    id: v.id("classes"),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const classTemplate = await ctx.db.get(args.id)
+    const classTemplate = await ctx.db.get(args.id);
     if (!classTemplate) {
-      throw new Error('Class not found')
+      throw new Error("Class not found");
     }
 
-    await requireAdminOrTrainer(ctx, classTemplate.organizationId)
+    await requireAdminOrTrainer(ctx, classTemplate.organizationId);
 
-    const now = Date.now()
+    const now = Date.now();
 
     const futureSchedules = await ctx.db
-      .query('classSchedules')
-      .withIndex('by_class', (q) => q.eq('classId', args.id))
-      .filter((q) => q.gte(q.field('startTime'), now))
-      .collect()
+      .query("classSchedules")
+      .withIndex("by_class", (q) => q.eq("classId", args.id))
+      .filter((q) => q.gte(q.field("startTime"), now))
+      .collect();
 
     if (futureSchedules.length > MAX_SCHEDULES_ON_CLASS_DELETE) {
       throw new Error(
-        `No se puede eliminar la clase: tiene más de ${MAX_SCHEDULES_ON_CLASS_DELETE} turnos programados (${futureSchedules.length}). Cancelá o eliminá turnos primero hasta quedar con ${MAX_SCHEDULES_ON_CLASS_DELETE} o menos.`
-      )
+        `No se puede eliminar la clase: tiene más de ${MAX_SCHEDULES_ON_CLASS_DELETE} turnos programados (${futureSchedules.length}). Cancelá o eliminá turnos primero hasta quedar con ${MAX_SCHEDULES_ON_CLASS_DELETE} o menos.`,
+      );
     }
 
     const withReservations = futureSchedules.filter(
-      (s) => s.currentReservations > 0
-    )
+      (s) => s.currentReservations > 0,
+    );
     if (withReservations.length > 0) {
       throw new Error(
-        'No se puede eliminar la clase: tiene turnos con reservas. Cancelá o eliminá esos turnos primero.'
-      )
+        "No se puede eliminar la clase: tiene turnos con reservas. Cancelá o eliminá esos turnos primero.",
+      );
     }
 
     for (const schedule of futureSchedules) {
       const reservations = await ctx.db
-        .query('classReservations')
-        .withIndex('by_schedule', (q) => q.eq('scheduleId', schedule._id))
-        .collect()
+        .query("classReservations")
+        .withIndex("by_schedule", (q) => q.eq("scheduleId", schedule._id))
+        .collect();
       for (const reservation of reservations) {
-        await ctx.db.delete(reservation._id)
+        await ctx.db.delete(reservation._id);
       }
-      await ctx.db.delete(schedule._id)
+      await ctx.db.delete(schedule._id);
     }
 
-    await ctx.db.delete(args.id)
+    await ctx.db.delete(args.id);
   },
-})
+});
 
 /**
  * Get class by ID
  */
 export const getById = query({
   args: {
-    id: v.id('classes'),
+    id: v.id("classes"),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const classTemplate = await ctx.db.get(args.id)
+    const classTemplate = await ctx.db.get(args.id);
     if (!classTemplate) {
-      return null
+      return null;
     }
 
-    await requireOrganizationMembership(ctx, classTemplate.organizationId)
+    await requireOrganizationMembership(ctx, classTemplate.organizationId);
 
-    return classTemplate
+    return classTemplate;
   },
-})
+});
 
 /**
  * Get all classes for the current user's organization
@@ -229,63 +229,65 @@ export const getByOrganization = query({
     activeOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const orgCtx = await tryActiveOrgContext(ctx)
+    const orgCtx = await tryActiveOrgContext(ctx);
     if (!orgCtx) {
-      return []
+      return [];
     }
-    const { membership } = orgCtx
+    const { membership } = orgCtx;
 
     if (args.activeOnly) {
       return await ctx.db
-        .query('classes')
-        .withIndex('by_organization_active', (q) =>
-          q.eq('organizationId', membership.organizationId).eq('isActive', true)
+        .query("classes")
+        .withIndex("by_organization_active", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("isActive", true),
         )
-        .collect()
+        .collect();
     }
 
     return await ctx.db
-      .query('classes')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', membership.organizationId)
+      .query("classes")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
       )
-      .collect()
+      .collect();
   },
-})
+});
 
 /**
  * Generate schedule instances from recurrence pattern
  */
 export const generateSchedules = mutation({
   args: {
-    classId: v.id('classes'),
+    classId: v.id("classes"),
     startDate: v.number(), // First occurrence start time
     endTime: v.number(), // Duration (end time for first occurrence)
     daysToGenerate: v.optional(v.number()), // Default 90 days
     endDate: v.optional(v.number()), // Optional end date (timestamp) from Generate Schedules dialog
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const classTemplate = await ctx.db.get(args.classId)
+    const classTemplate = await ctx.db.get(args.classId);
     if (!classTemplate) {
-      throw new Error('Class not found')
+      throw new Error("Class not found");
     }
 
-    await requireAdminOrTrainer(ctx, classTemplate.organizationId)
+    await requireAdminOrTrainer(ctx, classTemplate.organizationId);
 
     if (args.startDate >= args.endTime) {
-      throw new Error('La hora de inicio debe ser anterior a la de fin.')
+      throw new Error("La hora de inicio debe ser anterior a la de fin.");
     }
 
     if (!classTemplate.isRecurring || !classTemplate.recurrencePattern) {
-      const now = Date.now()
+      const now = Date.now();
       const result = await createBatchWithSchedules(ctx, {
         organizationId: classTemplate.organizationId,
         classId: args.classId,
-        sourceType: 'single',
+        sourceType: "single",
         sourceConfig: {
-          mode: 'single',
+          mode: "single",
           startTime: args.startDate,
           endTime: args.endTime,
           endDate: args.endDate,
@@ -300,50 +302,67 @@ export const generateSchedules = mutation({
             endTime: args.endTime,
             capacity: classTemplate.capacity,
             currentReservations: 0,
-            status: 'scheduled',
+            status: "scheduled",
             createdAt: now,
             updatedAt: now,
           },
         ],
-      })
-      return result
+      });
+      return result;
     }
 
-    const pattern = classTemplate.recurrencePattern
-    const daysToGenerate = args.daysToGenerate ?? 90
+    const pattern = classTemplate.recurrencePattern;
+    const daysToGenerate = args.daysToGenerate ?? 90;
     const endDate =
       args.endDate ??
       pattern.endDate ??
-      args.startDate + daysToGenerate * 24 * 60 * 60 * 1000
-    const duration = args.endTime - args.startDate
+      args.startDate + daysToGenerate * 24 * 60 * 60 * 1000;
+    const duration = args.endTime - args.startDate;
 
-    const schedules: ClassScheduleInsert[] = []
+    const schedules: ClassScheduleInsert[] = [];
 
-    let currentDate = new Date(args.startDate)
-    const now = Date.now()
+    let currentDate = new Date(args.startDate);
+    const now = Date.now();
 
-    if (pattern.frequency === 'weekly' && pattern.daysOfWeek && pattern.daysOfWeek.length > 0) {
+    if (
+      pattern.frequency === "weekly" &&
+      pattern.daysOfWeek &&
+      pattern.daysOfWeek.length > 0
+    ) {
       // Special handling for weekly with multiple days of week
-      let weekIndex = 0
-      const maxWeeks = Math.ceil((endDate - args.startDate) / (7 * 24 * 60 * 60 * 1000)) + 1
-      
+      let weekIndex = 0;
+      const maxWeeks =
+        Math.ceil((endDate - args.startDate) / (7 * 24 * 60 * 60 * 1000)) + 1;
+
       while (weekIndex < maxWeeks) {
         // For each week, check all daysOfWeek
         for (const dayOfWeek of pattern.daysOfWeek) {
           // Calculate the date for this day in the current week
-          const weekStartTime = args.startDate + (weekIndex * pattern.interval * 7 * 24 * 60 * 60 * 1000)
-          const weekStartDate = new Date(weekStartTime)
-          const weekStartDay = weekStartDate.getDay()
-          
+          const weekStartTime =
+            args.startDate +
+            weekIndex * pattern.interval * 7 * 24 * 60 * 60 * 1000;
+          const weekStartDate = new Date(weekStartTime);
+          const weekStartDay = weekStartDate.getDay();
+
           // Calculate days to add to reach the target day of week
-          let daysToAdd = dayOfWeek - weekStartDay
-          if (daysToAdd < 0) daysToAdd += 7
-          
-          const targetDate = new Date(weekStartTime + (daysToAdd * 24 * 60 * 60 * 1000))
-          targetDate.setHours(weekStartDate.getHours(), weekStartDate.getMinutes(), weekStartDate.getSeconds(), weekStartDate.getMilliseconds())
-          
-          if (targetDate.getTime() >= args.startDate && targetDate.getTime() <= endDate) {
-            const startTime = targetDate.getTime()
+          let daysToAdd = dayOfWeek - weekStartDay;
+          if (daysToAdd < 0) daysToAdd += 7;
+
+          const targetDate = new Date(
+            weekStartTime + daysToAdd * 24 * 60 * 60 * 1000,
+          );
+          targetDate.setHours(
+            weekStartDate.getHours(),
+            weekStartDate.getMinutes(),
+            weekStartDate.getSeconds(),
+            weekStartDate.getMilliseconds(),
+          );
+
+          if (
+            targetDate.getTime() >= args.startDate &&
+            targetDate.getTime() <= endDate
+          ) {
+            const startTime = targetDate.getTime();
             schedules.push({
               classId: args.classId,
               organizationId: classTemplate.organizationId,
@@ -351,32 +370,32 @@ export const generateSchedules = mutation({
               endTime: startTime + duration,
               capacity: classTemplate.capacity,
               currentReservations: 0,
-              status: 'scheduled',
+              status: "scheduled",
               createdAt: now,
               updatedAt: now,
-            })
+            });
           }
         }
-        weekIndex++
+        weekIndex++;
       }
     } else {
       // Handle other frequencies (hourly, daily, monthly)
       while (currentDate.getTime() <= endDate) {
-        let shouldInclude = false
+        let shouldInclude = false;
 
         // Check if this date matches the recurrence pattern
-        if (pattern.frequency === 'daily') {
-          shouldInclude = true
-        } else if (pattern.frequency === 'monthly') {
+        if (pattern.frequency === "daily") {
+          shouldInclude = true;
+        } else if (pattern.frequency === "monthly") {
           // For monthly, use the same day of month as start date
-          const startDay = new Date(args.startDate).getDate()
-          shouldInclude = currentDate.getDate() === startDay
-        } else if (pattern.frequency === 'hourly') {
-          shouldInclude = true
+          const startDay = new Date(args.startDate).getDate();
+          shouldInclude = currentDate.getDate() === startDay;
+        } else if (pattern.frequency === "hourly") {
+          shouldInclude = true;
         }
 
         if (shouldInclude) {
-          const startTime = currentDate.getTime()
+          const startTime = currentDate.getTime();
           schedules.push({
             classId: args.classId,
             organizationId: classTemplate.organizationId,
@@ -384,34 +403,38 @@ export const generateSchedules = mutation({
             endTime: startTime + duration,
             capacity: classTemplate.capacity,
             currentReservations: 0,
-            status: 'scheduled',
+            status: "scheduled",
             createdAt: now,
             updatedAt: now,
-          })
+          });
         }
 
         // Increment date based on frequency
-        if (pattern.frequency === 'hourly') {
+        if (pattern.frequency === "hourly") {
           currentDate = new Date(
-            currentDate.getTime() + pattern.interval * 60 * 60 * 1000
-          )
-        } else if (pattern.frequency === 'daily') {
+            currentDate.getTime() + pattern.interval * 60 * 60 * 1000,
+          );
+        } else if (pattern.frequency === "daily") {
           currentDate = new Date(
-            currentDate.getTime() + pattern.interval * 24 * 60 * 60 * 1000
-          )
-        } else if (pattern.frequency === 'monthly') {
+            currentDate.getTime() + pattern.interval * 24 * 60 * 60 * 1000,
+          );
+        } else if (pattern.frequency === "monthly") {
           // Handle month overflow correctly
-          const targetYear = currentDate.getFullYear()
-          const targetMonth = currentDate.getMonth() + pattern.interval
-          const originalDay = new Date(args.startDate).getDate()
-          
+          const targetYear = currentDate.getFullYear();
+          const targetMonth = currentDate.getMonth() + pattern.interval;
+          const originalDay = new Date(args.startDate).getDate();
+
           // Create a new date for the target month
-          const newDate = new Date(targetYear, targetMonth, 1)
+          const newDate = new Date(targetYear, targetMonth, 1);
           // Get the last day of the target month
-          const lastDayOfMonth = new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate()
+          const lastDayOfMonth = new Date(
+            newDate.getFullYear(),
+            newDate.getMonth() + 1,
+            0,
+          ).getDate();
           // Use the smaller of original day and last day of month
-          const actualDay = Math.min(originalDay, lastDayOfMonth)
-          
+          const actualDay = Math.min(originalDay, lastDayOfMonth);
+
           currentDate = new Date(
             newDate.getFullYear(),
             newDate.getMonth(),
@@ -419,10 +442,10 @@ export const generateSchedules = mutation({
             currentDate.getHours(),
             currentDate.getMinutes(),
             currentDate.getSeconds(),
-            currentDate.getMilliseconds()
-          )
+            currentDate.getMilliseconds(),
+          );
         } else {
-          break // Unknown frequency
+          break; // Unknown frequency
         }
       }
     }
@@ -430,9 +453,9 @@ export const generateSchedules = mutation({
     return await createBatchWithSchedules(ctx, {
       organizationId: classTemplate.organizationId,
       classId: args.classId,
-      sourceType: 'single',
+      sourceType: "single",
       sourceConfig: {
-        mode: 'single',
+        mode: "single",
         startTime: args.startDate,
         endTime: args.endTime,
         endDate,
@@ -440,11 +463,11 @@ export const generateSchedules = mutation({
       },
       createdBy: identity.subject,
       schedules,
-    })
+    });
   },
-})
+});
 
-const MAX_SLOTS_PER_GENERATION = 400
+const MAX_SLOTS_PER_GENERATION = 400;
 
 /**
  * Generate schedule instances from a per-day time window (e.g. 8am–8pm every hour).
@@ -453,7 +476,7 @@ const MAX_SLOTS_PER_GENERATION = 400
  */
 export const generateSchedulesFromTimeWindow = mutation({
   args: {
-    classId: v.id('classes'),
+    classId: v.id("classes"),
     startDate: v.number(), // Start of first day (midnight timestamp)
     endDate: v.number(), // End of last day (e.g. 23:59:59.999 timestamp)
     timeWindowStartMinutes: v.number(), // 0–1439, e.g. 480 = 8:00
@@ -463,63 +486,63 @@ export const generateSchedulesFromTimeWindow = mutation({
     daysOfWeek: v.optional(v.array(v.number())), // 0–6, empty = all days
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const classTemplate = await ctx.db.get(args.classId)
+    const classTemplate = await ctx.db.get(args.classId);
     if (!classTemplate) {
-      throw new Error('Class not found')
+      throw new Error("Class not found");
     }
 
-    await requireAdminOrTrainer(ctx, classTemplate.organizationId)
+    await requireAdminOrTrainer(ctx, classTemplate.organizationId);
 
     // Count slots upfront to reject before building (avoids timeout and large alloc)
-    const dayMs = 24 * 60 * 60 * 1000
-    let dayCount = 0
-    let currentCount = args.startDate
+    const dayMs = 24 * 60 * 60 * 1000;
+    let dayCount = 0;
+    let currentCount = args.startDate;
     while (currentCount <= args.endDate) {
-      const d = new Date(currentCount)
-      const dayOfWeek = d.getDay()
+      const d = new Date(currentCount);
+      const dayOfWeek = d.getDay();
       const includeDay =
         !args.daysOfWeek ||
         args.daysOfWeek.length === 0 ||
-        args.daysOfWeek.includes(dayOfWeek)
-      if (includeDay) dayCount++
-      currentCount += dayMs
+        args.daysOfWeek.includes(dayOfWeek);
+      if (includeDay) dayCount++;
+      currentCount += dayMs;
     }
     const slotsPerDay = Math.floor(
       (args.timeWindowEndMinutes - args.timeWindowStartMinutes) /
-        args.slotIntervalMinutes
-    )
-    const totalSlots = dayCount * slotsPerDay
+        args.slotIntervalMinutes,
+    );
+    const totalSlots = dayCount * slotsPerDay;
     if (totalSlots > MAX_SLOTS_PER_GENERATION) {
       throw new Error(
-        `Máximo ${MAX_SLOTS_PER_GENERATION} turnos por vez (se generarían ${totalSlots}). Reducí el rango de fechas o los días y generá de nuevo.`
-      )
+        `Máximo ${MAX_SLOTS_PER_GENERATION} turnos por vez (se generarían ${totalSlots}). Reducí el rango de fechas o los días y generá de nuevo.`,
+      );
     }
 
-    const schedules: ClassScheduleInsert[] = []
-    const now = Date.now()
-    let current = args.startDate
+    const schedules: ClassScheduleInsert[] = [];
+    const now = Date.now();
+    let current = args.startDate;
 
     while (current <= args.endDate) {
-      const d = new Date(current)
-      const dayOfWeek = d.getDay()
+      const d = new Date(current);
+      const dayOfWeek = d.getDay();
 
       const includeDay =
         !args.daysOfWeek ||
         args.daysOfWeek.length === 0 ||
-        args.daysOfWeek.includes(dayOfWeek)
+        args.daysOfWeek.includes(dayOfWeek);
 
       if (includeDay) {
-        const baseMs = current
+        const baseMs = current;
 
         for (
           let mins = args.timeWindowStartMinutes;
           mins < args.timeWindowEndMinutes;
           mins += args.slotIntervalMinutes
         ) {
-          const startTime = baseMs + mins * 60 * 1000
-          const endTime = startTime + args.durationMinutes * 60 * 1000
+          const startTime = baseMs + mins * 60 * 1000;
+          const endTime = startTime + args.durationMinutes * 60 * 1000;
           schedules.push({
             classId: args.classId,
             organizationId: classTemplate.organizationId,
@@ -527,22 +550,22 @@ export const generateSchedulesFromTimeWindow = mutation({
             endTime,
             capacity: classTemplate.capacity,
             currentReservations: 0,
-            status: 'scheduled',
+            status: "scheduled",
             createdAt: now,
             updatedAt: now,
-          })
+          });
         }
       }
 
-      current += dayMs
+      current += dayMs;
     }
 
     return await createBatchWithSchedules(ctx, {
       organizationId: classTemplate.organizationId,
       classId: args.classId,
-      sourceType: 'timeWindow',
+      sourceType: "timeWindow",
       sourceConfig: {
-        mode: 'timeWindow',
+        mode: "timeWindow",
         rangeStartDate: args.startDate,
         rangeEndDate: args.endDate,
         timeWindowStartMinutes: args.timeWindowStartMinutes,
@@ -553,6 +576,6 @@ export const generateSchedulesFromTimeWindow = mutation({
       },
       createdBy: identity.subject,
       schedules,
-    })
+    });
   },
-})
+});

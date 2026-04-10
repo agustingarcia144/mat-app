@@ -10,14 +10,14 @@ This refactor follows a **presentation-layer split** with a strict rule:
 
 Implementation layers:
 
-1. **Responsive primitives**  
+1. **Responsive primitives**
    - `hooks/use-media-query.ts`
    - `hooks/use-mobile.tsx`
    - `components/ui/responsive-action-button.tsx`
    - `components/shared/responsive/dashboard-page-container.tsx`
-2. **Simple component adaptation**  
+2. **Simple component adaptation**
    - Tailwind breakpoint tuning for spacing, typography, and overflow.
-3. **Heavy component visual adapters**  
+3. **Heavy component visual adapters**
    - Separate mobile visual trees for data-dense/complex UIs.
 
 ## 2) Breakpoint strategy
@@ -114,14 +114,14 @@ Use `DashboardPageContainer` for mobile-safe horizontal gutters while preserving
 ### Visual adapter with shared logic
 
 ```tsx
-const isMobile = useIsMobile()
-const data = useMemo(() => deriveData(raw), [raw])
+const isMobile = useIsMobile();
+const data = useMemo(() => deriveData(raw), [raw]);
 
 return isMobile ? (
   <MobilePresentation data={data} onSelect={onSelect} />
 ) : (
   <DesktopPresentation data={data} onSelect={onSelect} />
-)
+);
 ```
 
 ### Shared state, separate presentation

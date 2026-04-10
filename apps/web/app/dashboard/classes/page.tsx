@@ -1,16 +1,16 @@
-'use client'
+"use client";
 
-import Image from 'next/image'
-import { useState, useMemo } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Button } from '@/components/ui/button'
+import Image from "next/image";
+import { useState, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from "@/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyContent,
@@ -18,29 +18,31 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
+} from "@/components/ui/empty";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Skeleton } from '@/components/ui/skeleton'
-import matWolfLooking from '@/assets/mat-wolf-looking.png'
-import ClassFormDialog from '@/components/features/classes/dialogs/class-form-dialog'
-import GenerateSchedulesDialog from '@/components/features/classes/dialogs/generate-schedules-dialog'
-import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule-detail-dialog'
-import FixedSlotsDialog from '@/components/features/classes/dialogs/fixed-slots-dialog'
+} from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import matWolfLooking from "@/assets/mat-wolf-looking.png";
+import ClassFormDialog from "@/components/features/classes/dialogs/class-form-dialog";
+import GenerateSchedulesDialog from "@/components/features/classes/dialogs/generate-schedules-dialog";
+import ScheduleDetailDialog from "@/components/features/classes/dialogs/schedule-detail-dialog";
+import QuickCreateScheduleDialog from "@/components/features/classes/dialogs/quick-create-schedule-dialog";
+import BulkCancelDayDialog from "@/components/features/classes/dialogs/bulk-cancel-day-dialog";
+import BulkActionConfirmationDialog from "@/components/features/classes/dialogs/bulk-action-confirmation-dialog";
+import FixedSlotsDialog from "@/components/features/classes/dialogs/fixed-slots-dialog";
 import ModelWeekTimeline, {
   type ModelWeekSlotDoc,
-} from '@/components/features/classes/calendar/model-week-timeline'
-import ModelWeekSlotDialog from '@/components/features/classes/dialogs/model-week-slot-dialog'
-import ApplyModelWeekDialog from '@/components/features/classes/dialogs/apply-model-week-dialog'
-import WeeklyTimeline from '@/components/features/classes/calendar/weekly-timeline'
-import ClassList from '@/components/features/classes/class-list'
-import BatchList from '@/components/features/classes/batch-list'
+} from "@/components/features/classes/calendar/model-week-timeline";
+import ModelWeekSlotDialog from "@/components/features/classes/dialogs/model-week-slot-dialog";
+import ApplyModelWeekDialog from "@/components/features/classes/dialogs/apply-model-week-dialog";
+import WeeklyTimeline from "@/components/features/classes/calendar/weekly-timeline";
+import ClassList from "@/components/features/classes/class-list";
 import {
   Plus,
   Calendar,
@@ -51,56 +53,76 @@ import {
   Users,
   Layers3,
   MoreVertical,
-} from 'lucide-react'
-import { startOfWeek, endOfWeek, addDays, format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { type Doc, type Id } from '@/convex/_generated/dataModel'
-import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+  CheckSquare,
+  X,
+} from "lucide-react";
+import { startOfWeek, endOfWeek, addDays, format, isSameDay } from "date-fns";
+import { es } from "date-fns/locale";
+import { type Doc, type Id } from "@/convex/_generated/dataModel";
+import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 export default function ClassesPage() {
-  const canQueryOrgData = useCanQueryCurrentOrganization()
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const canQueryOrgData = useCanQueryCurrentOrganization();
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedView, setSelectedView] = useState<
-    'calendar' | 'list' | 'batches' | 'model'
-  >('calendar')
-  const [classFormOpen, setClassFormOpen] = useState(false)
+    "calendar" | "list" | "model"
+  >("calendar");
+  const [classFormOpen, setClassFormOpen] = useState(false);
   const [editingClassId, setEditingClassId] = useState<
-    Id<'classes'> | undefined
-  >()
-  const [scheduleDetailOpen, setScheduleDetailOpen] = useState(false)
+    Id<"classes"> | undefined
+  >();
+  const [scheduleDetailOpen, setScheduleDetailOpen] = useState(false);
   const [selectedScheduleId, setSelectedScheduleId] = useState<
-    Id<'classSchedules'> | undefined
-  >()
-  const [classFilter, setClassFilter] = useState<string>('all')
-  const [generateTurnosOpen, setGenerateTurnosOpen] = useState(false)
+    Id<"classSchedules"> | undefined
+  >();
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [generateTurnosOpen, setGenerateTurnosOpen] = useState(false);
   const [generateTurnosInitial, setGenerateTurnosInitial] = useState<{
-    id: Id<'classes'>
-    name: string
-  } | null>(null)
-  const [fixedSlotsOpen, setFixedSlotsOpen] = useState(false)
-  const [applyModelWeekOpen, setApplyModelWeekOpen] = useState(false)
-  const [modelSlotDialogOpen, setModelSlotDialogOpen] = useState(false)
+    id: Id<"classes">;
+    name: string;
+  } | null>(null);
+  const [fixedSlotsOpen, setFixedSlotsOpen] = useState(false);
+  const [applyModelWeekOpen, setApplyModelWeekOpen] = useState(false);
+  const [modelSlotDialogOpen, setModelSlotDialogOpen] = useState(false);
   const [selectedModelSlotId, setSelectedModelSlotId] = useState<
-    Id<'modelWeekSlots'> | undefined
-  >()
-  const [initialSlotDay, setInitialSlotDay] = useState<number | undefined>()
+    Id<"modelWeekSlots"> | undefined
+  >();
+  const [initialSlotDay, setInitialSlotDay] = useState<number | undefined>();
   const [initialSlotMinutes, setInitialSlotMinutes] = useState<
     number | undefined
-  >()
+  >();
+
+  // Quick create schedule (click-on-empty-cell)
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [quickCreateDate, setQuickCreateDate] = useState<Date>(new Date());
+  const [quickCreateHour, setQuickCreateHour] = useState(9);
+
+  // Bulk cancel day
+  const [bulkCancelDayOpen, setBulkCancelDayOpen] = useState(false);
+  const [bulkCancelDayDate, setBulkCancelDayDate] = useState<Date>(new Date());
+
+  // Selection mode
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [bulkAction, setBulkAction] = useState<"cancel" | "remove" | null>(
+    null,
+  );
 
   const classes = useQuery(
     api.classes.getByOrganization,
-    canQueryOrgData ? { activeOnly: false } : 'skip'
-  )
+    canQueryOrgData ? { activeOnly: false } : "skip",
+  );
 
   // Get schedules for the current week
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 })
-  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 })
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
 
-  const goToPreviousWeek = () => setCurrentDate((d) => addDays(d, -7))
-  const goToNextWeek = () => setCurrentDate((d) => addDays(d, 7))
-  const goToToday = () => setCurrentDate(new Date())
+  const goToPreviousWeek = () => setCurrentDate((d) => addDays(d, -7));
+  const goToNextWeek = () => setCurrentDate((d) => addDays(d, 7));
+  const goToToday = () => setCurrentDate(new Date());
 
   const schedules = useQuery(
     api.classSchedules.getByOrganizationAndDateRange,
@@ -109,65 +131,111 @@ export default function ClassesPage() {
           startDate: weekStart.getTime(),
           endDate: weekEnd.getTime(),
           classId:
-            classFilter === 'all' ? undefined : (classFilter as Id<'classes'>),
+            classFilter === "all" ? undefined : (classFilter as Id<"classes">),
         }
-      : 'skip'
-  )
+      : "skip",
+  );
 
   const modelWeekSlots = useQuery(
     api.modelWeekSlots.listByOrganization,
-    selectedView === 'model' && canQueryOrgData ? {} : 'skip'
-  )
+    selectedView === "model" && canQueryOrgData ? {} : "skip",
+  );
 
   const fixedSlotsForModel = useQuery(
     api.fixedClassSlots.listByOrganizationAndClass,
-    selectedView === 'model' && canQueryOrgData ? {} : 'skip'
-  )
+    selectedView === "model" && canQueryOrgData ? {} : "skip",
+  );
 
   // Enrich schedules with class data
   const enrichedSchedules = useMemo(() => {
-    if (!schedules || !classes) return []
+    if (!schedules || !classes) return [];
 
-    return schedules.map((schedule: Doc<'classSchedules'>) => ({
+    return schedules.map((schedule: Doc<"classSchedules">) => ({
       ...schedule,
-      class: classes.find((c: Doc<'classes'>) => c._id === schedule.classId),
-    }))
-  }, [schedules, classes])
+      class: classes.find((c: Doc<"classes">) => c._id === schedule.classId),
+    }));
+  }, [schedules, classes]);
 
   const handleNewClass = () => {
-    setEditingClassId(undefined)
-    setClassFormOpen(true)
-  }
+    setEditingClassId(undefined);
+    setClassFormOpen(true);
+  };
 
-  const handleEditClass = (classId: Id<'classes'>) => {
-    setEditingClassId(classId)
-    setClassFormOpen(true)
-  }
+  const handleEditClass = (classId: Id<"classes">) => {
+    setEditingClassId(classId);
+    setClassFormOpen(true);
+  };
 
-  const handleScheduleClick = (scheduleId: Id<'classSchedules'>) => {
-    setSelectedScheduleId(scheduleId)
-    setScheduleDetailOpen(true)
-  }
+  const handleScheduleClick = (scheduleId: Id<"classSchedules">) => {
+    setSelectedScheduleId(scheduleId);
+    setScheduleDetailOpen(true);
+  };
 
   const handleClassFormClose = () => {
-    setClassFormOpen(false)
-    setEditingClassId(undefined)
-  }
+    setClassFormOpen(false);
+    setEditingClassId(undefined);
+  };
 
   const handleScheduleDetailClose = () => {
-    setScheduleDetailOpen(false)
-    setSelectedScheduleId(undefined)
-  }
+    setScheduleDetailOpen(false);
+    setSelectedScheduleId(undefined);
+  };
 
   const handleOpenGenerateTurnos = (classItem?: {
-    _id: Id<'classes'>
-    name: string
+    _id: Id<"classes">;
+    name: string;
   }) => {
     setGenerateTurnosInitial(
-      classItem ? { id: classItem._id, name: classItem.name } : null
-    )
-    setGenerateTurnosOpen(true)
-  }
+      classItem ? { id: classItem._id, name: classItem.name } : null,
+    );
+    setGenerateTurnosOpen(true);
+  };
+
+  // Click-to-create on empty calendar cell
+  const handleEmptyCellClick = (dayDate: Date, hour: number) => {
+    setQuickCreateDate(dayDate);
+    setQuickCreateHour(hour);
+    setQuickCreateOpen(true);
+  };
+
+  // Day header action → bulk cancel/delete day
+  const handleDayHeaderAction = (dayDate: Date) => {
+    setBulkCancelDayDate(dayDate);
+    setBulkCancelDayOpen(true);
+  };
+
+  // Selection mode helpers
+  const handleSelectionChange = (
+    scheduleId: Id<"classSchedules">,
+    selected: boolean,
+  ) => {
+    setSelectedScheduleIds((prev) => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(scheduleId);
+      } else {
+        next.delete(scheduleId);
+      }
+      return next;
+    });
+  };
+
+  const handleExitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedScheduleIds(new Set());
+  };
+
+  const handleBulkActionSuccess = () => {
+    handleExitSelectionMode();
+  };
+
+  // Get schedules for the selected day (for bulk-cancel-day dialog)
+  const bulkCancelDaySchedules = useMemo(() => {
+    if (!bulkCancelDayOpen) return [];
+    return enrichedSchedules.filter((s) =>
+      isSameDay(new Date(s.startTime), bulkCancelDayDate),
+    );
+  }, [enrichedSchedules, bulkCancelDayDate, bulkCancelDayOpen]);
 
   return (
     <DashboardPageContainer className="space-y-4 py-4 md:space-y-6 md:py-6">
@@ -209,7 +277,7 @@ export default function ClassesPage() {
         <Tabs
           value={selectedView}
           onValueChange={(v) =>
-            setSelectedView(v as 'calendar' | 'list' | 'batches' | 'model')
+            setSelectedView(v as "calendar" | "list" | "model")
           }
         >
           <TabsList>
@@ -237,18 +305,10 @@ export default function ClassesPage() {
               <List className="h-4 w-4" />
               <span className="sr-only md:not-sr-only">Clases</span>
             </TabsTrigger>
-            <TabsTrigger
-              value="batches"
-              className="gap-0 md:gap-2"
-              aria-label="Vista lotes"
-            >
-              <Layers3 className="h-4 w-4" />
-              <span className="sr-only md:not-sr-only">Lotes</span>
-            </TabsTrigger>
           </TabsList>
         </Tabs>
 
-        {selectedView === 'calendar' && (
+        {selectedView === "calendar" && (
           <div className="flex items-center gap-2">
             <span className="hidden text-sm text-muted-foreground sm:inline">
               Filtrar por clase:
@@ -259,19 +319,34 @@ export default function ClassesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las clases</SelectItem>
-                {classes?.map((classItem: Doc<'classes'>) => (
+                {classes?.map((classItem: Doc<"classes">) => (
                   <SelectItem key={classItem._id} value={classItem._id}>
                     {classItem.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              variant={selectionMode ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                if (selectionMode) {
+                  handleExitSelectionMode();
+                } else {
+                  setSelectionMode(true);
+                }
+              }}
+              className="gap-1.5"
+            >
+              <CheckSquare className="h-4 w-4" />
+              <span className="hidden sm:inline">Seleccionar</span>
+            </Button>
           </div>
         )}
       </div>
 
       {/* Content */}
-      {selectedView === 'calendar' ? (
+      {selectedView === "calendar" ? (
         <div className="space-y-4 rounded-lg border p-3 md:p-4">
           {/* Week navigation – always visible so users can move between weeks even when empty */}
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -297,12 +372,48 @@ export default function ClassesPage() {
               </Button>
             </div>
             <h2 className="text-base font-semibold md:text-lg">
-              {format(weekStart, 'd', { locale: es })} -{' '}
+              {format(weekStart, "d", { locale: es })} -{" "}
               {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", {
                 locale: es,
               })}
             </h2>
           </div>
+
+          {/* Selection mode toolbar */}
+          {selectionMode && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/50 p-2">
+              <span className="text-sm font-medium">
+                {selectedScheduleIds.size} seleccionados
+              </span>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setBulkAction("cancel")}
+                  disabled={selectedScheduleIds.size === 0}
+                >
+                  Cancelar seleccionados
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setBulkAction("remove")}
+                  disabled={selectedScheduleIds.size === 0}
+                >
+                  Eliminar seleccionados
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExitSelectionMode}
+                  className="gap-1"
+                >
+                  <X className="h-4 w-4" />
+                  Salir
+                </Button>
+              </div>
+            </div>
+          )}
 
           {schedules === undefined ? (
             <div className="overflow-hidden rounded-lg border">
@@ -343,10 +454,15 @@ export default function ClassesPage() {
               onDateChange={setCurrentDate}
               onScheduleClick={handleScheduleClick}
               showWeekNavigation={false}
+              onEmptyCellClick={handleEmptyCellClick}
+              onDayHeaderAction={handleDayHeaderAction}
+              selectionMode={selectionMode}
+              selectedScheduleIds={selectedScheduleIds}
+              onSelectionChange={handleSelectionChange}
             />
           )}
         </div>
-      ) : selectedView === 'model' ? (
+      ) : selectedView === "model" ? (
         <div className="space-y-4 rounded-lg border p-3 md:p-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold md:text-lg">
@@ -398,21 +514,21 @@ export default function ClassesPage() {
               modelSlots={(modelWeekSlots ?? []) as ModelWeekSlotDoc[]}
               fixedSlots={fixedSlotsForModel ?? []}
               onSlotClick={(slotId) => {
-                setSelectedModelSlotId(slotId)
-                setInitialSlotDay(undefined)
-                setInitialSlotMinutes(undefined)
-                setModelSlotDialogOpen(true)
+                setSelectedModelSlotId(slotId);
+                setInitialSlotDay(undefined);
+                setInitialSlotMinutes(undefined);
+                setModelSlotDialogOpen(true);
               }}
               onEmptyCellClick={(dayOfWeek, startTimeMinutes) => {
-                setSelectedModelSlotId(undefined)
-                setInitialSlotDay(dayOfWeek)
-                setInitialSlotMinutes(startTimeMinutes)
-                setModelSlotDialogOpen(true)
+                setSelectedModelSlotId(undefined);
+                setInitialSlotDay(dayOfWeek);
+                setInitialSlotMinutes(startTimeMinutes);
+                setModelSlotDialogOpen(true);
               }}
             />
           )}
         </div>
-      ) : selectedView === 'list' ? (
+      ) : selectedView === "list" ? (
         <div className="rounded-lg border p-3 md:p-4">
           {classes === undefined ? (
             <div className="py-12 text-center">
@@ -446,11 +562,7 @@ export default function ClassesPage() {
             />
           )}
         </div>
-      ) : (
-        <div className="rounded-lg border p-3 md:p-4">
-          <BatchList />
-        </div>
-      )}
+      ) : null}
 
       {/* Dialogs */}
       <ClassFormDialog
@@ -491,11 +603,11 @@ export default function ClassesPage() {
       <ModelWeekSlotDialog
         open={modelSlotDialogOpen}
         onOpenChange={(open) => {
-          setModelSlotDialogOpen(open)
+          setModelSlotDialogOpen(open);
           if (!open) {
-            setSelectedModelSlotId(undefined)
-            setInitialSlotDay(undefined)
-            setInitialSlotMinutes(undefined)
+            setSelectedModelSlotId(undefined);
+            setInitialSlotDay(undefined);
+            setInitialSlotMinutes(undefined);
           }
         }}
         slot={
@@ -507,6 +619,36 @@ export default function ClassesPage() {
         initialStartTimeMinutes={initialSlotMinutes}
         classes={classes ?? []}
       />
+
+      <QuickCreateScheduleDialog
+        open={quickCreateOpen}
+        onOpenChange={setQuickCreateOpen}
+        initialDate={quickCreateDate}
+        initialHour={quickCreateHour}
+        classes={classes ?? []}
+      />
+
+      <BulkCancelDayDialog
+        open={bulkCancelDayOpen}
+        onOpenChange={setBulkCancelDayOpen}
+        dayDate={bulkCancelDayDate}
+        schedules={bulkCancelDaySchedules}
+      />
+
+      {bulkAction !== null && (
+        <BulkActionConfirmationDialog
+          open={bulkAction !== null}
+          onOpenChange={(open) => {
+            if (!open) setBulkAction(null);
+          }}
+          action={bulkAction}
+          scheduleIds={
+            Array.from(selectedScheduleIds) as Id<"classSchedules">[]
+          }
+          schedules={enrichedSchedules}
+          onSuccess={handleBulkActionSuccess}
+        />
+      )}
     </DashboardPageContainer>
-  )
+  );
 }

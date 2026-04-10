@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,83 +9,83 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
-} from 'react-native'
-import { PressableScale } from 'pressto'
-import DateTimePicker from '@react-native-community/datetimepicker'
-import { useRouter } from 'expo-router'
-import { useMutation, Authenticated } from 'convex/react'
-import { api } from '@repo/convex'
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
-import { format, parseISO } from 'date-fns'
+} from "react-native";
+import { PressableScale } from "pressto";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useRouter } from "expo-router";
+import { useMutation, Authenticated } from "convex/react";
+import { api } from "@repo/convex";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { format, parseISO } from "date-fns";
 
 function OnboardingContent() {
-  const router = useRouter()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
+  const router = useRouter();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
 
-  const completeOnboarding = useMutation(api.users.completeOnboarding)
+  const completeOnboarding = useMutation(api.users.completeOnboarding);
 
-  const [birthday, setBirthday] = useState('')
-  const [birthdayDate, setBirthdayDate] = useState<Date | null>(null)
-  const [showDatePicker, setShowDatePicker] = useState(false)
-  const [phone, setPhone] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [birthday, setBirthday] = useState("");
+  const [birthdayDate, setBirthdayDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  let displayBirthday = ''
+  let displayBirthday = "";
   if (birthdayDate) {
-    displayBirthday = format(birthdayDate, 'dd/MM/yyyy')
+    displayBirthday = format(birthdayDate, "dd/MM/yyyy");
   } else if (birthday) {
     try {
-      displayBirthday = format(parseISO(birthday), 'dd/MM/yyyy')
+      displayBirthday = format(parseISO(birthday), "dd/MM/yyyy");
     } catch {
-      displayBirthday = birthday
+      displayBirthday = birthday;
     }
   }
 
   const onBirthdayChange = (_event: unknown, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios')
+    setShowDatePicker(Platform.OS === "ios");
     if (selectedDate) {
-      setBirthdayDate(selectedDate)
-      setBirthday(format(selectedDate, 'yyyy-MM-dd'))
+      setBirthdayDate(selectedDate);
+      setBirthday(format(selectedDate, "yyyy-MM-dd"));
     }
-  }
+  };
 
   const handleSubmit = async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true);
+    setError("");
 
     try {
       await completeOnboarding({
         birthday: birthday || undefined,
         phone: phone || undefined,
-      })
+      });
 
-      router.replace('/onboarding-2')
+      router.replace("/onboarding-2");
     } catch (err: any) {
-      setError(err.message || 'Error al guardar la información')
+      setError(err.message || "Error al guardar la información");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSkip = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      await completeOnboarding({})
-      router.replace('/onboarding-2')
+      await completeOnboarding({});
+      router.replace("/onboarding-2");
     } catch (err: any) {
-      setError(err.message || 'Error al omitir')
+      setError(err.message || "Error al omitir");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={[styles.container, { backgroundColor: isDark ? "#000" : "#fff" }]}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -93,16 +93,16 @@ function OnboardingContent() {
       >
         <View style={styles.content}>
           <Image
-            source={require('@/assets/images/mat-wolf-notes.png')}
+            source={require("@/assets/images/mat-wolf-notes.png")}
             style={styles.logo}
             resizeMode="contain"
             accessibilityLabel="Mat wolf mascot"
           />
-          <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
+          <Text style={[styles.title, { color: isDark ? "#fff" : "#000" }]}>
             Completa tu perfil
           </Text>
           <Text
-            style={[styles.subtitle, { color: isDark ? '#a1a1aa' : '#71717a' }]}
+            style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}
           >
             Ayúdanos a personalizar tu experiencia
           </Text>
@@ -115,7 +115,7 @@ function OnboardingContent() {
 
           <View style={styles.form}>
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
+              <Text style={[styles.label, { color: isDark ? "#fff" : "#000" }]}>
                 Fecha de nacimiento (opcional)
               </Text>
               <PressableScale
@@ -123,8 +123,8 @@ function OnboardingContent() {
                   styles.input,
                   styles.dateInput,
                   {
-                    backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                    borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                    borderColor: isDark ? "#27272a" : "#e4e4e7",
                   },
                 ]}
                 onPress={() => !loading && setShowDatePicker(true)}
@@ -136,32 +136,32 @@ function OnboardingContent() {
                     {
                       color: displayBirthday
                         ? isDark
-                          ? '#fff'
-                          : '#000'
+                          ? "#fff"
+                          : "#000"
                         : isDark
-                          ? '#71717a'
-                          : '#a1a1aa',
+                          ? "#71717a"
+                          : "#a1a1aa",
                     },
                   ]}
                 >
-                  {displayBirthday || 'DD/MM/AAAA'}
+                  {displayBirthday || "DD/MM/AAAA"}
                 </Text>
               </PressableScale>
               {showDatePicker && (
                 <DateTimePicker
                   value={birthdayDate ?? new Date(2000, 0, 1)}
                   mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
                   onChange={onBirthdayChange}
                   maximumDate={new Date()}
                   minimumDate={new Date(1900, 0, 1)}
                   locale="es-ES"
                   style={
-                    Platform.OS === 'android' ? styles.androidPicker : undefined
+                    Platform.OS === "android" ? styles.androidPicker : undefined
                   }
                 />
               )}
-              {Platform.OS === 'ios' && showDatePicker && (
+              {Platform.OS === "ios" && showDatePicker && (
                 <ThemedPressable
                   onPress={() => setShowDatePicker(false)}
                   style={styles.datePickerDone}
@@ -169,7 +169,7 @@ function OnboardingContent() {
                   <Text
                     style={[
                       styles.datePickerDoneText,
-                      { color: isDark ? '#fff' : '#000' },
+                      { color: isDark ? "#fff" : "#000" },
                     ]}
                   >
                     Listo
@@ -179,20 +179,20 @@ function OnboardingContent() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: isDark ? '#fff' : '#000' }]}>
+              <Text style={[styles.label, { color: isDark ? "#fff" : "#000" }]}>
                 Teléfono (opcional)
               </Text>
               <TextInput
                 style={[
                   styles.input,
                   {
-                    backgroundColor: isDark ? '#18181b' : '#f4f4f5',
-                    color: isDark ? '#fff' : '#000',
-                    borderColor: isDark ? '#27272a' : '#e4e4e7',
+                    backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                    color: isDark ? "#fff" : "#000",
+                    borderColor: isDark ? "#27272a" : "#e4e4e7",
                   },
                 ]}
                 placeholder="+54 11 1234-5678"
-                placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
                 value={phone}
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
@@ -209,12 +209,12 @@ function OnboardingContent() {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={isDark ? '#000' : '#fff'} />
+                <ActivityIndicator color={isDark ? "#000" : "#fff"} />
               ) : (
                 <Text
                   style={[
                     styles.buttonText,
-                    { color: isDark ? '#000' : '#fff' },
+                    { color: isDark ? "#000" : "#fff" },
                   ]}
                 >
                   Continuar
@@ -230,7 +230,7 @@ function OnboardingContent() {
               <Text
                 style={[
                   styles.skipText,
-                  { color: isDark ? '#a1a1aa' : '#71717a' },
+                  { color: isDark ? "#a1a1aa" : "#71717a" },
                 ]}
               >
                 Omitir por ahora
@@ -240,7 +240,7 @@ function OnboardingContent() {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
-  )
+  );
 }
 
 export default function OnboardingScreen() {
@@ -248,7 +248,7 @@ export default function OnboardingScreen() {
     <Authenticated>
       <OnboardingContent />
     </Authenticated>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -260,19 +260,19 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 24,
     paddingVertical: 48,
   },
   logo: {
     width: 220,
     height: 220,
-    alignSelf: 'center',
+    alignSelf: "center",
     marginBottom: 24,
   },
   title: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
   },
   subtitle: {
@@ -280,13 +280,13 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   errorContainer: {
-    backgroundColor: '#262626',
+    backgroundColor: "#262626",
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
   errorText: {
-    color: '#fafafa',
+    color: "#fafafa",
     fontSize: 14,
   },
   form: {
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   input: {
     height: 48,
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   dateInput: {
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   dateInputText: {
     fontSize: 16,
@@ -320,13 +320,13 @@ const styles = StyleSheet.create({
   },
   datePickerDoneText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   button: {
     height: 48,
     borderRadius: 9999,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 8,
   },
   buttonDisabled: {
@@ -334,14 +334,14 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   skipButton: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 12,
   },
   skipText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
-})
+});

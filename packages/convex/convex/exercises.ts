@@ -1,11 +1,11 @@
-import { mutation, query } from './_generated/server'
-import { v } from 'convex/values'
+import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
 import {
   requireAuth,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
   requireOrganizationMembership,
-} from './permissions'
+} from "./permissions";
 
 /**
  * Create a new exercise
@@ -20,15 +20,15 @@ export const create = mutation({
     videoUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx)
+    const identity = await requireAuth(ctx);
 
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
-    await requireAdminOrTrainer(ctx, membership.organizationId)
+    await requireAdminOrTrainer(ctx, membership.organizationId);
 
-    const now = Date.now()
+    const now = Date.now();
 
-    return await ctx.db.insert('exercises', {
+    return await ctx.db.insert("exercises", {
       organizationId: membership.organizationId,
       name: args.name,
       description: args.description,
@@ -40,16 +40,16 @@ export const create = mutation({
       createdBy: identity.subject,
       createdAt: now,
       updatedAt: now,
-    })
+    });
   },
-})
+});
 
 /**
  * Update an exercise
  */
 export const update = mutation({
   args: {
-    id: v.id('exercises'),
+    id: v.id("exercises"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     category: v.optional(v.string()),
@@ -58,64 +58,64 @@ export const update = mutation({
     videoUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const exercise = await ctx.db.get(args.id)
+    const exercise = await ctx.db.get(args.id);
     if (!exercise) {
-      throw new Error('Exercise not found')
+      throw new Error("Exercise not found");
     }
 
     if (exercise.isStandard) {
-      throw new Error('No se puede editar un ejercicio estándar')
+      throw new Error("No se puede editar un ejercicio estándar");
     }
 
-    await requireAdminOrTrainer(ctx, exercise.organizationId)
+    await requireAdminOrTrainer(ctx, exercise.organizationId);
 
-    const { id, ...updates } = args
+    const { id, ...updates } = args;
 
     await ctx.db.patch(id, {
       ...updates,
       updatedAt: Date.now(),
-    })
+    });
   },
-})
+});
 
 /**
  * Delete an exercise
  */
 export const remove = mutation({
   args: {
-    id: v.id('exercises'),
+    id: v.id("exercises"),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
+    await requireAuth(ctx);
 
-    const exercise = await ctx.db.get(args.id)
+    const exercise = await ctx.db.get(args.id);
     if (!exercise) {
-      throw new Error('Exercise not found')
+      throw new Error("Exercise not found");
     }
 
     if (exercise.isStandard) {
-      throw new Error('No se puede eliminar un ejercicio estándar')
+      throw new Error("No se puede eliminar un ejercicio estándar");
     }
 
-    await requireAdminOrTrainer(ctx, exercise.organizationId)
+    await requireAdminOrTrainer(ctx, exercise.organizationId);
 
     // Check if exercise is used in any day exercises
     const usedInDays = await ctx.db
-      .query('dayExercises')
-      .withIndex('by_exercise', (q) => q.eq('exerciseId', args.id))
-      .first()
+      .query("dayExercises")
+      .withIndex("by_exercise", (q) => q.eq("exerciseId", args.id))
+      .first();
 
     if (usedInDays) {
       throw new Error(
-        'Cannot delete exercise: it is being used in workout planifications'
-      )
+        "Cannot delete exercise: it is being used in workout planifications",
+      );
     }
 
-    await ctx.db.delete(args.id)
+    await ctx.db.delete(args.id);
   },
-})
+});
 
 /**
  * Get all exercises for the current user's organization
@@ -123,30 +123,30 @@ export const remove = mutation({
 export const getByOrganization = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuth(ctx)
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
     const orgExercises = await ctx.db
-      .query('exercises')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', membership.organizationId)
+      .query("exercises")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
       )
-      .collect()
+      .collect();
 
     const standardExercises = await ctx.db
-      .query('exercises')
-      .filter((q) => q.eq(q.field('isStandard'), true))
-      .collect()
+      .query("exercises")
+      .filter((q) => q.eq(q.field("isStandard"), true))
+      .collect();
 
     const exercisesById = new Map(
-      [...orgExercises, ...standardExercises].map((e) => [e._id, e])
-    )
+      [...orgExercises, ...standardExercises].map((e) => [e._id, e]),
+    );
 
     return Array.from(exercisesById.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    )
+      a.name.localeCompare(b.name),
+    );
   },
-})
+});
 
 /**
  * Search exercises by name in the current user's organization
@@ -158,63 +158,63 @@ export const search = query({
     equipment: v.optional(v.union(v.string(), v.array(v.string()))),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx)
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
     const orgExercises = await ctx.db
-      .query('exercises')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', membership.organizationId)
+      .query("exercises")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
       )
-      .collect()
+      .collect();
     const standardExercises = await ctx.db
-      .query('exercises')
-      .filter((q) => q.eq(q.field('isStandard'), true))
-      .collect()
+      .query("exercises")
+      .filter((q) => q.eq(q.field("isStandard"), true))
+      .collect();
 
     const exercisesById = new Map(
-      [...orgExercises, ...standardExercises].map((e) => [e._id, e])
-    )
-    let exercises = Array.from(exercisesById.values())
+      [...orgExercises, ...standardExercises].map((e) => [e._id, e]),
+    );
+    let exercises = Array.from(exercisesById.values());
     // Filter by category if provided
     const categories = args.category
       ? Array.isArray(args.category)
-        ? args.category.filter((c) => c && c !== 'all')
-        : args.category !== 'all'
+        ? args.category.filter((c) => c && c !== "all")
+        : args.category !== "all"
           ? [args.category]
           : []
-      : []
+      : [];
     if (categories.length > 0) {
       exercises = exercises.filter((e) =>
-        e.category ? categories.includes(e.category) : false
-      )
+        e.category ? categories.includes(e.category) : false,
+      );
     }
     // Filter by equipment if provided
     const equipmentList = args.equipment
       ? Array.isArray(args.equipment)
-        ? args.equipment.filter((eq) => eq && eq !== 'all')
-        : args.equipment !== 'all'
+        ? args.equipment.filter((eq) => eq && eq !== "all")
+        : args.equipment !== "all"
           ? [args.equipment]
           : []
-      : []
+      : [];
     if (equipmentList.length > 0) {
       exercises = exercises.filter((e) =>
-        e.equipment ? equipmentList.includes(e.equipment) : false
-      )
+        e.equipment ? equipmentList.includes(e.equipment) : false,
+      );
     }
     if (args.searchTerm) {
-      const term = args.searchTerm.toLowerCase()
+      const term = args.searchTerm.toLowerCase();
 
       exercises = exercises.filter(
         (e) =>
           e.name.toLowerCase().includes(term) ||
           e.description?.toLowerCase().includes(term) ||
-          e.muscleGroups.some((m) => m.toLowerCase().includes(term))
-      )
+          e.muscleGroups.some((m) => m.toLowerCase().includes(term)),
+      );
     }
-    return exercises.sort((a, b) => a.name.localeCompare(b.name))
+    return exercises.sort((a, b) => a.name.localeCompare(b.name));
   },
-})
+});
 
 /**
  * List distinct categories and equipment for the current org (for filter badges)
@@ -222,58 +222,60 @@ export const search = query({
 export const listFacets = query({
   args: {},
   handler: async (ctx) => {
-    await requireAuth(ctx)
-    const membership = await requireCurrentOrganizationMembership(ctx)
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
     const orgExercises = await ctx.db
-      .query('exercises')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', membership.organizationId)
+      .query("exercises")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
       )
-      .collect()
+      .collect();
     const standardExercises = await ctx.db
-      .query('exercises')
-      .filter((q) => q.eq(q.field('isStandard'), true))
-      .collect()
+      .query("exercises")
+      .filter((q) => q.eq(q.field("isStandard"), true))
+      .collect();
 
     const exercisesById = new Map(
-      [...orgExercises, ...standardExercises].map((e) => [e._id, e])
-    )
-    const exercises = Array.from(exercisesById.values())
+      [...orgExercises, ...standardExercises].map((e) => [e._id, e]),
+    );
+    const exercises = Array.from(exercisesById.values());
 
     const categories = Array.from(
       new Set(
-        exercises.map((e) => e.category).filter((v): v is string => Boolean(v))
-      )
-    ).sort()
+        exercises.map((e) => e.category).filter((v): v is string => Boolean(v)),
+      ),
+    ).sort();
 
     const equipment = Array.from(
       new Set(
-        exercises.map((e) => e.equipment).filter((v): v is string => Boolean(v))
-      )
-    ).sort()
+        exercises
+          .map((e) => e.equipment)
+          .filter((v): v is string => Boolean(v)),
+      ),
+    ).sort();
 
-    return { categories, equipment }
+    return { categories, equipment };
   },
-})
+});
 
 /**
  * Get exercise by ID
  */
 export const getById = query({
   args: {
-    id: v.id('exercises'),
+    id: v.id("exercises"),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) return null
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
 
-    const exercise = await ctx.db.get(args.id)
-    if (!exercise) return null
+    const exercise = await ctx.db.get(args.id);
+    if (!exercise) return null;
 
     if (!exercise.isStandard) {
-      await requireOrganizationMembership(ctx, exercise.organizationId)
+      await requireOrganizationMembership(ctx, exercise.organizationId);
     }
-    return exercise
+    return exercise;
   },
-})
+});

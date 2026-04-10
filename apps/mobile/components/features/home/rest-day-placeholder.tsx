@@ -1,12 +1,12 @@
-import React from 'react'
-import { View, Image, StyleSheet } from 'react-native'
-import { ThemedText } from '@/components/ui/themed-text'
+import React from "react";
+import { View, Image, StyleSheet } from "react-native";
+import { ThemedText } from "@/components/ui/themed-text";
 
 export function RestDayPlaceholder() {
   return (
     <View style={[styles.container, styles.centered]}>
       <Image
-        source={require('@/assets/images/mat-wolf-sleep.png')}
+        source={require("@/assets/images/mat-wolf-sleep.png")}
         style={styles.image}
         resizeMode="contain"
         accessibilityLabel="Día de descanso"
@@ -16,7 +16,7 @@ export function RestDayPlaceholder() {
         No hay rutina programada para este día
       </ThemedText>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -25,8 +25,8 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   image: {
     width: 220,
@@ -35,13 +35,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
+    fontWeight: "600",
+    textAlign: "center",
   },
   subtext: {
     fontSize: 15,
     marginTop: 10,
     opacity: 0.8,
-    textAlign: 'center',
+    textAlign: "center",
   },
-})
+});

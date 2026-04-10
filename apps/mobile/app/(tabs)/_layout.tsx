@@ -2,25 +2,25 @@ import {
   ThemeProvider,
   DarkTheme,
   DefaultTheme,
-} from '@react-navigation/native'
+} from "@react-navigation/native";
 import {
   NativeTabs,
   Icon,
   Label,
   VectorIcon,
-} from 'expo-router/unstable-native-tabs'
-import React from 'react'
-import { Platform, useColorScheme } from 'react-native'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+} from "expo-router/unstable-native-tabs";
+import React from "react";
+import { Platform, useColorScheme } from "react-native";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
-import { Colors } from '@/constants/theme'
-import { ExerciseVideoProvider } from '@/contexts/exercise-video-context'
+import { Colors } from "@/constants/theme";
+import { ExerciseVideoProvider } from "@/contexts/exercise-video-context";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme()
-  const theme = colorScheme === 'dark' ? DarkTheme : DefaultTheme
-  const tintColor = Colors[colorScheme ?? 'light'].tint
-  const tabBarBg = Colors[colorScheme ?? 'light'].background
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const tintColor = Colors[colorScheme ?? "light"].tint;
+  const tabBarBg = Colors[colorScheme ?? "light"].background;
 
   return (
     <ThemeProvider value={theme}>
@@ -30,8 +30,8 @@ export default function TabLayout() {
           tintColor={tintColor}
           labelStyle={{ color: theme.colors.text }}
           backgroundColor={tabBarBg}
-          {...(Platform.OS === 'ios' && {
-            blurEffect: 'none' as const,
+          {...(Platform.OS === "ios" && {
+            blurEffect: "none" as const,
             disableTransparentOnScrollEdge: true,
           })}
         >
@@ -39,9 +39,7 @@ export default function TabLayout() {
             <Label>Inicio</Label>
             <Icon
               sf="house.fill"
-              androidSrc={
-                <VectorIcon family={MaterialIcons} name="home" />
-              }
+              androidSrc={<VectorIcon family={MaterialIcons} name="home" />}
             />
           </NativeTabs.Trigger>
           <NativeTabs.Trigger name="classes">
@@ -77,5 +75,5 @@ export default function TabLayout() {
         </NativeTabs>
       </ExerciseVideoProvider>
     </ThemeProvider>
-  )
+  );
 }

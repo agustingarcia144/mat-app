@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { FormEvent, useEffect, useState } from 'react'
-import { useUser } from '@clerk/nextjs'
-import { toast } from 'sonner'
+import { FormEvent, useEffect, useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -10,55 +10,55 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type Props = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
 
 type FormState = {
-  firstName: string
-  lastName: string
-  username: string
-  phone: string
-}
+  firstName: string;
+  lastName: string;
+  username: string;
+  phone: string;
+};
 
 const EMPTY_STATE: FormState = {
-  firstName: '',
-  lastName: '',
-  username: '',
-  phone: '',
-}
+  firstName: "",
+  lastName: "",
+  username: "",
+  phone: "",
+};
 
 export default function EditProfileDialog({ open, onOpenChange }: Props) {
-  const { user, isLoaded } = useUser()
-  const [form, setForm] = useState<FormState>(EMPTY_STATE)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { user, isLoaded } = useUser();
+  const [form, setForm] = useState<FormState>(EMPTY_STATE);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!open || !user) return
-    const metadata = (user.publicMetadata ?? {}) as Record<string, unknown>
+    if (!open || !user) return;
+    const metadata = (user.publicMetadata ?? {}) as Record<string, unknown>;
     setForm({
-      firstName: user.firstName ?? '',
-      lastName: user.lastName ?? '',
-      username: user.username ?? '',
-      phone: typeof metadata.phone === 'string' ? metadata.phone : '',
-    })
-  }, [open, user])
+      firstName: user.firstName ?? "",
+      lastName: user.lastName ?? "",
+      username: user.username ?? "",
+      phone: typeof metadata.phone === "string" ? metadata.phone : "",
+    });
+  }, [open, user]);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setIsSubmitting(true)
+    event.preventDefault();
+    setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/secure/profile', {
-        method: 'PATCH',
+      const response = await fetch("/api/secure/profile", {
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           firstName: form.firstName,
@@ -66,27 +66,27 @@ export default function EditProfileDialog({ open, onOpenChange }: Props) {
           username: form.username,
           phone: form.phone,
         }),
-      })
+      });
 
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as {
-          error?: string
-        } | null
-        throw new Error(body?.error || 'No se pudo actualizar el perfil')
+          error?: string;
+        } | null;
+        throw new Error(body?.error || "No se pudo actualizar el perfil");
       }
 
-      await user?.reload()
-      toast.success('Perfil actualizado')
-      onOpenChange(false)
+      await user?.reload();
+      toast.success("Perfil actualizado");
+      onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error inesperado')
+      toast.error(error instanceof Error ? error.message : "Error inesperado");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   if (!isLoaded) {
-    return null
+    return null;
   }
 
   return (
@@ -156,11 +156,11 @@ export default function EditProfileDialog({ open, onOpenChange }: Props) {
               Cancelar
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Guardando...' : 'Guardar cambios'}
+              {isSubmitting ? "Guardando..." : "Guardar cambios"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,28 +1,28 @@
-export const INVITABLE_STAFF_ROLES = ['admin', 'trainer'] as const
+export const INVITABLE_STAFF_ROLES = ["admin", "trainer"] as const;
 
-export type StaffInviteRole = (typeof INVITABLE_STAFF_ROLES)[number]
+export type StaffInviteRole = (typeof INVITABLE_STAFF_ROLES)[number];
 export type StaffInvitation = {
-  id: string
-  email: string
-  role: StaffInviteRole | string
-  roleLabel: string
-  status: string
-  createdAt: number
-  updatedAt: number
-}
+  id: string;
+  email: string;
+  role: StaffInviteRole | string;
+  roleLabel: string;
+  status: string;
+  createdAt: number;
+  updatedAt: number;
+};
 
 const STAFF_INVITE_ROLE_LABELS: Record<StaffInviteRole, string> = {
-  admin: 'Admin',
-  trainer: 'Entrenador',
-}
+  admin: "Admin",
+  trainer: "Entrenador",
+};
 
 export function isStaffInviteRole(value: unknown): value is StaffInviteRole {
   return (
-    typeof value === 'string' &&
+    typeof value === "string" &&
     INVITABLE_STAFF_ROLES.includes(value as StaffInviteRole)
-  )
+  );
 }
 
 export function getStaffInviteRoleLabel(role: StaffInviteRole | string) {
-  return STAFF_INVITE_ROLE_LABELS[role as StaffInviteRole] ?? role
+  return STAFF_INVITE_ROLE_LABELS[role as StaffInviteRole] ?? role;
 }

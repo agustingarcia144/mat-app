@@ -1,68 +1,68 @@
-'use client'
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
 import {
   getOrgRoleLabel,
   isOrgStaffRole,
   isWebStaffGuardEnabled,
-} from '@/lib/security/roles'
+} from "@/lib/security/roles";
 
 export default function SelectOrganizationPage() {
-  const router = useRouter()
+  const router = useRouter();
   const organizations = useQuery(
-    api.organizationMemberships.getMyStaffOrganizations
-  )
+    api.organizationMemberships.getMyStaffOrganizations,
+  );
   const currentMembership = useQuery(
-    api.organizationMemberships.getCurrentMembershipWithOrganization
-  )
+    api.organizationMemberships.getCurrentMembershipWithOrganization,
+  );
   const setActiveOrganization = useMutation(
-    api.organizationMemberships.setActiveOrganization
-  )
-  const [loadingOrgId, setLoadingOrgId] = useState<string | null>(null)
+    api.organizationMemberships.setActiveOrganization,
+  );
+  const [loadingOrgId, setLoadingOrgId] = useState<string | null>(null);
 
-  const memberships = useMemo(() => organizations ?? [], [organizations])
+  const memberships = useMemo(() => organizations ?? [], [organizations]);
   const isLoaded =
-    organizations !== undefined && currentMembership !== undefined
+    organizations !== undefined && currentMembership !== undefined;
 
   useEffect(() => {
-    if (!isLoaded) return
+    if (!isLoaded) return;
 
     if (!isWebStaffGuardEnabled()) {
-      router.replace('/dashboard')
-      return
+      router.replace("/dashboard");
+      return;
     }
 
     if (isOrgStaffRole(currentMembership?.role)) {
-      router.replace('/dashboard')
+      router.replace("/dashboard");
     }
-  }, [currentMembership?.role, isLoaded, router])
+  }, [currentMembership?.role, isLoaded, router]);
 
   const activateOrganization = useCallback(
     async (organizationId: string) => {
-      setLoadingOrgId(organizationId)
+      setLoadingOrgId(organizationId);
       try {
         await setActiveOrganization({
           organizationId: organizationId as never,
-        })
-        router.replace('/dashboard')
+        });
+        router.replace("/dashboard");
       } finally {
-        setLoadingOrgId(null)
+        setLoadingOrgId(null);
       }
     },
-    [router, setActiveOrganization]
-  )
+    [router, setActiveOrganization],
+  );
 
   useEffect(() => {
-    if (!isLoaded) return
+    if (!isLoaded) return;
     if (memberships.length === 1 && !currentMembership?.organization?._id) {
-      const onlyOrganizationId = memberships[0].organizationId
+      const onlyOrganizationId = memberships[0].organizationId;
       if (onlyOrganizationId) {
-        void activateOrganization(onlyOrganizationId)
+        void activateOrganization(onlyOrganizationId);
       }
     }
   }, [
@@ -70,7 +70,7 @@ export default function SelectOrganizationPage() {
     currentMembership?.organization?._id,
     isLoaded,
     memberships,
-  ])
+  ]);
 
   if (!isLoaded) {
     return (
@@ -79,7 +79,7 @@ export default function SelectOrganizationPage() {
           Cargando organizaciones...
         </p>
       </div>
-    )
+    );
   }
 
   if (memberships.length === 0) {
@@ -98,7 +98,7 @@ export default function SelectOrganizationPage() {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -111,8 +111,8 @@ export default function SelectOrganizationPage() {
 
         <div className="mt-6 grid gap-3">
           {memberships.map((membership: (typeof memberships)[number]) => {
-            const organizationId = membership.organizationId
-            const isLoading = loadingOrgId === organizationId
+            const organizationId = membership.organizationId;
+            const isLoading = loadingOrgId === organizationId;
             return (
               <Button
                 key={membership.organizationId}
@@ -128,13 +128,13 @@ export default function SelectOrganizationPage() {
                   </p>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {isLoading ? 'Entrando...' : 'Entrar'}
+                  {isLoading ? "Entrando..." : "Entrar"}
                 </span>
               </Button>
-            )
+            );
           })}
         </div>
       </div>
     </div>
-  )
+  );
 }

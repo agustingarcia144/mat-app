@@ -1,59 +1,59 @@
-import React from 'react'
+import React from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
   ScrollView,
-} from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { useUser } from "@clerk/expo"
-import type { Href } from 'expo-router'
-import { useRouter } from 'expo-router'
-import { useQuery, Authenticated, AuthLoading } from 'convex/react'
-import { api } from '@repo/convex'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import { EmptyState } from '@/components/ui/empty-state'
-import { ThemedView } from '@/components/ui/themed-view'
-import { ThemedText } from '@/components/ui/themed-text'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
-import LoadingScreen from '@/components/shared/screens/loading-screen'
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useUser } from "@clerk/expo";
+import type { Href } from "expo-router";
+import { useRouter } from "expo-router";
+import { useQuery, Authenticated, AuthLoading } from "convex/react";
+import { api } from "@repo/convex";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ThemedView } from "@/components/ui/themed-view";
+import { ThemedText } from "@/components/ui/themed-text";
+import { ThemedPressable } from "@/components/ui/themed-pressable";
+import LoadingScreen from "@/components/shared/screens/loading-screen";
 
 function PlanificationsContent() {
-  const { user } = useUser()
-  const router = useRouter()
-  const insets = useSafeAreaInsets()
-  const colorScheme = useColorScheme()
-  const isDark = colorScheme === 'dark'
+  const { user } = useUser();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   const assignments = useQuery(
     api.planificationAssignments.getByUser,
-    user?.id ? { userId: user.id } : 'skip'
-  )
+    user?.id ? { userId: user.id } : "skip",
+  );
 
   if (assignments === undefined) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
+        <ActivityIndicator size="large" color={isDark ? "#fff" : "#000"} />
       </ThemedView>
-    )
+    );
   }
 
-  const activeAssignments = assignments.filter((a) => a.status === 'active')
-  const otherAssignments = assignments.filter((a) => a.status !== 'active')
+  const activeAssignments = assignments.filter((a) => a.status === "active");
+  const otherAssignments = assignments.filter((a) => a.status !== "active");
 
   const renderItem = ({ item }: { item: (typeof assignments)[number] }) => {
-    const name = item.planification?.name ?? 'Planificación'
+    const name = item.planification?.name ?? "Planificación";
     const weeksCount =
-      'weeksCount' in item ? (item as { weeksCount: number }).weeksCount : 0
+      "weeksCount" in item ? (item as { weeksCount: number }).weeksCount : 0;
     const startDate = item.startDate
-      ? format(new Date(item.startDate), 'd MMM yyyy', { locale: es })
-      : null
+      ? format(new Date(item.startDate), "d MMM yyyy", { locale: es })
+      : null;
     const endDate = item.endDate
-      ? format(new Date(item.endDate), 'd MMM yyyy', { locale: es })
-      : null
+      ? format(new Date(item.endDate), "d MMM yyyy", { locale: es })
+      : null;
     const dateRange =
       startDate && endDate
         ? `${startDate} – ${endDate}`
@@ -61,21 +61,21 @@ function PlanificationsContent() {
           ? `Desde ${startDate}`
           : endDate
             ? `Hasta ${endDate}`
-            : null
-    const mutedColor = isDark ? '#a1a1aa' : '#71717a'
+            : null;
+    const mutedColor = isDark ? "#a1a1aa" : "#71717a";
 
     return (
       <ThemedPressable
         type="secondary"
         lightColor="#f4f4f5"
         darkColor="#27272a"
-        style={[styles.card, { borderColor: isDark ? '#3f3f46' : '#e4e4e7' }]}
+        style={[styles.card, { borderColor: isDark ? "#3f3f46" : "#e4e4e7" }]}
         onPress={() => router.push(`/planifications/${item._id}` as Href)}
       >
         <ThemedText style={styles.cardTitle}>{name}</ThemedText>
         <View style={styles.cardMeta}>
           <Text style={[styles.cardMetaText, { color: mutedColor }]}>
-            {weeksCount === 1 ? '1 semana' : `${weeksCount} semanas`}
+            {weeksCount === 1 ? "1 semana" : `${weeksCount} semanas`}
           </Text>
           {dateRange ? (
             <Text style={[styles.cardMetaText, { color: mutedColor }]}>
@@ -84,8 +84,8 @@ function PlanificationsContent() {
           ) : null}
         </View>
       </ThemedPressable>
-    )
-  }
+    );
+  };
 
   return (
     <ThemedView style={styles.container}>
@@ -131,7 +131,7 @@ function PlanificationsContent() {
         )}
       </ScrollView>
     </ThemedView>
-  )
+  );
 }
 
 export default function PlanificationsScreen() {
@@ -144,7 +144,7 @@ export default function PlanificationsScreen() {
         <PlanificationsContent />
       </Authenticated>
     </>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -152,8 +152,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   scroll: {
     flex: 1,
@@ -175,8 +175,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+    fontWeight: "600",
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     opacity: 0.7,
     marginBottom: 12,
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   cardMeta: {
     marginTop: 8,
@@ -204,13 +204,13 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 17,
-    fontWeight: '500',
-    textAlign: 'center',
+    fontWeight: "500",
+    textAlign: "center",
   },
   emptySubtext: {
     fontSize: 14,
     marginTop: 8,
     opacity: 0.8,
-    textAlign: 'center',
+    textAlign: "center",
   },
-})
+});

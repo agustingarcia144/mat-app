@@ -1,40 +1,40 @@
-'use client'
+"use client";
 
-import * as React from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useSignIn } from "@clerk/nextjs/legacy"
-import { toast } from 'sonner'
+import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSignIn } from "@clerk/nextjs/legacy";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
-const REDIRECT_URL_COMPLETE = '/select-organization'
+const REDIRECT_URL_COMPLETE = "/select-organization";
 
 type Props = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
 
 export function SignInDialog({ open, onOpenChange }: Props) {
-  const router = useRouter()
-  const { isLoaded, signIn, setActive } = useSignIn()
-  const [email, setEmail] = React.useState('')
-  const [password, setPassword] = React.useState('')
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isOAuthLoading, setIsOAuthLoading] = React.useState(false)
+  const router = useRouter();
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isOAuthLoading, setIsOAuthLoading] = React.useState(false);
 
   const signInWith = React.useCallback(
-    (strategy: 'oauth_google') => {
-      if (!signIn || !isLoaded) return
-      setIsOAuthLoading(true)
+    (strategy: "oauth_google") => {
+      if (!signIn || !isLoaded) return;
+      setIsOAuthLoading(true);
       signIn
         .authenticateWithRedirect({
           strategy,
@@ -42,49 +42,49 @@ export function SignInDialog({ open, onOpenChange }: Props) {
           redirectUrlComplete: REDIRECT_URL_COMPLETE,
         })
         .catch((err) => {
-          setIsOAuthLoading(false)
+          setIsOAuthLoading(false);
           toast.error(
-            err?.errors?.[0]?.longMessage ?? 'Error al iniciar sesión'
-          )
-        })
+            err?.errors?.[0]?.longMessage ?? "Error al iniciar sesión",
+          );
+        });
     },
-    [signIn, isLoaded]
-  )
+    [signIn, isLoaded],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!isLoaded || !signIn) return
-    setIsSubmitting(true)
+    e.preventDefault();
+    if (!isLoaded || !signIn) return;
+    setIsSubmitting(true);
     try {
       const attempt = await signIn.create({
         identifier: email,
         password,
-      })
-      if (attempt.status === 'complete') {
+      });
+      if (attempt.status === "complete") {
         await setActive({
           session: attempt.createdSessionId,
           navigate: () => router.push(REDIRECT_URL_COMPLETE),
-        })
-        onOpenChange(false)
-        setEmail('')
-        setPassword('')
-      } else if (attempt.status === 'needs_second_factor') {
-        toast.info('Verificación en dos pasos habilitada. Completá el flujo.')
-        onOpenChange(false)
+        });
+        onOpenChange(false);
+        setEmail("");
+        setPassword("");
+      } else if (attempt.status === "needs_second_factor") {
+        toast.info("Verificación en dos pasos habilitada. Completá el flujo.");
+        onOpenChange(false);
       } else {
-        toast.error('Completá los pasos requeridos para iniciar sesión.')
+        toast.error("Completá los pasos requeridos para iniciar sesión.");
       }
     } catch (err: unknown) {
       const msg =
-        err && typeof err === 'object' && 'errors' in err
+        err && typeof err === "object" && "errors" in err
           ? (err as { errors?: Array<{ longMessage?: string }> }).errors?.[0]
               ?.longMessage
-          : null
-      toast.error(msg ?? 'Error al iniciar sesión')
+          : null;
+      toast.error(msg ?? "Error al iniciar sesión");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -101,7 +101,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signInWith('oauth_google')}
+            onClick={() => signInWith("oauth_google")}
             disabled={!isLoaded || isOAuthLoading}
           >
             <svg className="size-4" viewBox="0 0 24 24" aria-hidden>
@@ -122,7 +122,7 @@ export function SignInDialog({ open, onOpenChange }: Props) {
                 fill="#EA4335"
               />
             </svg>
-            {isOAuthLoading ? 'Conectando…' : 'Continuar con Google'}
+            {isOAuthLoading ? "Conectando…" : "Continuar con Google"}
           </Button>
 
           <div className="relative">
@@ -162,12 +162,12 @@ export function SignInDialog({ open, onOpenChange }: Props) {
               />
             </div>
             <Button type="submit" disabled={!isLoaded || isSubmitting}>
-              {isSubmitting ? 'Entrando…' : 'Continuar'}
+              {isSubmitting ? "Entrando…" : "Continuar"}
             </Button>
           </form>
 
           <p className="text-center text-sm text-muted-foreground">
-            ¿No tenés cuenta?{' '}
+            ¿No tenés cuenta?{" "}
             <Link
               href="/sign-up"
               className="font-medium text-primary underline-offset-4 hover:underline"
@@ -179,5 +179,5 @@ export function SignInDialog({ open, onOpenChange }: Props) {
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,16 +1,16 @@
-import { auth } from '@clerk/nextjs/server'
-import { redirect } from 'next/navigation'
-import DashboardProviders from '@/components/providers/dashboard-providers'
-import HeaderSection from '@/components/features/dashboard/header/header-section'
-import { AppSidebar } from '@/components/features/dashboard/sidebar/app-sidebar'
-import DashboardPermissionGuard from '@/components/features/dashboard/dashboard-permission-guard'
-import { SidebarInset } from '@/components/ui/sidebar'
-import { Toaster } from '@/components/ui/sonner'
-import { UnsavedChangesProvider } from '@/contexts/unsaved-changes-context'
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import DashboardProviders from "@/components/providers/dashboard-providers";
+import HeaderSection from "@/components/features/dashboard/header/header-section";
+import { AppSidebar } from "@/components/features/dashboard/sidebar/app-sidebar";
+import DashboardPermissionGuard from "@/components/features/dashboard/dashboard-permission-guard";
+import { SidebarInset } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/sonner";
+import { UnsavedChangesProvider } from "@/contexts/unsaved-changes-context";
 
 async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { userId } = await auth()
-  if (!userId) redirect('/sign-in')
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
 
   return (
     <DashboardProviders>
@@ -27,7 +27,7 @@ async function DashboardLayout({ children }: { children: React.ReactNode }) {
         <Toaster />
       </UnsavedChangesProvider>
     </DashboardProviders>
-  )
+  );
 }
 
-export default DashboardLayout
+export default DashboardLayout;

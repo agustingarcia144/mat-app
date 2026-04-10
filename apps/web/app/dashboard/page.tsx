@@ -1,30 +1,31 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import Image from 'next/image'
-import { type Id } from '@/convex/_generated/dataModel'
-import wolfiBg from '../../assets/mat-wolf-looking.png'
+import { useState } from "react";
+import Image from "next/image";
+import { type Id } from "@/convex/_generated/dataModel";
+import wolfiBg from "../../assets/mat-wolf-looking.png";
 
-import ActiveMembers from '../../components/features/dashboard/ActiveMembers'
-import PlanificationStatus from '@/components/features/dashboard/PlanificationStatus'
-import NextClassCard from '@/components/features/dashboard/NextClassCard'
-import PaymentsOverview from '@/components/features/dashboard/PaymentsOverview'
-import ScheduleDetailDialog from '@/components/features/classes/dialogs/schedule-detail-dialog'
+import ActiveMembers from "../../components/features/dashboard/ActiveMembers";
+import PlanificationStatus from "@/components/features/dashboard/PlanificationStatus";
+import NextClassCard from "@/components/features/dashboard/NextClassCard";
+import PaymentsOverview from "@/components/features/dashboard/PaymentsOverview";
+import ScheduleDetailDialog from "@/components/features/classes/dialogs/schedule-detail-dialog";
 
 export default function Page() {
-  const [scheduleDetailOpen, setScheduleDetailOpen] = useState(false)
-  const [selectedScheduleId, setSelectedScheduleId] =
-    useState<Id<'classSchedules'> | undefined>()
+  const [scheduleDetailOpen, setScheduleDetailOpen] = useState(false);
+  const [selectedScheduleId, setSelectedScheduleId] = useState<
+    Id<"classSchedules"> | undefined
+  >();
 
-  const handleOpenScheduleDetail = (id: Id<'classSchedules'>) => {
-    setSelectedScheduleId(id)
-    setScheduleDetailOpen(true)
-  }
+  const handleOpenScheduleDetail = (id: Id<"classSchedules">) => {
+    setSelectedScheduleId(id);
+    setScheduleDetailOpen(true);
+  };
 
   const handleClose = () => {
-    setScheduleDetailOpen(false)
-    setSelectedScheduleId(undefined)
-  }
+    setScheduleDetailOpen(false);
+    setSelectedScheduleId(undefined);
+  };
 
   return (
     <div className="relative mx-auto w-full max-w-[1400px] space-y-4 p-4 md:space-y-6 md:p-6">
@@ -66,5 +67,5 @@ export default function Page() {
         />
       )}
     </div>
-  )
+  );
 }

@@ -1,25 +1,25 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useMemo } from 'react'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { type Id } from '@/convex/_generated/dataModel'
-import { Button } from '@/components/ui/button'
+import { useState, useEffect, useMemo } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { type Id } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+} from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 import {
   Command,
   CommandEmpty,
@@ -27,26 +27,22 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
+} from "@/components/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/ui/popover'
-import {
-  Field,
-  FieldLabel,
-  FieldDescription,
-} from '@/components/ui/field'
-import { Check, ChevronsUpDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+} from "@/components/ui/popover";
+import { Field, FieldLabel, FieldDescription } from "@/components/ui/field";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 interface AssignPlanDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onSuccess?: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
 }
 
 export default function AssignPlanDialog({
@@ -54,116 +50,118 @@ export default function AssignPlanDialog({
   onOpenChange,
   onSuccess,
 }: AssignPlanDialogProps) {
-  const canQuery = useCanQueryCurrentOrganization()
+  const canQuery = useCanQueryCurrentOrganization();
 
   const members = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    open && canQuery ? {} : 'skip'
-  )
+    open && canQuery ? {} : "skip",
+  );
   const subscriptions = useQuery(
     api.memberPlanSubscriptions.getByOrganization,
-    open && canQuery ? {} : 'skip'
-  )
+    open && canQuery ? {} : "skip",
+  );
   const plans = useQuery(
     api.membershipPlans.getByOrganization,
-    open && canQuery ? { activeOnly: true } : 'skip'
-  )
+    open && canQuery ? { activeOnly: true } : "skip",
+  );
 
-  const assignPlan = useMutation(api.memberPlanSubscriptions.assignToMember)
-  const cancelSubscription = useMutation(api.memberPlanSubscriptions.cancel)
+  const assignPlan = useMutation(api.memberPlanSubscriptions.assignToMember);
+  const cancelSubscription = useMutation(api.memberPlanSubscriptions.cancel);
 
   // Assign state
-  const [assignUserId, setAssignUserId] = useState('')
-  const [assignPlanId, setAssignPlanId] = useState('')
-  const [assignMemberOpen, setAssignMemberOpen] = useState(false)
+  const [assignUserId, setAssignUserId] = useState("");
+  const [assignPlanId, setAssignPlanId] = useState("");
+  const [assignMemberOpen, setAssignMemberOpen] = useState(false);
 
   // Unassign state
-  const [unassignSubscriptionId, setUnassignSubscriptionId] = useState('')
-  const [unassignMemberOpen, setUnassignMemberOpen] = useState(false)
+  const [unassignSubscriptionId, setUnassignSubscriptionId] = useState("");
+  const [unassignMemberOpen, setUnassignMemberOpen] = useState(false);
 
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Members without an active/suspended subscription (for assign)
   const membersWithoutPlan = useMemo(() => {
-    if (!members || !subscriptions) return []
+    if (!members || !subscriptions) return [];
     const subscribedUserIds = new Set(
       subscriptions
-        .filter((s) => s.status === 'active' || s.status === 'suspended')
-        .map((s) => s.userId)
-    )
+        .filter((s) => s.status === "active" || s.status === "suspended")
+        .map((s) => s.userId),
+    );
     return members.filter(
-      (m) => m.role === 'member' && !subscribedUserIds.has(m.userId)
-    )
-  }, [members, subscriptions])
+      (m) => m.role === "member" && !subscribedUserIds.has(m.userId),
+    );
+  }, [members, subscriptions]);
 
   // Active/suspended subscriptions (for unassign), with member display name
   const subscriptionsWithPlan = useMemo(() => {
-    if (!subscriptions) return []
+    if (!subscriptions) return [];
     return subscriptions
-      .filter((s) => s.status === 'active' || s.status === 'suspended')
+      .filter((s) => s.status === "active" || s.status === "suspended")
       .map((s) => ({
         ...s,
         displayName: s.userFullName,
-      }))
-  }, [subscriptions])
+      }));
+  }, [subscriptions]);
 
   const selectedAssignMember = useMemo(
     () => membersWithoutPlan.find((m) => m.userId === assignUserId),
-    [membersWithoutPlan, assignUserId]
-  )
+    [membersWithoutPlan, assignUserId],
+  );
   const selectedAssignPlan = useMemo(
     () => plans?.find((p) => p._id === assignPlanId),
-    [plans, assignPlanId]
-  )
+    [plans, assignPlanId],
+  );
   const selectedUnassignSub = useMemo(
     () => subscriptionsWithPlan.find((s) => s._id === unassignSubscriptionId),
-    [subscriptionsWithPlan, unassignSubscriptionId]
-  )
+    [subscriptionsWithPlan, unassignSubscriptionId],
+  );
 
   // Reset form when dialog opens/closes
   useEffect(() => {
-    if (!open) return
-    setAssignUserId('')
-    setAssignPlanId('')
-    setUnassignSubscriptionId('')
-  }, [open])
+    if (!open) return;
+    setAssignUserId("");
+    setAssignPlanId("");
+    setUnassignSubscriptionId("");
+  }, [open]);
 
   const handleAssign = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!assignUserId || !assignPlanId) return
-    setIsSubmitting(true)
+    e.preventDefault();
+    if (!assignUserId || !assignPlanId) return;
+    setIsSubmitting(true);
     try {
       await assignPlan({
         userId: assignUserId,
-        planId: assignPlanId as Id<'membershipPlans'>,
-      })
-      toast.success('Plan asignado correctamente')
-      onOpenChange(false)
-      onSuccess?.()
+        planId: assignPlanId as Id<"membershipPlans">,
+      });
+      toast.success("Plan asignado correctamente");
+      onOpenChange(false);
+      onSuccess?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al asignar plan')
+      toast.error(err instanceof Error ? err.message : "Error al asignar plan");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const handleUnassign = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!unassignSubscriptionId) return
-    setIsSubmitting(true)
+    e.preventDefault();
+    if (!unassignSubscriptionId) return;
+    setIsSubmitting(true);
     try {
       await cancelSubscription({
-        subscriptionId: unassignSubscriptionId as Id<'memberPlanSubscriptions'>,
-      })
-      toast.success('Plan desasignado correctamente')
-      onOpenChange(false)
-      onSuccess?.()
+        subscriptionId: unassignSubscriptionId as Id<"memberPlanSubscriptions">,
+      });
+      toast.success("Plan desasignado correctamente");
+      onOpenChange(false);
+      onSuccess?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al desasignar plan')
+      toast.error(
+        err instanceof Error ? err.message : "Error al desasignar plan",
+      );
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -177,8 +175,12 @@ export default function AssignPlanDialog({
 
         <Tabs defaultValue="assign" className="pt-4">
           <TabsList className="w-full">
-            <TabsTrigger value="assign" className="flex-1">Asignar plan</TabsTrigger>
-            <TabsTrigger value="unassign" className="flex-1">Desasignar plan</TabsTrigger>
+            <TabsTrigger value="assign" className="flex-1">
+              Asignar plan
+            </TabsTrigger>
+            <TabsTrigger value="unassign" className="flex-1">
+              Desasignar plan
+            </TabsTrigger>
           </TabsList>
 
           {/* ── ASSIGN TAB ── */}
@@ -186,7 +188,10 @@ export default function AssignPlanDialog({
             <form onSubmit={handleAssign} className="space-y-4 pt-2">
               <Field>
                 <FieldLabel>Miembro</FieldLabel>
-                <Popover open={assignMemberOpen} onOpenChange={setAssignMemberOpen}>
+                <Popover
+                  open={assignMemberOpen}
+                  onOpenChange={setAssignMemberOpen}
+                >
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -195,15 +200,17 @@ export default function AssignPlanDialog({
                       className="w-full justify-between font-normal"
                     >
                       {selectedAssignMember
-                        ? selectedAssignMember.fullName ?? selectedAssignMember.email ?? selectedAssignMember.userId
-                        : 'Seleccionar miembro...'}
+                        ? (selectedAssignMember.fullName ??
+                          selectedAssignMember.email ??
+                          selectedAssignMember.userId)
+                        : "Seleccionar miembro..."}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent
                     className="p-0"
                     align="start"
-                    style={{ width: 'var(--radix-popover-trigger-width)' }}
+                    style={{ width: "var(--radix-popover-trigger-width)" }}
                   >
                     <Command>
                       <CommandInput placeholder="Buscar miembro..." />
@@ -213,22 +220,30 @@ export default function AssignPlanDialog({
                           {membersWithoutPlan.map((member) => (
                             <CommandItem
                               key={member.userId}
-                              value={`${member.fullName ?? ''} ${member.email ?? ''}`}
+                              value={`${member.fullName ?? ""} ${member.email ?? ""}`}
                               onSelect={() => {
-                                setAssignUserId(member.userId)
-                                setAssignMemberOpen(false)
+                                setAssignUserId(member.userId);
+                                setAssignMemberOpen(false);
                               }}
                             >
                               <Check
                                 className={cn(
-                                  'mr-2 h-4 w-4',
-                                  assignUserId === member.userId ? 'opacity-100' : 'opacity-0'
+                                  "mr-2 h-4 w-4",
+                                  assignUserId === member.userId
+                                    ? "opacity-100"
+                                    : "opacity-0",
                                 )}
                               />
                               <div className="flex flex-col">
-                                <span>{member.fullName ?? member.email ?? member.userId}</span>
+                                <span>
+                                  {member.fullName ??
+                                    member.email ??
+                                    member.userId}
+                                </span>
                                 {member.email && member.fullName && (
-                                  <span className="text-xs text-muted-foreground">{member.email}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {member.email}
+                                  </span>
                                 )}
                               </div>
                             </CommandItem>
@@ -252,7 +267,8 @@ export default function AssignPlanDialog({
                   <SelectContent>
                     {(plans ?? []).map((plan) => (
                       <SelectItem key={plan._id} value={plan._id}>
-                        {plan.name} — ${plan.priceArs.toLocaleString('es-AR')}/mes
+                        {plan.name} — ${plan.priceArs.toLocaleString("es-AR")}
+                        /mes
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -263,24 +279,34 @@ export default function AssignPlanDialog({
                 <div className="rounded-lg border bg-muted/50 p-3 text-sm space-y-1">
                   <p className="font-medium">{selectedAssignPlan.name}</p>
                   <p className="text-muted-foreground">
-                    ${selectedAssignPlan.priceArs.toLocaleString('es-AR')}/mes
-                    {' · '}
+                    ${selectedAssignPlan.priceArs.toLocaleString("es-AR")}/mes
+                    {" · "}
                     {selectedAssignPlan.weeklyClassLimit >= 9999
-                      ? 'Sin límite de clases'
+                      ? "Sin límite de clases"
                       : `${selectedAssignPlan.weeklyClassLimit} clases/semana`}
                   </p>
                   <p className="text-muted-foreground">
-                    Ventana de pago: día {selectedAssignPlan.paymentWindowStartDay} al {selectedAssignPlan.paymentWindowEndDay}
+                    Ventana de pago: día{" "}
+                    {selectedAssignPlan.paymentWindowStartDay} al{" "}
+                    {selectedAssignPlan.paymentWindowEndDay}
                   </p>
                 </div>
               )}
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSubmitting}
+                >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSubmitting || !assignUserId || !assignPlanId}>
-                  {isSubmitting ? 'Asignando...' : 'Asignar plan'}
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || !assignUserId || !assignPlanId}
+                >
+                  {isSubmitting ? "Asignando..." : "Asignar plan"}
                 </Button>
               </div>
             </form>
@@ -291,7 +317,10 @@ export default function AssignPlanDialog({
             <form onSubmit={handleUnassign} className="space-y-4 pt-2">
               <Field>
                 <FieldLabel>Miembro</FieldLabel>
-                <Popover open={unassignMemberOpen} onOpenChange={setUnassignMemberOpen}>
+                <Popover
+                  open={unassignMemberOpen}
+                  onOpenChange={setUnassignMemberOpen}
+                >
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -300,41 +329,46 @@ export default function AssignPlanDialog({
                       className="w-full justify-between font-normal"
                     >
                       {selectedUnassignSub
-                        ? `${selectedUnassignSub.displayName} — ${selectedUnassignSub.plan?.name ?? 'Plan'}`
-                        : 'Seleccionar miembro...'}
+                        ? `${selectedUnassignSub.displayName} — ${selectedUnassignSub.plan?.name ?? "Plan"}`
+                        : "Seleccionar miembro..."}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent
                     className="p-0"
                     align="start"
-                    style={{ width: 'var(--radix-popover-trigger-width)' }}
+                    style={{ width: "var(--radix-popover-trigger-width)" }}
                   >
                     <Command>
                       <CommandInput placeholder="Buscar miembro..." />
                       <CommandList>
-                        <CommandEmpty>No hay miembros con plan activo.</CommandEmpty>
+                        <CommandEmpty>
+                          No hay miembros con plan activo.
+                        </CommandEmpty>
                         <CommandGroup>
                           {subscriptionsWithPlan.map((sub) => (
                             <CommandItem
                               key={sub._id}
-                              value={`${sub.displayName} ${sub.plan?.name ?? ''}`}
+                              value={`${sub.displayName} ${sub.plan?.name ?? ""}`}
                               onSelect={() => {
-                                setUnassignSubscriptionId(sub._id)
-                                setUnassignMemberOpen(false)
+                                setUnassignSubscriptionId(sub._id);
+                                setUnassignMemberOpen(false);
                               }}
                             >
                               <Check
                                 className={cn(
-                                  'mr-2 h-4 w-4',
-                                  unassignSubscriptionId === sub._id ? 'opacity-100' : 'opacity-0'
+                                  "mr-2 h-4 w-4",
+                                  unassignSubscriptionId === sub._id
+                                    ? "opacity-100"
+                                    : "opacity-0",
                                 )}
                               />
                               <div className="flex flex-col">
                                 <span>{sub.displayName}</span>
                                 <span className="text-xs text-muted-foreground">
-                                  {sub.plan?.name ?? 'Plan'}
-                                  {sub.status === 'suspended' && ' (suspendido)'}
+                                  {sub.plan?.name ?? "Plan"}
+                                  {sub.status === "suspended" &&
+                                    " (suspendido)"}
                                 </span>
                               </div>
                             </CommandItem>
@@ -351,11 +385,16 @@ export default function AssignPlanDialog({
 
               {selectedUnassignSub && (
                 <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm space-y-1">
-                  <p className="font-medium">{selectedUnassignSub.displayName}</p>
+                  <p className="font-medium">
+                    {selectedUnassignSub.displayName}
+                  </p>
                   <p className="text-muted-foreground">
-                    {selectedUnassignSub.plan?.name ?? 'Plan desconocido'}
-                    {' · '}
-                    Estado: {selectedUnassignSub.status === 'active' ? 'activo' : 'suspendido'}
+                    {selectedUnassignSub.plan?.name ?? "Plan desconocido"}
+                    {" · "}
+                    Estado:{" "}
+                    {selectedUnassignSub.status === "active"
+                      ? "activo"
+                      : "suspendido"}
                   </p>
                   <p className="text-destructive/80 text-xs">
                     El miembro perderá acceso al plan y sus clases asociadas.
@@ -364,7 +403,12 @@ export default function AssignPlanDialog({
               )}
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSubmitting}
+                >
                   Cancelar
                 </Button>
                 <Button
@@ -372,7 +416,7 @@ export default function AssignPlanDialog({
                   variant="destructive"
                   disabled={isSubmitting || !unassignSubscriptionId}
                 >
-                  {isSubmitting ? 'Desasignando...' : 'Desasignar plan'}
+                  {isSubmitting ? "Desasignando..." : "Desasignar plan"}
                 </Button>
               </div>
             </form>
@@ -380,5 +424,5 @@ export default function AssignPlanDialog({
         </Tabs>
       </SheetContent>
     </Sheet>
-  )
+  );
 }

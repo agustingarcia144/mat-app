@@ -1,30 +1,30 @@
-'use client'
+"use client";
 
-import Image from 'next/image'
-import { useState } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { useRouter } from 'next/navigation'
-import { FileText, Calendar, GripVertical, MoreVertical } from 'lucide-react'
-import { useDraggable } from '@dnd-kit/react'
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import Image from "next/image";
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useRouter } from "next/navigation";
+import { FileText, Calendar, GripVertical, MoreVertical } from "lucide-react";
+import { useDraggable } from "@dnd-kit/react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
-import matWolfLooking from '@/assets/mat-wolf-looking.png'
+} from "@/components/ui/empty";
+import matWolfLooking from "@/assets/mat-wolf-looking.png";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -32,58 +32,59 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { formatDate } from 'date-fns'
-import DuplicatePlanificationDialog from '../dialogs/duplicate-planification-dialog'
-import DeletePlanificationDialog from '../dialogs/delete-planification-dialog'
-import AssignDialog from '../assignments/assign-dialog'
-import AssignedMembersDialog from '../assignments/assigned-members-dialog'
-import { getPlanificationDragId } from '../planification-folder-dnd'
-import type { PlanificationData } from './planification-list'
-import { cn } from '@/lib/utils'
+} from "@/components/ui/table";
+import { formatDate } from "date-fns";
+import DuplicatePlanificationDialog from "../dialogs/duplicate-planification-dialog";
+import DeletePlanificationDialog from "../dialogs/delete-planification-dialog";
+import AssignDialog from "../assignments/assign-dialog";
+import AssignedMembersDialog from "../assignments/assigned-members-dialog";
+import { getPlanificationDragId } from "../planification-folder-dnd";
+import type { PlanificationData } from "./planification-list";
+import { cn } from "@/lib/utils";
 
 interface PlanificationListTableProps {
-  planifications: PlanificationData[]
-  isLoading: boolean
-  onUseTemplate?: (template: PlanificationData) => void
+  planifications: PlanificationData[];
+  isLoading: boolean;
+  onUseTemplate?: (template: PlanificationData) => void;
 }
 
 function PlanificationTableRow({
   planification,
   onUseTemplate,
 }: {
-  planification: PlanificationData
-  onUseTemplate?: (template: PlanificationData) => void
+  planification: PlanificationData;
+  onUseTemplate?: (template: PlanificationData) => void;
 }) {
-  const router = useRouter()
-  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false)
+  const router = useRouter();
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
-    useState(false)
+    useState(false);
 
   const assignments = useQuery(
     api.planificationAssignments.getByPlanification,
     {
       planificationId: planification._id as any,
-    }
-  )
+    },
+  );
 
-  const dragId = getPlanificationDragId(planification._id)
+  const dragId = getPlanificationDragId(planification._id);
   const { ref, handleRef, isDragging } = useDraggable(
     planification.isTemplate
       ? { id: `noop-plan-${planification._id}` }
-      : { id: dragId }
-  )
+      : { id: dragId },
+  );
 
   return (
     <>
       <TableRow
-        ref={planification.isTemplate ? undefined : (ref as (el: HTMLTableRowElement | null) => void)}
-        className={cn(
-          'cursor-pointer',
-          isDragging && 'opacity-50'
-        )}
+        ref={
+          planification.isTemplate
+            ? undefined
+            : (ref as (el: HTMLTableRowElement | null) => void)
+        }
+        className={cn("cursor-pointer", isDragging && "opacity-50")}
         onClick={() =>
           router.push(`/dashboard/planifications/${planification._id}`)
         }
@@ -119,7 +120,7 @@ function PlanificationTableRow({
         <TableCell className="text-muted-foreground text-sm">
           <span className="flex items-center gap-1.5">
             <Calendar className="h-3.5 w-3.5" />
-            {formatDate(planification.createdAt, 'dd/MM/yyyy')}
+            {formatDate(planification.createdAt, "dd/MM/yyyy")}
           </span>
         </TableCell>
         <TableCell>
@@ -131,7 +132,10 @@ function PlanificationTableRow({
             <span className="text-muted-foreground text-sm">—</span>
           )}
         </TableCell>
-        <TableCell className="w-[50px] pr-2" onClick={(e) => e.stopPropagation()}>
+        <TableCell
+          className="w-[50px] pr-2"
+          onClick={(e) => e.stopPropagation()}
+        >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -141,32 +145,32 @@ function PlanificationTableRow({
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 onClick={(e) => {
-                  e.stopPropagation()
-                  router.push(`/dashboard/planifications/${planification._id}`)
+                  e.stopPropagation();
+                  router.push(`/dashboard/planifications/${planification._id}`);
                 }}
               >
                 Ver
               </DropdownMenuItem>
-            {!planification.isTemplate && (
-              <>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setAssignedMembersDialogOpen(true)
-                  }}
-                >
-                  Ver Asignados
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setAssignDialogOpen(true)
-                  }}
-                >
-                  Asignar
-                </DropdownMenuItem>
-              </>
-            )}
+              {!planification.isTemplate && (
+                <>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAssignedMembersDialogOpen(true);
+                    }}
+                  >
+                    Ver Asignados
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAssignDialogOpen(true);
+                    }}
+                  >
+                    Asignar
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuItem asChild>
                 <Link
                   href={`/dashboard/planifications/${planification._id}/edit`}
@@ -177,8 +181,8 @@ function PlanificationTableRow({
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={(e) => {
-                  e.stopPropagation()
-                  setDuplicateDialogOpen(true)
+                  e.stopPropagation();
+                  setDuplicateDialogOpen(true);
                 }}
               >
                 Duplicar
@@ -186,8 +190,8 @@ function PlanificationTableRow({
               {planification.isTemplate && onUseTemplate && (
                 <DropdownMenuItem
                   onClick={(e) => {
-                    e.stopPropagation()
-                    onUseTemplate(planification)
+                    e.stopPropagation();
+                    onUseTemplate(planification);
                   }}
                 >
                   Usar Plantilla
@@ -195,8 +199,8 @@ function PlanificationTableRow({
               )}
               <DropdownMenuItem
                 onClick={(e) => {
-                  e.stopPropagation()
-                  setDeleteDialogOpen(true)
+                  e.stopPropagation();
+                  setDeleteDialogOpen(true);
                 }}
                 className="text-destructive"
               >
@@ -234,7 +238,7 @@ function PlanificationTableRow({
         </>
       )}
     </>
-  )
+  );
 }
 
 function PlanificationTableSkeleton() {
@@ -260,7 +264,7 @@ function PlanificationTableSkeleton() {
         <Skeleton className="h-8 w-8" />
       </TableCell>
     </TableRow>
-  )
+  );
 }
 
 export default function PlanificationListTable({
@@ -288,7 +292,7 @@ export default function PlanificationListTable({
           </TableBody>
         </Table>
       </div>
-    )
+    );
   }
 
   if (planifications.length === 0) {
@@ -308,7 +312,7 @@ export default function PlanificationListTable({
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
-    )
+    );
   }
 
   return (
@@ -334,5 +338,5 @@ export default function PlanificationListTable({
         </TableBody>
       </Table>
     </div>
-  )
+  );
 }

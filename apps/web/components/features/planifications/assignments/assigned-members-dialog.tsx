@@ -1,39 +1,39 @@
-'use client'
+"use client";
 
-import Image from 'next/image'
-import { useState } from 'react'
-import { useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import type { Id } from '@/convex/_generated/dataModel'
+import Image from "next/image";
+import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+} from "@/components/ui/dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { Calendar, UserMinus } from 'lucide-react'
-import matWolfLooking from '@/assets/mat-wolf-looking.png'
-import { toast } from 'sonner'
-import StatusBadge from '../../../shared/badges/status-badge'
+} from "@/components/ui/empty";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { Calendar, UserMinus } from "lucide-react";
+import matWolfLooking from "@/assets/mat-wolf-looking.png";
+import { toast } from "sonner";
+import StatusBadge from "../../../shared/badges/status-badge";
 
 interface AssignedMembersDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  assignments: any[]
-  planificationName: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  assignments: any[];
+  planificationName: string;
 }
 
 export default function AssignedMembersDialog({
@@ -42,21 +42,24 @@ export default function AssignedMembersDialog({
   assignments,
   planificationName,
 }: AssignedMembersDialogProps) {
-  const unassign = useMutation(api.planificationAssignments.unassign)
-  const [unassigningId, setUnassigningId] = useState<Id<'planificationAssignments'> | null>(null)
+  const unassign = useMutation(api.planificationAssignments.unassign);
+  const [unassigningId, setUnassigningId] =
+    useState<Id<"planificationAssignments"> | null>(null);
 
-  const handleUnassign = async (assignmentId: Id<'planificationAssignments'>) => {
-    setUnassigningId(assignmentId)
+  const handleUnassign = async (
+    assignmentId: Id<"planificationAssignments">,
+  ) => {
+    setUnassigningId(assignmentId);
     try {
-      await unassign({ id: assignmentId })
-      toast.success('Miembro desasignado')
+      await unassign({ id: assignmentId });
+      toast.success("Miembro desasignado");
     } catch (error) {
-      console.error('Failed to unassign:', error)
-      toast.error('Error al desasignar')
+      console.error("Failed to unassign:", error);
+      toast.error("Error al desasignar");
     } finally {
-      setUnassigningId(null)
+      setUnassigningId(null);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -89,17 +92,17 @@ export default function AssignedMembersDialog({
           ) : (
             <div className="space-y-3">
               {assignments.map((assignment) => {
-                const user = assignment.user
+                const user = assignment.user;
                 const initials = user?.fullName
                   ? user.fullName
-                      .split(' ')
+                      .split(" ")
                       .map((n: string) => n[0])
-                      .join('')
+                      .join("")
                       .toUpperCase()
                       .slice(0, 2)
                   : user?.email
                     ? user.email[0].toUpperCase()
-                    : '?'
+                    : "?";
 
                 return (
                   <div
@@ -110,7 +113,7 @@ export default function AssignedMembersDialog({
                       {user?.imageUrl && (
                         <AvatarImage
                           src={user.imageUrl}
-                          alt={user.fullName || user.email || 'User'}
+                          alt={user.fullName || user.email || "User"}
                         />
                       )}
                       <AvatarFallback>{initials}</AvatarFallback>
@@ -119,7 +122,7 @@ export default function AssignedMembersDialog({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <p className="font-medium truncate">
-                          {user?.fullName || 'Sin nombre'}
+                          {user?.fullName || "Sin nombre"}
                         </p>
                         <StatusBadge status={assignment.status} />
                       </div>
@@ -134,11 +137,11 @@ export default function AssignedMembersDialog({
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               <span>
-                                Inicio:{' '}
+                                Inicio:{" "}
                                 {format(
                                   new Date(assignment.startDate),
-                                  'dd MMM yyyy',
-                                  { locale: es }
+                                  "dd MMM yyyy",
+                                  { locale: es },
                                 )}
                               </span>
                             </div>
@@ -147,11 +150,11 @@ export default function AssignedMembersDialog({
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               <span>
-                                Fin:{' '}
+                                Fin:{" "}
                                 {format(
                                   new Date(assignment.endDate),
-                                  'dd MMM yyyy',
-                                  { locale: es }
+                                  "dd MMM yyyy",
+                                  { locale: es },
                                 )}
                               </span>
                             </div>
@@ -172,15 +175,17 @@ export default function AssignedMembersDialog({
                       disabled={unassigningId === assignment._id}
                     >
                       <UserMinus className="h-4 w-4 mr-1.5" />
-                      {unassigningId === assignment._id ? 'Desasignando...' : 'Desasignar'}
+                      {unassigningId === assignment._id
+                        ? "Desasignando..."
+                        : "Desasignar"}
                     </Button>
                   </div>
-                )
+                );
               })}
             </div>
           )}
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

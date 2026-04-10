@@ -1,19 +1,19 @@
-'use client'
+"use client";
 
-import { use, useCallback, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
-import { ArrowLeft, BookOpen, CalendarDays, Plus } from 'lucide-react'
-import { DragDropProvider } from '@dnd-kit/react'
-import { usePlanificationForm } from '@/contexts/planification-form-context'
+import { use, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { ResponsiveActionButton } from "@/components/ui/responsive-action-button";
+import { ArrowLeft, BookOpen, CalendarDays, Plus } from "lucide-react";
+import { DragDropProvider } from "@dnd-kit/react";
+import { usePlanificationForm } from "@/contexts/planification-form-context";
 import {
   LibraryExerciseNamesProvider,
   useLibraryExerciseNames,
-} from '@/contexts/library-exercise-names-context'
-import { useUnsavedNavigationGuard } from '@/contexts/unsaved-changes-context'
-import { useFieldArray, Controller } from 'react-hook-form'
-import { Input } from '@/components/ui/input'
+} from "@/contexts/library-exercise-names-context";
+import { useUnsavedNavigationGuard } from "@/contexts/unsaved-changes-context";
+import { useFieldArray, Controller } from "react-hook-form";
+import { Input } from "@/components/ui/input";
 import DayBlocksContent, {
   arrayMove,
   BLOCK_PREFIX,
@@ -21,33 +21,33 @@ import DayBlocksContent, {
   DROP_UNBLOCKED_ID,
   DROP_BLOCK_PREFIX,
   SIN_BLOQUE_ID,
-} from '@/components/features/planifications/form/day-blocks-content'
-import { parseLibraryExerciseDragId } from '@/components/features/planifications/exercises/library-exercise-card'
-import ExerciseSelector from '@/components/features/planifications/exercises/exercise-selector'
-import { Field, FieldError } from '@/components/ui/field'
+} from "@/components/features/planifications/form/day-blocks-content";
+import { parseLibraryExerciseDragId } from "@/components/features/planifications/exercises/library-exercise-card";
+import ExerciseSelector from "@/components/features/planifications/exercises/exercise-selector";
+import { Field, FieldError } from "@/components/ui/field";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-} from '@/components/ui/resizable'
+} from "@/components/ui/resizable";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
-} from '@/components/ui/sheet'
+} from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog'
-import { useMediaQuery } from '@/hooks/use-media-query'
-import type { PlanificationForm } from '@repo/core/schemas'
+} from "@/components/ui/dialog";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import type { PlanificationForm } from "@repo/core/schemas";
 
-const XL_BREAKPOINT = 1280
+const XL_BREAKPOINT = 1280;
 
 function DayEditDndContent({
   form,
@@ -62,55 +62,55 @@ function DayEditDndContent({
   librarySheetOpen,
   onLibrarySheetOpenChange,
 }: {
-  form: ReturnType<typeof usePlanificationForm>['form']
-  weekIndex: number
-  dayIndex: number
-  day: PlanificationForm['workoutWeeks'][0]['workoutDays'][0]
-  onAddBlock: () => void
-  onRemoveBlock: (blockIndex: number) => void
+  form: ReturnType<typeof usePlanificationForm>["form"];
+  weekIndex: number;
+  dayIndex: number;
+  day: PlanificationForm["workoutWeeks"][0]["workoutDays"][0];
+  onAddBlock: () => void;
+  onRemoveBlock: (blockIndex: number) => void;
   onAddExercise: (
     exercise: { id: string; name: string },
-    blockId?: string
-  ) => void
-  onRemoveExercise: (exerciseIndex: number) => void
-  isCompactLayout: boolean
-  librarySheetOpen: boolean
-  onLibrarySheetOpenChange: (open: boolean) => void
+    blockId?: string,
+  ) => void;
+  onRemoveExercise: (exerciseIndex: number) => void;
+  isCompactLayout: boolean;
+  librarySheetOpen: boolean;
+  onLibrarySheetOpenChange: (open: boolean) => void;
 }) {
-  const libraryNames = useLibraryExerciseNames()
-  const blocksPath = `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.blocks`
-  const exercisesPath = `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises`
+  const libraryNames = useLibraryExerciseNames();
+  const blocksPath = `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.blocks`;
+  const exercisesPath = `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises`;
 
   const handleDragEnd = useCallback(
     (event: unknown) => {
       const op = (
         event as {
-          operation?: { source?: { id?: string }; target?: { id?: string } }
+          operation?: { source?: { id?: string }; target?: { id?: string } };
         }
-      )?.operation
-      const source = op?.source
-      const target = op?.target
-      if (!source?.id || !target?.id || source.id === target.id) return
+      )?.operation;
+      const source = op?.source;
+      const target = op?.target;
+      if (!source?.id || !target?.id || source.id === target.id) return;
 
-      const sourceId = String(source.id)
-      const targetId = String(target.id)
+      const sourceId = String(source.id);
+      const targetId = String(target.id);
 
       // Drop from library onto block or unblocked
-      const libraryExerciseId = parseLibraryExerciseDragId(sourceId)
+      const libraryExerciseId = parseLibraryExerciseDragId(sourceId);
       if (libraryExerciseId != null) {
         const name =
-          libraryNames?.getName(libraryExerciseId) ?? libraryExerciseId
-        let blockId: string | undefined
-        if (targetId === DROP_UNBLOCKED_ID) blockId = undefined
+          libraryNames?.getName(libraryExerciseId) ?? libraryExerciseId;
+        let blockId: string | undefined;
+        if (targetId === DROP_UNBLOCKED_ID) blockId = undefined;
         else if (targetId.startsWith(DROP_BLOCK_PREFIX))
-          blockId = targetId.slice(DROP_BLOCK_PREFIX.length)
+          blockId = targetId.slice(DROP_BLOCK_PREFIX.length);
         else if (targetId.startsWith(BLOCK_PREFIX))
-          blockId = targetId.slice(BLOCK_PREFIX.length)
-        else blockId = undefined
+          blockId = targetId.slice(BLOCK_PREFIX.length);
+        else blockId = undefined;
         if (targetId === DROP_UNBLOCKED_ID || blockId != null) {
-          onAddExercise({ id: libraryExerciseId, name }, blockId)
+          onAddExercise({ id: libraryExerciseId, name }, blockId);
         }
-        return
+        return;
       }
 
       // Reorder blocks
@@ -120,20 +120,20 @@ function DayEditDndContent({
       ) {
         const blocks =
           (form.getValues as (path: string) => { id: string }[])(blocksPath) ??
-          []
+          [];
         const fromIndex = blocks.findIndex(
-          (b: { id: string }) => `${BLOCK_PREFIX}${b.id}` === sourceId
-        )
+          (b: { id: string }) => `${BLOCK_PREFIX}${b.id}` === sourceId,
+        );
         const toIndex = blocks.findIndex(
-          (b: { id: string }) => `${BLOCK_PREFIX}${b.id}` === targetId
-        )
-        if (fromIndex === -1 || toIndex === -1) return
+          (b: { id: string }) => `${BLOCK_PREFIX}${b.id}` === targetId,
+        );
+        if (fromIndex === -1 || toIndex === -1) return;
         form.setValue(
           blocksPath as any,
           arrayMove(blocks, fromIndex, toIndex) as any,
-          { shouldDirty: true }
-        )
-        return
+          { shouldDirty: true },
+        );
+        return;
       }
 
       // Move or reorder exercise: target is another exercise (same or different block)
@@ -144,40 +144,40 @@ function DayEditDndContent({
         const exercises =
           (
             form.getValues as (path: string) => {
-              id: string
-              blockId?: string
-              blockName?: string
-              [key: string]: unknown
+              id: string;
+              blockId?: string;
+              blockName?: string;
+              [key: string]: unknown;
             }[]
-          )(exercisesPath) ?? []
+          )(exercisesPath) ?? [];
         const blocks =
           (form.getValues as (path: string) => { id: string; name: string }[])(
-            blocksPath
-          ) ?? []
-        const sourceExId = sourceId.slice(EXERCISE_PREFIX.length)
-        const targetExId = targetId.slice(EXERCISE_PREFIX.length)
-        const fromIdx = exercises.findIndex((e) => e.id === sourceExId)
-        const toIdx = exercises.findIndex((e) => e.id === targetExId)
-        if (fromIdx === -1 || toIdx === -1) return
-        const targetBlockId = exercises[toIdx]?.blockId ?? SIN_BLOQUE_ID
+            blocksPath,
+          ) ?? [];
+        const sourceExId = sourceId.slice(EXERCISE_PREFIX.length);
+        const targetExId = targetId.slice(EXERCISE_PREFIX.length);
+        const fromIdx = exercises.findIndex((e) => e.id === sourceExId);
+        const toIdx = exercises.findIndex((e) => e.id === targetExId);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const targetBlockId = exercises[toIdx]?.blockId ?? SIN_BLOQUE_ID;
         const targetBlock =
           targetBlockId === SIN_BLOQUE_ID
-            ? { id: SIN_BLOQUE_ID, name: 'Sin bloque' }
-            : blocks.find((b) => b.id === targetBlockId)
-        const targetBlockName = targetBlock?.name ?? 'Sin bloque'
+            ? { id: SIN_BLOQUE_ID, name: "Sin bloque" }
+            : blocks.find((b) => b.id === targetBlockId);
+        const targetBlockName = targetBlock?.name ?? "Sin bloque";
         const exerciseToMove = {
           ...exercises[fromIdx],
           blockId: targetBlockId,
           blockName: targetBlockName,
-        }
-        const newExercises = exercises.filter((e) => e.id !== sourceExId)
-        const newToIdx = newExercises.findIndex((e) => e.id === targetExId)
-        if (newToIdx === -1) return
-        newExercises.splice(newToIdx, 0, exerciseToMove)
+        };
+        const newExercises = exercises.filter((e) => e.id !== sourceExId);
+        const newToIdx = newExercises.findIndex((e) => e.id === targetExId);
+        if (newToIdx === -1) return;
+        newExercises.splice(newToIdx, 0, exerciseToMove);
         form.setValue(exercisesPath as any, newExercises as any, {
           shouldDirty: true,
-        })
-        return
+        });
+        return;
       }
 
       // Move exercise into a block drop zone (e.g. empty area of block)
@@ -188,49 +188,49 @@ function DayEditDndContent({
       ) {
         const targetBlockId = targetId.startsWith(DROP_BLOCK_PREFIX)
           ? targetId.slice(DROP_BLOCK_PREFIX.length)
-          : targetId.slice(BLOCK_PREFIX.length)
+          : targetId.slice(BLOCK_PREFIX.length);
         const exercises =
           (
             form.getValues as (path: string) => {
-              id: string
-              blockId?: string
-              blockName?: string
-              [key: string]: unknown
+              id: string;
+              blockId?: string;
+              blockName?: string;
+              [key: string]: unknown;
             }[]
-          )(exercisesPath) ?? []
+          )(exercisesPath) ?? [];
         const blocks =
           (form.getValues as (path: string) => { id: string; name: string }[])(
-            blocksPath
-          ) ?? []
-        const sourceExId = sourceId.slice(EXERCISE_PREFIX.length)
-        const fromIdx = exercises.findIndex((e) => e.id === sourceExId)
-        if (fromIdx === -1) return
+            blocksPath,
+          ) ?? [];
+        const sourceExId = sourceId.slice(EXERCISE_PREFIX.length);
+        const fromIdx = exercises.findIndex((e) => e.id === sourceExId);
+        if (fromIdx === -1) return;
         const targetBlock =
           targetBlockId === SIN_BLOQUE_ID
-            ? { id: SIN_BLOQUE_ID, name: 'Sin bloque' }
-            : blocks.find((b) => b.id === targetBlockId)
-        const targetBlockName = targetBlock?.name ?? 'Sin bloque'
+            ? { id: SIN_BLOQUE_ID, name: "Sin bloque" }
+            : blocks.find((b) => b.id === targetBlockId);
+        const targetBlockName = targetBlock?.name ?? "Sin bloque";
         const exerciseToMove = {
           ...exercises[fromIdx],
           blockId: targetBlockId,
           blockName: targetBlockName,
-        }
-        const newExercises = exercises.filter((e) => e.id !== sourceExId)
-        let insertIdx = 0
+        };
+        const newExercises = exercises.filter((e) => e.id !== sourceExId);
+        let insertIdx = 0;
         newExercises.forEach((e, i) => {
           const inBlock =
             e.blockId === targetBlockId ||
-            (targetBlockId === SIN_BLOQUE_ID && !e.blockId)
-          if (inBlock) insertIdx = i + 1
-        })
-        newExercises.splice(insertIdx, 0, exerciseToMove)
+            (targetBlockId === SIN_BLOQUE_ID && !e.blockId);
+          if (inBlock) insertIdx = i + 1;
+        });
+        newExercises.splice(insertIdx, 0, exerciseToMove);
         form.setValue(exercisesPath as any, newExercises as any, {
           shouldDirty: true,
-        })
+        });
       }
     },
-    [form, blocksPath, exercisesPath, libraryNames, onAddExercise]
-  )
+    [form, blocksPath, exercisesPath, libraryNames, onAddExercise],
+  );
 
   const contentArea = (
     <div className="space-y-6 p-6 min-w-0 flex-1 min-h-0 overflow-auto">
@@ -290,7 +290,7 @@ function DayEditDndContent({
         onRemoveExercise={onRemoveExercise}
       />
     </div>
-  )
+  );
 
   return (
     <DragDropProvider onDragEnd={handleDragEnd}>
@@ -319,7 +319,7 @@ function DayEditDndContent({
                   <ExerciseSelector
                     className="flex-1 min-h-0"
                     onSelect={(ex) => {
-                      onAddExercise(ex, undefined)
+                      onAddExercise(ex, undefined);
                     }}
                   />
                 </div>
@@ -361,49 +361,50 @@ function DayEditDndContent({
         )}
       </div>
     </DragDropProvider>
-  )
+  );
 }
 
 export function DayEditPageContent({
   weekIndex,
   dayIndex,
 }: {
-  weekIndex: number
-  dayIndex: number
+  weekIndex: number;
+  dayIndex: number;
 }) {
-  const router = useRouter()
-  const { requestNavigation } = useUnsavedNavigationGuard()
-  const { planificationId, form, setRedirectAfterSave } = usePlanificationForm()
-  const day = form.watch(`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`)
+  const router = useRouter();
+  const { requestNavigation } = useUnsavedNavigationGuard();
+  const { planificationId, form, setRedirectAfterSave } =
+    usePlanificationForm();
+  const day = form.watch(`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`);
 
   useEffect(() => {
-    setRedirectAfterSave('edit')
+    setRedirectAfterSave("edit");
     return () => {
-      setRedirectAfterSave('view')
-    }
-  }, [setRedirectAfterSave])
+      setRedirectAfterSave("view");
+    };
+  }, [setRedirectAfterSave]);
 
   const { fields } = useFieldArray({
     control: form.control,
     name: `workoutWeeks.${weekIndex}.workoutDays`,
-  })
+  });
 
   useEffect(() => {
-    if (!day) return
-    const blocks = day.blocks ?? []
-    const hasSinBloque = blocks.some((b) => b.id === SIN_BLOQUE_ID)
+    if (!day) return;
+    const blocks = day.blocks ?? [];
+    const hasSinBloque = blocks.some((b) => b.id === SIN_BLOQUE_ID);
     if (blocks.length === 0) {
       form.setValue(
         `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.blocks`,
         [
           {
             id: SIN_BLOQUE_ID,
-            name: 'Sin bloque',
+            name: "Sin bloque",
             order: 0,
-            notes: '',
+            notes: "",
           },
-        ]
-      )
+        ],
+      );
     } else if (!hasSinBloque) {
       form.setValue(
         `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.blocks`,
@@ -411,74 +412,74 @@ export function DayEditPageContent({
           ...blocks,
           {
             id: SIN_BLOQUE_ID,
-            name: 'Sin bloque',
+            name: "Sin bloque",
             order: blocks.length,
-            notes: '',
+            notes: "",
           },
-        ]
-      )
+        ],
+      );
     }
-  }, [day?.blocks, form, weekIndex, dayIndex, day])
+  }, [day?.blocks, form, weekIndex, dayIndex, day]);
 
   const addBlockToDay = () => {
     const currentDay = form.getValues(
-      `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`
-    )
-    const currentBlocks = currentDay.blocks || []
+      `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`,
+    );
+    const currentBlocks = currentDay.blocks || [];
     const realBlocksCount = currentBlocks.filter(
-      (b) => b.id !== SIN_BLOQUE_ID
-    ).length
+      (b) => b.id !== SIN_BLOQUE_ID,
+    ).length;
     const newBlock = {
       id: `temp-block-${Date.now()}`,
       name: `Bloque ${realBlocksCount + 1}`,
       order: realBlocksCount,
-      notes: '',
-    }
-    const lastBlock = currentBlocks[currentBlocks.length - 1]
+      notes: "",
+    };
+    const lastBlock = currentBlocks[currentBlocks.length - 1];
     const newBlocks =
       lastBlock?.id === SIN_BLOQUE_ID
         ? [...currentBlocks.slice(0, -1), newBlock, lastBlock]
-        : [...currentBlocks, newBlock]
+        : [...currentBlocks, newBlock];
     form.setValue(
       `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.blocks`,
       newBlocks,
-      { shouldDirty: true }
-    )
-  }
+      { shouldDirty: true },
+    );
+  };
 
   const removeBlockFromDay = (blockIndex: number) => {
     const currentDay = form.getValues(
-      `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`
-    )
-    const block = currentDay.blocks?.[blockIndex]
-    if (!block) return
+      `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`,
+    );
+    const block = currentDay.blocks?.[blockIndex];
+    if (!block) return;
 
     const newBlocks =
-      currentDay.blocks?.filter((_, i) => i !== blockIndex) || []
+      currentDay.blocks?.filter((_, i) => i !== blockIndex) || [];
     form.setValue(
       `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.blocks`,
       newBlocks,
-      { shouldDirty: true }
-    )
+      { shouldDirty: true },
+    );
 
-    const exercises = currentDay.exercises || []
+    const exercises = currentDay.exercises || [];
     form.setValue(
       `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises`,
       exercises.map((ex) =>
         ex.blockId === block.id
           ? { ...ex, blockId: undefined, blockName: undefined }
-          : ex
+          : ex,
       ),
-      { shouldDirty: true }
-    )
-  }
+      { shouldDirty: true },
+    );
+  };
 
   const addExerciseToDay = useCallback(
     (exercise: { id: string; name: string }, blockId?: string) => {
       const currentDay = form.getValues(
-        `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`
-      )
-      const block = currentDay.blocks?.find((b) => b.id === blockId)
+        `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`,
+      );
+      const block = currentDay.blocks?.find((b) => b.id === blockId);
       form.setValue(
         `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises`,
         [
@@ -490,42 +491,42 @@ export function DayEditPageContent({
             blockId: blockId,
             blockName: block?.name,
             sets: 3,
-            reps: '10',
-            weight: '',
+            reps: "10",
+            weight: "",
             prPercentage: undefined,
             timeSeconds: undefined,
-            notes: '',
+            notes: "",
           },
         ],
-        { shouldDirty: true }
-      )
+        { shouldDirty: true },
+      );
     },
-    [form, weekIndex, dayIndex]
-  )
+    [form, weekIndex, dayIndex],
+  );
 
   const removeExercise = (exerciseIndex: number) => {
     const currentDay = form.getValues(
-      `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`
-    )
+      `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`,
+    );
     form.setValue(
       `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.exercises`,
       currentDay.exercises.filter((_, i) => i !== exerciseIndex),
-      { shouldDirty: true }
-    )
-  }
+      { shouldDirty: true },
+    );
+  };
 
-  const backHref = `/dashboard/planifications/${planificationId}/edit`
-  const isCompactLayout = !useMediaQuery(`(min-width: ${XL_BREAKPOINT}px)`)
-  const [librarySheetOpen, setLibrarySheetOpen] = useState(false)
-  const [weekDaysDialogOpen, setWeekDaysDialogOpen] = useState(false)
+  const backHref = `/dashboard/planifications/${planificationId}/edit`;
+  const isCompactLayout = !useMediaQuery(`(min-width: ${XL_BREAKPOINT}px)`);
+  const [librarySheetOpen, setLibrarySheetOpen] = useState(false);
+  const [weekDaysDialogOpen, setWeekDaysDialogOpen] = useState(false);
 
-  const week = form.watch(`workoutWeeks.${weekIndex}`)
-  const weekDays = week?.workoutDays ?? []
+  const week = form.watch(`workoutWeeks.${weekIndex}`);
+  const weekDays = week?.workoutDays ?? [];
 
   const handleBackClick = () => {
-    if (!requestNavigation(backHref)) return
-    router.push(backHref)
-  }
+    if (!requestNavigation(backHref)) return;
+    router.push(backHref);
+  };
 
   if (dayIndex < 0 || dayIndex >= fields.length) {
     return (
@@ -541,7 +542,7 @@ export function DayEditPageContent({
         </Button>
         <p className="text-destructive text-center">Día no encontrado.</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -577,7 +578,7 @@ export function DayEditPageContent({
                 Ejercicios por día
                 {week?.name && (
                   <span className="font-normal text-muted-foreground">
-                    {' '}
+                    {" "}
                     — {week.name}
                   </span>
                 )}
@@ -589,13 +590,13 @@ export function DayEditPageContent({
             </p>
             <div className="flex-1 overflow-y-auto min-h-0 space-y-4 py-2">
               {weekDays.map((d, idx) => {
-                const exercises = d?.exercises ?? []
-                const isCurrentDay = idx === dayIndex
+                const exercises = d?.exercises ?? [];
+                const isCurrentDay = idx === dayIndex;
                 return (
                   <div
                     key={d?.id ?? idx}
                     className={`rounded-lg border p-3 ${
-                      isCurrentDay ? 'border-primary bg-primary/5' : ''
+                      isCurrentDay ? "border-primary bg-primary/5" : ""
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-2">
@@ -616,13 +617,13 @@ export function DayEditPageContent({
                       <ul className="text-sm text-muted-foreground space-y-1">
                         {exercises.map((ex, exIdx) => (
                           <li key={ex?.id ?? exIdx}>
-                            • {ex?.exerciseName ?? 'Ejercicio'}
+                            • {ex?.exerciseName ?? "Ejercicio"}
                           </li>
                         ))}
                       </ul>
                     )}
                   </div>
-                )
+                );
               })}
             </div>
           </DialogContent>
@@ -648,19 +649,19 @@ export function DayEditPageContent({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default function EditDayPage({
   params,
 }: {
-  params: Promise<{ id: string; weekIndex: string; dayIndex: string }>
+  params: Promise<{ id: string; weekIndex: string; dayIndex: string }>;
 }) {
-  const { weekIndex, dayIndex } = use(params)
+  const { weekIndex, dayIndex } = use(params);
   return (
     <DayEditPageContent
       weekIndex={Number(weekIndex)}
       dayIndex={Number(dayIndex)}
     />
-  )
+  );
 }

@@ -1,13 +1,13 @@
-"use client"
-"use no memo"
+"use client";
+"use no memo";
 
-import Image from "next/image"
+import Image from "next/image";
 import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
   useReactTable,
-} from "@tanstack/react-table"
+} from "@tanstack/react-table";
 
 import {
   Empty,
@@ -15,7 +15,7 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@/components/ui/empty"
+} from "@/components/ui/empty";
 import {
   Table,
   TableBody,
@@ -23,12 +23,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import matWolfLooking from "@/assets/mat-wolf-looking.png"
+} from "@/components/ui/table";
+import matWolfLooking from "@/assets/mat-wolf-looking.png";
 
 interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[]
-  data: TData[]
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
 }
 
 export function DataTable<TData, TValue>({
@@ -41,9 +41,9 @@ export function DataTable<TData, TValue>({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-  })
+  });
 
-  const hasRows = table.getRowModel().rows?.length > 0
+  const hasRows = table.getRowModel().rows?.length > 0;
 
   return (
     <div className="overflow-hidden rounded-md border">
@@ -59,10 +59,10 @@ export function DataTable<TData, TValue>({
                         ? null
                         : flexRender(
                             header.column.columnDef.header,
-                            header.getContext()
+                            header.getContext(),
                           )}
                     </TableHead>
-                  )
+                  );
                 })}
               </TableRow>
             ))}
@@ -96,10 +96,10 @@ export function DataTable<TData, TValue>({
                             ? null
                             : flexRender(
                                 header.column.columnDef.header,
-                                header.getContext()
+                                header.getContext(),
                               )}
                         </TableHead>
-                      )
+                      );
                     })}
                   </TableRow>
                 ))}
@@ -124,5 +124,5 @@ export function DataTable<TData, TValue>({
         </>
       )}
     </div>
-  )
+  );
 }

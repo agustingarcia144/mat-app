@@ -1,35 +1,35 @@
-'use client'
+"use client";
 
-import { Card } from '@/components/ui/card'
-import type { LucideIcon } from 'lucide-react'
-import Link from 'next/link'
-import { ReactNode } from 'react'
-import { cn } from '@/lib/utils'
+import { Card } from "@/components/ui/card";
+import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 type Props = {
-  title: string
-  icon?: LucideIcon
-  iconHref?: string
+  title: string;
+  icon?: LucideIcon;
+  iconHref?: string;
 
-  variant?: 'metric' | 'list'
+  variant?: "metric" | "list";
 
-  value?: number | string
-  footer?: ReactNode
+  value?: number | string;
+  footer?: ReactNode;
 
-  children?: ReactNode
+  children?: ReactNode;
 
-  compact?: boolean
-  actionLabel?: string
-  actionHref?: string
-  actionIcon?: LucideIcon
-  className?: string
-}
+  compact?: boolean;
+  actionLabel?: string;
+  actionHref?: string;
+  actionIcon?: LucideIcon;
+  className?: string;
+};
 
 export default function StatsCard({
   title,
   icon: Icon,
   iconHref,
-  variant = 'metric',
+  variant = "metric",
   value,
   footer,
   children,
@@ -39,18 +39,19 @@ export default function StatsCard({
   actionIcon: ActionIcon,
   className,
 }: Props) {
-  const isList = variant === 'list'
+  const isList = variant === "list";
 
   return (
     <Card
       className={cn(
-        'flex min-w-0 min-h-0 flex-col overflow-hidden rounded-2xl border bg-background/60 p-4 transition hover:shadow-md',
-        !isList && 'min-h-[180px] w-full justify-between md:h-[180px] md:w-[200px]',
+        "flex min-w-0 min-h-0 flex-col overflow-hidden rounded-2xl border bg-background/60 p-4 transition hover:shadow-md",
+        !isList &&
+          "min-h-[180px] w-full justify-between md:h-[180px] md:w-[200px]",
         isList &&
           (compact
-            ? 'min-h-[180px] w-full md:h-[180px]'
-            : 'min-h-[200px] w-full md:h-[200px]'),
-        className
+            ? "min-h-[180px] w-full md:h-[180px]"
+            : "min-h-[200px] w-full md:h-[200px]"),
+        className,
       )}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -84,22 +85,18 @@ export default function StatsCard({
             <span className="text-4xl font-semibold">{value}</span>
           </div>
 
-          {footer && (
-            <div className="flex justify-center">{footer}</div>
-          )}
+          {footer && <div className="flex justify-center">{footer}</div>}
         </>
       ) : (
         <div
           className={[
-            'mt-2 min-h-0 flex-1 overflow-hidden pr-1',
-            children
-              ? 'space-y-2'
-              : 'flex items-center justify-center',
-          ].join(' ')}
+            "mt-2 min-h-0 flex-1 overflow-hidden pr-1",
+            children ? "space-y-2" : "flex items-center justify-center",
+          ].join(" ")}
         >
           {children}
         </div>
       )}
     </Card>
-  )
+  );
 }

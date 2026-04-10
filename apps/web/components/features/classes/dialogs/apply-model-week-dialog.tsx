@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { useMemo, useState } from 'react'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import {
   Dialog,
   DialogContent,
@@ -10,93 +10,93 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field'
-import { toast } from 'sonner'
-import type { DateRange } from 'react-day-picker'
-import { addDays, startOfWeek } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { toast } from "sonner";
+import type { DateRange } from "react-day-picker";
+import { addDays, startOfWeek } from "date-fns";
+import { es } from "date-fns/locale";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 type Props = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
 
 export default function ApplyModelWeekDialog({ open, onOpenChange }: Props) {
-  const canQueryOrgData = useCanQueryCurrentOrganization()
+  const canQueryOrgData = useCanQueryCurrentOrganization();
   const [targetRange, setTargetRange] = useState<DateRange | undefined>(
-    undefined
-  )
-  const [actionLoading, setActionLoading] = useState(false)
+    undefined,
+  );
+  const [actionLoading, setActionLoading] = useState(false);
 
   const modelSlots = useQuery(
     api.modelWeekSlots.listByOrganization,
-    open && canQueryOrgData ? {} : 'skip'
-  )
-  const applyModelWeek = useMutation(api.modelWeekSlots.applyToDateRange)
+    open && canQueryOrgData ? {} : "skip",
+  );
+  const applyModelWeek = useMutation(api.modelWeekSlots.applyToDateRange);
 
   const todayStart = useMemo(() => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    return d.getTime()
-  }, [])
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
 
-  const hasSlots = (modelSlots?.length ?? 0) > 0
+  const hasSlots = (modelSlots?.length ?? 0) > 0;
 
   const handleSubmit = async () => {
     if (!hasSlots) {
-      toast.error('La semana modelo está vacía. Agregá slots primero.')
-      return
+      toast.error("La semana modelo está vacía. Agregá slots primero.");
+      return;
     }
 
     if (!targetRange?.from) {
-      toast.error('Seleccioná un rango de fechas.')
-      return
+      toast.error("Seleccioná un rango de fechas.");
+      return;
     }
 
-    const rangeFrom = targetRange.from
-    const rangeTo = targetRange.to ?? rangeFrom
+    const rangeFrom = targetRange.from;
+    const rangeTo = targetRange.to ?? rangeFrom;
 
-    const targetStartWeek = startOfWeek(rangeFrom, { weekStartsOn: 1 })
-    const targetEndWeek = startOfWeek(rangeTo, { weekStartsOn: 1 })
+    const targetStartWeek = startOfWeek(rangeFrom, { weekStartsOn: 1 });
+    const targetEndWeek = startOfWeek(rangeTo, { weekStartsOn: 1 });
 
-    const targetWeekStarts: number[] = []
-    let current = targetStartWeek
+    const targetWeekStarts: number[] = [];
+    let current = targetStartWeek;
     while (current.getTime() <= targetEndWeek.getTime()) {
-      targetWeekStarts.push(current.getTime())
-      current = addDays(current, 7)
+      targetWeekStarts.push(current.getTime());
+      current = addDays(current, 7);
     }
 
     if (targetWeekStarts.length === 0) {
-      toast.error('Seleccioná al menos una semana válida.')
-      return
+      toast.error("Seleccioná al menos una semana válida.");
+      return;
     }
 
-    setActionLoading(true)
+    setActionLoading(true);
     try {
-      const result = await applyModelWeek({ targetWeekStarts })
+      const result = await applyModelWeek({ targetWeekStarts });
       toast.success(
-        `Se generaron ${result.createdSchedules} turnos en ${result.batchesCreated} lote(s).`
-      )
-      onOpenChange(false)
+        `Se generaron ${result.createdSchedules} turnos.`,
+      );
+      onOpenChange(false);
     } catch (e) {
       toast.error(
-        e instanceof Error ? e.message : 'Error al aplicar la semana modelo.'
-      )
+        e instanceof Error ? e.message : "Error al aplicar la semana modelo.",
+      );
     } finally {
-      setActionLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) setTargetRange(undefined)
-        onOpenChange(next)
+        if (!next) setTargetRange(undefined);
+        onOpenChange(next);
       }}
     >
       <DialogContent>
@@ -147,5 +147,5 @@ export default function ApplyModelWeekDialog({ open, onOpenChange }: Props) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

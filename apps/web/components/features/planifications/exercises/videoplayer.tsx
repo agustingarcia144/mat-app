@@ -1,38 +1,31 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import Image from 'next/image'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { useState } from "react";
+import Image from "next/image";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
-import {
-  getVideoThumbnailUrl,
-  getVideoEmbedUrl,
-} from '@repo/core/utils'
+import { getVideoThumbnailUrl, getVideoEmbedUrl } from "@repo/core/utils";
 
 interface Props {
-  videoUrl: string
-  title: string
+  videoUrl: string;
+  title: string;
 }
 
 export default function VideoPlayer({ videoUrl, title }: Props) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
 
-  const thumbnail = getVideoThumbnailUrl(videoUrl)
-  const embed = getVideoEmbedUrl(videoUrl)
+  const thumbnail = getVideoThumbnailUrl(videoUrl);
+  const embed = getVideoEmbedUrl(videoUrl);
 
-  if (!videoUrl || !embed) return null
+  if (!videoUrl || !embed) return null;
 
   return (
     <>
       <div
         className="aspect-video w-full relative cursor-pointer"
         onClick={(e) => {
-          e.stopPropagation()
-          setOpen(true)
+          e.stopPropagation();
+          setOpen(true);
         }}
       >
         {thumbnail && (
@@ -62,5 +55,5 @@ export default function VideoPlayer({ videoUrl, title }: Props) {
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

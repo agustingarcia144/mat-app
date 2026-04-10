@@ -1,21 +1,21 @@
-'use client'
+"use client";
 
-import { useMemo, useState } from 'react'
-import { useMutation, useQuery } from 'convex/react'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { MailPlus, RefreshCw, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
-import RoleBadge from '@/components/shared/badges/role-badge'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { MailPlus, RefreshCw, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import RoleBadge from "@/components/shared/badges/role-badge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card'
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -23,49 +23,48 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import type { StaffInvitation } from '@/lib/security/organization-invitations'
-import { api } from '@/convex/_generated/api'
-import type { Id } from '@/convex/_generated/dataModel'
+} from "@/components/ui/dialog";
+import type { StaffInvitation } from "@/lib/security/organization-invitations";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 
 type Props = {
-  refreshKey: number
-}
+  refreshKey: number;
+};
 
 export function PendingInvitationsCard({ refreshKey }: Props) {
-  const invitationList = useQuery(api.organizations.listPendingInvitations)
-  const revokeInvitation = useMutation(api.organizations.revokeInvitation)
+  const invitationList = useQuery(api.organizations.listPendingInvitations);
+  const revokeInvitation = useMutation(api.organizations.revokeInvitation);
   const [selectedInvitation, setSelectedInvitation] =
-    useState<StaffInvitation | null>(null)
-  const [isRevoking, setIsRevoking] = useState(false)
+    useState<StaffInvitation | null>(null);
+  const [isRevoking, setIsRevoking] = useState(false);
   const invitations = useMemo(
     () => (invitationList ?? []) as StaffInvitation[],
-    [invitationList]
-  )
+    [invitationList],
+  );
 
   const handleRevoke = async () => {
     if (!selectedInvitation) {
-      return
+      return;
     }
 
-    setIsRevoking(true)
+    setIsRevoking(true);
     try {
       await revokeInvitation({
-        invitationId:
-          selectedInvitation.id as Id<'organizationInvitations'>,
-      })
-      setSelectedInvitation(null)
-      toast.success('Invitación revocada')
+        invitationId: selectedInvitation.id as Id<"organizationInvitations">,
+      });
+      setSelectedInvitation(null);
+      toast.success("Invitación revocada");
     } catch (revokeError) {
       toast.error(
         revokeError instanceof Error
           ? revokeError.message
-          : 'No se pudo revocar la invitación'
-      )
+          : "No se pudo revocar la invitación",
+      );
     } finally {
-      setIsRevoking(false)
+      setIsRevoking(false);
     }
-  }
+  };
 
   return (
     <>
@@ -88,11 +87,13 @@ export function PendingInvitationsCard({ refreshKey }: Props) {
             className="gap-2"
             onClick={() => {
               // Keep manual refresh affordance by triggering a soft reload.
-              window.location.reload()
+              window.location.reload();
             }}
             disabled={invitationList === undefined}
           >
-            <RefreshCw className={`size-4 ${invitationList === undefined ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`size-4 ${invitationList === undefined ? "animate-spin" : ""}`}
+            />
             Actualizar
           </Button>
         </CardHeader>
@@ -122,10 +123,14 @@ export function PendingInvitationsCard({ refreshKey }: Props) {
                     <div className="flex flex-wrap items-center gap-2">
                       <RoleBadge role={String(invitation.role)} />
                       <span className="text-xs text-muted-foreground">
-                        Enviada el{' '}
-                        {format(new Date(invitation.createdAt), 'd MMM yyyy, HH:mm', {
-                          locale: es,
-                        })}
+                        Enviada el{" "}
+                        {format(
+                          new Date(invitation.createdAt),
+                          "d MMM yyyy, HH:mm",
+                          {
+                            locale: es,
+                          },
+                        )}
                       </span>
                     </div>
                   </div>
@@ -154,8 +159,8 @@ export function PendingInvitationsCard({ refreshKey }: Props) {
           <DialogHeader>
             <DialogTitle>Revocar invitación</DialogTitle>
             <DialogDescription>
-              {selectedInvitation?.email} dejará de poder unirse a la organización
-              con este enlace. Esta acción no se puede deshacer.
+              {selectedInvitation?.email} dejará de poder unirse a la
+              organización con este enlace. Esta acción no se puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -173,11 +178,11 @@ export function PendingInvitationsCard({ refreshKey }: Props) {
               onClick={() => void handleRevoke()}
               disabled={isRevoking}
             >
-              {isRevoking ? 'Revocando…' : 'Revocar invitación'}
+              {isRevoking ? "Revocando…" : "Revocar invitación"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

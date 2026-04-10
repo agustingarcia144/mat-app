@@ -1,77 +1,77 @@
-import React from 'react'
+import React from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
   Pressable,
-} from 'react-native'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import * as Haptics from 'expo-haptics'
-import { ThemedPressable } from '@/components/ui/themed-pressable'
-import { IconSymbol } from '@/components/ui/icon-symbol'
-import { ClassIcon } from './class-icon'
-import { OccupancyBadge } from './occupancy-badge'
-import { ReservationBadge } from './reservation-badge'
-import { UnavailableBadge } from './unavailable-badge'
+} from "react-native";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import * as Haptics from "expo-haptics";
+import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { ClassIcon } from "./class-icon";
+import { OccupancyBadge } from "./occupancy-badge";
+import { ReservationBadge } from "./reservation-badge";
+import { UnavailableBadge } from "./unavailable-badge";
 
 /** Schedule shape used by list row (from Convex schedule) */
 export interface ListRowSchedule {
-  _id: string
-  startTime: number
-  endTime: number
-  currentReservations: number
-  capacity: number
-  status: string
+  _id: string;
+  startTime: number;
+  endTime: number;
+  currentReservations: number;
+  capacity: number;
+  status: string;
 }
 
 /** Class template shape used by list row */
 export interface ListRowClass {
-  name: string
+  name: string;
 }
 
 /** Reservation shape for cancellation (needs schedule + class for window) */
 export interface ListRowReservation {
-  _id: string
-  status: 'confirmed' | 'cancelled' | 'attended' | 'no_show'
-  schedule: ListRowSchedule
-  class: ListRowClass & { cancellationWindowHours?: number }
+  _id: string;
+  status: "confirmed" | "cancelled" | "attended" | "no_show";
+  schedule: ListRowSchedule;
+  class: ListRowClass & { cancellationWindowHours?: number };
 }
 
 /** One list row: date + class card (reservation or schedule) */
 export interface ClassRowData {
-  dateKey: string
-  date: Date
+  dateKey: string;
+  date: Date;
   item:
     | {
-        type: 'reservation'
-        reservation: ListRowReservation
-        schedule: ListRowSchedule
-        class: ListRowClass
+        type: "reservation";
+        reservation: ListRowReservation;
+        schedule: ListRowSchedule;
+        class: ListRowClass;
       }
     | {
-        type: 'schedule'
-        schedule: ListRowSchedule
-        class: ListRowClass
-      }
+        type: "schedule";
+        schedule: ListRowSchedule;
+        class: ListRowClass;
+      };
 }
 
 export interface BookingState {
-  canReserve: boolean
-  isReserved: boolean
-  helperText: string
-  isFull: boolean
+  canReserve: boolean;
+  isReserved: boolean;
+  helperText: string;
+  isFull: boolean;
 }
 
 export interface CancellationState {
-  canCancel: boolean
-  helperText: string
+  canCancel: boolean;
+  helperText: string;
 }
 
 export interface CheckInState {
-  canCheckIn: boolean
-  helperText: string
+  canCheckIn: boolean;
+  helperText: string;
 }
 
 /** Spacing scale: 4, 8, 12, 16, 20, 24. Card uses 16 padding, 12 gaps. */
@@ -82,29 +82,29 @@ const SPACING = {
   lg: 16,
   xl: 20,
   xxl: 24,
-} as const
+} as const;
 
 interface ClassesListRowProps {
-  row: ClassRowData
-  isDark: boolean
-  colorScheme: string | null
-  busyScheduleId: string | null
-  busyReservationId: string | null
+  row: ClassRowData;
+  isDark: boolean;
+  colorScheme: string | null;
+  busyScheduleId: string | null;
+  busyReservationId: string | null;
   getBookingState: (args: {
-    schedule: ListRowSchedule
-    classTemplate: ListRowClass
-  }) => BookingState
-  getCancellationState: (reservation: ListRowReservation) => CancellationState
-  getCheckInState: (reservation: ListRowReservation) => CheckInState
-  onReserve: (scheduleId: string) => void
-  onCancel: (reservationId: string) => void
-  onCheckIn: (reservationId: string) => void
+    schedule: ListRowSchedule;
+    classTemplate: ListRowClass;
+  }) => BookingState;
+  getCancellationState: (reservation: ListRowReservation) => CancellationState;
+  getCheckInState: (reservation: ListRowReservation) => CheckInState;
+  onReserve: (scheduleId: string) => void;
+  onCancel: (reservationId: string) => void;
+  onCheckIn: (reservationId: string) => void;
   /** Navigate to class details; card tap triggers this, button does not. */
-  onPressCard?: (scheduleId: string) => void
-  hideReservationActions?: boolean
-  busyCheckInReservationId?: string | null
+  onPressCard?: (scheduleId: string) => void;
+  hideReservationActions?: boolean;
+  busyCheckInReservationId?: string | null;
   /** When true, show "Turno fijo" badge (reservation matches member's fixed slot). */
-  isFixedSlot?: boolean
+  isFixedSlot?: boolean;
 }
 
 export function ClassesListRow({
@@ -124,55 +124,55 @@ export function ClassesListRow({
   busyCheckInReservationId = null,
   isFixedSlot = false,
 }: ClassesListRowProps) {
-  const { date, item } = row
-  const schedule = item.schedule
-  const classTemplate = item.class
-  const isReservation = item.type === 'reservation'
+  const { date, item } = row;
+  const schedule = item.schedule;
+  const classTemplate = item.class;
+  const isReservation = item.type === "reservation";
   const booking = isReservation
     ? null
-    : getBookingState({ schedule, classTemplate })
+    : getBookingState({ schedule, classTemplate });
   const cancelState = isReservation
     ? getCancellationState(item.reservation as ListRowReservation)
-    : null
+    : null;
   const checkInState = isReservation
     ? getCheckInState(item.reservation as ListRowReservation)
-    : null
-  const isReserving = !isReservation && busyScheduleId === schedule._id
+    : null;
+  const isReserving = !isReservation && busyScheduleId === schedule._id;
   const isCancelling =
-    isReservation && busyReservationId === item.reservation._id
+    isReservation && busyReservationId === item.reservation._id;
   const isCheckingIn =
-    isReservation && busyCheckInReservationId === item.reservation._id
+    isReservation && busyCheckInReservationId === item.reservation._id;
 
-  const dividerColor = isDark ? 'rgba(255,255,255,0.08)' : '#e4e4e7'
-  const cardBg = isDark ? '#141414' : '#ffffff'
-  const cardBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
-  const muted = isDark ? '#a1a1aa' : '#71717a'
-  const titleColor = isDark ? '#fafafa' : '#18181b'
-  const timeColor = isDark ? '#d4d4d8' : '#3f3f46'
+  const dividerColor = isDark ? "rgba(255,255,255,0.08)" : "#e4e4e7";
+  const cardBg = isDark ? "#141414" : "#ffffff";
+  const cardBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+  const muted = isDark ? "#a1a1aa" : "#71717a";
+  const titleColor = isDark ? "#fafafa" : "#18181b";
+  const timeColor = isDark ? "#d4d4d8" : "#3f3f46";
 
   const handleCardPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    onPressCard?.(schedule._id)
-  }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPressCard?.(schedule._id);
+  };
 
   const handleReservePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-    onReserve(schedule._id)
-  }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onReserve(schedule._id);
+  };
 
   const handleCancelPress = () => {
-    if (item.type !== 'reservation') return
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    onCancel(item.reservation._id)
-  }
+    if (item.type !== "reservation") return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onCancel(item.reservation._id);
+  };
 
   const handleCheckInPress = () => {
-    if (item.type !== 'reservation') return
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-    onCheckIn(item.reservation._id)
-  }
+    if (item.type !== "reservation") return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onCheckIn(item.reservation._id);
+  };
 
-  const timeLabel = `${format(new Date(schedule.startTime), 'HH:mm', { locale: es })} – ${format(new Date(schedule.endTime), 'HH:mm', { locale: es })}`
+  const timeLabel = `${format(new Date(schedule.startTime), "HH:mm", { locale: es })} – ${format(new Date(schedule.endTime), "HH:mm", { locale: es })}`;
 
   return (
     <View
@@ -192,14 +192,14 @@ export function ClassesListRow({
         ]}
         onPress={handleCardPress}
         accessibilityRole="button"
-        accessibilityLabel={`${classTemplate.name}, ${timeLabel}. ${isReservation ? 'Reservado' : 'Disponible'}`}
+        accessibilityLabel={`${classTemplate.name}, ${timeLabel}. ${isReservation ? "Reservado" : "Disponible"}`}
       >
         <View style={[styles.dateStrip, { borderRightColor: dividerColor }]}>
           <Text style={[styles.dateMonth, { color: muted }]}>
-            {format(date, 'MMM', { locale: es }).toUpperCase()}
+            {format(date, "MMM", { locale: es }).toUpperCase()}
           </Text>
           <Text style={[styles.dateDay, { color: titleColor }]}>
-            {format(date, 'd')}
+            {format(date, "d")}
           </Text>
         </View>
         <View style={styles.main}>
@@ -221,10 +221,10 @@ export function ClassesListRow({
                     <ReservationBadge
                       isDark={isDark}
                       status={
-                        (item.reservation.status ?? 'confirmed') as
-                          | 'confirmed'
-                          | 'attended'
-                          | 'no_show'
+                        (item.reservation.status ?? "confirmed") as
+                          | "confirmed"
+                          | "attended"
+                          | "no_show"
                       }
                     />
                     {isFixedSlot && (
@@ -233,15 +233,15 @@ export function ClassesListRow({
                           styles.fixedSlotBadge,
                           {
                             backgroundColor: isDark
-                              ? 'rgba(59,130,246,0.22)'
-                              : '#dbeafe',
+                              ? "rgba(59,130,246,0.22)"
+                              : "#dbeafe",
                           },
                         ]}
                       >
                         <Text
                           style={[
                             styles.fixedSlotBadgeText,
-                            { color: isDark ? '#93c5fd' : '#1d4ed8' },
+                            { color: isDark ? "#93c5fd" : "#1d4ed8" },
                           ]}
                         >
                           Turno fijo
@@ -256,7 +256,7 @@ export function ClassesListRow({
                     status={schedule.status}
                     isDark={isDark}
                   />
-                ) : booking?.isFull || schedule.status !== 'scheduled' ? (
+                ) : booking?.isFull || schedule.status !== "scheduled" ? (
                   <OccupancyBadge
                     capacity={schedule.capacity}
                     currentReservations={schedule.currentReservations}
@@ -285,13 +285,13 @@ export function ClassesListRow({
             {isCheckingIn ? (
               <ActivityIndicator
                 size="small"
-                color={colorScheme === 'dark' ? '#000' : '#fff'}
+                color={colorScheme === "dark" ? "#000" : "#fff"}
               />
             ) : (
               <Text
                 style={[
                   styles.quickButtonText,
-                  { color: colorScheme === 'dark' ? '#000' : '#fff' },
+                  { color: colorScheme === "dark" ? "#000" : "#fff" },
                 ]}
               >
                 Confirmar
@@ -299,34 +299,34 @@ export function ClassesListRow({
             )}
           </ThemedPressable>
         ) : isReservation &&
-          (item.reservation.status === 'attended' ||
-            item.reservation.status === 'no_show') ? (
+          (item.reservation.status === "attended" ||
+            item.reservation.status === "no_show") ? (
           <View
             style={[
               styles.statusIcon,
               {
                 backgroundColor:
-                  item.reservation.status === 'attended'
+                  item.reservation.status === "attended"
                     ? isDark
-                      ? '#16a34a'
-                      : '#22c55e'
+                      ? "#16a34a"
+                      : "#22c55e"
                     : isDark
-                      ? 'rgba(239,68,68,0.3)'
-                      : '#fee2e2',
+                      ? "rgba(239,68,68,0.3)"
+                      : "#fee2e2",
               },
             ]}
           >
             <IconSymbol
               name={
-                item.reservation.status === 'attended' ? 'checkmark' : 'xmark'
+                item.reservation.status === "attended" ? "checkmark" : "xmark"
               }
               size={16}
               color={
-                item.reservation.status === 'attended'
-                  ? '#fff'
+                item.reservation.status === "attended"
+                  ? "#fff"
                   : isDark
-                    ? '#fca5a5'
-                    : '#b91c1c'
+                    ? "#fca5a5"
+                    : "#b91c1c"
               }
             />
           </View>
@@ -345,10 +345,10 @@ export function ClassesListRow({
             {isCancelling ? (
               <ActivityIndicator
                 size="small"
-                color={isDark ? '#fff' : '#000'}
+                color={isDark ? "#fff" : "#000"}
               />
             ) : (
-              <Text style={[styles.quickButtonText, { color: '#fff' }]}>
+              <Text style={[styles.quickButtonText, { color: "#fff" }]}>
                 Cancelar
               </Text>
             )}
@@ -363,13 +363,13 @@ export function ClassesListRow({
             {isReserving ? (
               <ActivityIndicator
                 size="small"
-                color={colorScheme === 'dark' ? '#000' : '#fff'}
+                color={colorScheme === "dark" ? "#000" : "#fff"}
               />
             ) : (
               <Text
                 style={[
                   styles.quickButtonText,
-                  { color: colorScheme === 'dark' ? '#000' : '#fff' },
+                  { color: colorScheme === "dark" ? "#000" : "#fff" },
                 ]}
               >
                 Reservar
@@ -383,11 +383,11 @@ export function ClassesListRow({
               {
                 backgroundColor: booking?.isReserved
                   ? isDark
-                    ? '#16a34a'
-                    : '#22c55e'
+                    ? "#16a34a"
+                    : "#22c55e"
                   : isDark
-                    ? 'rgba(255,255,255,0.1)'
-                    : 'rgba(0,0,0,0.06)',
+                    ? "rgba(255,255,255,0.1)"
+                    : "rgba(0,0,0,0.06)",
               },
             ]}
           >
@@ -400,18 +400,18 @@ export function ClassesListRow({
         )}
       </View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
+    flexDirection: "row",
+    alignItems: "stretch",
     borderRadius: 16,
     marginBottom: SPACING.md,
-    overflow: 'hidden',
+    overflow: "hidden",
     // Subtle elevation for dark; avoid heavy shadow
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -419,8 +419,8 @@ const styles = StyleSheet.create({
   },
   cardTapArea: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'stretch',
+    flexDirection: "row",
+    alignItems: "stretch",
     minWidth: 0,
   },
   cardPressed: {
@@ -429,23 +429,23 @@ const styles = StyleSheet.create({
   dateStrip: {
     width: 44,
     paddingVertical: SPACING.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderRightWidth: StyleSheet.hairlineWidth,
   },
   dateMonth: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 0.6,
   },
   dateDay: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   main: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: SPACING.lg,
     paddingLeft: SPACING.md,
     paddingRight: SPACING.sm,
@@ -458,19 +458,19 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 2,
   },
   metaBlock: {
-    flexDirection: 'column',
+    flexDirection: "column",
     gap: SPACING.xs,
   },
   badgeRow: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   badgeRowWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
   },
   fixedSlotBadge: {
@@ -480,11 +480,11 @@ const styles = StyleSheet.create({
   },
   fixedSlotBadgeText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   time: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   statusPill: {
     paddingHorizontal: 8,
@@ -493,10 +493,10 @@ const styles = StyleSheet.create({
   },
   statusPillText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   action: {
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingRight: SPACING.lg,
     paddingLeft: SPACING.sm,
   },
@@ -505,19 +505,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     minHeight: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     minWidth: 88,
   },
   quickButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   statusIcon: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-})
+});

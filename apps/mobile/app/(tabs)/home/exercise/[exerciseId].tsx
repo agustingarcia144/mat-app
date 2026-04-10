@@ -1,5 +1,5 @@
-import ExerciseDetailContent from '@/components/features/exercises/exercise-detail-content'
+import ExerciseDetailContent from "@/components/features/exercises/exercise-detail-content";
 
 export default function ExerciseDetailScreen() {
-  return <ExerciseDetailContent />
+  return <ExerciseDetailContent />;
 }

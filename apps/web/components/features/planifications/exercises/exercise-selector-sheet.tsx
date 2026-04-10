@@ -1,8 +1,8 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
-import { Plus } from 'lucide-react'
+import { useState } from "react";
+import { ResponsiveActionButton } from "@/components/ui/responsive-action-button";
+import { Plus } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -10,33 +10,33 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from '@/components/ui/sheet'
-import ExerciseSelector from './exercise-selector'
+} from "@/components/ui/sheet";
+import ExerciseSelector from "./exercise-selector";
 
 interface ExerciseSelectorSheetProps {
-  onSelect: (exercise: { id: string; name: string }) => void
+  onSelect: (exercise: { id: string; name: string }) => void;
 }
 
 export default function ExerciseSelectorSheet({
   onSelect,
 }: ExerciseSelectorSheetProps) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
 
   const handleSelect = (exercise: { id: string; name: string }) => {
-    onSelect(exercise)
-    setOpen(false)
-  }
+    onSelect(exercise);
+    setOpen(false);
+  };
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <ResponsiveActionButton
-          variant='outline'
-          mobileSize='sm'
-          className='w-full md:w-auto'
-          icon={<Plus className='h-4 w-4' aria-hidden />}
-          label='Agregar ejercicio'
-          tooltip='Agregar ejercicio'
+          variant="outline"
+          mobileSize="sm"
+          className="w-full md:w-auto"
+          icon={<Plus className="h-4 w-4" aria-hidden />}
+          label="Agregar ejercicio"
+          tooltip="Agregar ejercicio"
         />
       </SheetTrigger>
       <SheetContent side="right" className="w-full sm:max-w-lg">
@@ -55,5 +55,5 @@ export default function ExerciseSelectorSheet({
         </div>
       </SheetContent>
     </Sheet>
-  )
+  );
 }

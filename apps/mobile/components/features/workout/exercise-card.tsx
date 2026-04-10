@@ -1,67 +1,67 @@
-import React from 'react'
-import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native'
-import { PressableScale } from 'pressto'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { LinearGradient } from 'expo-linear-gradient'
-import { getVideoThumbnailUrl } from '@repo/core/utils'
-import { ThemedText } from '@/components/ui/themed-text'
+import React from "react";
+import { View, Text, StyleSheet, ActivityIndicator, Image } from "react-native";
+import { PressableScale } from "pressto";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { LinearGradient } from "expo-linear-gradient";
+import { getVideoThumbnailUrl } from "@repo/core/utils";
+import { ThemedText } from "@/components/ui/themed-text";
 
 export interface DayExerciseForCard {
-  _id: string
-  exerciseId: string
-  sets: number
-  reps: string
-  weight?: string
-  prPercentage?: number
-  timeSeconds?: number
-  notes?: string
-  order: number
+  _id: string;
+  exerciseId: string;
+  sets: number;
+  reps: string;
+  weight?: string;
+  prPercentage?: number;
+  timeSeconds?: number;
+  notes?: string;
+  order: number;
   exercise?: {
-    name?: string
-    videoUrl?: string
-  }
+    name?: string;
+    videoUrl?: string;
+  };
 }
 
 function formatTime(timeSeconds?: number) {
-  if (timeSeconds == null || timeSeconds <= 0) return ''
-  if (timeSeconds < 60) return `${timeSeconds}s`
-  const mins = Math.round(timeSeconds / 60)
-  return `${mins}min`
+  if (timeSeconds == null || timeSeconds <= 0) return "";
+  if (timeSeconds < 60) return `${timeSeconds}s`;
+  const mins = Math.round(timeSeconds / 60);
+  return `${mins}min`;
 }
 
 function formatLoad(
   weight?: string,
   prPercentage?: number,
-  timeSeconds?: number
+  timeSeconds?: number,
 ) {
-  const parts: string[] = []
-  if (weight?.trim()) parts.push(weight.trim())
+  const parts: string[] = [];
+  if (weight?.trim()) parts.push(weight.trim());
   if (prPercentage != null && prPercentage > 0)
-    parts.push(`${prPercentage}% RM`)
-  const time = formatTime(timeSeconds)
-  if (time) parts.push(time)
-  return parts.join(' · ')
+    parts.push(`${prPercentage}% RM`);
+  const time = formatTime(timeSeconds);
+  if (time) parts.push(time);
+  return parts.join(" · ");
 }
 
 export interface ExerciseCardProps {
-  dayEx: DayExerciseForCard
-  values: { reps: string; weight: string }[]
-  timeValues?: number[]
-  supportsTime?: boolean
-  hasLoggedData: boolean
-  saving: boolean
-  isExpanded: boolean
-  onToggleExpand: () => void
-  isNewSession: boolean
-  isCompleted: boolean
-  inputBg: string
-  inputColor: string
-  borderColor: string
-  isDark: boolean
-  onPressExercise: () => void
-  onPressSet: (setIndex: number) => void
-  onQuickCompleteSet: (setIndex: number) => void
-  isSetQuickCompleted?: (setIndex: number) => boolean
+  dayEx: DayExerciseForCard;
+  values: { reps: string; weight: string }[];
+  timeValues?: number[];
+  supportsTime?: boolean;
+  hasLoggedData: boolean;
+  saving: boolean;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  isNewSession: boolean;
+  isCompleted: boolean;
+  inputBg: string;
+  inputColor: string;
+  borderColor: string;
+  isDark: boolean;
+  onPressExercise: () => void;
+  onPressSet: (setIndex: number) => void;
+  onQuickCompleteSet: (setIndex: number) => void;
+  isSetQuickCompleted?: (setIndex: number) => boolean;
 }
 
 export function ExerciseCard({
@@ -86,28 +86,28 @@ export function ExerciseCard({
 }: ExerciseCardProps) {
   const thumbnailUrl = dayEx.exercise?.videoUrl
     ? getVideoThumbnailUrl(dayEx.exercise.videoUrl)
-    : null
-  const hasThumbnail = !!thumbnailUrl
-  const overlayTextColor = hasThumbnail ? '#fff' : inputColor
+    : null;
+  const hasThumbnail = !!thumbnailUrl;
+  const overlayTextColor = hasThumbnail ? "#fff" : inputColor;
   const loadLabel = formatLoad(
     dayEx.weight,
     dayEx.prPercentage,
-    dayEx.timeSeconds
-  )
-  const notesLabel = dayEx.notes?.trim()
+    dayEx.timeSeconds,
+  );
+  const notesLabel = dayEx.notes?.trim();
   const hasTime =
     supportsTime ||
-    (timeValues?.some((value) => value != null && value > 0) ?? false)
+    (timeValues?.some((value) => value != null && value > 0) ?? false);
 
   const isExerciseCompleted =
     !isNewSession &&
     values.length >= dayEx.sets &&
     Array.from({ length: dayEx.sets }).every((_, setIndex) => {
-      if (isSetQuickCompleted?.(setIndex)) return true
-      const set = values[setIndex]
-      if (!set) return false
-      return set.reps?.trim().length > 0 && set.weight?.trim().length > 0
-    })
+      if (isSetQuickCompleted?.(setIndex)) return true;
+      const set = values[setIndex];
+      if (!set) return false;
+      return set.reps?.trim().length > 0 && set.weight?.trim().length > 0;
+    });
 
   return (
     <View style={[styles.exerciseCard, { borderColor }]}>
@@ -124,14 +124,14 @@ export function ExerciseCard({
             style={[
               StyleSheet.absoluteFillObject,
               {
-                backgroundColor: isDark ? '#27272a' : '#e4e4e7',
+                backgroundColor: isDark ? "#27272a" : "#e4e4e7",
               },
             ]}
           />
         )}
         {hasThumbnail && (
           <LinearGradient
-            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.85)']}
+            colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.85)"]}
             locations={[0, 0.4, 1]}
             style={styles.thumbnailGradient}
           />
@@ -154,7 +154,7 @@ export function ExerciseCard({
               style={[styles.exerciseNameOverlay, { color: overlayTextColor }]}
               numberOfLines={2}
             >
-              {dayEx.exercise?.name ?? 'Ejercicio'}
+              {dayEx.exercise?.name ?? "Ejercicio"}
             </Text>
           </View>
         </View>
@@ -164,24 +164,24 @@ export function ExerciseCard({
         onPress={onToggleExpand}
         style={[
           styles.cardFooter,
-          { backgroundColor: isDark ? '#18181b' : '#f4f4f5' },
+          { backgroundColor: isDark ? "#18181b" : "#f4f4f5" },
         ]}
       >
         <View style={styles.cardFooterContent}>
           <Text
             style={[
               styles.cardFooterLabel,
-              { color: isDark ? '#fff' : '#000' },
+              { color: isDark ? "#fff" : "#000" },
             ]}
           >
             Series {dayEx.sets} × {dayEx.reps}
-            {loadLabel ? ` · ${loadLabel}` : ''}
+            {loadLabel ? ` · ${loadLabel}` : ""}
           </Text>
           {notesLabel ? (
             <Text
               style={[
                 styles.cardFooterNotes,
-                { color: isDark ? '#d4d4d8' : '#52525b' },
+                { color: isDark ? "#d4d4d8" : "#52525b" },
               ]}
               numberOfLines={2}
             >
@@ -190,9 +190,9 @@ export function ExerciseCard({
           ) : null}
         </View>
         <MaterialIcons
-          name={isExpanded ? 'keyboard-arrow-down' : 'keyboard-arrow-up'}
+          name={isExpanded ? "keyboard-arrow-down" : "keyboard-arrow-up"}
           size={24}
-          color={isDark ? '#fff' : '#000'}
+          color={isDark ? "#fff" : "#000"}
         />
       </PressableScale>
       {/* 3. Expandable section (sets grid) */}
@@ -200,26 +200,26 @@ export function ExerciseCard({
         <View
           style={[
             styles.setsGridWrapper,
-            { backgroundColor: isDark ? '#18181b' : '#f4f4f5' },
+            { backgroundColor: isDark ? "#18181b" : "#f4f4f5" },
           ]}
         >
           <View style={styles.setsGrid}>
             <View style={styles.setsColumn}>
               {Array.from({ length: dayEx.sets }).map((_, setIndex) => {
-                const setValues = values[setIndex] ?? { reps: '', weight: '' }
-                const setTimeSeconds = Math.max(0, timeValues?.[setIndex] ?? 0)
-                const formattedSetTime = formatTime(setTimeSeconds)
-                const setWasQuickCompleted = !!isSetQuickCompleted?.(setIndex)
+                const setValues = values[setIndex] ?? { reps: "", weight: "" };
+                const setTimeSeconds = Math.max(0, timeValues?.[setIndex] ?? 0);
+                const formattedSetTime = formatTime(setTimeSeconds);
+                const setWasQuickCompleted = !!isSetQuickCompleted?.(setIndex);
                 const hasLoggedSetData =
                   hasLoggedData &&
                   (setWasQuickCompleted ||
                     setValues.reps?.trim().length > 0 ||
-                    setValues.weight?.trim().length > 0)
+                    setValues.weight?.trim().length > 0);
                 const isSetCompleted =
                   hasLoggedSetData &&
                   (setWasQuickCompleted ||
                     (setValues.reps?.trim().length > 0 &&
-                      setValues.weight?.trim().length > 0))
+                      setValues.weight?.trim().length > 0));
                 return (
                   <View key={`set-${setIndex}`} style={styles.setRow}>
                     <View
@@ -258,13 +258,13 @@ export function ExerciseCard({
                                   color: setValues.reps
                                     ? inputColor
                                     : isDark
-                                      ? '#71717a'
-                                      : '#a1a1aa',
+                                      ? "#71717a"
+                                      : "#a1a1aa",
                                 },
                               ]}
                               numberOfLines={1}
                             >
-                              {setValues.reps || '0'}
+                              {setValues.reps || "0"}
                             </Text>
                           </View>
                         </View>
@@ -291,13 +291,13 @@ export function ExerciseCard({
                                   color: setValues.weight
                                     ? inputColor
                                     : isDark
-                                      ? '#71717a'
-                                      : '#a1a1aa',
+                                      ? "#71717a"
+                                      : "#a1a1aa",
                                 },
                               ]}
                               numberOfLines={1}
                             >
-                              {setValues.weight || 'kg'}
+                              {setValues.weight || "kg"}
                             </Text>
                           </View>
                         </View>
@@ -325,13 +325,13 @@ export function ExerciseCard({
                                     color: formattedSetTime
                                       ? inputColor
                                       : isDark
-                                        ? '#71717a'
-                                        : '#a1a1aa',
+                                        ? "#71717a"
+                                        : "#a1a1aa",
                                   },
                                 ]}
                                 numberOfLines={1}
                               >
-                                {formattedSetTime || '0s'}
+                                {formattedSetTime || "0s"}
                               </Text>
                             </View>
                           </View>
@@ -351,16 +351,16 @@ export function ExerciseCard({
                             <MaterialIcons
                               name={
                                 isSetCompleted
-                                  ? 'check-circle'
-                                  : 'radio-button-unchecked'
+                                  ? "check-circle"
+                                  : "radio-button-unchecked"
                               }
                               size={24}
                               color={
                                 isSetCompleted
-                                  ? '#22c55e'
+                                  ? "#22c55e"
                                   : isDark
-                                    ? '#71717a'
-                                    : '#a1a1aa'
+                                    ? "#71717a"
+                                    : "#a1a1aa"
                               }
                             />
                           </PressableScale>
@@ -368,14 +368,14 @@ export function ExerciseCard({
                       </View>
                     </View>
                   </View>
-                )
+                );
               })}
             </View>
           </View>
         </View>
       )}
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -383,23 +383,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     marginBottom: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
     maxWidth: 290,
   },
   thumbnailSection: {
     height: 200,
-    position: 'relative',
-    overflow: 'hidden',
+    position: "relative",
+    overflow: "hidden",
   },
   thumbnailGradient: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,
     top: 0,
   },
   exerciseHeaderOverlay: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
@@ -407,22 +407,22 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   exerciseCompletedBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 12,
     right: 16,
     zIndex: 1,
   },
   savingIndicatorOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 12,
     right: 16,
   },
   exerciseNameContainer: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   exerciseNameOverlay: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   setsGridWrapper: {
     padding: 16,
@@ -434,9 +434,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
@@ -447,14 +447,14 @@ const styles = StyleSheet.create({
   },
   cardFooterLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   cardFooterNotes: {
     fontSize: 12,
     marginTop: 4,
   },
   setsGrid: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   setsColumn: {
@@ -465,14 +465,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   setInputs: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   setInputsCompact: {
-    maxWidth: '100%',
+    maxWidth: "100%",
   },
   setInputsPressable: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     flex: 1,
     minWidth: 0,
@@ -488,8 +488,8 @@ const styles = StyleSheet.create({
     flexBasis: 0,
   },
   statusColumn: {
-    justifyContent: 'flex-start',
-    alignItems: 'center',
+    justifyContent: "flex-start",
+    alignItems: "center",
     width: 40,
     flexShrink: 0,
   },
@@ -497,20 +497,20 @@ const styles = StyleSheet.create({
     height: 20,
   },
   statusIconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     height: 40,
     marginTop: 8,
   },
   statusIconPressable: {
     width: 32,
     height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   inputLabel: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
     marginBottom: 4,
     opacity: 0.8,
   },
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    width: '100%',
+    width: "100%",
   },
   inputCompact: {
     paddingHorizontal: 8,
@@ -526,4 +526,4 @@ const styles = StyleSheet.create({
   inputValue: {
     fontSize: 16,
   },
-})
+});

@@ -1,70 +1,72 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { type Id } from '@/convex/_generated/dataModel'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Clock, Eye } from 'lucide-react'
-import PaymentReviewDialog from './dialogs/payment-review-dialog'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { type Id } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Clock, Eye } from "lucide-react";
+import PaymentReviewDialog from "./dialogs/payment-review-dialog";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 function formatBillingPeriod(period: string): string {
-  const [year, month] = period.split('-')
+  const [year, month] = period.split("-");
   const monthNames = [
-    'Ene',
-    'Feb',
-    'Mar',
-    'Abr',
-    'May',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dic',
-  ]
-  const monthIndex = parseInt(month!, 10) - 1
-  return `${monthNames[monthIndex]} ${year}`
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic",
+  ];
+  const monthIndex = parseInt(month!, 10) - 1;
+  return `${monthNames[monthIndex]} ${year}`;
 }
 
 function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleDateString('es-AR', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  return new Date(timestamp).toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 export default function PaymentReviewQueue() {
-  const canQuery = useCanQueryCurrentOrganization()
+  const canQuery = useCanQueryCurrentOrganization();
   const pendingPayments = useQuery(
     api.planPayments.getPendingByOrganization,
-    canQuery ? {} : 'skip'
-  )
+    canQuery ? {} : "skip",
+  );
 
-  const [reviewOpen, setReviewOpen] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<{
-    id: Id<'planPayments'>
-    memberName: string
-    planName: string
-    billingPeriod: string
-    amountArs: number
-  } | null>(null)
+    id: Id<"planPayments">;
+    memberName: string;
+    planName: string;
+    billingPeriod: string;
+    amountArs: number;
+  } | null>(null);
 
-  const handleReview = (payment: NonNullable<typeof pendingPayments>[number]) => {
+  const handleReview = (
+    payment: NonNullable<typeof pendingPayments>[number],
+  ) => {
     setSelectedPayment({
       id: payment._id,
       memberName: payment.userFullName,
       planName: payment.planName,
       billingPeriod: payment.billingPeriod,
       amountArs: payment.amountArs,
-    })
-    setReviewOpen(true)
-  }
+    });
+    setReviewOpen(true);
+  };
 
   return (
     <>
@@ -107,7 +109,7 @@ export default function PaymentReviewQueue() {
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   <span>{formatBillingPeriod(payment.billingPeriod)}</span>
                   <span>·</span>
-                  <span>${payment.amountArs.toLocaleString('es-AR')}</span>
+                  <span>${payment.amountArs.toLocaleString("es-AR")}</span>
                 </div>
 
                 {payment.proofUploadedAt && (
@@ -135,8 +137,8 @@ export default function PaymentReviewQueue() {
         <PaymentReviewDialog
           open={reviewOpen}
           onOpenChange={(open) => {
-            setReviewOpen(open)
-            if (!open) setSelectedPayment(null)
+            setReviewOpen(open);
+            if (!open) setSelectedPayment(null);
           }}
           paymentId={selectedPayment.id}
           memberName={selectedPayment.memberName}
@@ -146,5 +148,5 @@ export default function PaymentReviewQueue() {
         />
       )}
     </>
-  )
+  );
 }

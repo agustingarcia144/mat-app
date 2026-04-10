@@ -1,52 +1,52 @@
-'use client'
-import Link from 'next/link'
-import { Logo } from '@/components/features/landing/logo'
-import { ChevronsUpDown, LogOut, Menu, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import React from 'react'
-import { cn } from '@/lib/utils'
-import { Authenticated, Unauthenticated } from 'convex/react'
-import { SignInDialog } from '@/components/features/auth/sign-in-dialog'
+"use client";
+import Link from "next/link";
+import { Logo } from "@/components/features/landing/logo";
+import { ChevronsUpDown, LogOut, Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import React from "react";
+import { cn } from "@/lib/utils";
+import { Authenticated, Unauthenticated } from "convex/react";
+import { SignInDialog } from "@/components/features/auth/sign-in-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { useClerk, useUser } from '@clerk/nextjs'
+} from "@/components/ui/dropdown-menu";
+import { useClerk, useUser } from "@clerk/nextjs";
 
 const menuItems = [
-  { name: 'Funcionalidades', href: '#link', visible: false },
-  { name: 'Solución', href: '#link', visible: false },
-  { name: 'Precios', href: '#link', visible: false },
-  { name: 'Nosotros', href: '#link', visible: false },
-]
+  { name: "Funcionalidades", href: "#link", visible: false },
+  { name: "Solución", href: "#link", visible: false },
+  { name: "Precios", href: "#link", visible: false },
+  { name: "Nosotros", href: "#link", visible: false },
+];
 
 export const HeroHeader = () => {
-  const [menuState, setMenuState] = React.useState(false)
-  const [isScrolled, setIsScrolled] = React.useState(false)
-  const [signInOpen, setSignInOpen] = React.useState(false)
-  const { signOut } = useClerk()
-  const { user } = useUser()
+  const [menuState, setMenuState] = React.useState(false);
+  const [isScrolled, setIsScrolled] = React.useState(false);
+  const [signInOpen, setSignInOpen] = React.useState(false);
+  const { signOut } = useClerk();
+  const { user } = useUser();
 
   React.useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50)
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+      setIsScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
   return (
     <header>
       <nav
-        data-state={menuState && 'active'}
+        data-state={menuState && "active"}
         className="fixed z-20 w-full px-2"
       >
         <div
           className={cn(
-            'mx-auto mt-2 max-w-6xl px-6 transition-all duration-300 lg:px-12',
+            "mx-auto mt-2 max-w-6xl px-6 transition-all duration-300 lg:px-12",
             isScrolled &&
-              'bg-background/50 max-w-4xl rounded-2xl border backdrop-blur-lg lg:px-5'
+              "bg-background/50 max-w-4xl rounded-2xl border backdrop-blur-lg lg:px-5",
           )}
         >
           <div className="relative flex flex-wrap items-center justify-between gap-6 py-3 lg:gap-0 lg:py-4">
@@ -61,7 +61,7 @@ export const HeroHeader = () => {
 
               <button
                 onClick={() => setMenuState(!menuState)}
-                aria-label={menuState == true ? 'Cerrar menú' : 'Abrir menú'}
+                aria-label={menuState == true ? "Cerrar menú" : "Abrir menú"}
                 className="relative z-20 -m-2.5 -mr-4 block cursor-pointer p-2.5 lg:hidden"
               >
                 <Menu className="in-data-[state=active]:rotate-180 in-data-[state=active]:scale-0 in-data-[state=active]:opacity-0 m-auto size-6 duration-200" />
@@ -82,7 +82,7 @@ export const HeroHeader = () => {
                           <span>{item.name}</span>
                         </Link>
                       </li>
-                    )
+                    ),
                 )}
               </ul>
             </div>
@@ -107,7 +107,7 @@ export const HeroHeader = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    className={cn(isScrolled && 'lg:hidden')}
+                    className={cn(isScrolled && "lg:hidden")}
                     onClick={() => setSignInOpen(true)}
                   >
                     <span>Iniciar sesión</span>
@@ -119,7 +119,7 @@ export const HeroHeader = () => {
                   <Button
                     asChild
                     size="sm"
-                    className={cn(isScrolled && 'lg:hidden')}
+                    className={cn(isScrolled && "lg:hidden")}
                   >
                     <Link href="/invite-code">
                       <span>Tengo invitacion</span>
@@ -131,7 +131,7 @@ export const HeroHeader = () => {
                     <Button
                       asChild
                       size="sm"
-                      className={cn(isScrolled && 'lg:hidden')}
+                      className={cn(isScrolled && "lg:hidden")}
                     >
                       <Link href="/dashboard">
                         <span>Dashboard</span>
@@ -145,14 +145,14 @@ export const HeroHeader = () => {
                               user?.emailAddresses?.[0]?.emailAddress
                                 ?.charAt(0)
                                 .toUpperCase() ||
-                              'U'}
+                              "U"}
                           </span>
                           <ChevronsUpDown className="size-3" />
                         </button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-40">
                         <DropdownMenuItem
-                          onClick={() => signOut({ redirectUrl: '/' })}
+                          onClick={() => signOut({ redirectUrl: "/" })}
                         >
                           <LogOut className="mr-2 size-4" />
                           Cerrar sesión
@@ -167,5 +167,5 @@ export const HeroHeader = () => {
         </div>
       </nav>
     </header>
-  )
-}
+  );
+};
