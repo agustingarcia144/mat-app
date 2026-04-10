@@ -15,10 +15,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Badge } from '@/components/ui/badge'
 import { api } from '@/convex/_generated/api'
 import type { Member } from '@repo/core'
 
-function MemberNameCell({ member }: { member: Member }) {
+export type MemberTableRow = Member & {
+  assignedPlanName: string
+  planPaymentStatus: 'pago' | 'pendiente' | 'vencido' | 'none'
+}
+
+function MemberNameCell({ member }: { member: MemberTableRow }) {
   const initials =
     member.fullName
       ?.split(' ')
@@ -40,7 +46,7 @@ function MemberNameCell({ member }: { member: Member }) {
   )
 }
 
-function MemberActionsCell({ member }: { member: Member }) {
+function MemberActionsCell({ member }: { member: MemberTableRow }) {
   const [open, setOpen] = useState(false)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const setMemberInactive = useMutation(
@@ -113,19 +119,68 @@ function MemberActionsCell({ member }: { member: Member }) {
   )
 }
 
-const nameColumn: ColumnDef<Member> = {
+function PlanPaymentStatusBadge({
+  status,
+}: {
+  status: MemberTableRow['planPaymentStatus']
+}) {
+  const config = {
+    pago:
+      'border-green-500/30 bg-green-500/10 text-green-400',
+    pendiente:
+      'border-amber-500/30 bg-amber-500/10 text-amber-400',
+    vencido:
+      'border-red-500/30 bg-red-500/10 text-red-400',
+    none:
+      'border-border bg-background text-muted-foreground',
+  } as const
+
+  const label = {
+    pago: 'PAGO',
+    pendiente: 'PENDIENTE',
+    vencido: 'VENCIDO',
+    none: '-',
+  } as const
+
+  return (
+    <Badge
+      variant='outline'
+      className={`rounded-full px-2.5 py-1 font-medium ${config[status]}`}
+    >
+      {label[status]}
+    </Badge>
+  )
+}
+
+const nameColumn: ColumnDef<MemberTableRow> = {
   accessorKey: 'name',
   header: () => <div className="pl-1">Nombre</div>,
   cell: ({ row }) => <MemberNameCell member={row.original} />,
 }
 
 
-export const getColumns = (): ColumnDef<Member>[] => [
+export const getColumns = (): ColumnDef<MemberTableRow>[] => [
   nameColumn,
 
   {
     accessorKey: 'email',
     header: 'Email',
+  },
+
+  {
+    accessorKey: 'assignedPlanName',
+    header: 'Plan',
+    cell: ({ row }) => (
+      <span className='font-medium'>{row.original.assignedPlanName}</span>
+    ),
+  },
+
+  {
+    accessorKey: 'planPaymentStatus',
+    header: 'Estado del plan',
+    cell: ({ row }) => (
+      <PlanPaymentStatusBadge status={row.original.planPaymentStatus} />
+    ),
   },
 
   {
