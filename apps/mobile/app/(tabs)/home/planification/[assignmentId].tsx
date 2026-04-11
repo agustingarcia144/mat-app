@@ -1,17 +1,16 @@
-import React from "react";
-import { Authenticated, AuthLoading } from "convex/react";
-import { AssignmentDetailContent } from "@/components/features/planifications";
-import LoadingScreen from "@/components/shared/screens/loading-screen";
+import { Redirect, useLocalSearchParams } from "expo-router";
+import type { Href } from "expo-router";
 
-export default function WorkoutPlanificationScreen() {
+export default function WorkoutPlanificationRedirect() {
+  const { assignmentId } = useLocalSearchParams<{ assignmentId?: string }>();
+
   return (
-    <>
-      <AuthLoading>
-        <LoadingScreen />
-      </AuthLoading>
-      <Authenticated>
-        <AssignmentDetailContent />
-      </Authenticated>
-    </>
+    <Redirect
+      href={
+        assignmentId
+          ? (`/profile/planifications/${assignmentId}` as Href)
+          : ("/profile" as Href)
+      }
+    />
   );
 }

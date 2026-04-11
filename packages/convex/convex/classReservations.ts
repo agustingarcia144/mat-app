@@ -11,6 +11,7 @@ import { internal } from "./_generated/api";
 import {
   requireActiveOrgContext,
   requireAuth,
+  requireActiveSubscription,
   requireAdminOrTrainer,
   requireOrganizationMembership,
   tryActiveOrgContext,
@@ -83,7 +84,13 @@ export const reserve = mutation({
       throw new Error("You have already reserved this class");
     }
 
-    // Plan enforcement: check suspension and weekly class limit
+    // Plan enforcement: require active subscription and check weekly class limit
+    await requireActiveSubscription(
+      ctx,
+      schedule.organizationId,
+      identity.subject,
+    );
+
     const subscription = await ctx.db
       .query("memberPlanSubscriptions")
       .withIndex("by_organization_user", (q) =>
@@ -91,16 +98,10 @@ export const reserve = mutation({
           .eq("organizationId", schedule.organizationId)
           .eq("userId", identity.subject),
       )
-      .filter((q) => q.neq(q.field("status"), "cancelled"))
+      .filter((q) => q.eq(q.field("status"), "active"))
       .first();
 
     if (subscription) {
-      if (subscription.status === "suspended") {
-        throw new Error(
-          "Tu plan está suspendido por falta de pago. Realizá el pago para poder reservar.",
-        );
-      }
-
       const plan = await ctx.db.get(subscription.planId);
       if (plan) {
         const weeklyCount = await countWeeklyReservations(

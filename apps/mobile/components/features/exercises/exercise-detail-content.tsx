@@ -153,7 +153,7 @@ export default function ExerciseDetailContent() {
 
     if (assignmentId) {
       router.push({
-        pathname: "/(tabs)/planifications/[assignmentId]/[exerciseId]/video",
+        pathname: "/profile/planifications/[assignmentId]/[exerciseId]/video",
         params: {
           assignmentId,
           exerciseId,

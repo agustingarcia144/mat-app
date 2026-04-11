@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { PressableScale } from "pressto";
-import { StyleSheet, useColorScheme } from "react-native";
+import { StyleSheet } from "react-native";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { IconSymbol } from "./icon-symbol";
 
 const SIZE = 36;

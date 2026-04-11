@@ -15,12 +15,14 @@ import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useSubscriptionGate } from "@/hooks/use-subscription-gate";
 import { ThemedView } from "@/components/ui/themed-view";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
 import { format, getISODay, startOfWeek, endOfWeek } from "date-fns";
 import { CalendarWeekView } from "@/components/features/home/calendar-week-view";
 import { NoActivePlanAlert } from "@/components/features/home/no-active-plan-alert";
+import { SubscriptionBanner } from "@/components/features/home/subscription-banner";
 import { ReservedClassesForDay } from "@/components/features/home/reserved-classes-for-day";
 import { RestDayPlaceholder } from "@/components/features/home/rest-day-placeholder";
 import { ScheduledWorkoutCard } from "@/components/features/home/scheduled-workout-card";
@@ -36,6 +38,9 @@ export default function DashboardContent() {
   const { width: windowWidth } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
+
+  const { status: subscriptionStatus, canAccess: hasActiveSubscription } =
+    useSubscriptionGate();
 
   const [selectedDate, setSelectedDate] = useState(() => new Date());
 
@@ -308,6 +313,7 @@ export default function DashboardContent() {
   }, [sessionForSelected]);
 
   const handleOpenWorkout = () => {
+    if (!hasActiveSubscription) return;
     if (sessionForSelected) {
       router.push(`/home/workout/${sessionForSelected._id}` as Href);
     } else {
@@ -418,18 +424,33 @@ export default function DashboardContent() {
             </View>
           ) : (
             <>
+              {!hasActiveSubscription &&
+                subscriptionStatus !== "loading" && (
+                  <SubscriptionBanner
+                    status={subscriptionStatus}
+                    isDark={isDark}
+                    onPress={() => router.push("/plan" as Href)}
+                  />
+                )}
               {workoutDayToDisplay && (
-                <ScheduledWorkoutCard
-                  name={workoutDayToDisplay.name}
-                  isDark={isDark}
-                  statusBadgeVariant={statusBadgeVariant}
-                  statusBadgeLabel={statusBadgeLabel}
-                  blockCount={blocksForDisplayDay?.length ?? 0}
-                  exerciseCount={
-                    exercisesByDay[workoutDayToDisplay._id]?.length ?? 0
+                <View
+                  style={
+                    !hasActiveSubscription ? { opacity: 0.5 } : undefined
                   }
-                  onPress={handleOpenWorkout}
-                />
+                  pointerEvents={!hasActiveSubscription ? "none" : "auto"}
+                >
+                  <ScheduledWorkoutCard
+                    name={workoutDayToDisplay.name}
+                    isDark={isDark}
+                    statusBadgeVariant={statusBadgeVariant}
+                    statusBadgeLabel={statusBadgeLabel}
+                    blockCount={blocksForDisplayDay?.length ?? 0}
+                    exerciseCount={
+                      exercisesByDay[workoutDayToDisplay._id]?.length ?? 0
+                    }
+                    onPress={handleOpenWorkout}
+                  />
+                </View>
               )}
               {reservedClassesItems.length > 0 && (
                 <ReservedClassesForDay
@@ -453,7 +474,7 @@ export default function DashboardContent() {
           pointerEvents="box-none"
         >
           <NoActivePlanAlert
-            onPress={() => router.push("/planifications" as Href)}
+            onPress={() => router.push("/profile/planifications" as Href)}
             isDark={isDark}
           />
         </View>

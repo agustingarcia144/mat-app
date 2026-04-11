@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from 'react'
 import {
   View,
   Text,
@@ -9,223 +9,228 @@ import {
   Platform,
   Linking,
   TouchableOpacity,
-} from "react-native";
-import { useAuth } from "@clerk/expo";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter, Stack } from "expo-router";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@repo/convex";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
-import * as Haptics from "expo-haptics";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { ThemedView } from "@/components/ui/themed-view";
-import { ThemedText } from "@/components/ui/themed-text";
-import { ThemedPressable } from "@/components/ui/themed-pressable";
-import { ClassIcon } from "@/components/features/classes/class-icon";
-import { OccupancyBadge } from "@/components/features/classes/occupancy-badge";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { ReservationBadge } from "@/components/features/classes/reservation-badge";
-import { UnavailableBadge } from "@/components/features/classes/unavailable-badge";
+} from 'react-native'
+import { useAuth } from '@clerk/expo'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
+import { useQuery, useMutation } from 'convex/react'
+import { api } from '@repo/convex'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import * as Haptics from 'expo-haptics'
+import { useColorScheme } from '@/hooks/use-color-scheme'
+import { useSubscriptionGate } from '@/hooks/use-subscription-gate'
+import { ThemedView } from '@/components/ui/themed-view'
+import { ThemedText } from '@/components/ui/themed-text'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
+import { ClassIcon } from '@/components/features/classes/class-icon'
+import { OccupancyBadge } from '@/components/features/classes/occupancy-badge'
+import { IconSymbol } from '@/components/ui/icon-symbol'
+import { ReservationBadge } from '@/components/features/classes/reservation-badge'
+import { UnavailableBadge } from '@/components/features/classes/unavailable-badge'
 
-const SPACING = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const;
+const SPACING = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const
 
 export default function ClassDetailContent() {
-  const { scheduleId } = useLocalSearchParams<{ scheduleId: string }>();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const { userId } = useAuth();
+  const { scheduleId } = useLocalSearchParams<{ scheduleId: string }>()
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const colorScheme = useColorScheme()
+  const isDark = colorScheme === 'dark'
+  const { userId } = useAuth()
 
   const scheduleWithDetails = useQuery(
     api.classSchedules.getScheduleWithDetails,
-    scheduleId ? { id: scheduleId as any } : "skip",
-  );
-  const myUpcoming = useQuery(api.classReservations.getUpcomingByUser, {});
-  const myPast = useQuery(api.classReservations.getPastByUser, {});
-  const reserve = useMutation(api.classReservations.reserve);
-  const cancelReservation = useMutation(api.classReservations.cancel);
-  const checkInSelf = useMutation(api.classReservations.checkInSelf);
+    scheduleId ? { id: scheduleId as any } : 'skip'
+  )
+  const myUpcoming = useQuery(api.classReservations.getUpcomingByUser, {})
+  const myPast = useQuery(api.classReservations.getPastByUser, {})
+  const reserve = useMutation(api.classReservations.reserve)
+  const cancelReservation = useMutation(api.classReservations.cancel)
+  const checkInSelf = useMutation(api.classReservations.checkInSelf)
   const myAlert = useQuery(
     api.classAlerts.getMyAlert,
-    scheduleId ? { scheduleId: scheduleId as any } : "skip",
-  );
-  const subscribeAlert = useMutation(api.classAlerts.subscribe);
-  const unsubscribeAlert = useMutation(api.classAlerts.unsubscribe);
+    scheduleId ? { scheduleId: scheduleId as any } : 'skip'
+  )
+  const subscribeAlert = useMutation(api.classAlerts.subscribe)
+  const unsubscribeAlert = useMutation(api.classAlerts.unsubscribe)
   const fixedSlots = useQuery(
     api.fixedClassSlots.listByUser,
-    userId ? { userId } : "skip",
-  );
+    userId ? { userId } : 'skip'
+  )
 
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const { status: subscriptionStatus, canAccess: hasActiveSubscription } =
+    useSubscriptionGate()
+
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
 
   const reservation = useMemo(() => {
-    if (!scheduleId || !myUpcoming || !myPast) return null;
-    const allReservations = [...myUpcoming, ...myPast];
-    return allReservations.find((r) => r.schedule?._id === scheduleId) ?? null;
-  }, [scheduleId, myUpcoming, myPast]);
+    if (!scheduleId || !myUpcoming || !myPast) return null
+    const allReservations = [...myUpcoming, ...myPast]
+    return allReservations.find((r) => r.schedule?._id === scheduleId) ?? null
+  }, [scheduleId, myUpcoming, myPast])
 
-  const isReserved = useMemo(() => Boolean(reservation), [reservation]);
+  const isReserved = useMemo(() => Boolean(reservation), [reservation])
 
   const canReserve = useMemo(() => {
-    if (!scheduleWithDetails || isReserved) return false;
-    const { currentReservations, capacity, startTime } = scheduleWithDetails;
-    const now = Date.now();
-    if (currentReservations >= capacity) return false;
-    if (now >= startTime) return false;
-    const classTemplate = scheduleWithDetails.class;
-    if (!classTemplate) return false;
+    if (!hasActiveSubscription) return false
+    if (!scheduleWithDetails || isReserved) return false
+    const { currentReservations, capacity, startTime } = scheduleWithDetails
+    const now = Date.now()
+    if (currentReservations >= capacity) return false
+    if (now >= startTime) return false
+    const classTemplate = scheduleWithDetails.class
+    if (!classTemplate) return false
     const bookingWindowMs =
-      classTemplate.bookingWindowDays * 24 * 60 * 60 * 1000;
-    if (now < startTime - bookingWindowMs) return false;
-    return true;
-  }, [scheduleWithDetails, isReserved]);
+      classTemplate.bookingWindowDays * 24 * 60 * 60 * 1000
+    if (now < startTime - bookingWindowMs) return false
+    return true
+  }, [scheduleWithDetails, isReserved, hasActiveSubscription])
 
   const canCancel = useMemo(() => {
-    if (!reservation?.schedule || !reservation?.class) return false;
-    if (reservation.status !== "confirmed") return false;
-    const schedule = reservation.schedule;
-    const classTemplate = reservation.class;
-    const now = Date.now();
+    if (!reservation?.schedule || !reservation?.class) return false
+    if (reservation.status !== 'confirmed') return false
+    const schedule = reservation.schedule
+    const classTemplate = reservation.class
+    const now = Date.now()
     const cancellationWindowMs =
-      (classTemplate.cancellationWindowHours ?? 0) * 60 * 60 * 1000;
-    const latestCancellationTime = schedule.startTime - cancellationWindowMs;
-    return now <= latestCancellationTime;
-  }, [reservation]);
+      (classTemplate.cancellationWindowHours ?? 0) * 60 * 60 * 1000
+    const latestCancellationTime = schedule.startTime - cancellationWindowMs
+    return now <= latestCancellationTime
+  }, [reservation])
 
   const canCheckIn = useMemo(() => {
-    if (!reservation?.schedule) return false;
-    if (reservation.status !== "confirmed") return false;
+    if (!reservation?.schedule) return false
+    if (reservation.status !== 'confirmed') return false
 
-    const now = Date.now();
-    const checkInOpensAt = reservation.schedule.startTime - 20 * 60 * 1000;
-    const checkInClosesAt = reservation.schedule.endTime + 6 * 60 * 60 * 1000;
-    return now >= checkInOpensAt && now <= checkInClosesAt;
-  }, [reservation]);
+    const now = Date.now()
+    const checkInOpensAt = reservation.schedule.startTime - 20 * 60 * 1000
+    const checkInClosesAt = reservation.schedule.endTime + 6 * 60 * 60 * 1000
+    return now >= checkInOpensAt && now <= checkInClosesAt
+  }, [reservation])
 
   const isFixedSlot = useMemo(() => {
     if (!reservation || !scheduleWithDetails?.startTime || !fixedSlots?.length)
-      return false;
-    const d = new Date(scheduleWithDetails.startTime);
-    const day = d.getUTCDay();
-    const mins = d.getUTCHours() * 60 + d.getUTCMinutes();
+      return false
+    const d = new Date(scheduleWithDetails.startTime)
+    const day = d.getUTCDay()
+    const mins = d.getUTCHours() * 60 + d.getUTCMinutes()
     return fixedSlots.some(
       (s) =>
         s.classId === scheduleWithDetails.classId &&
         s.dayOfWeek === day &&
-        s.startTimeMinutes === mins,
-    );
-  }, [reservation, scheduleWithDetails, fixedSlots]);
+        s.startTimeMinutes === mins
+    )
+  }, [reservation, scheduleWithDetails, fixedSlots])
 
   const handleToggleAlert = useCallback(async () => {
-    if (!scheduleId) return;
+    if (!scheduleId) return
     if (myAlert) {
-      await unsubscribeAlert({ scheduleId: scheduleId as any });
+      await unsubscribeAlert({ scheduleId: scheduleId as any })
     } else {
-      await subscribeAlert({ scheduleId: scheduleId as any });
+      await subscribeAlert({ scheduleId: scheduleId as any })
       Alert.alert(
-        "Alertas activadas",
-        "Te avisaremos si se libera un lugar o si la clase es cancelada.",
-      );
+        'Alertas activadas',
+        'Te avisaremos si se libera un lugar o si la clase es cancelada.'
+      )
     }
-  }, [scheduleId, myAlert, subscribeAlert, unsubscribeAlert]);
+  }, [scheduleId, myAlert, subscribeAlert, unsubscribeAlert])
 
   const handleReserve = useCallback(() => {
-    if (!scheduleId) return;
-    setError("");
-    Alert.alert("Reservar clase", "¿Querés reservar tu lugar en esta clase?", [
-      { text: "No", style: "cancel" },
+    if (!scheduleId) return
+    setError('')
+    Alert.alert('Reservar clase', '¿Querés reservar tu lugar en esta clase?', [
+      { text: 'No', style: 'cancel' },
       {
-        text: "Sí, reservar",
+        text: 'Sí, reservar',
         onPress: async () => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setBusy(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+          setBusy(true)
           try {
-            await reserve({ scheduleId: scheduleId as any });
+            await reserve({ scheduleId: scheduleId as any })
           } catch (e: any) {
-            setError(e?.message ?? "No se pudo reservar la clase");
+            setError(e?.message ?? 'No se pudo reservar la clase')
           } finally {
-            setBusy(false);
+            setBusy(false)
           }
         },
       },
-    ]);
-  }, [scheduleId, reserve]);
+    ])
+  }, [scheduleId, reserve])
 
   const handleCancel = useCallback(() => {
-    if (!reservation?._id) return;
-    setError("");
-    Alert.alert("Cancelar reserva", "¿Querés cancelar tu reserva?", [
-      { text: "No", style: "cancel" },
+    if (!reservation?._id) return
+    setError('')
+    Alert.alert('Cancelar reserva', '¿Querés cancelar tu reserva?', [
+      { text: 'No', style: 'cancel' },
       {
-        text: "Sí, cancelar",
-        style: "destructive",
+        text: 'Sí, cancelar',
+        style: 'destructive',
         onPress: async () => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          setBusy(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
+          setBusy(true)
           try {
-            await cancelReservation({ id: reservation._id as any });
+            await cancelReservation({ id: reservation._id as any })
           } catch (e: any) {
-            setError(e?.message ?? "No se pudo cancelar la reserva");
+            setError(e?.message ?? 'No se pudo cancelar la reserva')
           } finally {
-            setBusy(false);
+            setBusy(false)
           }
         },
       },
-    ]);
-  }, [reservation?._id, cancelReservation]);
+    ])
+  }, [reservation?._id, cancelReservation])
 
   const handleCheckIn = useCallback(() => {
-    if (!reservation?._id) return;
-    setError("");
-    Alert.alert("Confirmar asistencia", "¿Querés confirmar tu asistencia?", [
-      { text: "No", style: "cancel" },
+    if (!reservation?._id) return
+    setError('')
+    Alert.alert('Confirmar asistencia', '¿Querés confirmar tu asistencia?', [
+      { text: 'No', style: 'cancel' },
       {
-        text: "Sí, confirmar",
+        text: 'Sí, confirmar',
         onPress: async () => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setBusy(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+          setBusy(true)
           try {
-            await checkInSelf({ id: reservation._id as any });
+            await checkInSelf({ id: reservation._id as any })
           } catch (e: any) {
-            setError(e?.message ?? "No se pudo confirmar la asistencia");
+            setError(e?.message ?? 'No se pudo confirmar la asistencia')
           } finally {
-            setBusy(false);
+            setBusy(false)
           }
         },
       },
-    ]);
-  }, [reservation?._id, checkInSelf]);
+    ])
+  }, [reservation?._id, checkInSelf])
 
   const addToCalendar = useCallback(() => {
-    if (!scheduleWithDetails) return;
-    const { startTime, endTime } = scheduleWithDetails;
-    const classTemplate = scheduleWithDetails.class;
-    const title = classTemplate?.name ?? "Clase";
-    const start = new Date(startTime);
-    const end = new Date(endTime);
+    if (!scheduleWithDetails) return
+    const { startTime, endTime } = scheduleWithDetails
+    const classTemplate = scheduleWithDetails.class
+    const title = classTemplate?.name ?? 'Clase'
+    const start = new Date(startTime)
+    const end = new Date(endTime)
     const formatForCal = (d: Date) =>
       d
         .toISOString()
-        .replace(/[-:]/g, "")
-        .replace(/\.\d{3}/, "");
-    if (Platform.OS === "ios") {
-      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatForCal(start)}/${formatForCal(end)}`;
-      Linking.openURL(url);
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}/, '')
+    if (Platform.OS === 'ios') {
+      const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatForCal(start)}/${formatForCal(end)}`
+      Linking.openURL(url)
     } else {
-      const url = `content://com.android.calendar/time/${startTime}?title=${encodeURIComponent(title)}&endTime=${endTime}`;
+      const url = `content://com.android.calendar/time/${startTime}?title=${encodeURIComponent(title)}&endTime=${endTime}`
       Linking.canOpenURL(url).then((ok) => {
-        if (ok) Linking.openURL(url);
+        if (ok) Linking.openURL(url)
         else
           Linking.openURL(
-            `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatForCal(start)}/${formatForCal(end)}`,
-          );
-      });
+            `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatForCal(start)}/${formatForCal(end)}`
+          )
+      })
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [scheduleWithDetails]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+  }, [scheduleWithDetails])
 
   if (
     scheduleWithDetails === undefined ||
@@ -234,9 +239,9 @@ export default function ClassDetailContent() {
   ) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={isDark ? "#fff" : "#000"} />
+        <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
       </ThemedView>
-    );
+    )
   }
 
   if (!scheduleWithDetails) {
@@ -249,25 +254,25 @@ export default function ClassDetailContent() {
           <ThemedText>Volver</ThemedText>
         </ThemedPressable>
       </ThemedView>
-    );
+    )
   }
 
   const { startTime, endTime, currentReservations, capacity } =
-    scheduleWithDetails;
-  const classTemplate = scheduleWithDetails.class;
-  const scheduleDate = new Date(startTime);
-  const timeLabel = `${format(new Date(startTime), "HH:mm", { locale: es })} – ${format(new Date(endTime), "HH:mm", { locale: es })}`;
-  const dateLabel = format(scheduleDate, "EEEE d 'de' MMMM", { locale: es });
-  const spotsLeft = capacity - currentReservations;
+    scheduleWithDetails
+  const classTemplate = scheduleWithDetails.class
+  const scheduleDate = new Date(startTime)
+  const timeLabel = `${format(new Date(startTime), 'HH:mm', { locale: es })} – ${format(new Date(endTime), 'HH:mm', { locale: es })}`
+  const dateLabel = format(scheduleDate, "EEEE d 'de' MMMM", { locale: es })
+  const spotsLeft = capacity - currentReservations
 
-  const muted = isDark ? "#a1a1aa" : "#71717a";
-  const titleColor = isDark ? "#fafafa" : "#18181b";
-  const cardBg = isDark ? "#1c1c1e" : "#f4f4f5";
-  const borderColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+  const muted = isDark ? '#a1a1aa' : '#71717a'
+  const titleColor = isDark ? '#fafafa' : '#18181b'
+  const cardBg = isDark ? '#1c1c1e' : '#f4f4f5'
+  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
 
   const isUpcoming =
-    startTime > Date.now() && scheduleWithDetails.status === "scheduled";
-  const isAlertActive = Boolean(myAlert);
+    startTime > Date.now() && scheduleWithDetails.status === 'scheduled'
+  const isAlertActive = Boolean(myAlert)
 
   return (
     <ThemedView style={styles.container}>
@@ -281,9 +286,9 @@ export default function ClassDetailContent() {
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <IconSymbol
-                    name={isAlertActive ? "bell.fill" : "bell"}
+                    name={isAlertActive ? 'bell.fill' : 'bell'}
                     size={22}
-                    color={isAlertActive ? "#f59e0b" : muted}
+                    color={isAlertActive ? '#f59e0b' : muted}
                   />
                 </TouchableOpacity>
               )
@@ -300,9 +305,9 @@ export default function ClassDetailContent() {
       >
         {/* Hero — extra top padding to bring whole view down */}
         <View style={[styles.hero, { paddingTop: 48 }]}>
-          <ClassIcon className={classTemplate?.name ?? ""} isDark={isDark} />
+          <ClassIcon className={classTemplate?.name ?? ''} isDark={isDark} />
           <Text style={[styles.heroTitle, { color: titleColor }]}>
-            {classTemplate?.name ?? "Clase"}
+            {classTemplate?.name ?? 'Clase'}
           </Text>
           <Text style={[styles.heroTime, { color: muted }]}>{timeLabel}</Text>
           <Text style={[styles.heroDate, { color: muted }]}>{dateLabel}</Text>
@@ -312,10 +317,10 @@ export default function ClassDetailContent() {
                 <ReservationBadge
                   isDark={isDark}
                   status={
-                    (reservation?.status ?? "confirmed") as
-                      | "confirmed"
-                      | "attended"
-                      | "no_show"
+                    (reservation?.status ?? 'confirmed') as
+                      | 'confirmed'
+                      | 'attended'
+                      | 'no_show'
                   }
                 />
                 {isFixedSlot && (
@@ -324,15 +329,15 @@ export default function ClassDetailContent() {
                       styles.fixedSlotBadge,
                       {
                         backgroundColor: isDark
-                          ? "rgba(59,130,246,0.22)"
-                          : "#dbeafe",
+                          ? 'rgba(59,130,246,0.22)'
+                          : '#dbeafe',
                       },
                     ]}
                   >
                     <Text
                       style={[
                         styles.fixedSlotBadgeText,
-                        { color: isDark ? "#93c5fd" : "#1d4ed8" },
+                        { color: isDark ? '#93c5fd' : '#1d4ed8' },
                       ]}
                     >
                       Turno fijo
@@ -347,7 +352,7 @@ export default function ClassDetailContent() {
                 status={scheduleWithDetails.status}
                 isDark={isDark}
               />
-            ) : scheduleWithDetails.status !== "scheduled" ||
+            ) : scheduleWithDetails.status !== 'scheduled' ||
               currentReservations >= capacity ? (
               <OccupancyBadge
                 capacity={capacity}
@@ -426,7 +431,7 @@ export default function ClassDetailContent() {
           <IconSymbol
             name="calendar"
             size={20}
-            color={isDark ? "#a1a1aa" : "#71717a"}
+            color={isDark ? '#a1a1aa' : '#71717a'}
           />
           <ThemedText style={[styles.ctaSecondaryText, { color: muted }]}>
             Agregar al calendario
@@ -445,9 +450,9 @@ export default function ClassDetailContent() {
         style={[
           styles.stickyFooter,
           {
-            paddingBottom: insets.bottom + SPACING.lg,
+            paddingBottom: insets.bottom,
             paddingTop: SPACING.lg,
-            backgroundColor: isDark ? "#0a0a0a" : "#fff",
+            backgroundColor: isDark ? '#0a0a0a' : '#fff',
             borderTopColor: borderColor,
           },
         ]}
@@ -462,20 +467,20 @@ export default function ClassDetailContent() {
             {busy ? (
               <ActivityIndicator
                 size="small"
-                color={colorScheme === "dark" ? "#000" : "#fff"}
+                color={colorScheme === 'dark' ? '#000' : '#fff'}
               />
             ) : (
               <Text
                 style={[
                   styles.ctaPrimaryText,
-                  { color: colorScheme === "dark" ? "#000" : "#fff" },
+                  { color: colorScheme === 'dark' ? '#000' : '#fff' },
                 ]}
               >
                 Confirmar asistencia
               </Text>
             )}
           </ThemedPressable>
-        ) : isReserved && reservation?.status === "confirmed" ? (
+        ) : isReserved && reservation?.status === 'confirmed' ? (
           <ThemedPressable
             type="destructive"
             lightColor="#f87171"
@@ -490,6 +495,31 @@ export default function ClassDetailContent() {
               <Text style={styles.ctaPrimaryText}>Cancelar reserva</Text>
             )}
           </ThemedPressable>
+        ) : !hasActiveSubscription &&
+          subscriptionStatus !== 'loading' &&
+          !isReserved &&
+          isUpcoming ? (
+          <View style={styles.subscriptionNotice}>
+            <Text
+              style={[
+                styles.subscriptionNoticeText,
+                {
+                  color:
+                    subscriptionStatus === 'suspended'
+                      ? isDark
+                        ? '#fca5a5'
+                        : '#dc2626'
+                      : isDark
+                        ? '#fdba74'
+                        : '#c2410c',
+                },
+              ]}
+            >
+              {subscriptionStatus === 'suspended'
+                ? 'Tu plan está suspendido. Regularizá tu pago para reservar.'
+                : 'Necesitás un plan activo para reservar clases.'}
+            </Text>
+          </View>
         ) : canReserve ? (
           <ThemedPressable
             type="primary"
@@ -500,13 +530,13 @@ export default function ClassDetailContent() {
             {busy ? (
               <ActivityIndicator
                 size="small"
-                color={colorScheme === "dark" ? "#000" : "#fff"}
+                color={colorScheme === 'dark' ? '#000' : '#fff'}
               />
             ) : (
               <Text
                 style={[
                   styles.ctaPrimaryText,
-                  { color: colorScheme === "dark" ? "#000" : "#fff" },
+                  { color: colorScheme === 'dark' ? '#000' : '#fff' },
                 ]}
               >
                 Reservar lugar
@@ -516,7 +546,7 @@ export default function ClassDetailContent() {
         ) : null}
       </View>
     </ThemedView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -524,8 +554,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   centered: {
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scroll: {
     flex: 1,
@@ -535,40 +565,40 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backButton: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: SPACING.xs,
     paddingVertical: SPACING.sm,
     paddingRight: SPACING.md,
   },
   backLabel: {
     fontSize: 17,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   hero: {
-    alignItems: "center",
+    alignItems: 'center',
     paddingBottom: SPACING.xxl,
   },
   heroTitle: {
     fontSize: 28,
-    fontWeight: "700",
+    fontWeight: '700',
     marginTop: SPACING.lg,
-    textAlign: "center",
+    textAlign: 'center',
   },
   heroTime: {
     fontSize: 20,
-    fontWeight: "600",
+    fontWeight: '600',
     marginTop: SPACING.xs,
   },
   heroDate: {
     fontSize: 15,
     marginTop: SPACING.xs,
-    textTransform: "capitalize",
+    textTransform: 'capitalize',
   },
   heroBadge: {
     marginTop: SPACING.md,
@@ -578,13 +608,13 @@ const styles = StyleSheet.create({
   },
   heroBadgeWrap: {
     marginTop: SPACING.md,
-    alignSelf: "center",
+    alignSelf: 'center',
   },
   heroBadgeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    justifyContent: "center",
+    justifyContent: 'center',
   },
   fixedSlotBadge: {
     paddingHorizontal: 8,
@@ -593,11 +623,11 @@ const styles = StyleSheet.create({
   },
   fixedSlotBadgeText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   heroBadgeText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   section: {
     padding: SPACING.lg,
@@ -606,29 +636,29 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   sectionRow: {
-    flexDirection: "column",
-    alignItems: "flex-start",
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     gap: SPACING.sm,
   },
   sectionLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: SPACING.sm,
     flexShrink: 0,
   },
   sectionLabel: {
     fontSize: 13,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   sectionValue: {
     flex: 1,
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   addToCalendarButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: SPACING.sm,
     paddingVertical: SPACING.md,
     marginBottom: SPACING.lg,
@@ -638,36 +668,36 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: "#ef4444",
+    color: '#ef4444',
   },
   stickyFooter: {
-    position: "absolute",
+    position: 'absolute',
     left: 0,
     right: 0,
-    bottom: Platform.OS === "android" ? 64 : 48,
+    bottom: Platform.OS === 'android' ? 0 : 20,
     paddingHorizontal: SPACING.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   ctaPrimary: {
     minHeight: 48,
     borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   ctaPrimaryText: {
     fontSize: 17,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   ctaSecondaryText: {
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   notFound: {
     fontSize: 16,
     marginBottom: SPACING.lg,
   },
   notFoundDark: {
-    color: "#fafafa",
+    color: '#fafafa',
   },
   backBtn: {
     padding: SPACING.md,
@@ -675,4 +705,15 @@ const styles = StyleSheet.create({
   alertButton: {
     paddingHorizontal: SPACING.sm,
   },
-});
+  subscriptionNotice: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    alignItems: 'center',
+  },
+  subscriptionNoticeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+})

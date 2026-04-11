@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { Platform } from "react-native";
 import HeaderBackButton from "@/components/ui/header-back-button";
 import HeaderCloseButton from "@/components/ui/header-close-button";
 
@@ -27,6 +28,7 @@ export default function InicioLayout() {
           headerShadowVisible: false,
           gestureEnabled: true,
           sheetAllowedDetents: [0.85],
+          sheetShouldOverflowTopInset: Platform.OS === "android",
         }}
       />
       <Stack.Screen

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   Platform,
   Modal,
   Pressable,
@@ -12,7 +11,9 @@ import {
   ActivityIndicator,
   TextInput,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useUser, useClerk } from "@clerk/expo";
@@ -28,13 +29,29 @@ import { format, parseISO } from "date-fns";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
-import { Colors } from "@/constants/theme";
 import LoadingScreen from "@/components/shared/screens/loading-screen";
 import { useAppReset } from "@/components/providers/providers";
 import { Picker } from "@react-native-picker/picker";
+import { ProfileNativeList } from "@/components/features/profile/profile-native-list";
 
 const HEIGHT_CM = Array.from({ length: 151 }, (_, i) => 100 + i);
 const WEIGHT_KG = Array.from({ length: 171 }, (_, i) => 30 + i);
+
+type NumberPickerProps = {
+  selectedValue: number;
+  onValueChange: (value: number) => void;
+  children: React.ReactNode;
+};
+
+type NumberPickerItemProps = {
+  label: string;
+  value: number;
+};
+
+const NativePicker =
+  Picker as unknown as React.ComponentType<NumberPickerProps>;
+const NativePickerItem =
+  Picker.Item as unknown as React.ComponentType<NumberPickerItemProps>;
 
 type PersonalInfoModalProps = {
   visible: boolean;
@@ -310,7 +327,7 @@ function PersonalInfoModal({
               value={birthdayDate ?? new Date(2000, 0, 1)}
               mode="date"
               display="spinner"
-              onChange={(_event, selectedDate) => {
+              onChange={(_event: DateTimePickerEvent, selectedDate?: Date) => {
                 if (Platform.OS === "android") setShowDatePicker(false);
                 if (selectedDate) setBirthdayDate(selectedDate);
               }}
@@ -620,23 +637,23 @@ function PhysicalInfoModal({
                 {activePicker === "height" ? "Altura (cm)" : "Peso (kg)"}
               </Text>
               {activePicker === "height" ? (
-                <Picker
+                <NativePicker
                   selectedValue={heightCm}
-                  onValueChange={(v: number) => setHeightCm(v)}
+                  onValueChange={setHeightCm}
                 >
                   {HEIGHT_CM.map((cm: number) => (
-                    <Picker.Item key={cm} label={`${cm} cm`} value={cm} />
+                    <NativePickerItem key={cm} label={`${cm} cm`} value={cm} />
                   ))}
-                </Picker>
+                </NativePicker>
               ) : (
-                <Picker
+                <NativePicker
                   selectedValue={weightKg}
-                  onValueChange={(v: number) => setWeightKg(v)}
+                  onValueChange={setWeightKg}
                 >
                   {WEIGHT_KG.map((kg: number) => (
-                    <Picker.Item key={kg} label={`${kg} kg`} value={kg} />
+                    <NativePickerItem key={kg} label={`${kg} kg`} value={kg} />
                   ))}
-                </Picker>
+                </NativePicker>
               )}
               <Pressable
                 onPress={() => setActivePicker(null)}
@@ -836,7 +853,6 @@ function ProfileContent() {
     api.organizationMemberships.setActiveOrganization,
   );
   const { resetApp } = useAppReset();
-  const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const [switchingOrgId, setSwitchingOrgId] = React.useState<string | null>(
@@ -860,6 +876,11 @@ function ProfileContent() {
     primaryEmail ||
     "Usuario";
   const imageUrl = user?.imageUrl;
+  const initials = (
+    user?.firstName?.[0] ||
+    primaryEmail?.[0] ||
+    "?"
+  ).toUpperCase();
   const memberships = React.useMemo(
     () =>
       (organizations ?? []).filter(
@@ -875,8 +896,8 @@ function ProfileContent() {
     organizations !== undefined && currentMembership !== undefined;
 
   const buttonBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)";
-  const backgroundColor = Colors[colorScheme ?? "light"].background;
-  const modalSurfaceColor = Colors[colorScheme ?? "light"].background;
+  const backgroundColor = isDark ? "#000" : "#fff";
+  const modalSurfaceColor = backgroundColor;
 
   const handleOrganizationSwitch = React.useCallback(
     async (selectedOrgId: string) => {
@@ -900,204 +921,48 @@ function ProfileContent() {
     [activeOrgId, resetApp, router, setActiveOrganization],
   );
 
+  const handleOpenPlanifications = React.useCallback(() => {
+    router.push("/profile/planifications");
+  }, [router]);
+
+  const handleSignOut = React.useCallback(() => {
+    void (async () => {
+      router.back();
+      await signOut();
+    })();
+  }, [router, signOut]);
+
   return (
     <View style={[styles.container, { backgroundColor }]}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          {
-            // Extra top padding on Android so avatar isn't cut off by the transparent header/title
-            paddingTop: insets.top + (Platform.OS === "android" ? 64 : 44),
-          },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.avatarRow}>
-          {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.avatar}
-              accessibilityLabel="Avatar"
-            />
-          ) : (
-            <View
-              style={[
-                styles.avatarPlaceholder,
-                {
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.12)"
-                    : "rgba(0,0,0,0.08)",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.avatarPlaceholderText,
-                  { color: isDark ? "#fff" : "#000" },
-                ]}
-              >
-                {(
-                  user?.firstName?.[0] ||
-                  primaryEmail?.[0] ||
-                  "?"
-                ).toUpperCase()}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <ThemedText type="title" style={styles.title}>
-          {fullName}
-        </ThemedText>
-        {primaryEmail ? (
-          <ThemedText style={styles.subtitle}>{primaryEmail}</ThemedText>
-        ) : null}
-
-        {isLoaded && hasMultipleOrganizations ? (
-          <View style={styles.orgSection}>
-            <Text
-              style={[
-                styles.orgSectionTitle,
-                { color: isDark ? "#fff" : "#000" },
-              ]}
-            >
-              Cambiar organización
-            </Text>
-            {orgError ? (
-              <Text style={styles.orgErrorText}>{orgError}</Text>
-            ) : null}
-            {memberships.map((membership, index) => {
-              const membershipOrgId = membership.organizationId;
-              const isCurrent = membershipOrgId === activeOrgId;
-              const isSwitching = switchingOrgId === membershipOrgId;
-
-              return (
-                <ThemedPressable
-                  key={`${membershipOrgId}-${index}`}
-                  type="secondary"
-                  lightColor={buttonBg}
-                  darkColor={buttonBg}
-                  style={styles.orgButton}
-                  onPress={() => handleOrganizationSwitch(membershipOrgId)}
-                  disabled={!membershipOrgId || isCurrent || !!switchingOrgId}
-                >
-                  <Text
-                    style={[
-                      styles.orgButtonText,
-                      { color: isDark ? "#fff" : "#000" },
-                    ]}
-                  >
-                    {membership.organizationName}
-                    {isCurrent ? " (actual)" : ""}
-                    {isSwitching ? "..." : ""}
-                  </Text>
-                </ThemedPressable>
-              );
-            })}
-          </View>
-        ) : null}
-
-        <View style={styles.settingsSection}>
-          <Text
-            style={[
-              styles.settingsSectionTitle,
-              { color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.55)" },
-            ]}
-          >
-            Ajustes
-          </Text>
-          <Pressable
-            style={[styles.settingsRow, { backgroundColor: buttonBg }]}
-            onPress={() => setPersonalInfoModalVisible(true)}
-          >
-            <Text
-              style={[
-                styles.settingsRowText,
-                { color: isDark ? "#fff" : "#000" },
-              ]}
-            >
-              Información personal
-            </Text>
-            <Text
-              style={[
-                styles.settingsRowChevron,
-                { color: isDark ? "#71717a" : "#a1a1aa" },
-              ]}
-            >
-              ›
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.settingsRow, { backgroundColor: buttonBg }]}
-            onPress={() => setPhysicalInfoModalVisible(true)}
-          >
-            <Text
-              style={[
-                styles.settingsRowText,
-                { color: isDark ? "#fff" : "#000" },
-              ]}
-            >
-              Información física
-            </Text>
-            <Text
-              style={[
-                styles.settingsRowChevron,
-                { color: isDark ? "#71717a" : "#a1a1aa" },
-              ]}
-            >
-              ›
-            </Text>
-          </Pressable>
-        </View>
-
-        <ThemedPressable
-          type="secondary"
-          lightColor={buttonBg}
-          darkColor={buttonBg}
-          style={[styles.button, { marginTop: 16, backgroundColor: "#ef4444" }]}
-          onPress={async () => {
-            router.back();
-            await signOut();
-          }}
-        >
-          <Text style={[styles.buttonText, { color: "#fff" }]}>
-            Cerrar sesión
-          </Text>
-        </ThemedPressable>
-
-        <View style={styles.dangerSection} accessibilityRole="none">
-          <Text
-            style={[
-              styles.dangerSectionTitle,
-              { color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.55)" },
-            ]}
-          >
-            Zona peligrosa
-          </Text>
-          <ThemedPressable
-            type="secondary"
-            lightColor="transparent"
-            darkColor="transparent"
-            style={[
-              styles.deleteAccountButton,
-              {
-                borderColor: "#ef4444",
-                backgroundColor: "transparent",
-              },
-            ]}
-            onPress={() => setDeleteAccountModalVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Eliminar cuenta permanentemente"
-          >
-            <Text
-              style={[styles.deleteAccountButtonText, { color: "#ef4444" }]}
-            >
-              Eliminar cuenta permanentemente
-            </Text>
-          </ThemedPressable>
-        </View>
-      </ScrollView>
+      <ProfileNativeList
+        isDark={isDark}
+        backgroundColor={backgroundColor}
+        profile={{
+          fullName,
+          primaryEmail,
+          imageUrl,
+          initials,
+        }}
+        organizations={{
+          isLoaded,
+          hasMultipleOrganizations,
+          memberships: memberships.map((membership) => ({
+            organizationId: membership.organizationId,
+            organizationName: membership.organizationName ?? "Organización",
+          })),
+          activeOrgId,
+          switchingOrgId,
+          orgError,
+          onSwitch: handleOrganizationSwitch,
+        }}
+        onOpenPlanifications={handleOpenPlanifications}
+        actions={{
+          onEditPersonalInfo: () => setPersonalInfoModalVisible(true),
+          onEditPhysicalInfo: () => setPhysicalInfoModalVisible(true),
+          onSignOut: handleSignOut,
+          onDeleteAccount: () => setDeleteAccountModalVisible(true),
+        }}
+      />
 
       <PersonalInfoModal
         visible={personalInfoModalVisible}

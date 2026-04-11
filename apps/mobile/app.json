@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "mat-app",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "usesAppleSignIn": true,
@@ -25,7 +24,6 @@
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.agusstingarcia144.matapp",
       "intentFilters": [
@@ -73,7 +71,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "@clerk/expo"
+      "@clerk/expo",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,

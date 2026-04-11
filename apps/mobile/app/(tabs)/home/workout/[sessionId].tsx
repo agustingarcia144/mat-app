@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from 'react'
 import {
   View,
   StyleSheet,
@@ -8,24 +8,26 @@ import {
   Platform,
   Alert,
   Dimensions,
-} from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
-import { PressableScale } from "pressto";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { Href } from "expo-router";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@repo/convex";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { ThemedView } from "@/components/ui/themed-view";
-import { ThemedText } from "@/components/ui/themed-text";
-import { IconSymbol } from "@/components/ui/icon-symbol";
-import { setLogSetSaveCallback } from "@/lib/log-set-bridge";
+} from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
+import { PressableScale } from 'pressto'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import type { Href } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { useQuery, useMutation } from 'convex/react'
+import { api } from '@repo/convex'
+import { useColorScheme } from '@/hooks/use-color-scheme'
+import { ThemedView } from '@/components/ui/themed-view'
+import { ThemedText } from '@/components/ui/themed-text'
+import { IconSymbol } from '@/components/ui/icon-symbol'
+import { setLogSetSaveCallback } from '@/lib/log-set-bridge'
+import { SubscriptionGate } from '@/components/shared/subscription-gate'
+import LoadingScreen from '@/components/shared/screens/loading-screen'
 import {
   ExerciseCard,
   WorkoutFooter,
   type DayExerciseForCard,
-} from "@/components/features/workout";
+} from '@/components/features/workout'
 
 function WorkoutContent() {
   const {
@@ -34,287 +36,287 @@ function WorkoutContent() {
     performedOn: paramPerformedOn,
     assignmentId: paramAssignmentId,
   } = useLocalSearchParams<{
-    sessionId: string;
-    workoutDayId?: string;
-    performedOn?: string;
-    assignmentId?: string;
-  }>();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+    sessionId: string
+    workoutDayId?: string
+    performedOn?: string
+    assignmentId?: string
+  }>()
+  const router = useRouter()
+  const insets = useSafeAreaInsets()
+  const colorScheme = useColorScheme()
+  const isDark = colorScheme === 'dark'
 
-  const isNewSession = sessionId === "new";
+  const isNewSession = sessionId === 'new'
 
   const session = useQuery(
     api.workoutDaySessions.getById,
-    !isNewSession && sessionId ? { id: sessionId as any } : "skip",
-  );
+    !isNewSession && sessionId ? { id: sessionId as any } : 'skip'
+  )
   const resolvedWorkoutDayId = isNewSession
     ? (paramWorkoutDayId as any)
-    : session?.workoutDayId;
+    : session?.workoutDayId
   const dayExercises = useQuery(
     api.dayExercises.getByWorkoutDay,
-    resolvedWorkoutDayId ? { workoutDayId: resolvedWorkoutDayId } : "skip",
-  );
+    resolvedWorkoutDayId ? { workoutDayId: resolvedWorkoutDayId } : 'skip'
+  )
   const blocks = useQuery(
     api.exerciseBlocks.getByWorkoutDay,
-    resolvedWorkoutDayId ? { workoutDayId: resolvedWorkoutDayId } : "skip",
-  );
+    resolvedWorkoutDayId ? { workoutDayId: resolvedWorkoutDayId } : 'skip'
+  )
   const logs = useQuery(
     api.sessionExerciseLogs.getBySession,
-    !isNewSession && sessionId ? { sessionId: sessionId as any } : "skip",
-  );
+    !isNewSession && sessionId ? { sessionId: sessionId as any } : 'skip'
+  )
 
   const workoutDay = useQuery(
     api.workoutDays.getById,
-    resolvedWorkoutDayId ? { id: resolvedWorkoutDayId } : "skip",
-  );
+    resolvedWorkoutDayId ? { id: resolvedWorkoutDayId } : 'skip'
+  )
 
   const resolvedAssignmentId = isNewSession
     ? (paramAssignmentId as string | undefined)
-    : session?.assignmentId;
+    : session?.assignmentId
 
-  const setLog = useMutation(api.sessionExerciseLogs.setLog);
-  const setSessionStatus = useMutation(api.workoutDaySessions.setStatus);
-  const startSession = useMutation(api.workoutDaySessions.startSession);
+  const setLog = useMutation(api.sessionExerciseLogs.setLog)
+  const setSessionStatus = useMutation(api.workoutDaySessions.setStatus)
+  const startSession = useMutation(api.workoutDaySessions.startSession)
 
   const logsByDayExercise = useMemo(() => {
-    const map: Record<string, NonNullable<typeof logs>[number]> = {};
+    const map: Record<string, NonNullable<typeof logs>[number]> = {}
     logs?.forEach((log) => {
-      map[log.dayExerciseId] = log;
-    });
-    return map;
-  }, [logs]);
+      map[log.dayExerciseId] = log
+    })
+    return map
+  }, [logs])
 
-  type DayExercise = NonNullable<typeof dayExercises>[number];
+  type DayExercise = NonNullable<typeof dayExercises>[number]
   const { exercisesByBlock, unblockedExercises } = useMemo(() => {
     if (!dayExercises || !blocks) {
       return {
         exercisesByBlock: new Map<string, DayExercise[]>(),
         unblockedExercises: [] as DayExercise[],
-      };
+      }
     }
-    const byBlock = new Map<string, DayExercise[]>();
-    const unblocked: DayExercise[] = [];
+    const byBlock = new Map<string, DayExercise[]>()
+    const unblocked: DayExercise[] = []
     dayExercises.forEach((ex) => {
       if (ex.blockId) {
-        const list = byBlock.get(ex.blockId) ?? [];
-        list.push(ex);
-        byBlock.set(ex.blockId, list);
+        const list = byBlock.get(ex.blockId) ?? []
+        list.push(ex)
+        byBlock.set(ex.blockId, list)
       } else {
-        unblocked.push(ex);
+        unblocked.push(ex)
       }
-    });
-    byBlock.forEach((list) => list.sort((a, b) => a.order - b.order));
-    unblocked.sort((a, b) => a.order - b.order);
-    return { exercisesByBlock: byBlock, unblockedExercises: unblocked };
-  }, [dayExercises, blocks]);
+    })
+    byBlock.forEach((list) => list.sort((a, b) => a.order - b.order))
+    unblocked.sort((a, b) => a.order - b.order)
+    return { exercisesByBlock: byBlock, unblockedExercises: unblocked }
+  }, [dayExercises, blocks])
 
   const [localValues, setLocalValues] = useState<
     Record<string, { reps: string; weight: string }[]>
-  >({});
+  >({})
   const [localTimeValues, setLocalTimeValues] = useState<
     Record<string, number[]>
-  >({});
+  >({})
   const [quickCompletedSetsByDayEx, setQuickCompletedSetsByDayEx] = useState<
     Record<string, Record<number, true>>
-  >({});
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [completing, setCompleting] = useState(false);
-  const [starting, setStarting] = useState(false);
+  >({})
+  const [savingId, setSavingId] = useState<string | null>(null)
+  const [completing, setCompleting] = useState(false)
+  const [starting, setStarting] = useState(false)
   const [expandedSetsByDayEx, setExpandedSetsByDayEx] = useState<
     Record<string, boolean>
-  >({});
+  >({})
 
   const toggleSetsExpanded = useCallback((dayExId: string) => {
     setExpandedSetsByDayEx((prev) => ({
       ...prev,
       [dayExId]: !(prev[dayExId] ?? true),
-    }));
-  }, []);
+    }))
+  }, [])
 
   const handleStartWorkout = async () => {
-    if (!paramAssignmentId || !paramWorkoutDayId || !paramPerformedOn) return;
-    setStarting(true);
+    if (!paramAssignmentId || !paramWorkoutDayId || !paramPerformedOn) return
+    setStarting(true)
     try {
       const newSessionId = await startSession({
         assignmentId: paramAssignmentId as any,
         workoutDayId: paramWorkoutDayId as any,
         performedOn: paramPerformedOn,
-      });
-      router.replace(`/home/workout/${newSessionId}` as Href);
+      })
+      router.replace(`/home/workout/${newSessionId}` as Href)
     } catch (e) {
-      console.error(e);
+      console.error(e)
     } finally {
-      setStarting(false);
+      setStarting(false)
     }
-  };
+  }
 
   const getValuesFor = useCallback(
     (dayEx: NonNullable<typeof dayExercises>[number]) => {
-      const log = logsByDayExercise[dayEx._id];
-      const local = localValues[dayEx._id];
-      const numSets = dayEx.sets;
-      const defaultReps = dayEx.reps;
-      const defaultWeight = dayEx.weight ?? "";
+      const log = logsByDayExercise[dayEx._id]
+      const local = localValues[dayEx._id]
+      const numSets = dayEx.sets
+      const defaultReps = dayEx.reps
+      const defaultWeight = dayEx.weight ?? ''
 
       // If we have local values with correct length, use them (they take priority)
       if (local && local.length === numSets) {
         return local.map((set) => ({
           reps: set.reps ?? defaultReps,
           weight: set.weight ?? defaultWeight,
-        }));
+        }))
       }
 
       // Build base values from log or defaults
-      let baseValues: { reps: string; weight: string }[] = [];
+      let baseValues: { reps: string; weight: string }[] = []
 
       // Parse comma-separated values from log if they exist
-      if (log?.reps && log.reps.includes(",")) {
+      if (log?.reps && log.reps.includes(',')) {
         const repsArray = log.reps
-          .split(",")
+          .split(',')
           .map((r) => r.trim())
-          .filter((r) => r.length > 0);
+          .filter((r) => r.length > 0)
         const weightArray = log.weight
-          ? log.weight.split(",").map((w) => {
-              const trimmed = w.trim();
-              return trimmed === "-" || trimmed === "" ? "" : trimmed;
+          ? log.weight.split(',').map((w) => {
+              const trimmed = w.trim()
+              return trimmed === '-' || trimmed === '' ? '' : trimmed
             })
-          : [];
+          : []
 
         // If we have parsed values matching the number of sets, use them
         if (repsArray.length === numSets) {
           baseValues = Array.from({ length: numSets }, (_, index) => {
-            const repsValue = repsArray[index] ?? defaultReps;
-            const weightValue = weightArray[index] ?? defaultWeight ?? "";
+            const repsValue = repsArray[index] ?? defaultReps
+            const weightValue = weightArray[index] ?? defaultWeight ?? ''
             return {
               reps: repsValue,
               weight: weightValue,
-            };
-          });
+            }
+          })
         }
-      } else if (log?.reps && !log.reps.includes(",")) {
+      } else if (log?.reps && !log.reps.includes(',')) {
         // If log exists but doesn't have comma-separated values, use the single value for all sets
-        const logWeight = log.weight && log.weight !== "-" ? log.weight : "";
-        const repsValue = log.reps ?? defaultReps;
+        const logWeight = log.weight && log.weight !== '-' ? log.weight : ''
+        const repsValue = log.reps ?? defaultReps
         baseValues = Array.from({ length: numSets }, () => ({
           reps: repsValue,
-          weight: (logWeight || defaultWeight) ?? "",
-        }));
+          weight: (logWeight || defaultWeight) ?? '',
+        }))
       } else {
         // Initialize from default values
         baseValues = Array.from({ length: numSets }, () => ({
-          reps: defaultReps ?? "",
+          reps: defaultReps ?? '',
           weight: defaultWeight,
-        }));
+        }))
       }
 
       // Merge with local values if they exist (preserve any partial local edits)
       if (local && local.length > 0) {
         return baseValues.map((base, index) => {
-          const localSet = local[index];
+          const localSet = local[index]
           if (localSet) {
             return {
               reps: localSet.reps ?? base.reps,
               weight: localSet.weight ?? base.weight,
-            };
+            }
           }
-          return base;
-        });
+          return base
+        })
       }
 
-      return baseValues;
+      return baseValues
     },
-    [logsByDayExercise, localValues],
-  );
+    [logsByDayExercise, localValues]
+  )
 
   const getTimeValuesFor = useCallback(
     (dayEx: NonNullable<typeof dayExercises>[number]) => {
-      const numSets = dayEx.sets;
-      const defaultTime = Math.max(0, dayEx.timeSeconds ?? 0);
-      const local = localTimeValues[dayEx._id];
+      const numSets = dayEx.sets
+      const defaultTime = Math.max(0, dayEx.timeSeconds ?? 0)
+      const local = localTimeValues[dayEx._id]
       if (local && local.length === numSets) {
-        return local.map((value) => Math.max(0, Number(value) || 0));
+        return local.map((value) => Math.max(0, Number(value) || 0))
       }
-      const log = logsByDayExercise[dayEx._id];
-      const raw = log?.timeSeconds;
-      let baseValues: number[];
+      const log = logsByDayExercise[dayEx._id]
+      const raw = log?.timeSeconds
+      let baseValues: number[]
       if (raw == null) {
-        baseValues = Array.from({ length: numSets }, () => defaultTime);
+        baseValues = Array.from({ length: numSets }, () => defaultTime)
       } else {
         const parts = String(raw)
-          .split(",")
-          .map((p) => p.trim());
+          .split(',')
+          .map((p) => p.trim())
         if (parts.length === 1) {
-          const single = Number(parts[0]);
+          const single = Number(parts[0])
           if (Number.isFinite(single)) {
             baseValues = Array.from({ length: numSets }, () =>
-              Math.max(0, single),
-            );
+              Math.max(0, single)
+            )
           } else {
-            baseValues = Array.from({ length: numSets }, () => defaultTime);
+            baseValues = Array.from({ length: numSets }, () => defaultTime)
           }
         } else {
           baseValues = Array.from({ length: numSets }, (_, index) => {
-            const n = Number(parts[index]);
-            return Number.isFinite(n) ? Math.max(0, n) : defaultTime;
-          });
+            const n = Number(parts[index])
+            return Number.isFinite(n) ? Math.max(0, n) : defaultTime
+          })
         }
       }
       if (local && local.length > 0) {
         return baseValues.map((base, index) => {
-          const localValue = local[index];
-          if (localValue == null) return base;
-          const n = Number(localValue);
-          return Number.isFinite(n) ? Math.max(0, n) : base;
-        });
+          const localValue = local[index]
+          if (localValue == null) return base
+          const n = Number(localValue)
+          return Number.isFinite(n) ? Math.max(0, n) : base
+        })
       }
-      return baseValues;
+      return baseValues
     },
-    [localTimeValues, logsByDayExercise],
-  );
+    [localTimeValues, logsByDayExercise]
+  )
 
   const saveLog = useCallback(
     async (
       dayEx: NonNullable<typeof dayExercises>[number],
       valuesOverride?: { reps: string; weight: string }[],
-      timeValuesOverride?: number[],
+      timeValuesOverride?: number[]
     ) => {
-      if (isNewSession || !sessionId) return;
-      const values = valuesOverride ?? getValuesFor(dayEx);
-      const numSets = dayEx.sets;
+      if (isNewSession || !sessionId) return
+      const values = valuesOverride ?? getValuesFor(dayEx)
+      const numSets = dayEx.sets
 
       // Check if all sets have reps filled
-      const allSetsFilled = values.every((set) => set.reps.trim().length > 0);
-      if (!allSetsFilled) return;
+      const allSetsFilled = values.every((set) => set.reps.trim().length > 0)
+      if (!allSetsFilled) return
 
-      setSavingId(dayEx._id);
+      setSavingId(dayEx._id)
       try {
-        const existingLog = logsByDayExercise[dayEx._id];
-        const timeValues = timeValuesOverride ?? getTimeValuesFor(dayEx);
-        const hasTimeInPlan = (dayEx.timeSeconds ?? 0) > 0;
-        const hasExistingTime = existingLog?.timeSeconds != null;
+        const existingLog = logsByDayExercise[dayEx._id]
+        const timeValues = timeValuesOverride ?? getTimeValuesFor(dayEx)
+        const hasTimeInPlan = (dayEx.timeSeconds ?? 0) > 0
+        const hasExistingTime = existingLog?.timeSeconds != null
         const shouldPersistTime =
-          hasTimeInPlan || hasExistingTime || !!timeValuesOverride;
+          hasTimeInPlan || hasExistingTime || !!timeValuesOverride
         const timeSeconds = shouldPersistTime
-          ? timeValues.map((value) => String(Math.max(0, value))).join(", ")
-          : undefined;
+          ? timeValues.map((value) => String(Math.max(0, value))).join(', ')
+          : undefined
         await setLog({
           sessionId: sessionId as any,
           dayExerciseId: dayEx._id,
           sets: numSets,
-          reps: values.map((s) => s.reps.trim()).join(", "),
-          weight: values.map((s) => s.weight.trim() || "-").join(", "),
+          reps: values.map((s) => s.reps.trim()).join(', '),
+          weight: values.map((s) => s.weight.trim() || '-').join(', '),
           timeSeconds,
           order: dayEx.order,
-        });
+        })
         // Don't clear local state here: the logs query may not have refetched yet,
         // so the UI would briefly show stale data. Keep showing current local values.
       } catch (e) {
-        console.error(e);
+        console.error(e)
       } finally {
-        setSavingId(null);
+        setSavingId(null)
       }
     },
     [
@@ -324,107 +326,115 @@ function WorkoutContent() {
       logsByDayExercise,
       setLog,
       getTimeValuesFor,
-    ],
-  );
+    ]
+  )
 
   const applyLogSetResult = useCallback(
     (result: {
-      dayExId: string;
-      setIndex: number;
-      reps: string | number;
-      weight: string | number;
-      applyToAllSets?: boolean;
-      timeSeconds?: number;
+      dayExId: string
+      setIndex: number
+      reps: string | number
+      weight: string | number
+      applyToAllSets?: boolean
+      timeSeconds?: number
     }) => {
-      if (!dayExercises?.length) return;
-      const dayEx = dayExercises.find((d) => d._id === result.dayExId);
-      if (!dayEx || result.setIndex < 0 || result.setIndex >= dayEx.sets)
-        return;
+      if (!dayExercises?.length) return
+      const dayEx = dayExercises.find((d) => d._id === result.dayExId)
+      if (!dayEx || result.setIndex < 0 || result.setIndex >= dayEx.sets) return
       const oneSet = {
         reps: String(result.reps),
         weight: String(result.weight),
-      };
+      }
       // Build the full values array so we can persist immediately.
-      const currentValues = getValuesFor(dayEx);
+      const currentValues = getValuesFor(dayEx)
       const updatedValues = result.applyToAllSets
         ? Array.from({ length: dayEx.sets }, () => oneSet)
         : currentValues.map((set, idx) =>
-            idx === result.setIndex ? oneSet : set,
-          );
+            idx === result.setIndex ? oneSet : set
+          )
       setLocalValues((prev) => {
         const next = result.applyToAllSets
           ? Array.from({ length: dayEx.sets }, () => oneSet)
           : (() => {
-              const current = prev[result.dayExId] ?? [];
-              const arr = [...current];
+              const current = prev[result.dayExId] ?? []
+              const arr = [...current]
               while (arr.length <= result.setIndex)
-                arr.push({ reps: "", weight: "" });
-              arr[result.setIndex] = oneSet;
-              return arr;
-            })();
-        return { ...prev, [result.dayExId]: next };
-      });
-      let timeArray = getTimeValuesFor(dayEx);
+                arr.push({ reps: '', weight: '' })
+              arr[result.setIndex] = oneSet
+              return arr
+            })()
+        return { ...prev, [result.dayExId]: next }
+      })
+      let timeArray = getTimeValuesFor(dayEx)
       if (result.timeSeconds != null) {
         if (result.applyToAllSets) {
           timeArray = Array.from(
             { length: dayEx.sets },
-            () => result.timeSeconds!,
-          );
+            () => result.timeSeconds!
+          )
         } else {
-          const arr = [...timeArray];
-          arr[result.setIndex] = result.timeSeconds;
-          timeArray = arr;
+          const arr = [...timeArray]
+          arr[result.setIndex] = result.timeSeconds
+          timeArray = arr
         }
       }
       setLocalTimeValues((prev) => {
         const next = result.applyToAllSets
           ? [...timeArray]
           : (() => {
-              const current = prev[result.dayExId] ?? [];
-              const arr = [...current];
-              while (arr.length <= result.setIndex) arr.push(0);
+              const current = prev[result.dayExId] ?? []
+              const arr = [...current]
+              while (arr.length <= result.setIndex) arr.push(0)
               if (result.timeSeconds != null) {
-                arr[result.setIndex] = Math.max(0, result.timeSeconds);
+                arr[result.setIndex] = Math.max(0, result.timeSeconds)
               } else if (timeArray[result.setIndex] != null) {
-                arr[result.setIndex] = Math.max(0, timeArray[result.setIndex]!);
+                arr[result.setIndex] = Math.max(0, timeArray[result.setIndex]!)
               }
-              return arr;
-            })();
-        return { ...prev, [result.dayExId]: next };
-      });
-      saveLog(dayEx, updatedValues, timeArray);
+              return arr
+            })()
+        return { ...prev, [result.dayExId]: next }
+      })
+      saveLog(dayEx, updatedValues, timeArray)
     },
-    [dayExercises, getValuesFor, saveLog, getTimeValuesFor],
-  );
+    [dayExercises, getValuesFor, saveLog, getTimeValuesFor]
+  )
 
   const handleQuickCompleteSet = useCallback(
     (dayEx: NonNullable<typeof dayExercises>[number], setIndex: number) => {
-      if (isNewSession) return;
+      if (isNewSession) return
       const wasQuickCompleted =
-        !!quickCompletedSetsByDayEx[dayEx._id]?.[setIndex];
+        !!quickCompletedSetsByDayEx[dayEx._id]?.[setIndex]
       if (wasQuickCompleted) {
         setQuickCompletedSetsByDayEx((prev) => {
-          const dayMap = { ...(prev[dayEx._id] ?? {}) };
-          delete dayMap[setIndex];
+          const dayMap = { ...(prev[dayEx._id] ?? {}) }
+          delete dayMap[setIndex]
           if (Object.keys(dayMap).length === 0) {
-            const { [dayEx._id]: _removed, ...rest } = prev;
-            return rest;
+            const { [dayEx._id]: _removed, ...rest } = prev
+            return rest
           }
           return {
             ...prev,
             [dayEx._id]: dayMap,
-          };
-        });
+          }
+        })
+        // Use current reps (non-empty) and revert weight to plan default
+        // so saveLog can persist the un-complete (empty reps caused saveLog to bail out)
+        const currentValues = getValuesFor(dayEx)
+        const currentSetValues = currentValues[setIndex] ?? {
+          reps: dayEx.reps ?? '0',
+          weight: '',
+        }
+        const currentTimeValues = getTimeValuesFor(dayEx)
         applyLogSetResult({
           dayExId: dayEx._id,
           setIndex,
-          reps: "",
-          weight: "",
+          reps: currentSetValues.reps || dayEx.reps || '0',
+          weight: dayEx.weight ?? '',
           applyToAllSets: false,
-          timeSeconds: 0,
-        });
-        return;
+          timeSeconds:
+            currentTimeValues[setIndex] ?? dayEx.timeSeconds ?? 0,
+        })
+        return
       }
       setQuickCompletedSetsByDayEx((prev) => ({
         ...prev,
@@ -432,21 +442,21 @@ function WorkoutContent() {
           ...(prev[dayEx._id] ?? {}),
           [setIndex]: true,
         },
-      }));
+      }))
       const setValues = getValuesFor(dayEx)[setIndex] ?? {
-        reps: "",
-        weight: "",
-      };
-      const timeValues = getTimeValuesFor(dayEx);
-      const timeSeconds = timeValues[setIndex] ?? dayEx.timeSeconds ?? 0;
+        reps: '',
+        weight: '',
+      }
+      const timeValues = getTimeValuesFor(dayEx)
+      const timeSeconds = timeValues[setIndex] ?? dayEx.timeSeconds ?? 0
       applyLogSetResult({
         dayExId: dayEx._id,
         setIndex,
-        reps: setValues.reps,
-        weight: setValues.weight,
+        reps: setValues.reps || dayEx.reps || '0',
+        weight: setValues.weight || '0',
         applyToAllSets: false,
         timeSeconds,
-      });
+      })
     },
     [
       applyLogSetResult,
@@ -454,152 +464,152 @@ function WorkoutContent() {
       getValuesFor,
       isNewSession,
       quickCompletedSetsByDayEx,
-    ],
-  );
+    ]
+  )
 
   const getLogSetPrefill = useCallback(
     (dayEx: NonNullable<typeof dayExercises>[number], setIndex: number) => {
-      const values = getValuesFor(dayEx);
-      const timeValues = getTimeValuesFor(dayEx);
-      const current = values[setIndex] ?? { reps: "", weight: "" };
-      const currentTimeSeconds = Math.max(0, timeValues[setIndex] ?? 0);
+      const values = getValuesFor(dayEx)
+      const timeValues = getTimeValuesFor(dayEx)
+      const current = values[setIndex] ?? { reps: '', weight: '' }
+      const currentTimeSeconds = Math.max(0, timeValues[setIndex] ?? 0)
 
-      const findPreviousString = (key: "reps" | "weight") => {
+      const findPreviousString = (key: 'reps' | 'weight') => {
         for (let i = setIndex - 1; i >= 0; i -= 1) {
-          const candidate = values[i]?.[key]?.trim() ?? "";
-          if (candidate.length > 0) return candidate;
+          const candidate = values[i]?.[key]?.trim() ?? ''
+          if (candidate.length > 0) return candidate
         }
-        return "";
-      };
+        return ''
+      }
 
       const findPreviousTimeSeconds = () => {
         for (let i = setIndex - 1; i >= 0; i -= 1) {
-          const candidate = Math.max(0, timeValues[i] ?? 0);
-          if (candidate > 0) return candidate;
+          const candidate = Math.max(0, timeValues[i] ?? 0)
+          if (candidate > 0) return candidate
         }
-        return Math.max(0, dayEx.timeSeconds ?? 0);
-      };
+        return Math.max(0, dayEx.timeSeconds ?? 0)
+      }
 
       return {
-        reps: current.reps?.trim() ? current.reps : findPreviousString("reps"),
+        reps: current.reps?.trim() ? current.reps : findPreviousString('reps'),
         weight: current.weight?.trim()
           ? current.weight
-          : findPreviousString("weight"),
+          : findPreviousString('weight'),
         timeSeconds:
           currentTimeSeconds > 0
             ? currentTimeSeconds
             : findPreviousTimeSeconds(),
-      };
+      }
     },
-    [getTimeValuesFor, getValuesFor],
-  );
+    [getTimeValuesFor, getValuesFor]
+  )
 
   useFocusEffect(
     useCallback(() => {
-      setLogSetSaveCallback(applyLogSetResult);
-    }, [applyLogSetResult]),
-  );
+      setLogSetSaveCallback(applyLogSetResult)
+    }, [applyLogSetResult])
+  )
 
   const allExercisesFilled = useMemo(() => {
-    if (!dayExercises?.length) return false;
+    if (!dayExercises?.length) return false
     return dayExercises.every((dayEx) => {
       // Match completion icon logic: a set is complete if quick-completed
       // or if both reps and weight are filled.
-      const values = getValuesFor(dayEx);
-      const quickCompletedSets = quickCompletedSetsByDayEx[dayEx._id] ?? {};
+      const values = getValuesFor(dayEx)
+      const quickCompletedSets = quickCompletedSetsByDayEx[dayEx._id] ?? {}
 
-      if (values.length < dayEx.sets) return false;
+      if (values.length < dayEx.sets) return false
 
       return Array.from({ length: dayEx.sets }).every((_, setIndex) => {
-        if (quickCompletedSets[setIndex]) return true;
-        const set = values[setIndex];
-        if (!set) return false;
-        return set.reps.trim().length > 0 && set.weight.trim().length > 0;
-      });
-    });
-  }, [dayExercises, getValuesFor, quickCompletedSetsByDayEx]);
+        if (quickCompletedSets[setIndex]) return true
+        const set = values[setIndex]
+        if (!set) return false
+        return set.reps.trim().length > 0 && set.weight.trim().length > 0
+      })
+    })
+  }, [dayExercises, getValuesFor, quickCompletedSetsByDayEx])
 
   const handleComplete = async () => {
-    if (isNewSession || !sessionId || session?.status === "completed") return;
+    if (isNewSession || !sessionId || session?.status === 'completed') return
 
     // Show warning if exercises aren't all filled
     if (!allExercisesFilled) {
       Alert.alert(
-        "Ejercicios incompletos",
-        "Aún quedan ejercicios por completar, ¿estás seguro que quieres guardar?",
+        'Ejercicios incompletos',
+        'Aún quedan ejercicios por completar, ¿estás seguro que quieres guardar?',
         [
           {
-            text: "Cancelar",
-            style: "cancel",
+            text: 'Cancelar',
+            style: 'cancel',
           },
           {
-            text: "Guardar",
+            text: 'Guardar',
             onPress: async () => {
-              await completeWorkout();
+              await completeWorkout()
             },
           },
-        ],
-      );
-      return;
+        ]
+      )
+      return
     }
 
-    await completeWorkout();
-  };
+    await completeWorkout()
+  }
 
   const completeWorkout = async () => {
-    if (isNewSession || !sessionId) return;
-    setCompleting(true);
+    if (isNewSession || !sessionId) return
+    setCompleting(true)
     try {
       for (const dayEx of dayExercises ?? []) {
-        const values = getValuesFor(dayEx);
-        const allSetsFilled = values.every((set) => set.reps.trim().length > 0);
-        if (!allSetsFilled) continue;
-        const existingLog = logsByDayExercise[dayEx._id];
-        const timeValues = getTimeValuesFor(dayEx);
-        const hasTimeInPlan = (dayEx.timeSeconds ?? 0) > 0;
-        const hasExistingTime = existingLog?.timeSeconds != null;
+        const values = getValuesFor(dayEx)
+        const allSetsFilled = values.every((set) => set.reps.trim().length > 0)
+        if (!allSetsFilled) continue
+        const existingLog = logsByDayExercise[dayEx._id]
+        const timeValues = getTimeValuesFor(dayEx)
+        const hasTimeInPlan = (dayEx.timeSeconds ?? 0) > 0
+        const hasExistingTime = existingLog?.timeSeconds != null
         await setLog({
           sessionId: sessionId as any,
           dayExerciseId: dayEx._id,
           sets: dayEx.sets,
-          reps: values.map((s) => s.reps.trim()).join(", "),
-          weight: values.map((s) => s.weight.trim() || "-").join(", "),
+          reps: values.map((s) => s.reps.trim()).join(', '),
+          weight: values.map((s) => s.weight.trim() || '-').join(', '),
           timeSeconds:
             hasTimeInPlan || hasExistingTime
-              ? timeValues.map((value) => String(Math.max(0, value))).join(", ")
+              ? timeValues.map((value) => String(Math.max(0, value))).join(', ')
               : undefined,
           order: dayEx.order,
-        });
+        })
       }
       await setSessionStatus({
         id: sessionId as any,
-        status: "completed",
-      });
-      router.back();
+        status: 'completed',
+      })
+      router.back()
     } catch (e) {
-      console.error(e);
+      console.error(e)
     } finally {
-      setCompleting(false);
+      setCompleting(false)
     }
-  };
+  }
 
-  const inputBg = isDark ? "#27272a" : "#e4e4e7";
-  const inputColor = isDark ? "#fafafa" : "#18181b";
-  const borderColor = isDark ? "#3f3f46" : "#d4d4d8";
+  const inputBg = isDark ? '#27272a' : '#e4e4e7'
+  const inputColor = isDark ? '#fafafa' : '#18181b'
+  const borderColor = isDark ? '#3f3f46' : '#d4d4d8'
 
   const loading = isNewSession
     ? dayExercises === undefined || blocks === undefined
     : session === undefined ||
       dayExercises === undefined ||
       blocks === undefined ||
-      logs === undefined;
+      logs === undefined
 
   if (loading) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={isDark ? "#fff" : "#000"} />
+        <ActivityIndicator size="large" color={isDark ? '#fff' : '#000'} />
       </ThemedView>
-    );
+    )
   }
 
   if (isNewSession) {
@@ -614,49 +624,49 @@ function WorkoutContent() {
             <ThemedText style={{ opacity: 0.8 }}>Volver</ThemedText>
           </PressableScale>
         </ThemedView>
-      );
+      )
     }
   } else if (!session) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ThemedText>Sesión no encontrada</ThemedText>
       </ThemedView>
-    );
+    )
   }
 
-  const isCompleted = !isNewSession && session?.status === "completed";
+  const isCompleted = !isNewSession && session?.status === 'completed'
   const hasLoggedDataForExercise = (dayExId: string) => {
-    const hasPersistedLog = !!logsByDayExercise[dayExId];
+    const hasPersistedLog = !!logsByDayExercise[dayExId]
     const hasQuickCompletedSets =
-      Object.keys(quickCompletedSetsByDayEx[dayExId] ?? {}).length > 0;
+      Object.keys(quickCompletedSetsByDayEx[dayExId] ?? {}).length > 0
     const hasLocalLoggedValues =
       localValues[dayExId]?.some(
         (set) =>
           (set?.reps?.trim()?.length ?? 0) > 0 ||
-          (set?.weight?.trim()?.length ?? 0) > 0,
-      ) ?? false;
+          (set?.weight?.trim()?.length ?? 0) > 0
+      ) ?? false
     const hasLocalLoggedTime =
-      localTimeValues[dayExId]?.some((seconds) => (seconds ?? 0) > 0) ?? false;
+      localTimeValues[dayExId]?.some((seconds) => (seconds ?? 0) > 0) ?? false
 
     return (
       hasPersistedLog ||
       hasQuickCompletedSets ||
       hasLocalLoggedValues ||
       hasLocalLoggedTime
-    );
-  };
+    )
+  }
 
   return (
     <ThemedView style={styles.container}>
       <Stack.Screen
         options={{
-          title: workoutDay?.name ?? "",
+          title: workoutDay?.name ?? '',
           headerRight: resolvedAssignmentId
             ? () => (
                 <PressableScale
                   onPress={() =>
                     router.push(
-                      `/home/planification/${resolvedAssignmentId}` as Href,
+                      `/profile/planifications/${resolvedAssignmentId}` as Href
                     )
                   }
                   hitSlop={12}
@@ -665,7 +675,7 @@ function WorkoutContent() {
                   <IconSymbol
                     name="calendar"
                     size={22}
-                    color={isDark ? "#fff" : "#000"}
+                    color={isDark ? '#fff' : '#000'}
                   />
                 </PressableScale>
               )
@@ -674,7 +684,7 @@ function WorkoutContent() {
       />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={insets.top + 60}
       >
         <ScrollView
@@ -707,23 +717,23 @@ function WorkoutContent() {
               isDark={isDark}
               onPressExercise={() =>
                 router.push(
-                  `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href,
+                  `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
                 )
               }
               onPressSet={(setIndex) => {
-                if (isNewSession) return;
-                const prefill = getLogSetPrefill(dayEx, setIndex);
+                if (isNewSession) return
+                const prefill = getLogSetPrefill(dayEx, setIndex)
                 router.push(
                   `/home/workout/log-set?dayExId=${encodeURIComponent(
-                    dayEx._id,
+                    dayEx._id
                   )}&setIndex=${setIndex}&reps=${encodeURIComponent(
-                    prefill.reps || "",
+                    prefill.reps || ''
                   )}&weight=${encodeURIComponent(
-                    prefill.weight || "",
+                    prefill.weight || ''
                   )}&timeSeconds=${prefill.timeSeconds}&notes=${encodeURIComponent(
-                    dayEx.notes || "",
-                  )}&supportsTime=${(dayEx.timeSeconds ?? 0) > 0 ? "1" : "0"}` as Href,
-                );
+                    dayEx.notes || ''
+                  )}&supportsTime=${(dayEx.timeSeconds ?? 0) > 0 ? '1' : '0'}` as Href
+                )
               }}
               onQuickCompleteSet={(setIndex) =>
                 handleQuickCompleteSet(dayEx, setIndex)
@@ -736,8 +746,8 @@ function WorkoutContent() {
           {[...(blocks ?? [])]
             .sort((a, b) => a.order - b.order)
             .map((block) => {
-              const blockExercises = exercisesByBlock.get(block._id) ?? [];
-              if (blockExercises.length === 0) return null;
+              const blockExercises = exercisesByBlock.get(block._id) ?? []
+              if (blockExercises.length === 0) return null
               return (
                 <View key={block._id} style={styles.blockSection}>
                   <ThemedText style={styles.blockTitle}>
@@ -768,23 +778,23 @@ function WorkoutContent() {
                           isDark={isDark}
                           onPressExercise={() =>
                             router.push(
-                              `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href,
+                              `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
                             )
                           }
                           onPressSet={(setIndex) => {
-                            if (isNewSession) return;
-                            const prefill = getLogSetPrefill(dayEx, setIndex);
+                            if (isNewSession) return
+                            const prefill = getLogSetPrefill(dayEx, setIndex)
                             router.push(
                               `/home/workout/log-set?dayExId=${encodeURIComponent(
-                                dayEx._id,
+                                dayEx._id
                               )}&setIndex=${setIndex}&reps=${encodeURIComponent(
-                                prefill.reps || "",
+                                prefill.reps || ''
                               )}&weight=${encodeURIComponent(
-                                prefill.weight || "",
+                                prefill.weight || ''
                               )}&timeSeconds=${prefill.timeSeconds}&notes=${encodeURIComponent(
-                                dayEx.notes || "",
-                              )}&supportsTime=${(dayEx.timeSeconds ?? 0) > 0 ? "1" : "0"}` as Href,
-                            );
+                                dayEx.notes || ''
+                              )}&supportsTime=${(dayEx.timeSeconds ?? 0) > 0 ? '1' : '0'}` as Href
+                            )
                           }}
                           onQuickCompleteSet={(setIndex) =>
                             handleQuickCompleteSet(dayEx, setIndex)
@@ -797,7 +807,7 @@ function WorkoutContent() {
                     ))}
                   </ScrollView>
                 </View>
-              );
+              )
             })}
         </ScrollView>
 
@@ -808,17 +818,21 @@ function WorkoutContent() {
           completing={completing}
           onStartWorkout={handleStartWorkout}
           onComplete={handleComplete}
-          paddingBottom={insets.bottom + (Platform.OS === "android" ? 88 : 60)}
+          paddingBottom={insets.bottom + (Platform.OS === 'ios' ? 16 : 0)}
           isDark={isDark}
-          colorScheme={colorScheme ?? "light"}
+          colorScheme={colorScheme ?? 'light'}
         />
       </KeyboardAvoidingView>
     </ThemedView>
-  );
+  )
 }
 
 export default function WorkoutScreen() {
-  return <WorkoutContent />;
+  return (
+    <SubscriptionGate loadingFallback={<LoadingScreen />}>
+      <WorkoutContent />
+    </SubscriptionGate>
+  )
 }
 
 const styles = StyleSheet.create({
@@ -829,8 +843,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   centered: {
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scroll: {
     flex: 1,
@@ -844,7 +858,7 @@ const styles = StyleSheet.create({
   },
   blockTitle: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: '600',
     opacity: 0.9,
     marginBottom: 12,
     paddingLeft: 4,
@@ -859,7 +873,7 @@ const styles = StyleSheet.create({
     paddingRight: 24,
   },
   blockCardWrapper: {
-    width: Dimensions.get("window").width * 0.72,
+    width: Dimensions.get('window').width * 0.72,
     maxWidth: 320,
     marginRight: 12,
   },
@@ -867,7 +881,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-});
+})

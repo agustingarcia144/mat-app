@@ -212,6 +212,68 @@ export async function tryActiveOrgContext(
 }
 
 /**
+ * Check if a member has an active (non-suspended, non-cancelled) subscription
+ * in the given organization. Admins and trainers are always considered active.
+ * Returns { hasActiveSubscription, subscriptionStatus } so callers can decide
+ * whether to block and what message to show.
+ */
+export async function checkSubscriptionStatus(
+  ctx: Ctx,
+  organizationId: Id<"organizations">,
+  userId: string,
+): Promise<{
+  hasActiveSubscription: boolean;
+  subscriptionStatus: "active" | "suspended" | "cancelled" | "none";
+}> {
+  // Admins and trainers bypass subscription checks
+  const isStaff = await isAdminOrTrainer(ctx, organizationId);
+  if (isStaff) {
+    return { hasActiveSubscription: true, subscriptionStatus: "active" };
+  }
+
+  const subscription = await ctx.db
+    .query("memberPlanSubscriptions")
+    .withIndex("by_organization_user", (q) =>
+      q.eq("organizationId", organizationId).eq("userId", userId),
+    )
+    .filter((q) => q.neq(q.field("status"), "cancelled"))
+    .first();
+
+  if (!subscription) {
+    return { hasActiveSubscription: false, subscriptionStatus: "none" };
+  }
+
+  return {
+    hasActiveSubscription: subscription.status === "active",
+    subscriptionStatus: subscription.status,
+  };
+}
+
+/**
+ * Throw an error if the member does not have an active subscription.
+ * Admins and trainers bypass this check.
+ */
+export async function requireActiveSubscription(
+  ctx: Ctx,
+  organizationId: Id<"organizations">,
+  userId: string,
+): Promise<void> {
+  const { hasActiveSubscription, subscriptionStatus } =
+    await checkSubscriptionStatus(ctx, organizationId, userId);
+
+  if (!hasActiveSubscription) {
+    if (subscriptionStatus === "suspended") {
+      throw new Error(
+        "Tu plan está suspendido por falta de pago. Realizá el pago para poder acceder a los entrenamientos.",
+      );
+    }
+    throw new Error(
+      "Necesitás un plan activo para acceder a los entrenamientos. Activá un plan desde la pestaña Plan.",
+    );
+  }
+}
+
+/**
  * Get active organization for the current user
  */
 export async function getActiveOrganization(

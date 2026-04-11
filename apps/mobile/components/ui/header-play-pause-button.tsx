@@ -1,5 +1,6 @@
 import { PressableScale } from "pressto";
-import { StyleSheet, useColorScheme } from "react-native";
+import { StyleSheet } from "react-native";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import { IconSymbol } from "./icon-symbol";
 import { useExerciseVideo } from "@/contexts/exercise-video-context";
 

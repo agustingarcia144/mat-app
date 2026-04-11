@@ -1,6 +1,10 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireActiveOrgContext, requireAuth } from "./permissions";
+import {
+  requireActiveOrgContext,
+  requireAuth,
+  requireActiveSubscription,
+} from "./permissions";
 
 /**
  * Set or update log for one exercise in a session (member only; own session).
@@ -19,6 +23,9 @@ export const setLog = mutation({
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
     const { organizationId } = await requireActiveOrgContext(ctx);
+
+    // Subscription enforcement: block if no active subscription
+    await requireActiveSubscription(ctx, organizationId, identity.subject);
 
     const session = await ctx.db.get(args.sessionId);
     if (!session) throw new Error("Session not found");

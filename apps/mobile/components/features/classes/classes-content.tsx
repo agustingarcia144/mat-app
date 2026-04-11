@@ -23,6 +23,7 @@ import { api } from "@repo/convex";
 import { format } from "date-fns";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useSubscriptionGate } from "@/hooks/use-subscription-gate";
 import { ThemedView } from "@/components/ui/themed-view";
 import {
   ClassesListHeader,
@@ -156,6 +157,7 @@ export default function ClassesContent() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const { userId } = useAuth();
+  const { canAccess: hasActiveSubscription } = useSubscriptionGate();
 
   const classes = useQuery(api.classes.getByOrganization, { activeOnly: true });
   const schedules = useQuery(api.classSchedules.getUpcoming, { limit: 25 });
@@ -402,6 +404,7 @@ export default function ClassesContent() {
       const isReserved = reservationByScheduleId.has(schedule._id);
 
       const canReserve =
+        hasActiveSubscription &&
         !isReserved &&
         !isFull &&
         !isCancelled &&
@@ -409,7 +412,8 @@ export default function ClassesContent() {
         !bookingNotOpenYet;
 
       let helperText = "";
-      if (isReserved) helperText = "Ya reservaste esta clase";
+      if (!hasActiveSubscription) helperText = "Necesitás un plan activo";
+      else if (isReserved) helperText = "Ya reservaste esta clase";
       else if (isCancelled) helperText = "Clase no disponible";
       else if (hasStarted) helperText = "La clase ya comenzó";
       else if (bookingNotOpenYet)
@@ -418,7 +422,7 @@ export default function ClassesContent() {
 
       return { canReserve, isReserved, helperText, isFull };
     },
-    [reservationByScheduleId],
+    [reservationByScheduleId, hasActiveSubscription],
   );
 
   const getCancellationState = useCallback((r: ListRowReservation) => {
