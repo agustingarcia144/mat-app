@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useQuery } from "convex/react";
 import { type Id } from "@/convex/_generated/dataModel";
+import { api } from "@/convex/_generated/api";
 import wolfiBg from "../../assets/mat-wolf-looking.png";
 
 import ActiveMembers from "../../components/features/dashboard/ActiveMembers";
@@ -16,6 +18,9 @@ export default function Page() {
   const [selectedScheduleId, setSelectedScheduleId] = useState<
     Id<"classSchedules"> | undefined
   >();
+  const membership = useQuery(api.organizationMemberships.getCurrentMembership);
+  const showPaymentsOverview =
+    membership !== undefined && membership?.role !== "trainer";
 
   const handleOpenScheduleDetail = (id: Id<"classSchedules">) => {
     setSelectedScheduleId(id);
@@ -47,7 +52,7 @@ export default function Page() {
 
       <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.1fr)] xl:items-stretch xl:[&>*]:h-full">
         <ActiveMembers />
-        <PaymentsOverview />
+        {showPaymentsOverview ? <PaymentsOverview /> : <div aria-hidden="true" />}
       </div>
 
       <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.1fr)] xl:items-stretch xl:[&>*]:h-full">
