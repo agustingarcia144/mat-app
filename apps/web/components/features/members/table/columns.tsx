@@ -1,39 +1,50 @@
-'use client'
+"use client";
 
-import { ColumnDef } from '@tanstack/react-table'
-import { Eye, MoreVertical, UserX } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import StatusBadge from '@/components/shared/badges/status-badge'
-import { useState } from 'react'
-import { useMutation } from 'convex/react'
-import { toast } from 'sonner'
-import MemberDetailDialog from '@/components/features/members/table/member-detail-dialog'
+import { ColumnDef } from "@tanstack/react-table";
+import { Eye, MoreVertical, UserX } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import StatusBadge from "@/components/shared/badges/status-badge";
+import { useState } from "react";
+import { useMutation } from "convex/react";
+import { toast } from "sonner";
+import MemberDetailDialog from "@/components/features/members/table/member-detail-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Badge } from '@/components/ui/badge'
-import { api } from '@/convex/_generated/api'
-import type { Member } from '@repo/core'
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { api } from "@/convex/_generated/api";
+import type { Member } from "@repo/core";
 
 export type MemberTableRow = Member & {
-  assignedPlanName: string
-  planPaymentStatus: 'pago' | 'pendiente' | 'vencido' | 'none'
-}
+  assignedPlanName: string;
+  planPaymentStatus: "pago" | "pendiente" | "vencido" | "none";
+  createdAtValue: number;
+  createdAtLabel: string;
+};
+
+const normalizeMemberStatus = (value?: string) => {
+  const normalized = value?.toLowerCase().trim() ?? "";
+
+  if (normalized === "activo") return "active";
+  if (normalized === "inactivo") return "inactive";
+
+  return normalized;
+};
 
 function MemberNameCell({ member }: { member: MemberTableRow }) {
   const initials =
     member.fullName
-      ?.split(' ')
+      ?.split(" ")
       .map((n) => n[0])
-      .join('')
+      .join("")
       .toUpperCase()
       .slice(0, 2) ||
     member.email?.[0]?.toUpperCase() ||
-    '?'
+    "?";
 
   return (
     <div className="flex items-center gap-3">
@@ -43,39 +54,39 @@ function MemberNameCell({ member }: { member: MemberTableRow }) {
       </Avatar>
       <span className="font-medium">{member.name}</span>
     </div>
-  )
+  );
 }
 
 function MemberActionsCell({ member }: { member: MemberTableRow }) {
-  const [open, setOpen] = useState(false)
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
+  const [open, setOpen] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const setMemberInactive = useMutation(
-    api.organizationMemberships.setMemberInactive
-  )
-  const memberStatus = member.status?.toLowerCase() ?? ''
-  const isInactive = memberStatus === 'inactive' || memberStatus === 'inactivo'
+    api.organizationMemberships.setMemberInactive,
+  );
+  const memberStatus = normalizeMemberStatus(member.status);
+  const isInactive = memberStatus === "inactive";
 
   const handleSetInactive = async () => {
-    if (isInactive) return
+    if (isInactive) return;
     const shouldContinue = window.confirm(
-      'Este miembro pasará a estado inactivo. ¿Deseas continuar?'
-    )
-    if (!shouldContinue) return
+      "Este miembro pasará a estado inactivo. ¿Deseas continuar?",
+    );
+    if (!shouldContinue) return;
 
-    setIsUpdatingStatus(true)
+    setIsUpdatingStatus(true);
     try {
-      await setMemberInactive({ userId: member.id })
-      toast.success('Miembro marcado como inactivo')
+      await setMemberInactive({ userId: member.id });
+      toast.success("Miembro marcado como inactivo");
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : 'No se pudo actualizar el estado del miembro'
-      )
+          : "No se pudo actualizar el estado del miembro",
+      );
     } finally {
-      setIsUpdatingStatus(false)
+      setIsUpdatingStatus(false);
     }
-  }
+  };
 
   return (
     <>
@@ -98,12 +109,12 @@ function MemberActionsCell({ member }: { member: MemberTableRow }) {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
-                void handleSetInactive()
+                void handleSetInactive();
               }}
               disabled={isInactive || isUpdatingStatus}
             >
               <UserX className="mr-2 h-4 w-4" />
-              {isInactive ? 'Ya inactivo' : 'Marcar como inactivo'}
+              {isInactive ? "Ya inactivo" : "Marcar como inactivo"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -116,89 +127,87 @@ function MemberActionsCell({ member }: { member: MemberTableRow }) {
         />
       ) : null}
     </>
-  )
+  );
 }
 
 function PlanPaymentStatusBadge({
   status,
 }: {
-  status: MemberTableRow['planPaymentStatus']
+  status: MemberTableRow["planPaymentStatus"];
 }) {
   const config = {
-    pago:
-      'border-green-500/30 bg-green-500/10 text-green-400',
-    pendiente:
-      'border-amber-500/30 bg-amber-500/10 text-amber-400',
-    vencido:
-      'border-red-500/30 bg-red-500/10 text-red-400',
-    none:
-      'border-border bg-background text-muted-foreground',
-  } as const
+    pago: "border-green-500/30 bg-green-500/10 text-green-400",
+    pendiente: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+    vencido: "border-red-500/30 bg-red-500/10 text-red-400",
+    none: "border-border bg-background text-muted-foreground",
+  } as const;
 
   const label = {
-    pago: 'PAGO',
-    pendiente: 'PENDIENTE',
-    vencido: 'VENCIDO',
-    none: '-',
-  } as const
+    pago: "PAGO",
+    pendiente: "PENDIENTE",
+    vencido: "VENCIDO",
+    none: "-",
+  } as const;
 
   return (
     <Badge
-      variant='outline'
+      variant="outline"
       className={`rounded-full px-2.5 py-1 font-medium ${config[status]}`}
     >
       {label[status]}
     </Badge>
-  )
+  );
 }
 
 const nameColumn: ColumnDef<MemberTableRow> = {
-  accessorKey: 'name',
+  accessorKey: "name",
   header: () => <div className="pl-1">Nombre</div>,
   cell: ({ row }) => <MemberNameCell member={row.original} />,
-}
-
+};
 
 export const getColumns = (): ColumnDef<MemberTableRow>[] => [
   nameColumn,
 
   {
-    accessorKey: 'email',
-    header: 'Email',
+    accessorKey: "email",
+    header: "Email",
   },
 
   {
-    accessorKey: 'assignedPlanName',
-    header: 'Plan',
+    accessorKey: "assignedPlanName",
+    header: "Plan",
     cell: ({ row }) => (
-      <span className='font-medium'>{row.original.assignedPlanName}</span>
+      <span className="font-medium">{row.original.assignedPlanName}</span>
     ),
   },
 
   {
-    accessorKey: 'planPaymentStatus',
-    header: 'Estado del plan',
+    accessorKey: "planPaymentStatus",
+    header: "Estado del plan",
     cell: ({ row }) => (
       <PlanPaymentStatusBadge status={row.original.planPaymentStatus} />
     ),
   },
 
   {
-    accessorKey: 'status',
-    header: 'Estado',
+    accessorKey: "status",
+    header: "Estado",
     cell: ({ row }) => (
-      <StatusBadge status={row.original.status?.toLowerCase() ?? 'inactive'} />
+      <StatusBadge
+        status={normalizeMemberStatus(row.original.status) || "inactive"}
+      />
     ),
   },
 
   {
-    accessorKey: 'createdAt',
-    header: 'Creado el',
+    accessorKey: "createdAt",
+    header: "Creado el",
+    cell: ({ row }) => row.original.createdAtLabel,
   },
 
   {
-    id: 'actions',
+    id: "actions",
     header: () => <span className="sr-only">Acciones</span>,
     cell: ({ row }) => <MemberActionsCell member={row.original} />,
   },
-]
+];

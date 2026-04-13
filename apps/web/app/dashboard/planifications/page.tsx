@@ -3,10 +3,11 @@
 import { useQuery, useMutation } from "convex/react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
-import { Plus, FileStack, FolderTree } from "lucide-react";
+import { Plus, FileStack, FolderTree, Search } from "lucide-react";
 import {
   useState,
   useCallback,
+  useMemo,
   useSyncExternalStore,
   useEffect,
   startTransition,
@@ -73,6 +74,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 import { ResponsiveActionButton } from "@/components/ui/responsive-action-button";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
+import { Input } from "@/components/ui/input";
+
+const normalize = (value?: string) =>
+  value?.toString().trim().toLowerCase() ?? "";
 
 /** Must be a direct child of DragDropProvider so useDragDropMonitor receives the manager and we get the drop target. */
 function PlanificationsDragEndMonitor({
@@ -99,6 +104,7 @@ export default function PlanificationsPage() {
   >(undefined);
   const [templatesDialogOpen, setTemplatesDialogOpen] = useState(false);
   const [dialogFolderId, setDialogFolderId] = useState<string | undefined>();
+  const [search, setSearch] = useState("");
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -226,6 +232,20 @@ export default function PlanificationsPage() {
         ?.name
     : "Todas";
 
+  const filteredPlanifications = useMemo(() => {
+    const term = normalize(search);
+    const list = planifications || [];
+
+    if (!term) return list;
+
+    return list.filter((planification) => {
+      return (
+        normalize(planification.name).includes(term) ||
+        normalize(planification.description).includes(term)
+      );
+    });
+  }, [planifications, search]);
+
   const handleUseTemplate = useCallback(
     (template: { _id: string; name: string; description?: string }) => {
       setCreateDialogTemplateId(template._id);
@@ -241,7 +261,7 @@ export default function PlanificationsPage() {
 
   const planificationsGrid = (
     <PlanificationList
-      planifications={planifications || []}
+      planifications={filteredPlanifications}
       isLoading={planifications === undefined}
       onUseTemplate={handleUseTemplate}
     />
@@ -269,7 +289,7 @@ export default function PlanificationsPage() {
     ) : (
       <div className="flex-1 min-h-0 p-4 pt-2 overflow-auto">
         <PlanificationListTable
-          planifications={planifications || []}
+          planifications={filteredPlanifications}
           isLoading={planifications === undefined}
           onUseTemplate={handleUseTemplate}
         />
@@ -312,6 +332,15 @@ export default function PlanificationsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar planificación..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
           <ResponsiveActionButton
             variant="outline"
             onClick={() => setTemplatesDialogOpen(true)}
@@ -393,6 +422,18 @@ export default function PlanificationsPage() {
             icon={<Plus className="h-4 w-4" aria-hidden />}
             label="Nueva planificación"
             tooltip="Nueva planificación"
+          />
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <div className="relative w-full max-w-xl">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar planificación..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
           />
         </div>
       </div>
