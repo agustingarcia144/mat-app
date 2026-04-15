@@ -49,6 +49,7 @@
     "expo-status-bar": "~55.0.5",
     "expo-symbols": "~55.0.7",
     "expo-system-ui": "~55.0.15",
+    "expo-updates": "~55.0.20",
     "expo-web-browser": "~55.0.14",
     "pressto": "^0.6.1",
     "react": "19.2.0",
