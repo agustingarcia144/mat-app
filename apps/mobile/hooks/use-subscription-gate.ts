@@ -11,6 +11,10 @@ export type SubscriptionGateStatus =
  * Hook that checks the current user's subscription status.
  * Returns a gate status that screens can use to decide whether to show
  * restricted content or a paywall.
+ *
+ * When the organization has no active membership plans configured,
+ * the gate is bypassed so members are not locked out of features
+ * they have no way to unlock.
  */
 export function useSubscriptionGate(): {
   status: SubscriptionGateStatus;
@@ -18,10 +22,16 @@ export function useSubscriptionGate(): {
   canAccess: boolean;
 } {
   const subscription = useQuery(api.memberPlanSubscriptions.getMySubscription);
+  const plans = useQuery(api.membershipPlans.getByOrganization, {});
 
   // Still loading
-  if (subscription === undefined) {
+  if (subscription === undefined || plans === undefined) {
     return { status: "loading", canAccess: false };
+  }
+
+  // If the org has no active plans, bypass subscription enforcement
+  if (plans.length === 0) {
+    return { status: "active", canAccess: true };
   }
 
   // No subscription at all

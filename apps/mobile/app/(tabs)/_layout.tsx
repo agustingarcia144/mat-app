@@ -21,6 +21,7 @@ export default function TabLayout() {
   return (
     <ThemeProvider value={theme}>
       <ExerciseVideoProvider>
+        {/* @ts-expect-error - React 19 types + pnpm isolated linker: children prop is accepted at runtime */}
         <NativeTabs
           minimizeBehavior="onScrollDown"
           tintColor={tintColor}

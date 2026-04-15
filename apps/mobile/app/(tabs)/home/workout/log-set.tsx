@@ -481,7 +481,13 @@ export default function LogSetScreen() {
             )}
 
             {hasTime && (Platform.OS === "android" || activeTab === "time") && (
-              <View style={[styles.pickerRow, { gap: pickerGap }]}>
+              <View
+                style={[
+                  styles.pickerRow,
+                  { gap: pickerGap },
+                  Platform.OS === "android" && styles.androidTimeRow,
+                ]}
+              >
                 {Platform.OS === "android" ? (
                   <>
                     <View style={androidInputStyles.block}>
@@ -712,6 +718,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "stretch",
     overflow: Platform.OS === "ios" ? "hidden" : "visible",
+  },
+  androidTimeRow: {
+    marginTop: 10,
   },
   pickerBlock: {
     overflow: "hidden",

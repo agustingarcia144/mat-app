@@ -270,7 +270,7 @@ function Onboarding2Content() {
                     {activePicker === "height" ? (
                       <Picker
                         selectedValue={selectedHeight}
-                        onValueChange={(v: number) => setHeightCm(v)}
+                        onValueChange={(v) => setHeightCm(Number(v))}
                       >
                         {HEIGHT_CM.map((cm: number) => (
                           <Picker.Item key={cm} label={`${cm} cm`} value={cm} />
@@ -279,7 +279,7 @@ function Onboarding2Content() {
                     ) : (
                       <Picker
                         selectedValue={selectedWeight}
-                        onValueChange={(v: number) => setWeightKg(v)}
+                        onValueChange={(v) => setWeightKg(Number(v))}
                       >
                         {WEIGHT_KG.map((kg: number) => (
                           <Picker.Item key={kg} label={`${kg} kg`} value={kg} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import type { ComponentType, ReactNode } from "react";
 import Link from "next/link";
 import { UseFormReturn, useFieldArray, useWatch } from "react-hook-form";
 import {
@@ -40,6 +41,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const DAY_CARD_PREFIX = "day-card-";
 const WEEKDAY_DROP_PREFIX = "weekday-drop-";
+const TypedDragDropProvider = DragDropProvider as ComponentType<{
+  children?: ReactNode;
+}>;
 const EMPTY_WORKOUT_DAYS: PlanificationForm["workoutWeeks"][0]["workoutDays"] =
   [];
 
@@ -685,7 +689,7 @@ export default function WeekCalendarRow({
     });
 
   return (
-    <DragDropProvider onDragEnd={onDragEndCallback}>
+    <TypedDragDropProvider>
       <DragEndMonitor onDragEnd={onDragEndCallback}>
         {isMobile ? (
           <div className="space-y-2">
@@ -766,6 +770,6 @@ export default function WeekCalendarRow({
           </div>
         )}
       </DragEndMonitor>
-    </DragDropProvider>
+    </TypedDragDropProvider>
   );
 }

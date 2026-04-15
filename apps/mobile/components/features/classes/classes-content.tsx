@@ -7,6 +7,7 @@ import {
   View,
   Text,
   type LayoutChangeEvent,
+  useWindowDimensions,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -17,19 +18,23 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import type { Href } from "expo-router";
 import { FlashList } from "@shopify/flash-list";
+import { ScrollView } from "react-native-gesture-handler";
 import { useAuth } from "@clerk/expo";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/convex";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek } from "date-fns";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useSubscriptionGate } from "@/hooks/use-subscription-gate";
 import { ThemedView } from "@/components/ui/themed-view";
+import { IconSymbol } from "@/components/ui/icon-symbol";
+import { CalendarWeekView } from "@/components/features/home/calendar-week-view";
 import {
   ClassesListHeader,
   ClassesListRow,
   ClassesNextUpcomingCard,
   ClassesEmptyState,
+  ClassesEmptyStateCard,
   type NextUpcomingItem,
   type ClassRowData,
   type BookingState,
@@ -42,6 +47,7 @@ import {
 
 const TAB_PADDING = 4;
 const TAB_GAP = 4;
+const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const };
 
 type TabId = "upcoming" | "past";
 
@@ -151,11 +157,14 @@ function AnimatedClassesTabs({
   );
 }
 
+type ViewMode = "calendar" | "list";
+
 export default function ClassesContent() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
+  const { width: windowWidth } = useWindowDimensions();
   const { userId } = useAuth();
   const { canAccess: hasActiveSubscription } = useSubscriptionGate();
 
@@ -184,7 +193,36 @@ export default function ClassesContent() {
     string | null
   >(null);
   const [activeTab, setActiveTab] = useState<"upcoming" | "past">("upcoming");
+  const [viewMode, setViewMode] = useState<ViewMode>("calendar");
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [error, setError] = useState("");
+
+  // ── Week range for calendar queries ──────────────────────────
+  const { calendarMonday, calendarSunday } = useMemo(
+    () => ({
+      calendarMonday: startOfWeek(selectedDate, WEEK_STARTS_MONDAY),
+      calendarSunday: endOfWeek(selectedDate, WEEK_STARTS_MONDAY),
+    }),
+    [selectedDate],
+  );
+
+  /** All schedules in the visible calendar week (no item-limit) */
+  const weekSchedules = useQuery(
+    api.classSchedules.getByOrganizationAndDateRange,
+    {
+      startDate: calendarMonday.getTime(),
+      endDate: calendarSunday.getTime(),
+    },
+  );
+
+  /** User's non-cancelled reservations in the visible calendar week */
+  const weekReservations = useQuery(
+    api.classReservations.getByUserForDateRange,
+    {
+      startOfRange: calendarMonday.getTime(),
+      endOfRange: calendarSunday.getTime(),
+    },
+  );
 
   type ClassItem =
     NonNullable<typeof classes> extends readonly (infer C)[] ? C : never;
@@ -364,6 +402,137 @@ export default function ClassesContent() {
     return buildRows(flat);
   }, [buildRows, pastListItemsByDate]);
 
+  // ── Calendar view computed values ──────────────────────────────
+
+  const calendarSelectedYmd = format(selectedDate, "yyyy-MM-dd");
+
+  /** Week schedules enriched with class template data */
+  const enrichedWeekSchedules = useMemo(() => {
+    if (!weekSchedules || !classes) return [];
+    return weekSchedules
+      .map((s) => {
+        const classTemplate = activeClassById.get(s.classId);
+        if (!classTemplate) return null;
+        return { schedule: s, class: classTemplate };
+      })
+      .filter(Boolean) as {
+      schedule: (typeof weekSchedules)[number];
+      class: ClassItem;
+    }[];
+  }, [weekSchedules, classes, activeClassById]);
+
+  /** Reservation lookup by scheduleId for the visible week */
+  const weekReservationByScheduleId = useMemo(() => {
+    const map = new Map<
+      string,
+      NonNullable<typeof weekReservations>[number]
+    >();
+    weekReservations?.forEach((r) => {
+      if (r.schedule?._id) map.set(r.schedule._id, r);
+    });
+    return map;
+  }, [weekReservations]);
+
+  /** Days that have any scheduled class — orange dots on the calendar */
+  const daysWithScheduledClasses = useMemo(() => {
+    const dates = new Set<string>();
+    enrichedWeekSchedules.forEach(({ schedule }) => {
+      dates.add(format(new Date(schedule.startTime), "yyyy-MM-dd"));
+    });
+    return Array.from(dates);
+  }, [enrichedWeekSchedules]);
+
+  /** Days where the user attended a class — green dots on the calendar */
+  const daysWithAttendedClasses = useMemo(() => {
+    const dates = new Set<string>();
+    weekReservations?.forEach((r) => {
+      if (r.schedule && r.status === "attended") {
+        dates.add(
+          format(new Date(r.schedule.startTime), "yyyy-MM-dd"),
+        );
+      }
+    });
+    return Array.from(dates);
+  }, [weekReservations]);
+
+  /** Whether the calendar week data is still loading */
+  const calendarDayLoading =
+    weekSchedules === undefined || weekReservations === undefined;
+
+  /** List rows for the selected day in calendar view (built from week data) */
+  const calendarDayItems = useMemo((): ClassRow[] => {
+    if (calendarDayLoading) return [];
+    const rows: ClassRow[] = [];
+    const seenScheduleIds = new Set<string>();
+    const date = new Date(calendarSelectedYmd + "T12:00:00");
+
+    // 1. User reservations take priority (show correct badge / actions)
+    weekReservations?.forEach((r) => {
+      if (!r.schedule) return;
+      const ymd = format(new Date(r.schedule.startTime), "yyyy-MM-dd");
+      if (ymd !== calendarSelectedYmd) return;
+      seenScheduleIds.add(r.scheduleId);
+
+      const classTemplate = activeClassById.get(r.classId);
+      if (!classTemplate) return;
+
+      const enrichedReservation = {
+        ...r,
+        schedule: r.schedule,
+        class: classTemplate,
+      };
+
+      rows.push({
+        dateKey: calendarSelectedYmd,
+        date,
+        item: {
+          type: "reservation" as const,
+          reservation: enrichedReservation as any,
+          schedule: r.schedule as any,
+          class: classTemplate as any,
+        },
+      });
+    });
+
+    // 2. Remaining schedules (not already shown as a reservation)
+    enrichedWeekSchedules.forEach(({ schedule, class: classTemplate }) => {
+      const ymd = format(new Date(schedule.startTime), "yyyy-MM-dd");
+      if (ymd !== calendarSelectedYmd) return;
+      if (seenScheduleIds.has(schedule._id)) return;
+
+      rows.push({
+        dateKey: calendarSelectedYmd,
+        date,
+        item: {
+          type: "schedule" as const,
+          schedule: schedule as any,
+          class: classTemplate as any,
+        },
+      });
+    });
+
+    rows.sort(
+      (a, b) => a.item.schedule.startTime - b.item.schedule.startTime,
+    );
+    return rows;
+  }, [
+    calendarDayLoading,
+    weekReservations,
+    enrichedWeekSchedules,
+    calendarSelectedYmd,
+    activeClassById,
+  ]);
+
+  const handleWeekChange = useCallback((newDate: Date) => {
+    setSelectedDate(newDate);
+  }, []);
+
+  const toggleViewMode = useCallback(() => {
+    setViewMode((prev) => (prev === "calendar" ? "list" : "calendar"));
+  }, []);
+
+  // ── End calendar view computed values ────────────────────────
+
   const nextUpcoming = useMemo((): NextUpcomingItem | null => {
     if (myUpcoming?.length) {
       const r = myUpcoming[0];
@@ -401,7 +570,9 @@ export default function ClassesContent() {
       const earliestBookingTime = schedule.startTime - bookingWindowMs;
       const bookingNotOpenYet = now < earliestBookingTime;
 
-      const isReserved = reservationByScheduleId.has(schedule._id);
+      const isReserved =
+        reservationByScheduleId.has(schedule._id) ||
+        weekReservationByScheduleId.has(schedule._id);
 
       const canReserve =
         hasActiveSubscription &&
@@ -422,7 +593,7 @@ export default function ClassesContent() {
 
       return { canReserve, isReserved, helperText, isFull };
     },
-    [reservationByScheduleId, hasActiveSubscription],
+    [reservationByScheduleId, weekReservationByScheduleId, hasActiveSubscription],
   );
 
   const getCancellationState = useCallback((r: ListRowReservation) => {
@@ -468,7 +639,7 @@ export default function ClassesContent() {
     };
   }, []);
 
-  const loading =
+  const listDataLoading =
     classes === undefined ||
     schedules === undefined ||
     myUpcoming === undefined ||
@@ -578,6 +749,35 @@ export default function ClassesContent() {
     [router],
   );
 
+  const viewToggleButton = useMemo(
+    () => (
+      <Pressable
+        onPress={toggleViewMode}
+        style={[
+          styles.viewToggleButton,
+          {
+            backgroundColor: isDark
+              ? "rgba(255,255,255,0.1)"
+              : "rgba(0,0,0,0.06)",
+          },
+        ]}
+        hitSlop={8}
+        accessibilityLabel={
+          viewMode === "calendar"
+            ? "Cambiar a vista de lista"
+            : "Cambiar a vista de calendario"
+        }
+      >
+        <IconSymbol
+          name={viewMode === "calendar" ? "list.bullet" : "calendar"}
+          size={20}
+          color={isDark ? "#fafafa" : "#18181b"}
+        />
+      </Pressable>
+    ),
+    [toggleViewMode, viewMode, isDark],
+  );
+
   const listHeader = useMemo(
     () => (
       <View>
@@ -585,6 +785,7 @@ export default function ClassesContent() {
           insetsTop={insets.top}
           error={error}
           isDark={isDark}
+          headerRight={viewToggleButton}
         />
         <AnimatedClassesTabs
           activeTab={activeTab}
@@ -600,7 +801,15 @@ export default function ClassesContent() {
         )}
       </View>
     ),
-    [insets.top, error, isDark, nextUpcoming, handlePressCard, activeTab],
+    [
+      insets.top,
+      error,
+      isDark,
+      nextUpcoming,
+      handlePressCard,
+      activeTab,
+      viewToggleButton,
+    ],
   );
 
   const isFixedSlotMatch = useCallback(
@@ -653,7 +862,7 @@ export default function ClassesContent() {
           onCancel={handleCancel}
           onCheckIn={handleCheckIn}
           onPressCard={handlePressCard}
-          hideReservationActions={activeTab === "past"}
+          hideReservationActions={viewMode === "list" && activeTab === "past"}
           busyCheckInReservationId={busyCheckInReservationId}
           isFixedSlot={isFixedSlot}
         />
@@ -671,6 +880,7 @@ export default function ClassesContent() {
       handleCancel,
       handleCheckIn,
       handlePressCard,
+      viewMode,
       activeTab,
       busyCheckInReservationId,
       isFixedSlotMatch,
@@ -702,7 +912,75 @@ export default function ClassesContent() {
 
   const listData = activeTab === "upcoming" ? upcomingListData : pastListData;
 
-  if (loading) {
+  // Base data required for both views (class templates for names / booking logic)
+  if (classes === undefined) {
+    return (
+      <ThemedView style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={isDark ? "#fff" : "#000"} />
+      </ThemedView>
+    );
+  }
+
+  if (viewMode === "calendar") {
+    return (
+      <ThemedView style={styles.container}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: 12,
+            paddingBottom: insets.bottom + 40,
+          }}
+        >
+          <ClassesListHeader
+            insetsTop={insets.top}
+            error={error}
+            isDark={isDark}
+            headerRight={viewToggleButton}
+          />
+
+          <View
+            style={[
+              styles.calendarFullWidth,
+              { width: windowWidth, marginLeft: -12 },
+            ]}
+          >
+            <CalendarWeekView
+              selectedDate={selectedDate}
+              onDateSelect={setSelectedDate}
+              onWeekChange={handleWeekChange}
+              weekSessions={[]}
+              workoutDays={[]}
+              daysWithClasses={daysWithScheduledClasses}
+              daysWithAttendedClasses={daysWithAttendedClasses}
+            />
+          </View>
+
+          {calendarDayLoading ? (
+            <View style={styles.calendarDayLoadingContainer}>
+              <ActivityIndicator
+                size="large"
+                color={isDark ? "#a1a1aa" : "#71717a"}
+              />
+            </View>
+          ) : calendarDayItems.length === 0 ? (
+            <ClassesEmptyStateCard
+              title="No hay clases este día"
+              subtext="Seleccioná otro día para ver las clases disponibles"
+            />
+          ) : (
+            calendarDayItems.map((row) => (
+              <View key={keyExtractor(row)}>
+                {renderListItem({ item: row })}
+              </View>
+            ))
+          )}
+        </ScrollView>
+      </ThemedView>
+    );
+  }
+
+  // List view – wait for all list-specific data before rendering
+  if (listDataLoading) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={isDark ? "#fff" : "#000"} />
@@ -768,5 +1046,22 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+  viewToggleButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
+  calendarFullWidth: {
+    marginBottom: 4,
+  },
+  calendarDayLoadingContainer: {
+    minHeight: 160,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 32,
   },
 });

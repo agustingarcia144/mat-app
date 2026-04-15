@@ -9,6 +9,7 @@ import {
   Text,
 } from "@expo/ui/jetpack-compose";
 import { clickable, fillMaxWidth } from "@expo/ui/jetpack-compose/modifiers";
+import { toAndroidListItemColors } from "./jetpack-compose-colors.android";
 import type { ProfileNativeListProps } from "./profile-native-list.types";
 
 const DARK_TEXT = "#f4f4f5";
@@ -99,11 +100,11 @@ function NativeRow({
 
   return (
     <ListItem
-      colors={{
+      colors={toAndroidListItemColors({
         containerColor: rowColorOverride ?? rowColor(isDark),
         contentColor: currentTextColor,
         trailingContentColor: mutedColor(isDark),
-      }}
+      })}
       modifiers={[fillMaxWidth(), ...(onPress ? [clickable(onPress)] : [])]}
     >
       <ListItem.HeadlineContent>

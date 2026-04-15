@@ -12,6 +12,7 @@ import {
   startTransition,
   useDeferredValue,
 } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { DragDropProvider, useDragDropMonitor } from "@dnd-kit/react";
 import { toast } from "sonner";
@@ -23,6 +24,9 @@ import {
 } from "@/components/features/planifications/planification-folder-dnd";
 
 const PLANIFICATIONS_LIST_VIEW_KEY = "planifications-list-view";
+const TypedDragDropProvider = DragDropProvider as ComponentType<{
+  children?: ReactNode;
+}>;
 
 function getStoredListView(): "grid" | "table" {
   if (typeof window === "undefined") return "grid";
@@ -429,7 +433,7 @@ export default function PlanificationsPage() {
 
       {dialogs}
 
-      <DragDropProvider onDragEnd={handleDragEnd}>
+      <TypedDragDropProvider>
         <PlanificationsDragEndMonitor onDragEnd={handleDragEnd}>
           <ResizablePanelGroup
             orientation="horizontal"
@@ -467,7 +471,7 @@ export default function PlanificationsPage() {
             </ResizablePanel>
           </ResizablePanelGroup>
         </PlanificationsDragEndMonitor>
-      </DragDropProvider>
+      </TypedDragDropProvider>
     </DashboardPageContainer>
   );
 }

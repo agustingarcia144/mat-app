@@ -148,7 +148,7 @@ export function MemberInviteQrDialog() {
           QR de ingreso
         </Button>
       </DialogTrigger>
-      <DialogContent className="top-[max(1rem,env(safe-area-inset-top))] max-h-[88vh] w-[min(96vw,32rem)] translate-y-0 overflow-y-auto rounded-lg p-4 pt-8 sm:top-[50%] sm:max-h-none sm:w-full sm:max-w-lg sm:translate-y-[-50%] sm:overflow-visible sm:p-6">
+      <DialogContent className="top-[max(1rem,env(safe-area-inset-top))] max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-[min(96vw,32rem)] translate-y-0 overflow-y-auto rounded-lg p-4 pt-8 sm:top-[50%] sm:w-full sm:max-w-lg sm:translate-y-[-50%] sm:p-6">
         <DialogHeader className="pr-8">
           <DialogTitle>QR y código de invitación</DialogTitle>
           <DialogDescription>

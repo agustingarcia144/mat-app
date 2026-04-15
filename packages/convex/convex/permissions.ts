@@ -212,8 +212,28 @@ export async function tryActiveOrgContext(
 }
 
 /**
+ * Check whether the organization has at least one active membership plan.
+ * When no plans are configured, subscription enforcement is bypassed so
+ * members are not locked out of features they have no way to unlock.
+ */
+export async function organizationHasActivePlans(
+  ctx: Ctx,
+  organizationId: Id<"organizations">,
+): Promise<boolean> {
+  const activePlan = await ctx.db
+    .query("membershipPlans")
+    .withIndex("by_organization_active", (q) =>
+      q.eq("organizationId", organizationId).eq("isActive", true),
+    )
+    .first();
+  return activePlan !== null;
+}
+
+/**
  * Check if a member has an active (non-suspended, non-cancelled) subscription
  * in the given organization. Admins and trainers are always considered active.
+ * If the organization has no active membership plans, subscription enforcement
+ * is bypassed so members are not blocked from features they cannot unlock.
  * Returns { hasActiveSubscription, subscriptionStatus } so callers can decide
  * whether to block and what message to show.
  */
@@ -228,6 +248,12 @@ export async function checkSubscriptionStatus(
   // Admins and trainers bypass subscription checks
   const isStaff = await isAdminOrTrainer(ctx, organizationId);
   if (isStaff) {
+    return { hasActiveSubscription: true, subscriptionStatus: "active" };
+  }
+
+  // If the org has no active plans, bypass subscription enforcement
+  const hasPlans = await organizationHasActivePlans(ctx, organizationId);
+  if (!hasPlans) {
     return { hasActiveSubscription: true, subscriptionStatus: "active" };
   }
 
@@ -252,12 +278,22 @@ export async function checkSubscriptionStatus(
 /**
  * Throw an error if the member does not have an active subscription.
  * Admins and trainers bypass this check.
+ *
+ * ⚠️  HOTFIX 2026-04-13: Subscription enforcement temporarily disabled.
+ *     The mobile app build with plan subscription support is in App Store
+ *     review. Until it goes live, members cannot subscribe to plans and
+ *     would be locked out of workouts. Re-enable enforcement once the
+ *     mobile build is approved and available in production.
+ *     TODO: Remove the early return below to restore enforcement.
  */
 export async function requireActiveSubscription(
   ctx: Ctx,
   organizationId: Id<"organizations">,
   userId: string,
 ): Promise<void> {
+  // HOTFIX: bypass subscription enforcement until mobile app is live
+  return;
+
   const { hasActiveSubscription, subscriptionStatus } =
     await checkSubscriptionStatus(ctx, organizationId, userId);
 

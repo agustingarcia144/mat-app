@@ -7,6 +7,7 @@ import {
   Text,
 } from "@expo/ui/jetpack-compose";
 import { clickable, fillMaxWidth } from "@expo/ui/jetpack-compose/modifiers";
+import { toAndroidListItemColors } from "./jetpack-compose-colors.android";
 import type {
   PlanificationListItem,
   PlanificationsNativeListProps,
@@ -53,12 +54,12 @@ function PlanRow({
 }) {
   return (
     <ListItem
-      colors={{
+      colors={toAndroidListItemColors({
         containerColor: rowColor(isDark),
         contentColor: textColor(isDark),
         supportingContentColor: mutedColor(isDark),
         trailingContentColor: mutedColor(isDark),
-      }}
+      })}
       modifiers={[fillMaxWidth(), clickable(() => onOpen(item.id))]}
     >
       <ListItem.HeadlineContent>
@@ -121,10 +122,10 @@ export function PlanificationsNativeList({
       >
         {loading ? (
           <ListItem
-            colors={{
+            colors={toAndroidListItemColors({
               containerColor: rowColor(isDark),
               contentColor: textColor(isDark),
-            }}
+            })}
             modifiers={[fillMaxWidth()]}
           >
             <ListItem.HeadlineContent>
@@ -148,11 +149,11 @@ export function PlanificationsNativeList({
           </>
         ) : (
           <ListItem
-            colors={{
+            colors={toAndroidListItemColors({
               containerColor: rowColor(isDark),
               contentColor: textColor(isDark),
               supportingContentColor: mutedColor(isDark),
-            }}
+            })}
             modifiers={[fillMaxWidth()]}
           >
             <ListItem.HeadlineContent>

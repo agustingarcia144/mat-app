@@ -35,6 +35,7 @@ import ScheduleDetailDialog from "@/components/features/classes/dialogs/schedule
 import QuickCreateScheduleDialog from "@/components/features/classes/dialogs/quick-create-schedule-dialog";
 import BulkCancelDayDialog from "@/components/features/classes/dialogs/bulk-cancel-day-dialog";
 import BulkActionConfirmationDialog from "@/components/features/classes/dialogs/bulk-action-confirmation-dialog";
+import ShowAvailableSlotsDialog from "@/components/features/classes/dialogs/show-available-slots-dialog";
 import FixedSlotsDialog from "@/components/features/classes/dialogs/fixed-slots-dialog";
 import ModelWeekTimeline, {
   type ModelWeekSlotDoc,
@@ -55,6 +56,7 @@ import {
   MoreVertical,
   CheckSquare,
   X,
+  Send,
 } from "lucide-react";
 import { startOfWeek, endOfWeek, addDays, format, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
@@ -83,6 +85,7 @@ export default function ClassesPage() {
     name: string;
   } | null>(null);
   const [fixedSlotsOpen, setFixedSlotsOpen] = useState(false);
+  const [showAvailableSlotsOpen, setShowAvailableSlotsOpen] = useState(false);
   const [applyModelWeekOpen, setApplyModelWeekOpen] = useState(false);
   const [modelSlotDialogOpen, setModelSlotDialogOpen] = useState(false);
   const [selectedModelSlotId, setSelectedModelSlotId] = useState<
@@ -255,6 +258,10 @@ export default function ClassesPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowAvailableSlotsOpen(true)}>
+                <Send className="mr-2 h-4 w-4" aria-hidden />
+                Muestra turnos disponibles
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setFixedSlotsOpen(true)}>
                 <Users className="mr-2 h-4 w-4" aria-hidden />
                 Turnos fijos
@@ -593,6 +600,11 @@ export default function ClassesPage() {
       <FixedSlotsDialog
         open={fixedSlotsOpen}
         onOpenChange={setFixedSlotsOpen}
+      />
+
+      <ShowAvailableSlotsDialog
+        open={showAvailableSlotsOpen}
+        onOpenChange={setShowAvailableSlotsOpen}
       />
 
       <ApplyModelWeekDialog
