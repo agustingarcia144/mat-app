@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { Platform } from "react-native";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import HeaderBackButton from "@/components/ui/header-back-button";
@@ -74,6 +75,7 @@ export default function ProfileLayout() {
             gestureEnabled: true,
             sheetAllowedDetents: [0.7],
             sheetGrabberVisible: true,
+            sheetShouldOverflowTopInset: Platform.OS === "android",
           }}
         />
       </Stack>

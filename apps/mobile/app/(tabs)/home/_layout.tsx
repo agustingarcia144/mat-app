@@ -55,6 +55,7 @@ export default function InicioLayout() {
           gestureEnabled: true,
           sheetAllowedDetents: [0.7],
           sheetGrabberVisible: true,
+          sheetShouldOverflowTopInset: Platform.OS === "android",
         }}
       />
       <Stack.Screen

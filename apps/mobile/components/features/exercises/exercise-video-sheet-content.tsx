@@ -2,10 +2,13 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
+  Platform,
+  Pressable,
   StyleSheet,
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "convex/react";
 import YoutubePlayer from "react-native-youtube-iframe";
@@ -15,6 +18,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ThemedView } from "@/components/ui/themed-view";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 
 export default function ExerciseVideoSheetContent() {
   const { exerciseId } = useLocalSearchParams<{ exerciseId: string }>();
@@ -22,6 +26,7 @@ export default function ExerciseVideoSheetContent() {
   const { width: windowWidth } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
+  const insets = useSafeAreaInsets();
   const [isPlaying, setIsPlaying] = useState(true);
 
   const exercise = useQuery(
@@ -91,6 +96,19 @@ export default function ExerciseVideoSheetContent() {
 
   return (
     <ThemedView style={styles.container}>
+      {Platform.OS === "android" && (
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={[styles.androidCloseButton, { top: insets.top + 8 }]}
+        >
+          <IconSymbol
+            name="xmark"
+            size={18}
+            color={isDark ? "#fff" : "#000"}
+          />
+        </Pressable>
+      )}
       <View style={styles.playerWrap}>
         <YoutubePlayer
           height={playerHeight}
@@ -154,5 +172,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textDecorationLine: "underline",
     opacity: 0.85,
+  },
+  androidCloseButton: {
+    position: "absolute",
+    right: 16,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(128,128,128,0.15)",
   },
 });
