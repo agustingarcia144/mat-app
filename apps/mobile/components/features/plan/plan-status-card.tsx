@@ -18,15 +18,15 @@ interface PlanStatusCardProps {
     paymentWindowEndDay: number;
   } | null;
   status: string;
-  weeklyUsed: number;
-  weeklyLimit: number;
+  monthlyUsed: number;
+  monthlyLimit: number;
 }
 
 export default function PlanStatusCard({
   plan,
   status,
-  weeklyUsed,
-  weeklyLimit,
+  monthlyUsed,
+  monthlyLimit,
 }: PlanStatusCardProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -34,12 +34,12 @@ export default function PlanStatusCard({
 
   if (!plan) return null;
 
-  const isUnlimited = weeklyLimit >= 9999;
+  const isUnlimited = monthlyLimit >= 9999;
   const remaining = isUnlimited
     ? Infinity
-    : Math.max(0, weeklyLimit - weeklyUsed);
+    : Math.max(0, monthlyLimit - monthlyUsed);
   const progressRatio =
-    isUnlimited || weeklyLimit === 0 ? 0 : weeklyUsed / weeklyLimit;
+    isUnlimited || monthlyLimit === 0 ? 0 : monthlyUsed / monthlyLimit;
 
   return (
     <View
@@ -61,18 +61,20 @@ export default function PlanStatusCard({
         <Text style={styles.priceSuffix}>/mes</Text>
       </Text>
 
-      {/* Weekly progress */}
+      {/* Monthly class usage */}
       <View style={styles.weeklySection}>
         <View style={styles.weeklyHeader}>
           <Text
             style={[styles.weeklyLabel, { color: isDark ? "#ccc" : "#444" }]}
           >
-            Clases esta semana
+            Clases este mes
           </Text>
           <Text
             style={[styles.weeklyCount, { color: isDark ? "#fff" : "#000" }]}
           >
-            {isUnlimited ? `${weeklyUsed}/∞` : `${weeklyUsed}/${weeklyLimit}`}
+            {isUnlimited
+              ? `${monthlyUsed}/∞`
+              : `${monthlyUsed}/${monthlyLimit}`}
           </Text>
         </View>
         <View
@@ -100,9 +102,9 @@ export default function PlanStatusCard({
           style={[styles.remainingText, { color: isDark ? "#aaa" : "#666" }]}
         >
           {isUnlimited
-            ? "Sin límite semanal"
+            ? "Sin límite mensual"
             : remaining === 0
-              ? "Llegaste al límite semanal"
+              ? "Llegaste al límite mensual"
               : `${remaining} clase${remaining === 1 ? "" : "s"} disponible${remaining === 1 ? "" : "s"}`}
         </Text>
       </View>

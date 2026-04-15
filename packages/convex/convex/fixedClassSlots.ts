@@ -8,7 +8,7 @@ import {
   requireOrganizationMembership,
   tryActiveOrgContext,
 } from "./permissions";
-import { countWeeklyReservations } from "./classReservations";
+import { getMonthlyClassUsageForSchedule } from "./classQuota";
 
 /**
  * Create a fixed slot for a member (admin/trainer only).
@@ -332,7 +332,7 @@ async function assignFixedSlotToMatchingSchedules(
 
     if (schedule.currentReservations >= schedule.capacity) continue;
 
-    // Plan enforcement: skip if member is suspended or over weekly limit
+    // Plan enforcement: skip if member is suspended or over monthly limit
     const memberSub = await ctx.db
       .query("memberPlanSubscriptions")
       .withIndex("by_organization_user", (q) =>
@@ -345,13 +345,14 @@ async function assignFixedSlotToMatchingSchedules(
       if (memberSub.status === "suspended") continue;
       const memberPlan = await ctx.db.get(memberSub.planId);
       if (memberPlan) {
-        const weeklyCount = await countWeeklyReservations(
+        const monthlyUsage = await getMonthlyClassUsageForSchedule(
           ctx,
           slot.organizationId,
           slot.userId,
+          memberPlan,
           schedule.startTime,
         );
-        if (weeklyCount >= memberPlan.weeklyClassLimit) continue;
+        if (monthlyUsage.hasReachedLimit) continue;
       }
     }
 
@@ -373,6 +374,7 @@ async function assignFixedSlotToMatchingSchedules(
       classId: schedule.classId,
       organizationId: schedule.organizationId,
       userId: slot.userId,
+      scheduleStartTime: schedule.startTime,
       status: "confirmed",
       createdAt: now,
       updatedAt: now,
@@ -591,7 +593,7 @@ export async function assignFixedSlotsToSchedule(
 
     if (existing) continue;
 
-    // Plan enforcement: skip if member is suspended or over weekly limit
+    // Plan enforcement: skip if member is suspended or over monthly limit
     const memberSub = await ctx.db
       .query("memberPlanSubscriptions")
       .withIndex("by_organization_user", (q) =>
@@ -606,13 +608,14 @@ export async function assignFixedSlotsToSchedule(
       if (memberSub.status === "suspended") continue;
       const memberPlan = await ctx.db.get(memberSub.planId);
       if (memberPlan) {
-        const weeklyCount = await countWeeklyReservations(
+        const monthlyUsage = await getMonthlyClassUsageForSchedule(
           ctx,
           schedule.organizationId,
           slot.userId,
+          memberPlan,
           schedule.startTime,
         );
-        if (weeklyCount >= memberPlan.weeklyClassLimit) continue;
+        if (monthlyUsage.hasReachedLimit) continue;
       }
     }
 
@@ -621,6 +624,7 @@ export async function assignFixedSlotsToSchedule(
       classId: schedule.classId,
       organizationId: schedule.organizationId,
       userId: slot.userId,
+      scheduleStartTime: schedule.startTime,
       status: "confirmed",
       createdAt: now,
       updatedAt: now,
