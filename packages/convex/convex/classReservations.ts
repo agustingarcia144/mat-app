@@ -830,3 +830,47 @@ export const getMyMonthlyClassUsage = query({
     };
   },
 });
+
+/**
+ * Backward-compatible query for mobile builds released before monthly quota.
+ * The old app calls this public function by name; return the monthly quota
+ * values through the previous `{ used, limit, subscriptionStatus }` contract.
+ */
+export const getMyWeeklyClassCount = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgCtx = await tryActiveOrgContext(ctx);
+    if (!orgCtx) return null;
+
+    const { identity, membership } = orgCtx;
+
+    const subscription = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization_user", (q) =>
+        q
+          .eq("organizationId", membership.organizationId)
+          .eq("userId", identity.subject),
+      )
+      .filter((q) => q.neq(q.field("status"), "cancelled"))
+      .first();
+
+    if (!subscription) return null;
+
+    const plan = await ctx.db.get(subscription.planId);
+    if (!plan) return null;
+
+    const usage = await getMonthlyClassUsageForSchedule(
+      ctx,
+      membership.organizationId,
+      identity.subject,
+      plan,
+      Date.now(),
+    );
+
+    return {
+      used: usage.used,
+      limit: usage.limit,
+      subscriptionStatus: subscription.status,
+    };
+  },
+});
