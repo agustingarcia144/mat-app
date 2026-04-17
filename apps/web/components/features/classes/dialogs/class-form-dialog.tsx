@@ -78,7 +78,7 @@ export default function ClassFormDialog({
   const [trainerComboOpen, setTrainerComboOpen] = useState(false);
 
   const form = useForm<ClassForm>({
-    resolver: zodResolver(classSchema) as any,
+    resolver: zodResolver(classSchema as any) as any,
     defaultValues: {
       name: "",
       description: "",

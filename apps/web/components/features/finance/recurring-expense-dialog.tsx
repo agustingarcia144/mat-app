@@ -85,7 +85,7 @@ export default function RecurringExpenseDialog({
     control,
     formState: { errors, isSubmitting },
   } = useForm<FinanceRecurringExpenseForm>({
-    resolver: zodResolver(financeRecurringExpenseSchema) as any,
+    resolver: zodResolver(financeRecurringExpenseSchema as any) as any,
     defaultValues: {
       title: "",
       category: "",

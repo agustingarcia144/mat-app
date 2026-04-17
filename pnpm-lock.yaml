@@ -7,6 +7,7 @@ settings:
 overrides:
   '@types/react': 19.1.17
   '@types/react-dom': 19.1.0
+  zod: 4.3.6
 
 patchedDependencies:
   '@clerk/expo@3.1.4':
@@ -192,7 +193,7 @@ importers:
         specifier: ^2.4.1
         version: 2.4.1(react-native-webview@13.16.0(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@6.0.6))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@6.0.6))(react@19.2.0)
       zod:
-        specifier: ^4.1.12
+        specifier: 4.3.6
         version: 4.3.6
     devDependencies:
       '@types/react':
@@ -337,7 +338,7 @@ importers:
         specifier: ^1.0.7
         version: 1.0.7(tailwindcss@4.1.18)
       zod:
-        specifier: ^4.1.12
+        specifier: 4.3.6
         version: 4.3.6
     devDependencies:
       '@repo/typescript-config':
@@ -392,7 +393,7 @@ importers:
   packages/core:
     dependencies:
       zod:
-        specifier: ^4.1.12
+        specifier: 4.3.6
         version: 4.3.6
     devDependencies:
       '@repo/typescript-config':
@@ -3311,7 +3312,7 @@ packages:
     resolution: {integrity: sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==}
     peerDependencies:
       typescript: '>=5.0.4'
-      zod: ^3.22.0 || ^4.0.0
+      zod: 4.3.6
     peerDependenciesMeta:
       typescript:
         optional: true
@@ -6970,10 +6971,7 @@ packages:
     resolution: {integrity: sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      zod: ^3.25.0 || ^4.0.0
-
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+      zod: 4.3.6
 
   zod@4.3.6:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
@@ -8159,7 +8157,7 @@ snapshots:
       toqr: 0.1.1
       wrap-ansi: 7.0.0
       ws: 8.19.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
-      zod: 3.25.76
+      zod: 4.3.6
     optionalDependencies:
       expo-router: 55.0.12(a976d6ad22de34a683e6562cdfd229c3)
       react-native: 0.83.4(@babel/core@7.29.0)(@types/react@19.1.17)(bufferutil@4.1.0)(react@19.2.0)(utf-8-validate@6.0.6)
@@ -14778,8 +14776,6 @@ snapshots:
   zod-validation-error@4.0.2(zod@4.3.6):
     dependencies:
       zod: 4.3.6
-
-  zod@3.25.76: {}
 
   zod@4.3.6: {}
 
