@@ -54,7 +54,7 @@ export default function CreateExerciseDialog({
     isEditing && exercise && "isStandard" in exercise && !!exercise.isStandard;
 
   const form = useForm<Exercise>({
-    resolver: zodResolver(exerciseSchema),
+    resolver: zodResolver(exerciseSchema as any),
     defaultValues: {
       name: "",
       description: "",

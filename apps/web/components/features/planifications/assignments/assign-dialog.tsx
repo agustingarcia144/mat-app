@@ -81,7 +81,7 @@ export default function AssignDialog({
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
 
   const form = useForm<Assignment>({
-    resolver: zodResolver(assignmentSchema),
+    resolver: zodResolver(assignmentSchema as any),
     defaultValues: {
       userId: "",
       startDate: "",

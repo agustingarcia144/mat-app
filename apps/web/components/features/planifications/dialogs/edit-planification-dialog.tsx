@@ -32,7 +32,7 @@ export default function EditPlanificationDialog({
   const updatePlanification = useMutation(api.planifications.update);
 
   const form = useForm<PlanificationBasicInfo>({
-    resolver: zodResolver(planificationBasicInfoSchema),
+    resolver: zodResolver(planificationBasicInfoSchema as any),
     defaultValues: {
       name: "",
       description: "",

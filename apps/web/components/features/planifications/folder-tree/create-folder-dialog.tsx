@@ -35,7 +35,7 @@ export default function CreateFolderDialog({
   const createFolder = useMutation(api.folders.create);
 
   const form = useForm<Folder>({
-    resolver: zodResolver(folderSchema),
+    resolver: zodResolver(folderSchema as any),
     defaultValues: {
       name: "",
     },

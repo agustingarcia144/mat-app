@@ -141,7 +141,7 @@ function EditFormShell({
   // Minimal defaultValues so the form baseline is set only via reset() in the effect.
   // This ensures isDirty is correct after create+redirect (single source of truth).
   const form = useForm<PlanificationFormType>({
-    resolver: zodResolver(planificationFormSchema),
+    resolver: zodResolver(planificationFormSchema as any),
     defaultValues: {
       name: "",
       description: "",
