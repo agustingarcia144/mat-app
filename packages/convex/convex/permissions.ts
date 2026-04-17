@@ -212,6 +212,104 @@ export async function tryActiveOrgContext(
 }
 
 /**
+ * Check whether the organization has at least one active membership plan.
+ * When no plans are configured, subscription enforcement is bypassed so
+ * members are not locked out of features they have no way to unlock.
+ */
+export async function organizationHasActivePlans(
+  ctx: Ctx,
+  organizationId: Id<"organizations">,
+): Promise<boolean> {
+  const activePlan = await ctx.db
+    .query("membershipPlans")
+    .withIndex("by_organization_active", (q) =>
+      q.eq("organizationId", organizationId).eq("isActive", true),
+    )
+    .first();
+  return activePlan !== null;
+}
+
+/**
+ * Check if a member has an active (non-suspended, non-cancelled) subscription
+ * in the given organization. Admins and trainers are always considered active.
+ * If the organization has no active membership plans, subscription enforcement
+ * is bypassed so members are not blocked from features they cannot unlock.
+ * Returns { hasActiveSubscription, subscriptionStatus } so callers can decide
+ * whether to block and what message to show.
+ */
+export async function checkSubscriptionStatus(
+  ctx: Ctx,
+  organizationId: Id<"organizations">,
+  userId: string,
+): Promise<{
+  hasActiveSubscription: boolean;
+  subscriptionStatus: "active" | "suspended" | "cancelled" | "none";
+}> {
+  // Admins and trainers bypass subscription checks
+  const isStaff = await isAdminOrTrainer(ctx, organizationId);
+  if (isStaff) {
+    return { hasActiveSubscription: true, subscriptionStatus: "active" };
+  }
+
+  // If the org has no active plans, bypass subscription enforcement
+  const hasPlans = await organizationHasActivePlans(ctx, organizationId);
+  if (!hasPlans) {
+    return { hasActiveSubscription: true, subscriptionStatus: "active" };
+  }
+
+  const subscription = await ctx.db
+    .query("memberPlanSubscriptions")
+    .withIndex("by_organization_user", (q) =>
+      q.eq("organizationId", organizationId).eq("userId", userId),
+    )
+    .filter((q) => q.neq(q.field("status"), "cancelled"))
+    .first();
+
+  if (!subscription) {
+    return { hasActiveSubscription: false, subscriptionStatus: "none" };
+  }
+
+  return {
+    hasActiveSubscription: subscription.status === "active",
+    subscriptionStatus: subscription.status,
+  };
+}
+
+/**
+ * Throw an error if the member does not have an active subscription.
+ * Admins and trainers bypass this check.
+ *
+ * ⚠️  HOTFIX 2026-04-13: Subscription enforcement temporarily disabled.
+ *     The mobile app build with plan subscription support is in App Store
+ *     review. Until it goes live, members cannot subscribe to plans and
+ *     would be locked out of workouts. Re-enable enforcement once the
+ *     mobile build is approved and available in production.
+ *     TODO: Remove the early return below to restore enforcement.
+ */
+export async function requireActiveSubscription(
+  ctx: Ctx,
+  organizationId: Id<"organizations">,
+  userId: string,
+): Promise<void> {
+  // HOTFIX: bypass subscription enforcement until mobile app is live
+  return;
+
+  const { hasActiveSubscription, subscriptionStatus } =
+    await checkSubscriptionStatus(ctx, organizationId, userId);
+
+  if (!hasActiveSubscription) {
+    if (subscriptionStatus === "suspended") {
+      throw new Error(
+        "Tu plan está suspendido por falta de pago. Realizá el pago para poder acceder a los entrenamientos.",
+      );
+    }
+    throw new Error(
+      "Necesitás un plan activo para acceder a los entrenamientos. Activá un plan desde la pestaña Plan.",
+    );
+  }
+}
+
+/**
  * Get active organization for the current user
  */
 export async function getActiveOrganization(

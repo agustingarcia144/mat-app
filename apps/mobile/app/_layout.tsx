@@ -3,12 +3,9 @@ import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import "react-native-reanimated";
 import { useEffect, useRef } from "react";
-import { useColorScheme } from "react-native";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@repo/convex";
 import Providers from "@/components/providers/providers";
-import { Colors } from "@/constants/theme";
-import HeaderCloseButton from "@/components/ui/header-close-button";
 import { usePendingJoin } from "@/contexts/pending-join-context";
 import { registerForPushNotificationsAsync } from "@/lib/push-notifications";
 
@@ -27,7 +24,6 @@ function RootLayoutNav() {
   );
   const segments = useSegments();
   const router = useRouter();
-  const colorScheme = useColorScheme();
   const upsertPushToken = useMutation(
     api.pushNotifications.registerDeviceToken,
   );
@@ -168,9 +164,6 @@ function RootLayoutNav() {
     };
   }, [isAuthenticated, convexUser, upsertPushToken]);
 
-  const backgroundColor = Colors[colorScheme ?? "light"].background;
-  const headerTintColor = Colors[colorScheme ?? "light"].text;
-
   return (
     <>
       <Stack screenOptions={{ headerShown: false }}>
@@ -188,14 +181,7 @@ function RootLayoutNav() {
           name="profile"
           options={{
             presentation: "modal",
-            headerShown: true,
-            headerTransparent: true,
-            headerTitle: "Configuración",
-            headerShadowVisible: false,
-            headerStyle: { backgroundColor },
-            headerTintColor,
-            headerRight: () => <HeaderCloseButton />,
-            headerLeft: () => null,
+            headerShown: false,
             gestureEnabled: true,
           }}
         />

@@ -84,7 +84,7 @@ export default function FinanceTransactionDialog({
     control,
     formState: { errors, isSubmitting },
   } = useForm<FinanceTransactionForm>({
-    resolver: zodResolver(financeTransactionSchema) as any,
+    resolver: zodResolver(financeTransactionSchema as any) as any,
     defaultValues: {
       type: "income",
       title: "",

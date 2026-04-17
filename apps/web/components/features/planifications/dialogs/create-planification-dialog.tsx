@@ -68,7 +68,7 @@ export default function CreatePlanificationDialog({
       : undefined);
 
   const form = useForm<PlanificationBasicInfo>({
-    resolver: zodResolver(planificationBasicInfoSchema),
+    resolver: zodResolver(planificationBasicInfoSchema as any),
     defaultValues: {
       name: "",
       description: "",

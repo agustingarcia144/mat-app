@@ -24,12 +24,14 @@ interface ClassesListHeaderProps {
   insetsTop: number;
   error: string;
   isDark: boolean;
+  headerRight?: React.ReactNode;
 }
 
 export function ClassesListHeader({
   insetsTop,
   error,
   isDark,
+  headerRight,
 }: ClassesListHeaderProps) {
   return (
     <View
@@ -41,19 +43,24 @@ export function ClassesListHeader({
         },
       ]}
     >
-      <ThemedText
-        type="title"
-        style={[styles.title, !isDark && styles.titleLight]}
-        {...(!isDark && { lightColor: "#18181b" })}
-      >
-        Clases
-      </ThemedText>
-      <ThemedText
-        style={[styles.subtitle, !isDark && styles.subtitleLight]}
-        {...(!isDark && { lightColor: "#52525b" })}
-      >
-        Reservá tu lugar en las próximas clases
-      </ThemedText>
+      <View style={styles.titleRow}>
+        <View style={styles.titleContent}>
+          <ThemedText
+            type="title"
+            style={[styles.title, !isDark && styles.titleLight]}
+            {...(!isDark && { lightColor: "#18181b" })}
+          >
+            Clases
+          </ThemedText>
+          <ThemedText
+            style={[styles.subtitle, !isDark && styles.subtitleLight]}
+            {...(!isDark && { lightColor: "#52525b" })}
+          >
+            Reservá tu lugar en las próximas clases
+          </ThemedText>
+        </View>
+        {headerRight}
+      </View>
 
       {error ? (
         <View
@@ -168,6 +175,15 @@ export function ClassesNextUpcomingCard({
 const styles = StyleSheet.create({
   listHeaderContent: {
     paddingHorizontal: 12,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  titleContent: {
+    flex: 1,
   },
   title: {
     marginBottom: 4,

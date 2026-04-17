@@ -27,7 +27,7 @@ export default function PlanContent() {
   const router = useRouter();
 
   const subscription = useQuery(api.memberPlanSubscriptions.getMySubscription);
-  const weeklyCount = useQuery(api.classReservations.getMyWeeklyClassCount);
+  const monthlyUsage = useQuery(api.classReservations.getMyMonthlyClassUsage, {});
   const currentPayment = useQuery(api.planPayments.getMyCurrentPeriodPayment);
   const bonification = useQuery(api.planBonifications.getMyActiveBonification);
   const cancelSubscription = useMutation(api.memberPlanSubscriptions.cancel);
@@ -89,12 +89,12 @@ export default function PlanContent() {
           Mi Plan
         </ThemedText>
 
-        {/* Plan info + weekly count */}
+        {/* Plan info + monthly class usage */}
         <PlanStatusCard
           plan={subscription.plan}
           status={subscription.status}
-          weeklyUsed={weeklyCount?.used ?? 0}
-          weeklyLimit={weeklyCount?.limit ?? 0}
+          monthlyUsed={monthlyUsage?.used ?? 0}
+          monthlyLimit={monthlyUsage?.limit ?? 0}
         />
 
         {/* Bonification banner */}

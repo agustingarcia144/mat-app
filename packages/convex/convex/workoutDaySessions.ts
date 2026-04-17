@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import {
   requireActiveOrgContext,
   requireAuth,
+  requireActiveSubscription,
   tryActiveOrgContext,
 } from "./permissions";
 
@@ -39,20 +40,8 @@ export const startSession = mutation({
       throw new Error("Assignment is not active");
     }
 
-    // Subscription enforcement: block access if plan is suspended
-    const subscription = await ctx.db
-      .query("memberPlanSubscriptions")
-      .withIndex("by_organization_user", (q) =>
-        q.eq("organizationId", organizationId).eq("userId", identity.subject),
-      )
-      .filter((q) => q.neq(q.field("status"), "cancelled"))
-      .first();
-
-    if (subscription?.status === "suspended") {
-      throw new Error(
-        "Tu plan está suspendido por falta de pago. Realizá el pago para poder acceder a los entrenamientos.",
-      );
-    }
+    // Subscription enforcement: block if no active subscription
+    await requireActiveSubscription(ctx, organizationId, identity.subject);
 
     const workoutDay = await ctx.db.get(args.workoutDayId);
     if (!workoutDay) throw new Error("Workout day not found");

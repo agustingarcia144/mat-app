@@ -233,7 +233,7 @@ export default function GenerateSchedulesDialog({
   const submitInProgress = useRef(false);
 
   const form = useForm<GenerateTurnosFormValues>({
-    resolver: zodResolver(generateTurnosFormSchema) as any,
+    resolver: zodResolver(generateTurnosFormSchema as any) as any,
     defaultValues: {
       mode: "timeWindow",
       classId: "",

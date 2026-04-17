@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import type { MouseEvent } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
@@ -174,7 +175,9 @@ function PlanificationTableRow({
               <DropdownMenuItem asChild>
                 <Link
                   href={`/dashboard/planifications/${planification._id}/edit`}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e: MouseEvent<HTMLAnchorElement>) =>
+                    e.stopPropagation()
+                  }
                 >
                   Editar
                 </Link>

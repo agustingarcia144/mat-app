@@ -69,7 +69,7 @@ export default function PlanFormDialog({
     control,
     formState: { errors, isSubmitting },
   } = useForm<MembershipPlanForm>({
-    resolver: zodResolver(membershipPlanSchema) as any,
+    resolver: zodResolver(membershipPlanSchema as any) as any,
     defaultValues: {
       name: "",
       description: "",

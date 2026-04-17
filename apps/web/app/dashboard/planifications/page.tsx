@@ -3,14 +3,16 @@
 import { useQuery, useMutation } from "convex/react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
-import { Plus, FileStack, FolderTree } from "lucide-react";
+import { Plus, FileStack, FolderTree, Search } from "lucide-react";
 import {
   useState,
   useCallback,
   useSyncExternalStore,
   useEffect,
   startTransition,
+  useDeferredValue,
 } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { DragDropProvider, useDragDropMonitor } from "@dnd-kit/react";
 import { toast } from "sonner";
@@ -22,6 +24,9 @@ import {
 } from "@/components/features/planifications/planification-folder-dnd";
 
 const PLANIFICATIONS_LIST_VIEW_KEY = "planifications-list-view";
+const TypedDragDropProvider = DragDropProvider as ComponentType<{
+  children?: ReactNode;
+}>;
 
 function getStoredListView(): "grid" | "table" {
   if (typeof window === "undefined") return "grid";
@@ -64,6 +69,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
 import PlanificationList from "@/components/features/planifications/library/planification-list";
 import PlanificationListTable from "@/components/features/planifications/library/planification-list-table";
 import FolderTreeSidebar from "@/components/features/planifications/folder-tree/folder-tree";
@@ -90,6 +96,8 @@ export default function PlanificationsPage() {
   const isMobile = useIsMobile();
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createDialogTemplateId, setCreateDialogTemplateId] = useState<
     string | undefined
@@ -239,9 +247,31 @@ export default function PlanificationsPage() {
     [],
   );
 
+  const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
+  const filteredPlanifications = (planifications || []).filter((planification) => {
+    if (!normalizedSearch) return true;
+
+    return `${planification.name} ${planification.description ?? ""}`
+      .toLowerCase()
+      .includes(normalizedSearch);
+  });
+
+  const searchInput = (
+    <div className="relative w-full md:max-w-md">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="Buscar planificaciones..."
+        className="h-10 pl-10"
+        aria-label="Buscar planificaciones"
+      />
+    </div>
+  );
+
   const planificationsGrid = (
     <PlanificationList
-      planifications={planifications || []}
+      planifications={filteredPlanifications}
       isLoading={planifications === undefined}
       onUseTemplate={handleUseTemplate}
     />
@@ -269,7 +299,7 @@ export default function PlanificationsPage() {
     ) : (
       <div className="flex-1 min-h-0 p-4 pt-2 overflow-auto">
         <PlanificationListTable
-          planifications={planifications || []}
+          planifications={filteredPlanifications}
           isLoading={planifications === undefined}
           onUseTemplate={handleUseTemplate}
         />
@@ -356,6 +386,8 @@ export default function PlanificationsPage() {
           </Sheet>
         </div>
 
+        <div className="pt-1">{searchInput}</div>
+
         <div className="rounded-lg border p-3">
           <p className="text-xs text-muted-foreground">Carpeta activa</p>
           <p className="truncate text-sm font-medium">{selectedFolderName}</p>
@@ -397,9 +429,11 @@ export default function PlanificationsPage() {
         </div>
       </div>
 
+      <div className="mb-4">{searchInput}</div>
+
       {dialogs}
 
-      <DragDropProvider onDragEnd={handleDragEnd}>
+      <TypedDragDropProvider>
         <PlanificationsDragEndMonitor onDragEnd={handleDragEnd}>
           <ResizablePanelGroup
             orientation="horizontal"
@@ -437,7 +471,7 @@ export default function PlanificationsPage() {
             </ResizablePanel>
           </ResizablePanelGroup>
         </PlanificationsDragEndMonitor>
-      </DragDropProvider>
+      </TypedDragDropProvider>
     </DashboardPageContainer>
   );
 }

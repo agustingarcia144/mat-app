@@ -474,6 +474,68 @@ export const clearClerkOrganizationLogos = internalMutation({
   },
 });
 
+/**
+ * Migration: backfill classReservations.scheduleStartTime from their schedule.
+ * Run with dryRun first, then dryRun false until remaining is 0.
+ */
+export const backfillClassReservationScheduleStartTime = internalMutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? true;
+    const batchSize = Math.max(1, Math.min(args.batchSize ?? 500, 500));
+
+    const reservations = await ctx.db.query("classReservations").collect();
+    const missingScheduleStartTime = reservations.filter(
+      (reservation) => reservation.scheduleStartTime === undefined,
+    );
+
+    let missingSchedule = 0;
+    const batch: Array<{
+      reservationId: Id<"classReservations">;
+      scheduleStartTime: number;
+    }> = [];
+
+    for (const reservation of missingScheduleStartTime) {
+      const schedule = await ctx.db.get(reservation.scheduleId);
+      if (!schedule) {
+        missingSchedule += 1;
+        continue;
+      }
+      if (batch.length >= batchSize) continue;
+      batch.push({
+        reservationId: reservation._id,
+        scheduleStartTime: schedule.startTime,
+      });
+    }
+
+    for (const item of batch) {
+      if (!dryRun) {
+        await ctx.db.patch(item.reservationId, {
+          scheduleStartTime: item.scheduleStartTime,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
+    return {
+      success: true,
+      dryRun,
+      scanned: reservations.length,
+      patched: batch.length,
+      missingSchedule,
+      skippedAlreadyBackfilled:
+        reservations.length - missingScheduleStartTime.length,
+      remaining: Math.max(
+        0,
+        missingScheduleStartTime.length - missingSchedule - batch.length,
+      ),
+    };
+  },
+});
+
 const CLERK_API_BASE = "https://api.clerk.com/v1";
 const CLERK_PAGE_SIZE = 100;
 

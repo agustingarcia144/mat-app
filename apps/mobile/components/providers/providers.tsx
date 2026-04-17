@@ -54,7 +54,8 @@ function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <AppResetContext.Provider value={contextValue}>
-      <GestureHandlerRootView key={resetKey}>
+      {/* @ts-expect-error - React 19 types + pnpm isolated linker: children prop is accepted at runtime */}
+      <GestureHandlerRootView style={{ flex: 1 }} key={resetKey}>
         <ClerkProvider
           tokenCache={tokenCache}
           publishableKey={process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!}

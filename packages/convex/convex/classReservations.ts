@@ -2,20 +2,18 @@ import {
   internalMutation,
   mutation,
   query,
-  type QueryCtx,
-  type MutationCtx,
 } from "./_generated/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import {
-  requireActiveOrgContext,
   requireAuth,
+  requireActiveSubscription,
   requireAdminOrTrainer,
   requireOrganizationMembership,
   tryActiveOrgContext,
 } from "./permissions";
 import { getDayAndMinutesInZone } from "./fixedClassSlots";
+import { getMonthlyClassUsageForSchedule } from "./classQuota";
 
 /**
  * Reserve a spot in a class
@@ -83,7 +81,13 @@ export const reserve = mutation({
       throw new Error("You have already reserved this class");
     }
 
-    // Plan enforcement: check suspension and weekly class limit
+    // Plan enforcement: require active subscription and check monthly class limit
+    await requireActiveSubscription(
+      ctx,
+      schedule.organizationId,
+      identity.subject,
+    );
+
     const subscription = await ctx.db
       .query("memberPlanSubscriptions")
       .withIndex("by_organization_user", (q) =>
@@ -91,27 +95,22 @@ export const reserve = mutation({
           .eq("organizationId", schedule.organizationId)
           .eq("userId", identity.subject),
       )
-      .filter((q) => q.neq(q.field("status"), "cancelled"))
+      .filter((q) => q.eq(q.field("status"), "active"))
       .first();
 
     if (subscription) {
-      if (subscription.status === "suspended") {
-        throw new Error(
-          "Tu plan está suspendido por falta de pago. Realizá el pago para poder reservar.",
-        );
-      }
-
       const plan = await ctx.db.get(subscription.planId);
       if (plan) {
-        const weeklyCount = await countWeeklyReservations(
+        const monthlyUsage = await getMonthlyClassUsageForSchedule(
           ctx,
           schedule.organizationId,
           identity.subject,
+          plan,
           schedule.startTime,
         );
-        if (weeklyCount >= plan.weeklyClassLimit) {
+        if (monthlyUsage.hasReachedLimit) {
           throw new Error(
-            `Alcanzaste tu límite de ${plan.weeklyClassLimit} clase${plan.weeklyClassLimit === 1 ? "" : "s"} por semana.`,
+            `Alcanzaste tu límite de ${monthlyUsage.limit} clases para este mes. Las reservas canceladas liberan cupo.`,
           );
         }
       }
@@ -134,6 +133,7 @@ export const reserve = mutation({
       classId: currentSchedule.classId,
       organizationId: currentSchedule.organizationId,
       userId: identity.subject,
+      scheduleStartTime: currentSchedule.startTime,
       status: "confirmed",
       notes: args.notes,
       createdAt: now,
@@ -782,60 +782,59 @@ export const autoMarkNoShows = internalMutation({
 });
 
 /**
- * Count non-cancelled reservations for a user during the Mon–Sun week
- * that contains `referenceTimestamp`, using the org's IANA timezone.
+ * Get the current user's monthly class usage and plan-derived limit.
+ * Returns null if the user has no active or suspended subscription.
  */
-export async function countWeeklyReservations(
-  ctx: QueryCtx | MutationCtx,
-  organizationId: Id<"organizations">,
-  userId: string,
-  referenceTimestamp: number,
-): Promise<number> {
-  const organization = await ctx.db.get(organizationId);
-  const timezone =
-    organization?.timezone && organization.timezone.trim() !== ""
-      ? organization.timezone
-      : "UTC";
+export const getMyMonthlyClassUsage = query({
+  args: {
+    referenceTimestamp: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const orgCtx = await tryActiveOrgContext(ctx);
+    if (!orgCtx) return null;
 
-  // Determine the Monday 00:00 and Sunday 23:59:59.999 of the week in org timezone
-  const { weekStartMs, weekEndMs } = getWeekBoundsInTimezone(
-    referenceTimestamp,
-    timezone,
-  );
+    const { identity, membership } = orgCtx;
 
-  // Get schedules in that time range for the org
-  const schedules = await ctx.db
-    .query("classSchedules")
-    .withIndex("by_organization_time", (q) =>
-      q
-        .eq("organizationId", organizationId)
-        .gte("startTime", weekStartMs)
-        .lte("startTime", weekEndMs),
-    )
-    .collect();
-
-  let count = 0;
-  for (const schedule of schedules) {
-    const reservation = await ctx.db
-      .query("classReservations")
-      .withIndex("by_schedule", (q) => q.eq("scheduleId", schedule._id))
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("userId"), userId),
-          q.neq(q.field("status"), "cancelled"),
-        ),
+    const subscription = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization_user", (q) =>
+        q
+          .eq("organizationId", membership.organizationId)
+          .eq("userId", identity.subject),
       )
+      .filter((q) => q.neq(q.field("status"), "cancelled"))
       .first();
 
-    if (reservation) count++;
-  }
+    if (!subscription) return null;
 
-  return count;
-}
+    const plan = await ctx.db.get(subscription.planId);
+    if (!plan) return null;
+
+    const usage = await getMonthlyClassUsageForSchedule(
+      ctx,
+      membership.organizationId,
+      identity.subject,
+      plan,
+      args.referenceTimestamp ?? Date.now(),
+    );
+
+    return {
+      used: usage.used,
+      limit: usage.limit,
+      remaining: usage.remaining,
+      weeksTouched: usage.weeksTouched,
+      billingPeriod: usage.billingPeriod,
+      cycleStartMs: usage.cycleStartMs,
+      cycleEndMs: usage.cycleEndMs,
+      subscriptionStatus: subscription.status,
+    };
+  },
+});
 
 /**
- * Get the current user's weekly class usage and plan limit.
- * Returns null if the user has no active subscription.
+ * Backward-compatible query for mobile builds released before monthly quota.
+ * The old app calls this public function by name; return the monthly quota
+ * values through the previous `{ used, limit, subscriptionStatus }` contract.
  */
 export const getMyWeeklyClassCount = query({
   args: {},
@@ -860,69 +859,18 @@ export const getMyWeeklyClassCount = query({
     const plan = await ctx.db.get(subscription.planId);
     if (!plan) return null;
 
-    const now = Date.now();
-    const used = await countWeeklyReservations(
+    const usage = await getMonthlyClassUsageForSchedule(
       ctx,
       membership.organizationId,
       identity.subject,
-      now,
+      plan,
+      Date.now(),
     );
 
     return {
-      used,
-      limit: plan.weeklyClassLimit,
+      used: usage.used,
+      limit: usage.limit,
       subscriptionStatus: subscription.status,
     };
   },
 });
-
-/**
- * Compute the Monday 00:00:00 and Sunday 23:59:59.999 timestamps
- * for the week containing `timestamp` in the given IANA timezone.
- */
-function getWeekBoundsInTimezone(
-  timestamp: number,
-  timezone: string,
-): { weekStartMs: number; weekEndMs: number } {
-  const d = new Date(timestamp);
-
-  // Get the local date parts in the target timezone
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    weekday: "short",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(d);
-  const partMap = Object.fromEntries(parts.map((p) => [p.type, p.value]));
-
-  const WEEKDAY_OFFSET: Record<string, number> = {
-    Mon: 0,
-    Tue: 1,
-    Wed: 2,
-    Thu: 3,
-    Fri: 4,
-    Sat: 5,
-    Sun: 6,
-  };
-
-  const dayOffset = WEEKDAY_OFFSET[partMap.weekday!] ?? 0;
-  const hour = parseInt(partMap.hour!, 10);
-  const minute = parseInt(partMap.minute!, 10);
-  const second = parseInt(partMap.second!, 10);
-
-  // Go back to Monday 00:00:00 in local time
-  const msToSubtract =
-    dayOffset * 86400000 + hour * 3600000 + minute * 60000 + second * 1000;
-  const weekStartMs = timestamp - msToSubtract;
-
-  // Sunday 23:59:59.999 = Monday 00:00 + 7 days - 1ms
-  const weekEndMs = weekStartMs + 7 * 86400000 - 1;
-
-  return { weekStartMs, weekEndMs };
-}

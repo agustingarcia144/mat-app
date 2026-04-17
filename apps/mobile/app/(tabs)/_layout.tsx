@@ -3,14 +3,10 @@ import {
   DarkTheme,
   DefaultTheme,
 } from "@react-navigation/native";
-import {
-  NativeTabs,
-  Icon,
-  Label,
-  VectorIcon,
-} from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
-import { Platform, useColorScheme } from "react-native";
+import { Platform } from "react-native";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 import { Colors } from "@/constants/theme";
@@ -25,6 +21,7 @@ export default function TabLayout() {
   return (
     <ThemeProvider value={theme}>
       <ExerciseVideoProvider>
+        {/* @ts-expect-error - React 19 types + pnpm isolated linker: children prop is accepted at runtime */}
         <NativeTabs
           minimizeBehavior="onScrollDown"
           tintColor={tintColor}
@@ -36,38 +33,37 @@ export default function TabLayout() {
           })}
         >
           <NativeTabs.Trigger name="home">
-            <Label>Inicio</Label>
-            <Icon
+            <NativeTabs.Trigger.Label>Inicio</NativeTabs.Trigger.Label>
+            <NativeTabs.Trigger.Icon
               sf="house.fill"
-              androidSrc={<VectorIcon family={MaterialIcons} name="home" />}
+              src={
+                <NativeTabs.Trigger.VectorIcon
+                  family={MaterialIcons}
+                  name="home"
+                />
+              }
             />
           </NativeTabs.Trigger>
           <NativeTabs.Trigger name="classes">
-            <Label>Clases</Label>
-            <Icon
+            <NativeTabs.Trigger.Label>Clases</NativeTabs.Trigger.Label>
+            <NativeTabs.Trigger.Icon
               sf="calendar"
-              androidSrc={
-                <VectorIcon family={MaterialIcons} name="calendar-today" />
+              src={
+                <NativeTabs.Trigger.VectorIcon
+                  family={MaterialIcons}
+                  name="calendar-today"
+                />
               }
             />
           </NativeTabs.Trigger>
           <NativeTabs.Trigger name="plan">
-            <Label>Mi Plan</Label>
-            <Icon
+            <NativeTabs.Trigger.Label>Mi Plan</NativeTabs.Trigger.Label>
+            <NativeTabs.Trigger.Icon
               sf="creditcard.fill"
-              androidSrc={
-                <VectorIcon family={MaterialIcons} name="credit-card" />
-              }
-            />
-          </NativeTabs.Trigger>
-          <NativeTabs.Trigger name="planifications">
-            <Label>Planificaciones</Label>
-            <Icon
-              sf="list.bullet"
-              androidSrc={
-                <VectorIcon
+              src={
+                <NativeTabs.Trigger.VectorIcon
                   family={MaterialIcons}
-                  name="format-list-bulleted"
+                  name="credit-card"
                 />
               }
             />

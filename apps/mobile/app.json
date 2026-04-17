@@ -2,12 +2,11 @@
   "expo": {
     "name": "Mat Gestion",
     "slug": "mat-app",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mat-app",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
       "usesAppleSignIn": true,
@@ -17,7 +16,10 @@
         "NSUserNotificationsUsageDescription": "Mat te enviara recordatorios y avisos importantes sobre tus clases reservadas."
       },
       "icon": "./assets/app.icon",
-      "associatedDomains": ["applinks:matgestion.app"]
+      "associatedDomains": [
+        "applinks:matgestion.app",
+        "applinks:matgestion.app"
+      ]
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -25,7 +27,6 @@
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.agusstingarcia144.matapp",
       "intentFilters": [
@@ -40,7 +41,23 @@
             }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "matgestion.app",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
         }
+      ],
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -73,7 +90,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "@clerk/expo"
+      "@clerk/expo",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -85,6 +103,12 @@
         "projectId": "6989a53a-345c-43a7-9a11-74e15d9901bf"
       },
       "EXPO_PUBLIC_CLERK_GOOGLE_IOS_URL_SCHEME": "com.googleusercontent.apps.262169558391-8660larnefktthvsgp1e2bkq989i2gev"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6989a53a-345c-43a7-9a11-74e15d9901bf"
     }
   }
 }

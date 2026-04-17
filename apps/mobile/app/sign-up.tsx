@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,8 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
 import LoadingScreen from "@/components/shared/screens/loading-screen";
 import AntDesign from "@expo/vector-icons/AntDesign";
+
+const AUTH_LOADING_TIMEOUT_MS = 10000;
 
 function AuthenticatedRedirect() {
   const getOrCreateUser = useMutation(api.users.getOrCreateCurrentUser);
@@ -441,11 +443,38 @@ function SignUpForm() {
   );
 }
 
+function AuthLoadingWithTimeout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [timedOut, setTimedOut] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    timerRef.current = setTimeout(() => {
+      setTimedOut(true);
+    }, AUTH_LOADING_TIMEOUT_MS);
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  if (timedOut) {
+    return <SignUpForm />;
+  }
+
+  return <>{children}</>;
+}
+
 export default function SignUpScreen() {
   return (
     <>
       <AuthLoading>
-        <LoadingScreen />
+        <AuthLoadingWithTimeout>
+          <LoadingScreen />
+        </AuthLoadingWithTimeout>
       </AuthLoading>
 
       <Unauthenticated>

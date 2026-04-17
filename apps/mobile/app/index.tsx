@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from 'react'
 import {
   View,
   Text,
@@ -8,220 +8,220 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-} from "react-native";
-import { OtpInput } from "react-native-otp-entry";
-import { useSSO } from "@clerk/expo";
-import { useSignIn } from "@clerk/expo/legacy";
-import { useRouter } from "expo-router";
+} from 'react-native'
+import { OtpInput } from 'react-native-otp-entry'
+import { useSSO } from '@clerk/expo'
+import { useSignIn } from '@clerk/expo/legacy'
+import { useRouter } from 'expo-router'
 import {
   useMutation,
   Authenticated,
   Unauthenticated,
   AuthLoading,
-} from "convex/react";
-import { api } from "@repo/convex";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { ThemedPressable } from "@/components/ui/themed-pressable";
-import AntDesign from "@expo/vector-icons/AntDesign";
-import LoadingScreen from "@/components/shared/screens/loading-screen";
+} from 'convex/react'
+import { api } from '@repo/convex'
+import { useColorScheme } from '@/hooks/use-color-scheme'
+import { ThemedPressable } from '@/components/ui/themed-pressable'
+import AntDesign from '@expo/vector-icons/AntDesign'
+import LoadingScreen from '@/components/shared/screens/loading-screen'
+
+const AUTH_LOADING_TIMEOUT_MS = 10000
 
 function AuthenticatedRedirect() {
-  const getOrCreateUser = useMutation(api.users.getOrCreateCurrentUser);
+  const getOrCreateUser = useMutation(api.users.getOrCreateCurrentUser)
 
   useEffect(() => {
     const handleRedirect = async () => {
       try {
-        await getOrCreateUser();
+        await getOrCreateUser()
       } catch (err) {
-        console.error("Failed to get/create user:", err);
+        console.error('Failed to get/create user:', err)
       }
-    };
-    handleRedirect();
+    }
+    handleRedirect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [])
 
-  return <LoadingScreen />;
+  return <LoadingScreen />
 }
 
-type SecondFactorStrategy = "email_code" | "totp" | "backup_code";
+type SecondFactorStrategy = 'email_code' | 'totp' | 'backup_code'
 
 function SignInForm() {
-  const { signIn, setActive, isLoaded } = useSignIn();
-  const { startSSOFlow } = useSSO();
-  const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { signIn, setActive, isLoaded } = useSignIn()
+  const { startSSOFlow } = useSSO()
+  const router = useRouter()
+  const colorScheme = useColorScheme()
+  const isDark = colorScheme === 'dark'
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [showOtpScreen, setShowOtpScreen] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [otpLoading, setOtpLoading] = useState(false);
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [showOtpScreen, setShowOtpScreen] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpLoading, setOtpLoading] = useState(false)
   const [secondFactorStrategy, setSecondFactorStrategy] =
-    useState<SecondFactorStrategy | null>(null);
+    useState<SecondFactorStrategy | null>(null)
 
   const onSignIn = async () => {
-    if (!isLoaded || !signIn) return;
+    if (!isLoaded || !signIn) return
 
-    setLoading(true);
-    setError("");
+    setLoading(true)
+    setError('')
 
     try {
       const result = await signIn.create({
         identifier: email,
         password,
-      });
+      })
 
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-        return;
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId })
+        return
       }
 
-      if (result.status === "needs_second_factor") {
-        const factors = result.supportedSecondFactors ?? [];
+      if (result.status === 'needs_second_factor') {
+        const factors = result.supportedSecondFactors ?? []
         const emailFactor = factors.find(
-          (f: { strategy: string }) => f.strategy === "email_code",
-        ) as { strategy: "email_code"; emailAddressId: string } | undefined;
+          (f: { strategy: string }) => f.strategy === 'email_code'
+        ) as { strategy: 'email_code'; emailAddressId: string } | undefined
         const totpFactor = factors.find(
-          (f: { strategy: string }) => f.strategy === "totp",
-        );
+          (f: { strategy: string }) => f.strategy === 'totp'
+        )
         const backupFactor = factors.find(
-          (f: { strategy: string }) => f.strategy === "backup_code",
-        );
+          (f: { strategy: string }) => f.strategy === 'backup_code'
+        )
 
         if (emailFactor) {
           await signIn.prepareSecondFactor({
-            strategy: "email_code",
+            strategy: 'email_code',
             emailAddressId: emailFactor.emailAddressId,
-          });
-          setSecondFactorStrategy("email_code");
+          })
+          setSecondFactorStrategy('email_code')
         } else if (totpFactor) {
-          setSecondFactorStrategy("totp");
+          setSecondFactorStrategy('totp')
         } else if (backupFactor) {
-          setSecondFactorStrategy("backup_code");
+          setSecondFactorStrategy('backup_code')
         } else {
-          setError(
-            "Verificación en dos pasos no configurada para esta cuenta.",
-          );
-          setLoading(false);
-          return;
+          setError('Verificación en dos pasos no configurada para esta cuenta.')
+          setLoading(false)
+          return
         }
-        setShowOtpScreen(true);
-        setLoading(false);
-        return;
+        setShowOtpScreen(true)
+        setLoading(false)
+        return
       }
 
-      setError("Completá los pasos requeridos para iniciar sesión.");
-    } catch {
-      setError("Error al iniciar sesión");
+      setError('Completá los pasos requeridos para iniciar sesión.')
+    } catch (err) {
+      console.error('Error al iniciar sesión:', err)
+      setError('Error al iniciar sesión')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const onOtpSubmit = async () => {
-    if (!isLoaded || !signIn || !secondFactorStrategy || !otpCode.trim())
-      return;
+    if (!isLoaded || !signIn || !secondFactorStrategy || !otpCode.trim()) return
 
-    setOtpLoading(true);
-    setError("");
+    setOtpLoading(true)
+    setError('')
 
     try {
-      const code = otpCode.trim();
+      const code = otpCode.trim()
       const result =
-        secondFactorStrategy === "email_code"
-          ? await signIn.attemptSecondFactor({ strategy: "email_code", code })
+        secondFactorStrategy === 'email_code'
+          ? await signIn.attemptSecondFactor({ strategy: 'email_code', code })
           : await signIn.attemptSecondFactor({
               strategy:
-                secondFactorStrategy === "totp" ? "totp" : "backup_code",
+                secondFactorStrategy === 'totp' ? 'totp' : 'backup_code',
               code,
-            });
+            })
 
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId })
       } else {
-        setError("Código inválido o vencido. Revisá e intentá de nuevo.");
+        setError('Código inválido o vencido. Revisá e intentá de nuevo.')
       }
     } catch {
-      setError("Error al verificar el código");
+      setError('Error al verificar el código')
     } finally {
-      setOtpLoading(false);
+      setOtpLoading(false)
     }
-  };
+  }
 
   const onBackFromOtp = () => {
-    setShowOtpScreen(false);
-    setOtpCode("");
-    setSecondFactorStrategy(null);
-    setError("");
-  };
+    setShowOtpScreen(false)
+    setOtpCode('')
+    setSecondFactorStrategy(null)
+    setError('')
+  }
 
   const onGoogleSignIn = async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true)
+    setError('')
 
     try {
       const { createdSessionId, setActive: oauthSetActive } =
-        await startSSOFlow({ strategy: "oauth_google" });
+        await startSSOFlow({ strategy: 'oauth_google' })
 
       if (createdSessionId) {
-        await oauthSetActive!({ session: createdSessionId });
+        await oauthSetActive!({ session: createdSessionId })
       }
     } catch {
-      setError("Error al iniciar sesión con Google");
+      setError('Error al iniciar sesión con Google')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const onAppleSignIn = async () => {
-    setLoading(true);
-    setError("");
+    setLoading(true)
+    setError('')
 
     try {
       const { createdSessionId, setActive: oauthSetActive } =
-        await startSSOFlow({ strategy: "oauth_apple" });
+        await startSSOFlow({ strategy: 'oauth_apple' })
 
       if (createdSessionId) {
-        await oauthSetActive!({ session: createdSessionId });
+        await oauthSetActive!({ session: createdSessionId })
       }
     } catch {
-      setError("Error al iniciar sesión con Apple");
+      setError('Error al iniciar sesión con Apple')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   if (showOtpScreen && secondFactorStrategy) {
     const otpTitle =
-      secondFactorStrategy === "email_code"
-        ? "Código de verificación"
-        : secondFactorStrategy === "totp"
-          ? "Código del autenticador"
-          : "Código de respaldo";
+      secondFactorStrategy === 'email_code'
+        ? 'Código de verificación'
+        : secondFactorStrategy === 'totp'
+          ? 'Código del autenticador'
+          : 'Código de respaldo'
     const otpSubtitle =
-      secondFactorStrategy === "email_code"
-        ? "Revisá tu correo e ingresá el código que te enviamos."
-        : secondFactorStrategy === "totp"
-          ? "Ingresá el código de tu aplicación de autenticación."
-          : "Ingresá uno de tus códigos de respaldo.";
+      secondFactorStrategy === 'email_code'
+        ? 'Revisá tu correo e ingresá el código que te enviamos.'
+        : secondFactorStrategy === 'totp'
+          ? 'Ingresá el código de tu aplicación de autenticación.'
+          : 'Ingresá uno de tus códigos de respaldo.'
 
     return (
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={[
           styles.container,
-          { backgroundColor: isDark ? "#000" : "#fff" },
+          { backgroundColor: isDark ? '#000' : '#fff' },
         ]}
       >
         <View style={styles.content}>
-          <Text style={[styles.title, { color: isDark ? "#fff" : "#000" }]}>
+          <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
             {otpTitle}
           </Text>
           <Text
-            style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}
+            style={[styles.subtitle, { color: isDark ? '#a1a1aa' : '#71717a' }]}
           >
             {otpSubtitle}
           </Text>
@@ -238,17 +238,17 @@ function SignInForm() {
               onTextChange={setOtpCode}
               autoFocus
               disabled={otpLoading}
-              focusColor={isDark ? "#fff" : "#000"}
+              focusColor={isDark ? '#fff' : '#000'}
               theme={{
                 containerStyle: { marginBottom: 24 },
                 pinCodeContainerStyle: {
                   borderRadius: 9999,
                   borderWidth: 1,
-                  borderColor: isDark ? "#27272a" : "#e4e4e7",
-                  backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                  borderColor: isDark ? '#27272a' : '#e4e4e7',
+                  backgroundColor: isDark ? '#18181b' : '#f4f4f5',
                 },
                 pinCodeTextStyle: {
-                  color: isDark ? "#fff" : "#000",
+                  color: isDark ? '#fff' : '#000',
                   fontSize: 18,
                 },
               }}
@@ -263,12 +263,12 @@ function SignInForm() {
               disabled={otpLoading || !otpCode.trim()}
             >
               {otpLoading ? (
-                <ActivityIndicator color={isDark ? "#000" : "#fff"} />
+                <ActivityIndicator color={isDark ? '#000' : '#fff'} />
               ) : (
                 <Text
                   style={[
                     styles.buttonText,
-                    { color: isDark ? "#000" : "#fff" },
+                    { color: isDark ? '#000' : '#fff' },
                   ]}
                 >
                   Verificar
@@ -277,33 +277,33 @@ function SignInForm() {
             </ThemedPressable>
 
             <ThemedPressable onPress={onBackFromOtp}>
-              <Text style={[styles.link, { color: isDark ? "#fff" : "#000" }]}>
+              <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
                 Volver a inicio de sesión
               </Text>
             </ThemedPressable>
           </View>
         </View>
       </KeyboardAvoidingView>
-    );
+    )
   }
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={[styles.container, { backgroundColor: isDark ? "#000" : "#fff" }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}
     >
       <View style={styles.content}>
         <Image
-          source={require("@/assets/images/mat-wolf.png")}
+          source={require('@/assets/images/mat-wolf.png')}
           style={styles.logo}
           resizeMode="contain"
           accessibilityLabel="Mat wolf mascot"
         />
-        <Text style={[styles.title, { color: isDark ? "#fff" : "#000" }]}>
+        <Text style={[styles.title, { color: isDark ? '#fff' : '#000' }]}>
           Bienvenido de nuevo
         </Text>
         <Text
-          style={[styles.subtitle, { color: isDark ? "#a1a1aa" : "#71717a" }]}
+          style={[styles.subtitle, { color: isDark ? '#a1a1aa' : '#71717a' }]}
         >
           Inicia sesión en tu cuenta
         </Text>
@@ -319,13 +319,13 @@ function SignInForm() {
             style={[
               styles.input,
               {
-                backgroundColor: isDark ? "#18181b" : "#f4f4f5",
-                color: isDark ? "#fff" : "#000",
-                borderColor: isDark ? "#27272a" : "#e4e4e7",
+                backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                color: isDark ? '#fff' : '#000',
+                borderColor: isDark ? '#27272a' : '#e4e4e7',
               },
             ]}
             placeholder="Correo electrónico"
-            placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
+            placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -337,13 +337,13 @@ function SignInForm() {
             style={[
               styles.input,
               {
-                backgroundColor: isDark ? "#18181b" : "#f4f4f5",
-                color: isDark ? "#fff" : "#000",
-                borderColor: isDark ? "#27272a" : "#e4e4e7",
+                backgroundColor: isDark ? '#18181b' : '#f4f4f5',
+                color: isDark ? '#fff' : '#000',
+                borderColor: isDark ? '#27272a' : '#e4e4e7',
               },
             ]}
             placeholder="Contraseña"
-            placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
+            placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -359,10 +359,10 @@ function SignInForm() {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color={isDark ? "#000" : "#fff"} />
+              <ActivityIndicator color={isDark ? '#000' : '#fff'} />
             ) : (
               <Text
-                style={[styles.buttonText, { color: isDark ? "#000" : "#fff" }]}
+                style={[styles.buttonText, { color: isDark ? '#000' : '#fff' }]}
               >
                 Iniciar sesión
               </Text>
@@ -373,13 +373,13 @@ function SignInForm() {
             <View
               style={[
                 styles.dividerLine,
-                { backgroundColor: isDark ? "#27272a" : "#e4e4e7" },
+                { backgroundColor: isDark ? '#27272a' : '#e4e4e7' },
               ]}
             />
             <Text
               style={[
                 styles.dividerText,
-                { color: isDark ? "#71717a" : "#a1a1aa" },
+                { color: isDark ? '#71717a' : '#a1a1aa' },
               ]}
             >
               o
@@ -387,7 +387,7 @@ function SignInForm() {
             <View
               style={[
                 styles.dividerLine,
-                { backgroundColor: isDark ? "#27272a" : "#e4e4e7" },
+                { backgroundColor: isDark ? '#27272a' : '#e4e4e7' },
               ]}
             />
           </View>
@@ -398,7 +398,7 @@ function SignInForm() {
             darkColor="#18181b"
             style={[
               styles.oauthButton,
-              { borderColor: isDark ? "#27272a" : "#e4e4e7" },
+              { borderColor: isDark ? '#27272a' : '#e4e4e7' },
             ]}
             onPress={onGoogleSignIn}
             disabled={loading}
@@ -406,26 +406,26 @@ function SignInForm() {
             <AntDesign
               name="google"
               size={22}
-              color={isDark ? "#fff" : "#000"}
+              color={isDark ? '#fff' : '#000'}
             />
             <Text
               style={[
                 styles.oauthButtonText,
-                { color: isDark ? "#fff" : "#000" },
+                { color: isDark ? '#fff' : '#000' },
               ]}
             >
               Continuar con Google
             </Text>
           </ThemedPressable>
 
-          {Platform.OS === "ios" ? (
+          {Platform.OS === 'ios' ? (
             <ThemedPressable
               type="secondary"
               lightColor="#f4f4f5"
               darkColor="#18181b"
               style={[
                 styles.oauthButton,
-                { borderColor: isDark ? "#27272a" : "#e4e4e7" },
+                { borderColor: isDark ? '#27272a' : '#e4e4e7' },
               ]}
               onPress={onAppleSignIn}
               disabled={loading}
@@ -433,12 +433,12 @@ function SignInForm() {
               <AntDesign
                 name="apple"
                 size={22}
-                color={isDark ? "#fff" : "#000"}
+                color={isDark ? '#fff' : '#000'}
               />
               <Text
                 style={[
                   styles.oauthButtonText,
-                  { color: isDark ? "#fff" : "#000" },
+                  { color: isDark ? '#fff' : '#000' },
                 ]}
               >
                 Continuar con Apple
@@ -446,22 +446,51 @@ function SignInForm() {
             </ThemedPressable>
           ) : null}
 
-          <ThemedPressable onPress={() => router.push("/sign-up")}>
-            <Text style={[styles.link, { color: isDark ? "#fff" : "#000" }]}>
+          <ThemedPressable onPress={() => router.push('/sign-up')}>
+            <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
               ¿No tienes cuenta? <Text style={styles.linkBold}>Regístrate</Text>
             </Text>
           </ThemedPressable>
         </View>
       </View>
     </KeyboardAvoidingView>
-  );
+  )
+}
+
+/**
+ * Wrapper that shows LoadingScreen during auth initialization, but falls back
+ * to showing the sign-in form if Clerk takes too long (e.g. network issues in
+ * Apple's review environment).
+ */
+function AuthLoadingWithTimeout({ children }: { children: React.ReactNode }) {
+  const [timedOut, setTimedOut] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    timerRef.current = setTimeout(() => {
+      setTimedOut(true)
+    }, AUTH_LOADING_TIMEOUT_MS)
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
+
+  if (timedOut) {
+    // Auth provider never resolved — show sign-in so the app isn't stuck.
+    return <SignInForm />
+  }
+
+  return <>{children}</>
 }
 
 export default function IndexScreen() {
   return (
     <>
       <AuthLoading>
-        <LoadingScreen />
+        <AuthLoadingWithTimeout>
+          <LoadingScreen />
+        </AuthLoadingWithTimeout>
       </AuthLoading>
 
       <Unauthenticated>
@@ -472,7 +501,7 @@ export default function IndexScreen() {
         <AuthenticatedRedirect />
       </Authenticated>
     </>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -481,18 +510,18 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: 'center',
     paddingHorizontal: 24,
   },
   logo: {
     width: 220,
     height: 220,
-    alignSelf: "center",
+    alignSelf: 'center',
     marginBottom: 24,
   },
   title: {
     fontSize: 32,
-    fontWeight: "bold",
+    fontWeight: 'bold',
     marginBottom: 8,
   },
   subtitle: {
@@ -500,13 +529,13 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   errorContainer: {
-    backgroundColor: "#262626",
+    backgroundColor: '#262626',
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
   errorText: {
-    color: "#fafafa",
+    color: '#fafafa',
     fontSize: 14,
   },
   form: {
@@ -522,19 +551,19 @@ const styles = StyleSheet.create({
   button: {
     height: 48,
     borderRadius: 9999,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   divider: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginVertical: 8,
   },
   dividerLine: {
@@ -549,21 +578,21 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 9999,
     borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    flexDirection: "row",
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
     gap: 12,
   },
   oauthButtonText: {
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   link: {
     fontSize: 14,
-    textAlign: "center",
+    textAlign: 'center',
     marginTop: 8,
   },
   linkBold: {
-    fontWeight: "600",
+    fontWeight: '600',
   },
-});
+})

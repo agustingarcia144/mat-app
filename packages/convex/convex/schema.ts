@@ -519,6 +519,9 @@ export default defineSchema({
     classId: v.id("classes"), // Denormalized
     organizationId: v.id("organizations"), // Denormalized
     userId: v.string(), // Clerk user ID
+    // Denormalized schedule start timestamp for efficient per-cycle quota checks.
+    // Optional while legacy rows are backfilled.
+    scheduleStartTime: v.optional(v.number()),
     status: v.union(
       v.literal("confirmed"),
       v.literal("cancelled"),
@@ -536,7 +539,12 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_organization", ["organizationId"])
     .index("by_user_status", ["userId", "status"])
-    .index("by_schedule_status", ["scheduleId", "status"]),
+    .index("by_schedule_status", ["scheduleId", "status"])
+    .index("by_organization_user_start_time", [
+      "organizationId",
+      "userId",
+      "scheduleStartTime",
+    ]),
 
   // Fixed class slots - Members with a fixed weekly slot (class + day + time)
   // Auto-assigned to every matching class occurrence when schedules are created

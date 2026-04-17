@@ -276,8 +276,8 @@ export default function LogSetScreen() {
               },
             ]}
           >
-            {/* Tabs for Load vs Time */}
-            {hasTime && (
+            {/* Tabs for Load vs Time (iOS only — Android shows all inputs at once) */}
+            {hasTime && Platform.OS !== "android" && (
               <View
                 style={[
                   styles.tabs,
@@ -346,7 +346,7 @@ export default function LogSetScreen() {
               </View>
             )}
 
-            {activeTab === "load" && (
+            {(Platform.OS === "android" || activeTab === "load") && (
               <View style={[styles.pickerRow, { gap: pickerGap }]}>
                 {Platform.OS === "android" ? (
                   <>
@@ -480,8 +480,14 @@ export default function LogSetScreen() {
               </View>
             )}
 
-            {hasTime && activeTab === "time" && (
-              <View style={[styles.pickerRow, { gap: pickerGap }]}>
+            {hasTime && (Platform.OS === "android" || activeTab === "time") && (
+              <View
+                style={[
+                  styles.pickerRow,
+                  { gap: pickerGap },
+                  Platform.OS === "android" && styles.androidTimeRow,
+                ]}
+              >
                 {Platform.OS === "android" ? (
                   <>
                     <View style={androidInputStyles.block}>
@@ -628,32 +634,29 @@ export default function LogSetScreen() {
                 thumbColor="#fff"
               />
             </View>
-          </View>
-        </View>
-
-        <View
-          style={[
-            styles.footer,
-            {
-              paddingBottom: insets.bottom + 16,
-            },
-          ]}
-        >
-          <ThemedPressable
-            onPress={handleLog}
-            lightColor="#000"
-            darkColor="#fff"
-            style={styles.saveButton}
-          >
-            <Text
+            <View
               style={[
-                styles.saveButtonText,
-                { color: isDark ? "#000" : "#fff" },
+                styles.footer,
+                { paddingBottom: insets.bottom + 16 },
               ]}
             >
-              Guardar
-            </Text>
-          </ThemedPressable>
+              <ThemedPressable
+                onPress={handleLog}
+                lightColor="#000"
+                darkColor="#fff"
+                style={styles.saveButton}
+              >
+                <Text
+                  style={[
+                    styles.saveButtonText,
+                    { color: isDark ? "#000" : "#fff" },
+                  ]}
+                >
+                  Guardar
+                </Text>
+              </ThemedPressable>
+            </View>
+          </View>
         </View>
       </View>
     </View>
@@ -716,11 +719,13 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     overflow: Platform.OS === "ios" ? "hidden" : "visible",
   },
+  androidTimeRow: {
+    marginTop: 10,
+  },
   pickerBlock: {
     overflow: "hidden",
   },
   pickerWrap: {
-    flex: 1,
     minWidth: 0,
     overflow: "hidden",
   },
@@ -735,6 +740,9 @@ const styles = StyleSheet.create({
   picker: {
     width: "100%",
     maxWidth: "100%",
+    ...(Platform.OS === "ios" && {
+      height: 216,
+    }),
     ...(Platform.OS === "android" && {
       height: 160,
     }),
@@ -754,8 +762,7 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingTop: 8,
-    alignSelf: "stretch",
-    marginTop: 12,
+    marginTop: 16,
     paddingHorizontal: 24,
   },
   saveButton: {
@@ -773,7 +780,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     marginHorizontal: 12,
     borderRadius: 9999,
-    paddingVertical: TAB_PADDING + 4,
+    paddingVertical: TAB_PADDING + 8,
     paddingHorizontal: TAB_PADDING,
     flexDirection: "row",
     alignItems: "center",

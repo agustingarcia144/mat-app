@@ -1,11 +1,12 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ResponsiveActionButton } from "@/components/ui/responsive-action-button";
 import { ArrowLeft, BookOpen, CalendarDays, Plus } from "lucide-react";
-import { DragDropProvider } from "@dnd-kit/react";
+import { DragDropProvider, useDragDropMonitor } from "@dnd-kit/react";
 import { usePlanificationForm } from "@/contexts/planification-form-context";
 import {
   LibraryExerciseNamesProvider,
@@ -48,6 +49,21 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import type { PlanificationForm } from "@repo/core/schemas";
 
 const XL_BREAKPOINT = 1280;
+const TypedDragDropProvider = DragDropProvider as ComponentType<{
+  children?: ReactNode;
+}>;
+
+/** Must be a direct child of DragDropProvider so useDragDropMonitor receives the manager. */
+function DayEditDragEndMonitor({
+  onDragEnd,
+  children,
+}: {
+  onDragEnd: (event: unknown, manager?: unknown) => void;
+  children: React.ReactNode;
+}) {
+  useDragDropMonitor({ onDragEnd });
+  return <>{children}</>;
+}
 
 function DayEditDndContent({
   form,
@@ -293,74 +309,76 @@ function DayEditDndContent({
   );
 
   return (
-    <DragDropProvider onDragEnd={handleDragEnd}>
-      <div className="rounded-lg border bg-background overflow-hidden h-full min-h-0 flex flex-col relative">
-        {isCompactLayout ? (
-          <>
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              {contentArea}
-            </div>
-            <Sheet
-              open={librarySheetOpen}
-              onOpenChange={onLibrarySheetOpenChange}
-            >
-              <SheetContent
-                side="right"
-                className="w-full sm:max-w-md overflow-hidden flex flex-col"
-              >
-                <SheetHeader>
-                  <SheetTitle>Biblioteca de ejercicios</SheetTitle>
-                  <SheetDescription>
-                    Haz clic en un ejercicio para añadirlo al día. Luego puedes
-                    arrastrarlo entre bloques.
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="flex-1 min-h-0 flex flex-col mt-4 overflow-hidden">
-                  <ExerciseSelector
-                    className="flex-1 min-h-0"
-                    onSelect={(ex) => {
-                      onAddExercise(ex, undefined);
-                    }}
-                  />
-                </div>
-              </SheetContent>
-            </Sheet>
-          </>
-        ) : (
-          <ResizablePanelGroup
-            orientation="horizontal"
-            className="flex-1 min-h-0 w-full items-stretch"
-          >
-            <ResizablePanel
-              defaultSize={75}
-              minSize={55}
-              className="min-w-0 flex flex-col min-h-0"
-            >
-              {contentArea}
-            </ResizablePanel>
-
-            <ResizableHandle withHandle />
-
-            <ResizablePanel
-              defaultSize={25}
-              minSize={18}
-              collapsible
-              collapsedSize={0}
-              className="min-w-0 flex flex-col min-h-0"
-            >
-              <div className="p-4 flex flex-col flex-1 min-h-0">
-                <h2 className="text-sm font-semibold mb-3 shrink-0">
-                  Biblioteca de ejercicios
-                </h2>
-                <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                  <ExerciseSelector className="flex-1 min-h-0" />
-                </div>
+    <TypedDragDropProvider>
+      <DayEditDragEndMonitor onDragEnd={handleDragEnd}>
+        <div className="rounded-lg border bg-background overflow-hidden h-full min-h-0 flex flex-col relative">
+          {isCompactLayout ? (
+            <>
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                {contentArea}
               </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        )}
-      </div>
-    </DragDropProvider>
+              <Sheet
+                open={librarySheetOpen}
+                onOpenChange={onLibrarySheetOpenChange}
+              >
+                <SheetContent
+                  side="right"
+                  className="w-full sm:max-w-md overflow-hidden flex flex-col"
+                >
+                  <SheetHeader>
+                    <SheetTitle>Biblioteca de ejercicios</SheetTitle>
+                    <SheetDescription>
+                      Haz clic en un ejercicio para añadirlo al día. Luego
+                      puedes arrastrarlo entre bloques.
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="flex-1 min-h-0 flex flex-col mt-4 overflow-hidden">
+                    <ExerciseSelector
+                      className="flex-1 min-h-0"
+                      onSelect={(ex) => {
+                        onAddExercise(ex, undefined);
+                      }}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </>
+          ) : (
+            <ResizablePanelGroup
+              orientation="horizontal"
+              className="flex-1 min-h-0 w-full items-stretch"
+            >
+              <ResizablePanel
+                defaultSize={75}
+                minSize={55}
+                className="min-w-0 flex flex-col min-h-0"
+              >
+                {contentArea}
+              </ResizablePanel>
+
+              <ResizableHandle withHandle />
+
+              <ResizablePanel
+                defaultSize={25}
+                minSize={18}
+                collapsible
+                collapsedSize={0}
+                className="min-w-0 flex flex-col min-h-0"
+              >
+                <div className="p-4 flex flex-col flex-1 min-h-0">
+                  <h2 className="text-sm font-semibold mb-3 shrink-0">
+                    Biblioteca de ejercicios
+                  </h2>
+                  <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                    <ExerciseSelector className="flex-1 min-h-0" />
+                  </div>
+                </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          )}
+        </div>
+      </DayEditDragEndMonitor>
+    </TypedDragDropProvider>
   );
 }
 
