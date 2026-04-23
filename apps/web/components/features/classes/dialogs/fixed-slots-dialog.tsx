@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Command,
@@ -41,6 +42,7 @@ import {
   Clock,
   Plus,
   RefreshCw,
+  Search,
   Trash2,
   Users,
 } from "lucide-react";
@@ -57,7 +59,13 @@ const DAYS_OF_WEEK = [
   { value: 0, label: "Domingo" },
 ];
 
-const normalize = (v?: string) => v?.toString().trim().toLowerCase() ?? "";
+const normalize = (v?: string) =>
+  v
+    ?.toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase() ?? "";
 
 function formatSlotTime(startTimeMinutes: number) {
   const h = Math.floor(startTimeMinutes / 60);
@@ -73,6 +81,8 @@ type Props = {
 export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
   const [classFilter, setClassFilter] = useState<string>("all");
+  const [studentNameFilter, setStudentNameFilter] = useState("");
+  const deferredStudentNameFilter = useDeferredValue(studentNameFilter);
   const [addOpen, setAddOpen] = useState(false);
   const [memberSearchOpen, setMemberSearchOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
@@ -115,6 +125,22 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
         : [],
     [memberships],
   );
+
+  const filteredFixedSlots = useMemo(() => {
+    if (!fixedSlots) return fixedSlots;
+
+    const query = normalize(deferredStudentNameFilter);
+    if (!query) return fixedSlots;
+
+    return fixedSlots.filter(
+      (
+        slot: Doc<"fixedClassSlots"> & {
+          className: string | null;
+          userFullName: string;
+        },
+      ) => normalize(slot.userFullName ?? slot.userId).includes(query),
+    );
+  }, [fixedSlots, deferredStudentNameFilter]);
 
   const handleAdd = async () => {
     if (selectedUserIds.length === 0 || !addClassId) {
@@ -198,7 +224,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogContent className="h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-2xl flex flex-col p-4 sm:h-[90vh] sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
@@ -207,24 +233,46 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
           </DialogHeader>
 
           <div className="flex flex-col gap-4 flex-1 min-h-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Label className="text-muted-foreground">
-                Filtrar por clase:
-              </Label>
-              <Select value={classFilter} onValueChange={setClassFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Todas" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las clases</SelectItem>
-                  {classes?.map((c: Doc<"classes">) => (
-                    <SelectItem key={c._id} value={c._id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2 ml-auto">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-full space-y-1 sm:w-auto">
+                <Label className="text-muted-foreground">
+                  Filtrar por clase:
+                </Label>
+                <Select value={classFilter} onValueChange={setClassFilter}>
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las clases</SelectItem>
+                    {classes?.map((c: Doc<"classes">) => (
+                      <SelectItem key={c._id} value={c._id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="w-full space-y-1 sm:w-auto">
+                <Label
+                  htmlFor="fixed-slot-student-filter"
+                  className="text-muted-foreground"
+                >
+                  Filtrar por alumno:
+                </Label>
+                <div className="relative w-full sm:w-[240px]">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="fixed-slot-student-filter"
+                    value={studentNameFilter}
+                    onChange={(event) =>
+                      setStudentNameFilter(event.target.value)
+                    }
+                    placeholder="Nombre del alumno"
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+              <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row">
                 <Button
                   size="sm"
                   variant="outline"
@@ -260,8 +308,66 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                   se asignen automáticamente a cada clase que coincida con el
                   horario.
                 </div>
+              ) : filteredFixedSlots?.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  No se encontraron turnos fijos para ese alumno.
+                </div>
               ) : (
-                <table className="w-full text-sm">
+                <>
+                  <div className="divide-y sm:hidden">
+                    {filteredFixedSlots?.map(
+                      (
+                        slot: Doc<"fixedClassSlots"> & {
+                          className: string | null;
+                          userFullName: string;
+                        },
+                      ) => (
+                        <div key={slot._id} className="space-y-3 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate font-medium">
+                                {slot.userFullName ?? slot.userId}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {slot.className ?? "-"}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
+                              onClick={() => handleRemove(slot._id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <p className="text-xs text-muted-foreground">
+                                Dia
+                              </p>
+                              <p>
+                                {DAYS_OF_WEEK.find(
+                                  (d) => d.value === slot.dayOfWeek,
+                                )?.label ?? slot.dayOfWeek}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">
+                                Hora
+                              </p>
+                              <p className="flex items-center gap-1">
+                                <Clock className="h-4 w-4 text-muted-foreground" />
+                                {formatSlotTime(slot.startTimeMinutes)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+
+                  <table className="hidden w-full text-sm sm:table">
                   <thead className="bg-muted/50 sticky top-0">
                     <tr>
                       <th className="text-left p-3 font-medium">Miembro</th>
@@ -272,7 +378,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                     </tr>
                   </thead>
                   <tbody>
-                    {fixedSlots.map(
+                    {filteredFixedSlots?.map(
                       (
                         slot: Doc<"fixedClassSlots"> & {
                           className: string | null;
@@ -310,7 +416,8 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                       ),
                     )}
                   </tbody>
-                </table>
+                  </table>
+                </>
               )}
             </div>
           </div>
@@ -326,7 +433,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
           }
         }}
       >
-        <DialogContent className="max-w-sm">
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-sm p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>Agregar turno fijo</DialogTitle>
           </DialogHeader>
@@ -358,7 +465,10 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                     <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[320px] p-0" align="start">
+                <PopoverContent
+                  className="w-[calc(100vw-2rem)] p-0 sm:w-[320px]"
+                  align="start"
+                >
                   <Command>
                     <CommandInput placeholder="Buscar miembro..." />
                     <CommandList>
