@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,14 @@ import type { Member } from "@repo/core";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-import { Eye, Users, Clock, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Users,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 import { useRouter } from "next/navigation";
 
@@ -71,10 +78,57 @@ function safeDate(value: any): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+function getPlanStatus(assignment: {
+  startDate?: number | string | null;
+  endDate?: number | string | null;
+}) {
+  const start = safeDate(assignment.startDate);
+  const end = safeDate(assignment.endDate);
+
+  if (!start || !end) return null;
+
+  const now = new Date();
+
+  const diffDays = (from: Date, to: Date) =>
+    Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (end <= now) {
+    return {
+      status: "expired" as const,
+      daysLeft: 0,
+    };
+  }
+
+  if (start > now) {
+    return {
+      status: "not_started" as const,
+      daysLeft: diffDays(now, end),
+    };
+  }
+
+  const daysLeft = Math.max(diffDays(now, end), 0);
+
+  if (daysLeft <= 5) {
+    return {
+      status: "expiring_soon" as const,
+      daysLeft,
+    };
+  }
+
+  return {
+    status: "active" as const,
+    daysLeft,
+  };
+}
+
 export default function MemberDetailDialog({ member, open, onClose }: Props) {
   const router = useRouter();
 
   const [addFixedSlotOpen, setAddFixedSlotOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState({
+    memberId: "",
+    index: 0,
+  });
   const [addClassId, setAddClassId] = useState<Id<"classes"> | "">("");
   const [addDayOfWeek, setAddDayOfWeek] = useState<number>(1);
   const [addHour, setAddHour] = useState(9);
@@ -97,15 +151,59 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
   const createFixedSlot = useMutation(api.fixedClassSlots.create);
   const removeFixedSlot = useMutation(api.fixedClassSlots.remove);
 
-  if (!member) return null;
+  type AssignmentWithPlanification = Doc<"planificationAssignments"> & {
+    planification?: { _id: Id<"planifications">; name?: string } | null;
+  };
 
-  const assignment = assignments?.find(
-    (
-      a: Doc<"planificationAssignments"> & {
-        planification?: { _id: Id<"planifications"> } | null;
-      },
-    ) => a.status === "active",
+  const visibleAssignments = useMemo(() => {
+    const list = ((assignments ?? []) as AssignmentWithPlanification[]).filter(
+      (a) => a.status !== "cancelled",
+    );
+
+    const getStartTime = (assignment: AssignmentWithPlanification) =>
+      safeDate(assignment.startDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    const getEndTime = (assignment: AssignmentWithPlanification) =>
+      safeDate(assignment.endDate)?.getTime() ?? 0;
+    const isCurrent = (assignment: AssignmentWithPlanification) => {
+      const status = getPlanStatus(assignment)?.status;
+      return status === "active" || status === "expiring_soon";
+    };
+
+    const current = list
+      .filter(isCurrent)
+      .sort((a, b) => getStartTime(b) - getStartTime(a));
+    const upcoming = list
+      .filter((a) => getPlanStatus(a)?.status === "not_started")
+      .sort((a, b) => getStartTime(a) - getStartTime(b));
+    const previous = list
+      .filter((a) => getPlanStatus(a)?.status === "expired")
+      .sort((a, b) => getEndTime(b) - getEndTime(a));
+    const withoutDates = list
+      .filter((a) => getPlanStatus(a) == null)
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+
+    if (current.length > 0) {
+      return [...previous, ...withoutDates, ...current, ...upcoming];
+    }
+
+    return [...previous, ...withoutDates, ...upcoming];
+  }, [assignments]);
+
+  const defaultAssignmentIndex = Math.max(
+    visibleAssignments.findIndex((a) => {
+      const status = getPlanStatus(a)?.status;
+      return status === "active" || status === "expiring_soon";
+    }),
+    0,
   );
+  const selectedAssignmentIndex =
+    selectedAssignment.memberId === member?.id &&
+    selectedAssignment.index < visibleAssignments.length
+      ? selectedAssignment.index
+      : defaultAssignmentIndex;
+  const assignment = visibleAssignments[selectedAssignmentIndex] ?? null;
+
+  if (!member) return null;
 
   const initials =
     member.fullName
@@ -124,6 +222,22 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
   const handleAssign = () => {
     router.push("/dashboard/planifications");
+  };
+
+  const goToPreviousAssignment = () => {
+    if (selectedAssignmentIndex <= 0) return;
+    setSelectedAssignment({
+      memberId: member.id,
+      index: selectedAssignmentIndex - 1,
+    });
+  };
+
+  const goToNextAssignment = () => {
+    if (selectedAssignmentIndex >= visibleAssignments.length - 1) return;
+    setSelectedAssignment({
+      memberId: member.id,
+      index: selectedAssignmentIndex + 1,
+    });
   };
 
   const handleAddFixedSlot = async () => {
@@ -191,49 +305,22 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
     return years;
   })();
 
-  const planStatus = (() => {
-    if (!assignment) return null;
-
-    const start = safeDate(assignment.startDate);
-    const end = safeDate(assignment.endDate);
-
-    if (!start || !end) return null;
-
-    const now = new Date();
-
-    const diffDays = (from: Date, to: Date) =>
-      Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (end <= now) {
-      return {
-        status: "expired" as const,
-        daysLeft: 0,
-      };
-    }
-
-    if (start > now) {
-      return {
-        status: "not_started" as const,
-        daysLeft: diffDays(now, end),
-      };
-    }
-
-    const daysLeft = Math.max(diffDays(now, end), 0);
-
-    if (daysLeft <= 5) {
-      return {
-        status: "expiring_soon" as const,
-        daysLeft,
-      };
-    }
-
-    return {
-      status: "active" as const,
-      daysLeft,
-    };
-  })();
-
-  const showAssignButton = !assignment || planStatus?.status === "expired";
+  const activeAssignment =
+    visibleAssignments.find((a) => {
+      const status = getPlanStatus(a)?.status;
+      return status === "active" || status === "expiring_soon";
+    }) ?? null;
+  const planStatus = assignment ? getPlanStatus(assignment) : null;
+  const activePlanStatus = activeAssignment
+    ? getPlanStatus(activeAssignment)
+    : null;
+  const selectedStartDate = assignment ? safeDate(assignment.startDate) : null;
+  const selectedEndDate = assignment ? safeDate(assignment.endDate) : null;
+  const hasCurrentActiveAssignment =
+    activeAssignment != null && activePlanStatus?.status !== "expired";
+  const showAssignButton =
+    assignments !== undefined &&
+    (!activeAssignment || activePlanStatus?.status === "expired");
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -381,48 +468,108 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
           <div className="flex flex-col gap-4 rounded-lg border p-3 sm:p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <div className="min-w-0 space-y-1">
-                {assignment ? (
+                {assignments === undefined ? (
+                  <div className="text-sm text-muted-foreground">
+                    Cargando planificaciones...
+                  </div>
+                ) : assignment ? (
                   <>
-                    <div className="truncate font-semibold">
-                      {assignment.planification?.name}
-                    </div>
+                    <div className="flex min-w-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0"
+                        onClick={goToPreviousAssignment}
+                        disabled={selectedAssignmentIndex <= 0}
+                        aria-label="Planificación anterior"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
 
-                    {planStatus && (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {planStatus.status === "active" && (
-                          <>
-                            <Badge className="bg-green-500/20 text-green-400 border border-green-500/40">
-                              Activa
-                            </Badge>
-                            <Badge variant="secondary">
-                              {planStatus.daysLeft} día
-                              {planStatus.daysLeft !== 1 && "s"} restantes
-                            </Badge>
-                          </>
-                        )}
-
-                        {planStatus.status === "expiring_soon" && (
-                          <>
-                            <Badge className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
-                              Por vencer
-                            </Badge>
-                            <Badge variant="secondary">
-                              {planStatus.daysLeft} día
-                              {planStatus.daysLeft !== 1 && "s"} restantes
-                            </Badge>
-                          </>
-                        )}
-
-                        {planStatus.status === "expired" && (
-                          <Badge className="bg-red-500/20 text-red-400 border border-red-500/40">
-                            Vencida
-                          </Badge>
-                        )}
-
-                        {planStatus.status === "not_started" && (
-                          <Badge variant="secondary">No iniciada</Badge>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-semibold">
+                          {assignment.planification?.name ??
+                            "Planificación sin nombre"}
+                        </div>
+                        {visibleAssignments.length > 1 && (
+                          <p className="text-xs text-muted-foreground">
+                            {selectedAssignmentIndex + 1} de{" "}
+                            {visibleAssignments.length} asignadas
+                          </p>
                         )}
                       </div>
+
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0"
+                        onClick={goToNextAssignment}
+                        disabled={
+                          selectedAssignmentIndex >=
+                          visibleAssignments.length - 1
+                        }
+                        aria-label="Planificación siguiente"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {hasCurrentActiveAssignment &&
+                    assignment._id !== activeAssignment?._id &&
+                    planStatus?.status === "expired" ? (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="secondary">Anterior</Badge>
+                      </div>
+                    ) : hasCurrentActiveAssignment &&
+                      assignment._id !== activeAssignment?._id &&
+                      planStatus?.status === "not_started" ? (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="secondary">Próxima</Badge>
+                      </div>
+                    ) : assignment.status === "completed" ? (
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="secondary">Completada</Badge>
+                      </div>
+                    ) : (
+                      planStatus && (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {planStatus.status === "active" && (
+                            <>
+                              <Badge className="bg-green-500/20 text-green-400 border border-green-500/40">
+                                Activa
+                              </Badge>
+                              <Badge variant="secondary">
+                                {planStatus.daysLeft} día
+                                {planStatus.daysLeft !== 1 && "s"} restantes
+                              </Badge>
+                            </>
+                          )}
+
+                          {planStatus.status === "expiring_soon" && (
+                            <>
+                              <Badge className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
+                                Por vencer
+                              </Badge>
+                              <Badge variant="secondary">
+                                {planStatus.daysLeft} día
+                                {planStatus.daysLeft !== 1 && "s"} restantes
+                              </Badge>
+                            </>
+                          )}
+
+                          {planStatus.status === "expired" && (
+                            <Badge className="bg-red-500/20 text-red-400 border border-red-500/40">
+                              Vencida
+                            </Badge>
+                          )}
+
+                          {planStatus.status === "not_started" && (
+                            <Badge variant="secondary">No iniciada</Badge>
+                          )}
+                        </div>
+                      )
                     )}
                   </>
                 ) : (
@@ -458,10 +605,11 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
             </div>
 
             <div className="flex min-h-[200px] flex-1 items-start justify-center overflow-x-auto rounded-md bg-muted/20 p-2 sm:min-h-[220px] sm:p-3">
-              {assignment?.startDate && assignment?.endDate ? (
+              {selectedStartDate && selectedEndDate ? (
                 <PlanCalendar
-                  startDate={safeDate(assignment.startDate)!}
-                  endDate={safeDate(assignment.endDate)!}
+                  key={assignment?._id}
+                  startDate={selectedStartDate}
+                  endDate={selectedEndDate}
                 />
               ) : (
                 <div className="text-sm text-muted-foreground">

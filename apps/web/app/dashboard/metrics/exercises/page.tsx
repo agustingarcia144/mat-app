@@ -37,18 +37,22 @@ import { cn } from "@/lib/utils";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
 type Trend = "up" | "down" | "flat";
+type ChartMetric = "weight" | "reps";
 type ColumnKey =
   | "trend"
   | "firstWeight"
   | "latestWeight"
   | "delta"
   | "bestWeight"
+  | "averageReps"
+  | "latestReps"
   | "lastDate";
 type ChartGranularity = "day" | "week" | "month" | "year";
 
 type MetricPoint = {
   performedOn: string;
   weight: number | null;
+  reps: number | null;
   volume: number | null;
   timeSeconds: number | null;
 };
@@ -99,6 +103,8 @@ const COLUMN_OPTIONS: { key: ColumnKey; label: string }[] = [
   { key: "latestWeight", label: "Ultimo peso" },
   { key: "delta", label: "Evolucion" },
   { key: "bestWeight", label: "Mejor peso" },
+  { key: "averageReps", label: "Promedio reps" },
+  { key: "latestReps", label: "Ultimas reps" },
   { key: "lastDate", label: "Ultima fecha" },
 ];
 
@@ -109,6 +115,11 @@ const CHART_GRANULARITY_OPTIONS: { value: ChartGranularity; label: string }[] =
     { value: "month", label: "Meses" },
     { value: "year", label: "Anios" },
   ];
+
+const CHART_METRIC_OPTIONS: { value: ChartMetric; label: string }[] = [
+  { value: "weight", label: "Peso" },
+  { value: "reps", label: "Repeticiones" },
+];
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -126,6 +137,20 @@ function formatMetricValue(value?: number | null, suffix = "kg") {
   return `${new Intl.NumberFormat("es-AR", {
     maximumFractionDigits: value % 1 === 0 ? 0 : 1,
   }).format(value)} ${suffix}`;
+}
+
+function formatChartValue(value: number | null | undefined, metric: ChartMetric) {
+  return formatMetricValue(value, metric === "weight" ? "kg" : "rep");
+}
+
+function getAverageReps(points: MetricPoint[]) {
+  const reps = points
+    .map((point) => point.reps)
+    .filter((value): value is number => value !== null);
+
+  if (reps.length === 0) return null;
+  const average = reps.reduce((sum, value) => sum + value, 0) / reps.length;
+  return Number(average.toFixed(2));
 }
 
 function formatDelta(value?: number | null) {
@@ -197,6 +222,9 @@ function aggregateChartPoints(
     {
       performedOn: string;
       weight: number | null;
+      reps: number | null;
+      repsTotal: number;
+      repsSamples: number;
       volume: number | null;
       timeSeconds: number | null;
       label: string;
@@ -210,19 +238,28 @@ function aggregateChartPoints(
       previous?.weight !== null && previous?.weight !== undefined
         ? Math.max(previous.weight, point.weight ?? previous.weight)
         : point.weight;
+    const nextRepsTotal = (previous?.repsTotal ?? 0) + (point.reps ?? 0);
+    const nextRepsSamples =
+      (previous?.repsSamples ?? 0) + (point.reps !== null ? 1 : 0);
 
     buckets.set(bucketKey, {
       performedOn: bucketKey,
       weight: nextWeight,
+      reps:
+        nextRepsSamples > 0
+          ? Number((nextRepsTotal / nextRepsSamples).toFixed(2))
+          : null,
+      repsTotal: nextRepsTotal,
+      repsSamples: nextRepsSamples,
       volume: previous?.volume ?? point.volume ?? null,
       timeSeconds: previous?.timeSeconds ?? point.timeSeconds ?? null,
       label: getBucketLabel(bucketKey, granularity),
     });
   }
 
-  return Array.from(buckets.values()).sort((a, b) =>
-    a.performedOn.localeCompare(b.performedOn),
-  );
+  return Array.from(buckets.values())
+    .sort((a, b) => a.performedOn.localeCompare(b.performedOn))
+    .map(({ repsTotal, repsSamples, ...point }) => point);
 }
 
 function TrendBadge({ trend }: { trend: Trend }) {
@@ -251,49 +288,63 @@ function TrendBadge({ trend }: { trend: Trend }) {
   );
 }
 
-function WeightChart({
+function MetricLineChart({
   points,
   trend,
+  metric,
 }: {
   points: Array<MetricPoint & { label?: string }>;
   trend: Trend;
+  metric: ChartMetric;
 }) {
   const strokeColor =
-    trend === "up"
+    metric === "reps"
+      ? "hsl(24 95% 53%)"
+      : trend === "up"
       ? "hsl(142 71% 45%)"
       : trend === "down"
         ? "hsl(0 72% 51%)"
         : "hsl(213 94% 45%)";
 
   const values = points
-    .map((point) => point.weight)
+    .map((point) => point[metric])
     .filter((value): value is number => value !== null);
 
   if (points.length === 0 || values.length === 0) {
     return (
       <div className="flex h-44 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-        Sin datos de peso para este ejercicio.
+        Sin datos de {metric === "weight" ? "peso" : "repeticiones"} para este
+        ejercicio.
       </div>
     );
   }
 
   const width = 640;
   const height = 176;
-  const paddingX = 18;
-  const paddingY = 24;
+  const paddingLeft = 58;
+  const paddingRight = 18;
+  const paddingTop = 20;
+  const paddingBottom = 36;
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   const range = maxValue - minValue || 1;
+  const axisTicks = [0, 0.25, 0.5, 0.75, 1];
+  const xLabelEvery = Math.max(1, Math.ceil(points.length / 6));
+  const formatAxisValue = (value: number) =>
+    new Intl.NumberFormat("es-AR", {
+      maximumFractionDigits: value % 1 === 0 ? 0 : 1,
+    }).format(value);
 
   const coordinates = points.map((point, index) => {
     const x =
-      paddingX +
-      (index * (width - paddingX * 2)) / Math.max(points.length - 1, 1);
-    const value = point.weight ?? minValue;
+      paddingLeft +
+      (index * (width - paddingLeft - paddingRight)) /
+        Math.max(points.length - 1, 1);
+    const value = point[metric] ?? minValue;
     const y =
       height -
-      paddingY -
-      ((value - minValue) / range) * (height - paddingY * 2);
+      paddingBottom -
+      ((value - minValue) / range) * (height - paddingTop - paddingBottom);
 
     return { ...point, x, y };
   });
@@ -306,20 +357,68 @@ function WeightChart({
     <div className="space-y-3">
       <div className="rounded-xl border bg-background/60 p-3">
         <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full">
-          {[0.2, 0.4, 0.6, 0.8].map((ratio) => {
-            const y = paddingY + (height - paddingY * 2) * ratio;
+          {axisTicks.map((ratio) => {
+            const y =
+              paddingTop + (height - paddingTop - paddingBottom) * ratio;
+            const value = maxValue - range * ratio;
             return (
-              <line
-                key={ratio}
-                x1={paddingX}
-                x2={width - paddingX}
-                y1={y}
-                y2={y}
-                stroke="currentColor"
-                strokeDasharray="4 6"
-                className="text-border"
-              />
+              <g key={ratio}>
+                <line
+                  x1={paddingLeft}
+                  x2={width - paddingRight}
+                  y1={y}
+                  y2={y}
+                  stroke="currentColor"
+                  strokeDasharray={ratio === 1 ? undefined : "4 6"}
+                  className="text-border"
+                />
+                <text
+                  x={paddingLeft - 8}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-muted-foreground text-[11px]"
+                >
+                  {formatAxisValue(value)}
+                </text>
+              </g>
             );
+          })}
+          <line
+            x1={paddingLeft}
+            x2={paddingLeft}
+            y1={paddingTop}
+            y2={height - paddingBottom}
+            stroke="currentColor"
+            className="text-border"
+          />
+          {coordinates.map((point, index) => {
+            const shouldShowLabel =
+              index === 0 ||
+              index === coordinates.length - 1 ||
+              index % xLabelEvery === 0;
+
+            return shouldShowLabel ? (
+              <g
+                key={`${point.performedOn}-${point.label ?? point.performedOn}-x-axis`}
+              >
+                <line
+                  x1={point.x}
+                  x2={point.x}
+                  y1={height - paddingBottom}
+                  y2={height - paddingBottom + 5}
+                  stroke="currentColor"
+                  className="text-border"
+                />
+                <text
+                  x={point.x}
+                  y={height - 12}
+                  textAnchor="middle"
+                  className="fill-muted-foreground text-[10px]"
+                >
+                  {point.label ?? formatDate(point.performedOn)}
+                </text>
+              </g>
+            ) : null;
           })}
           <path
             d={path}
@@ -347,7 +446,8 @@ function WeightChart({
               {point.label ?? formatDate(point.performedOn)}
             </p>
             <p className="text-muted-foreground">
-              Peso: {formatMetricValue(point.weight)}
+              {metric === "weight" ? "Peso" : "Reps"}:{" "}
+              {formatChartValue(point[metric], metric)}
             </p>
           </div>
         ))}
@@ -381,6 +481,7 @@ export default function ExerciseMetricsPage() {
     useState<ColumnKey[]>(DEFAULT_COLUMNS);
   const [chartGranularity, setChartGranularity] =
     useState<ChartGranularity>("day");
+  const [chartMetric, setChartMetric] = useState<ChartMetric>("weight");
 
   const filteredMembers = useMemo(() => {
     if (!memberSearch.trim()) return members;
@@ -702,6 +803,12 @@ export default function ExerciseMetricsPage() {
                         {visibleColumns.includes("bestWeight") ? (
                           <TableHead>Mejor peso</TableHead>
                         ) : null}
+                        {visibleColumns.includes("averageReps") ? (
+                          <TableHead>Promedio reps</TableHead>
+                        ) : null}
+                        {visibleColumns.includes("latestReps") ? (
+                          <TableHead>Ultimas reps</TableHead>
+                        ) : null}
                         {visibleColumns.includes("lastDate") ? (
                           <TableHead>Ultima fecha</TableHead>
                         ) : null}
@@ -715,6 +822,10 @@ export default function ExerciseMetricsPage() {
                           exercise.points,
                           chartGranularity,
                         );
+                        const latestReps =
+                          exercise.points[exercise.points.length - 1]?.reps ??
+                          null;
+                        const averageReps = getAverageReps(exercise.points);
 
                         return (
                           <Fragment key={exercise.exerciseId}>
@@ -782,6 +893,16 @@ export default function ExerciseMetricsPage() {
                                   {formatMetricValue(exercise.bestWeight)}
                                 </TableCell>
                               ) : null}
+                              {visibleColumns.includes("averageReps") ? (
+                                <TableCell>
+                                  {formatMetricValue(averageReps, "rep")}
+                                </TableCell>
+                              ) : null}
+                              {visibleColumns.includes("latestReps") ? (
+                                <TableCell>
+                                  {formatMetricValue(latestReps, "rep")}
+                                </TableCell>
+                              ) : null}
                               {visibleColumns.includes("lastDate") ? (
                                 <TableCell>
                                   {formatDate(exercise.lastPerformedOn)}
@@ -796,7 +917,7 @@ export default function ExerciseMetricsPage() {
                                   className="bg-background/40 p-0"
                                 >
                                   <div className="space-y-5 px-4 py-5">
-                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                                       <div className="rounded-xl border bg-background/60 p-4">
                                         <p className="text-xs uppercase tracking-wide text-muted-foreground">
                                           Primer peso
@@ -847,21 +968,57 @@ export default function ExerciseMetricsPage() {
                                           {formatDelta(exercise.weightDelta)}
                                         </p>
                                       </div>
+                                      <div className="rounded-xl border bg-background/60 p-4">
+                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                          Ultimas reps
+                                        </p>
+                                        <p className="mt-2 text-lg font-semibold">
+                                          {formatMetricValue(
+                                            latestReps,
+                                            "rep",
+                                          )}
+                                        </p>
+                                      </div>
                                     </div>
 
                                     <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
                                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                         <div>
                                           <p className="font-medium">
-                                            Evolucion del peso
+                                            Evolucion por ejercicio
                                           </p>
                                           <p className="text-sm text-muted-foreground">
-                                            El grafico resume los pesos usados
-                                            segun la vista elegida.
+                                            El grafico resume pesos o
+                                            repeticiones segun la vista elegida.
                                           </p>
                                         </div>
 
-                                        <div className="w-full md:w-52">
+                                        <div className="grid w-full gap-2 md:w-auto md:grid-cols-2">
+                                          <Select
+                                            value={chartMetric}
+                                            onValueChange={(value) =>
+                                              setChartMetric(
+                                                value as ChartMetric,
+                                              )
+                                            }
+                                          >
+                                            <SelectTrigger>
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {CHART_METRIC_OPTIONS.map(
+                                                (option) => (
+                                                  <SelectItem
+                                                    key={option.value}
+                                                    value={option.value}
+                                                  >
+                                                    {option.label}
+                                                  </SelectItem>
+                                                ),
+                                              )}
+                                            </SelectContent>
+                                          </Select>
+
                                           <Select
                                             value={chartGranularity}
                                             onValueChange={(value) =>
@@ -889,9 +1046,10 @@ export default function ExerciseMetricsPage() {
                                         </div>
                                       </div>
 
-                                      <WeightChart
+                                      <MetricLineChart
                                         points={aggregatedPoints}
                                         trend={exercise.trend}
+                                        metric={chartMetric}
                                       />
                                     </div>
 
@@ -899,7 +1057,8 @@ export default function ExerciseMetricsPage() {
                                       <div>
                                         <p className="font-medium">Historial</p>
                                         <p className="text-sm text-muted-foreground">
-                                          Fechas y pesos de cada registro.
+                                          Fechas, pesos y repeticiones de cada
+                                          registro.
                                         </p>
                                       </div>
 
@@ -909,6 +1068,7 @@ export default function ExerciseMetricsPage() {
                                             <TableRow>
                                               <TableHead>Fecha</TableHead>
                                               <TableHead>Peso</TableHead>
+                                              <TableHead>Repeticiones</TableHead>
                                             </TableRow>
                                           </TableHeader>
                                           <TableBody>
@@ -927,6 +1087,12 @@ export default function ExerciseMetricsPage() {
                                                   <TableCell>
                                                     {formatMetricValue(
                                                       point.weight,
+                                                    )}
+                                                  </TableCell>
+                                                  <TableCell>
+                                                    {formatMetricValue(
+                                                      point.reps,
+                                                      "rep",
                                                     )}
                                                   </TableCell>
                                                 </TableRow>
