@@ -193,17 +193,46 @@ export default function LogSetScreen() {
         : params.setIndex?.[0];
     const setIndex = setIndexParam != null ? Number(setIndexParam) : undefined;
     if (dayExId != null && setIndex != null && Number.isFinite(setIndex)) {
+      // On Android, onBlur may not fire if the user taps "Guardar" while the
+      // keyboard is still open. Read the current text values directly to avoid
+      // using stale numeric state.
+      const finalReps =
+        Platform.OS === "android"
+          ? (() => {
+              const n = parseInt(repsText, 10);
+              return isNaN(n)
+                ? REPS_MIN
+                : Math.min(REPS_MAX, Math.max(REPS_MIN, n));
+            })()
+          : reps;
+      const finalWeight =
+        Platform.OS === "android"
+          ? (() => {
+              const n = parseFloat(weightText);
+              const snapped = isNaN(n) ? WEIGHT_KG_MIN : Math.round(n * 2) / 2;
+              return Math.min(WEIGHT_KG_MAX, Math.max(WEIGHT_KG_MIN, snapped));
+            })()
+          : weightKg;
+      const finalTimeAmount =
+        Platform.OS === "android" && hasTime
+          ? (() => {
+              const n = parseInt(timeAmountText, 10);
+              return isNaN(n) ? 1 : Math.min(60, Math.max(1, n));
+            })()
+          : timeAmount;
+
       let timeSeconds: number | undefined;
-      if (hasTime && timeAmount > 0) {
-        timeSeconds = timeUnit === "seconds" ? timeAmount : timeAmount * 60;
+      if (hasTime && finalTimeAmount > 0) {
+        timeSeconds =
+          timeUnit === "seconds" ? finalTimeAmount : finalTimeAmount * 60;
       } else {
         timeSeconds = undefined;
       }
       invokeLogSetSaveCallback({
         dayExId,
         setIndex,
-        reps,
-        weight: weightKg,
+        reps: finalReps,
+        weight: finalWeight,
         applyToAllSets,
         timeSeconds,
       });

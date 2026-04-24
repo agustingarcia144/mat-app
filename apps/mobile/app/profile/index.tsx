@@ -859,8 +859,6 @@ function ProfileContent() {
     null,
   );
   const [orgError, setOrgError] = React.useState<string | null>(null);
-  const [deleteAccountModalVisible, setDeleteAccountModalVisible] =
-    React.useState(false);
   const [personalInfoModalVisible, setPersonalInfoModalVisible] =
     React.useState(false);
   const [physicalInfoModalVisible, setPhysicalInfoModalVisible] =
@@ -895,9 +893,7 @@ function ProfileContent() {
   const isLoaded =
     organizations !== undefined && currentMembership !== undefined;
 
-  const buttonBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.06)";
   const backgroundColor = isDark ? "#000" : "#fff";
-  const modalSurfaceColor = backgroundColor;
 
   const handleOrganizationSwitch = React.useCallback(
     async (selectedOrgId: string) => {
@@ -960,7 +956,7 @@ function ProfileContent() {
           onEditPersonalInfo: () => setPersonalInfoModalVisible(true),
           onEditPhysicalInfo: () => setPhysicalInfoModalVisible(true),
           onSignOut: handleSignOut,
-          onDeleteAccount: () => setDeleteAccountModalVisible(true),
+          onManageAccount: () => router.push("/profile/manage-account"),
         }}
       />
 
@@ -988,13 +984,6 @@ function ProfileContent() {
         }}
       />
 
-      <DeleteAccountModal
-        visible={deleteAccountModalVisible}
-        onClose={() => setDeleteAccountModalVisible(false)}
-        isDark={isDark}
-        modalSurfaceColor={modalSurfaceColor}
-        buttonBg={buttonBg}
-      />
     </View>
   );
 }

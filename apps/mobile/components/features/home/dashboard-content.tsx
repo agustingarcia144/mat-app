@@ -183,6 +183,34 @@ export default function DashboardContent() {
     { startOfRange: startOfWeekMs, endOfRange: endOfWeekMs },
   );
 
+  const daysWithScheduledWorkouts = useMemo(() => {
+    if (!workoutDays || workoutDays.length === 0) return [];
+    const result: string[] = [];
+    const curr = new Date(monday);
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(curr);
+      const isoDay = getISODay(date);
+      const ymd = format(date, "yyyy-MM-dd");
+      const hasWorkout = workoutDays.some((d) => d.dayOfWeek === isoDay);
+      if (hasWorkout) {
+        let inRange = true;
+        if (activeAssignment?.startDate) {
+          const start = new Date(activeAssignment.startDate);
+          start.setHours(0, 0, 0, 0);
+          if (date < start) inRange = false;
+        }
+        if (activeAssignment?.endDate) {
+          const end = new Date(activeAssignment.endDate);
+          end.setHours(23, 59, 59, 999);
+          if (date > end) inRange = false;
+        }
+        if (inRange) result.push(ymd);
+      }
+      curr.setDate(curr.getDate() + 1);
+    }
+    return result;
+  }, [workoutDays, monday, activeAssignment]);
+
   const daysWithClasses = useMemo(
     () =>
       Array.from(
@@ -393,14 +421,7 @@ export default function DashboardContent() {
             onDateSelect={setSelectedDate}
             onWeekChange={handleWeekChange}
             weekSessions={weekSessionsForDisplay}
-            workoutDays={
-              (workoutDays as
-                | {
-                    dayOfWeek?: number;
-                    [key: string]: unknown;
-                  }[]
-                | undefined) ?? []
-            }
+            daysWithWorkouts={daysWithScheduledWorkouts}
             daysWithClasses={daysWithClasses}
             daysWithAttendedClasses={daysWithAttendedClasses}
           />

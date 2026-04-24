@@ -33,7 +33,7 @@ export type ProfileNativeListProps = {
     onEditPersonalInfo: () => void;
     onEditPhysicalInfo: () => void;
     onSignOut: () => void;
-    onDeleteAccount: () => void;
+    onManageAccount: () => void;
   };
 };
 

@@ -1,24 +1,34 @@
-import React from "react";
-import { Image, StyleSheet, Text as RNText, View } from "react-native";
-import { Host, List, RNHostView, Section, Text } from "@expo/ui/swift-ui";
+import React from 'react'
+import { Image, StyleSheet, Text as RNText, View } from 'react-native'
+import {
+  Button,
+  Host,
+  List,
+  RNHostView,
+  Section,
+  Text,
+} from '@expo/ui/swift-ui'
 import {
   background as swiftBackground,
   font,
   foregroundStyle,
-  listRowBackground,
-  listRowSeparator,
   listStyle,
-  onTapGesture,
   scrollContentBackground,
-} from "@expo/ui/swift-ui/modifiers";
-import type { ProfileNativeListProps } from "./profile-native-list.types";
+  tint,
+} from '@expo/ui/swift-ui/modifiers'
+import type { ProfileNativeListProps } from './profile-native-list.types'
 
-const DANGER_COLOR = "#ef4444";
+/**
+ * Dark gray used as the screen background — slightly lighter than pure black
+ * so the insetGrouped list cells (#2c2c2e) have visible contrast against it.
+ */
+const SCREEN_BG = '#111111'
 
-function ProfileHeader({
-  profile,
-  isDark,
-}: Pick<ProfileNativeListProps, "profile" | "isDark">) {
+/**
+ * Profile header: centered vertical layout (large avatar → name → email),
+ * matching the ChatGPT / Spotify settings style.
+ */
+function ProfileHeader({ profile }: Pick<ProfileNativeListProps, 'profile'>) {
   return (
     <RNHostView matchContents>
       <View style={styles.profileHeader}>
@@ -29,78 +39,25 @@ function ProfileHeader({
             accessibilityLabel="Avatar"
           />
         ) : (
-          <View
-            style={[
-              styles.avatarPlaceholder,
-              {
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.12)"
-                  : "rgba(0,0,0,0.08)",
-              },
-            ]}
-          >
-            <RNText
-              style={[
-                styles.avatarPlaceholderText,
-                { color: isDark ? "#fff" : "#000" },
-              ]}
-            >
+          <View style={styles.avatarPlaceholder}>
+            <RNText style={styles.avatarPlaceholderText}>
               {profile.initials}
             </RNText>
           </View>
         )}
-        <RNText
-          style={[styles.profileTitle, { color: isDark ? "#fff" : "#000" }]}
-        >
-          {profile.fullName}
-        </RNText>
+        <RNText style={styles.profileTitle}>{profile.fullName}</RNText>
         {profile.primaryEmail ? (
-          <RNText
-            style={[
-              styles.profileSubtitle,
-              { color: isDark ? "#a1a1aa" : "#71717a" },
-            ]}
-          >
-            {profile.primaryEmail}
-          </RNText>
+          <RNText style={styles.profileSubtitle}>{profile.primaryEmail}</RNText>
         ) : null}
       </View>
     </RNHostView>
-  );
+  )
 }
 
-function NativeActionRow({
-  title,
-  onPress,
-  isDark,
-  textColor,
-  rowBackgroundColor,
-}: {
-  title: string;
-  onPress?: () => void;
-  isDark: boolean;
-  textColor?: string;
-  rowBackgroundColor?: string;
-}) {
-  return (
-    <Text
-      modifiers={[
-        font({ size: 17 }),
-        foregroundStyle(textColor ?? (isDark ? "#fff" : "#000")),
-        ...(rowBackgroundColor
-          ? [listRowBackground(rowBackgroundColor), listRowSeparator("hidden")]
-          : []),
-        ...(onPress ? [onTapGesture(onPress)] : []),
-      ]}
-    >
-      {title}
-    </Text>
-  );
-}
+/** White tint applied to every non-destructive Button so icons and labels are white. */
+const WHITE_TINT = tint('#ffffff')
 
 export function ProfileNativeList({
-  isDark,
-  backgroundColor,
   profile,
   organizations,
   onOpenPlanifications,
@@ -108,133 +65,145 @@ export function ProfileNativeList({
 }: ProfileNativeListProps) {
   return (
     <Host
-      style={[styles.host, { backgroundColor }]}
-      colorScheme={isDark ? "dark" : "light"}
+      style={[styles.host, { backgroundColor: SCREEN_BG }]}
+      colorScheme="dark"
       useViewportSizeMeasurement
     >
       <List
         modifiers={[
-          listStyle("insetGrouped"),
-          scrollContentBackground("hidden"),
-          swiftBackground(backgroundColor),
+          listStyle('insetGrouped'),
+          scrollContentBackground('hidden'),
+          swiftBackground(SCREEN_BG),
         ]}
       >
+        {/* Profile card — centered vertical */}
         <Section>
-          <ProfileHeader profile={profile} isDark={isDark} />
+          <ProfileHeader profile={profile} />
         </Section>
 
+        {/* Workout data */}
         <Section>
-          <NativeActionRow
-            title="Planificaciones"
-            isDark={isDark}
+          <Button
+            label="Planificaciones"
+            systemImage="calendar"
             onPress={onOpenPlanifications}
+            modifiers={[WHITE_TINT]}
           />
         </Section>
 
+        {/* Organization switcher (only when the user belongs to multiple gyms) */}
         {organizations.isLoaded && organizations.hasMultipleOrganizations ? (
           <Section title="Cambiar organización">
             {organizations.orgError ? (
               <Text
-                modifiers={[
-                  font({ size: 14 }),
-                  foregroundStyle(isDark ? "#a1a1aa" : "#71717a"),
-                ]}
+                modifiers={[font({ size: 14 }), foregroundStyle('#a1a1aa')]}
               >
                 {organizations.orgError}
               </Text>
             ) : null}
             {organizations.memberships.map((membership, index) => {
               const isCurrent =
-                membership.organizationId === organizations.activeOrgId;
+                membership.organizationId === organizations.activeOrgId
               const isSwitching =
-                membership.organizationId === organizations.switchingOrgId;
+                membership.organizationId === organizations.switchingOrgId
 
               return (
-                <NativeActionRow
+                <Button
                   key={`${membership.organizationId}-${index}`}
-                  title={`${membership.organizationName}${isCurrent ? " (actual)" : ""}${isSwitching ? "..." : ""}`}
-                  isDark={isDark}
+                  label={`${membership.organizationName}${isCurrent ? ' (actual)' : ''}${isSwitching ? '...' : ''}`}
+                  systemImage={
+                    isCurrent ? 'checkmark.circle.fill' : 'building.2'
+                  }
                   onPress={
-                    isCurrent || organizations.switchingOrgId
+                    isCurrent || !!organizations.switchingOrgId
                       ? undefined
                       : () => organizations.onSwitch(membership.organizationId)
                   }
+                  modifiers={[WHITE_TINT]}
                 />
-              );
+              )
             })}
           </Section>
         ) : null}
 
+        {/* User settings */}
         <Section title="Ajustes">
-          <NativeActionRow
-            title="Información personal"
-            isDark={isDark}
+          <Button
+            label="Información personal"
+            systemImage="person.fill"
             onPress={actions.onEditPersonalInfo}
+            modifiers={[WHITE_TINT]}
           />
-          <NativeActionRow
-            title="Información física"
-            isDark={isDark}
+          <Button
+            label="Información física"
+            systemImage="figure.run"
             onPress={actions.onEditPhysicalInfo}
+            modifiers={[WHITE_TINT]}
           />
         </Section>
 
+        {/* Account */}
         <Section title="Cuenta">
-          <NativeActionRow
-            title="Cerrar sesión"
-            isDark={isDark}
-            onPress={actions.onSignOut}
+          {/* Account management (delete, etc.) */}
+          <Button
+            label="Administrar cuenta"
+            systemImage="person.badge.minus"
+            onPress={actions.onManageAccount}
+            modifiers={[WHITE_TINT]}
           />
-        </Section>
-
-        <Section title="Zona peligrosa">
-          <NativeActionRow
-            title="Eliminar cuenta permanentemente"
-            isDark={isDark}
-            textColor={DANGER_COLOR}
-            rowBackgroundColor={backgroundColor}
-            onPress={actions.onDeleteAccount}
+          <Button
+            label="Cerrar sesión"
+            systemImage="rectangle.portrait.and.arrow.right"
+            onPress={actions.onSignOut}
+            modifiers={[WHITE_TINT]}
           />
         </Section>
       </List>
     </Host>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
   host: {
     flex: 1,
   },
+  /* Centered vertical layout — large avatar, then name, then email */
   profileHeader: {
-    alignItems: "center",
-    paddingVertical: 8,
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 16,
+    gap: 8,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(0,0,0,0.06)",
-    marginBottom: 12,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 4,
   },
   avatarPlaceholder: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor:
+      '#3a9e8a' /* teal accent, similar to the reference screenshot */,
+    marginBottom: 4,
   },
   avatarPlaceholderText: {
-    fontSize: 24,
-    fontWeight: "600",
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#fff',
   },
   profileTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#ffffff',
+    textAlign: 'center',
   },
   profileSubtitle: {
     fontSize: 13,
-    textAlign: "center",
+    color: '#a1a1aa',
+    textAlign: 'center',
   },
-});
+})
