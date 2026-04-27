@@ -14,6 +14,41 @@ import {
   tryActiveOrgContext,
 } from "./permissions";
 
+async function getFamilyGroupSubscriptions(
+  ctx: { db: any },
+  subscription: {
+    _id: Id<"memberPlanSubscriptions">;
+    organizationId: Id<"organizations">;
+    familyParentSubscriptionId?: Id<"memberPlanSubscriptions">;
+    status: "active" | "suspended" | "cancelled";
+  },
+) {
+  const primarySubscription = subscription.familyParentSubscriptionId
+    ? await ctx.db.get(subscription.familyParentSubscriptionId)
+    : subscription;
+
+  if (!primarySubscription) {
+    throw new Error("Suscripción familiar principal no encontrada");
+  }
+
+  const childSubscriptions = await ctx.db
+    .query("memberPlanSubscriptions")
+    .withIndex("by_family_parent", (q) =>
+      q.eq("familyParentSubscriptionId", primarySubscription._id),
+    )
+    .collect();
+
+  const familySubscriptions = [primarySubscription, ...childSubscriptions].filter(
+    (item) => item.status !== "cancelled",
+  );
+
+  return {
+    primarySubscription,
+    familySubscriptions,
+    memberCount: familySubscriptions.length,
+  };
+}
+
 /**
  * Get the current user's active or suspended subscription (if any).
  * Returns the subscription enriched with plan details.
@@ -79,19 +114,124 @@ export const getByOrganization = query({
 
     return await Promise.all(
       subscriptions.map(async (sub) => {
-        const [plan, user] = await Promise.all([
+        const [plan, user, familySubscriptions] = await Promise.all([
           ctx.db.get(sub.planId),
           ctx.db
             .query("users")
             .withIndex("by_externalId", (q) => q.eq("externalId", sub.userId))
             .first(),
+          sub.familyParentSubscriptionId
+            ? Promise.resolve([])
+            : getFamilyGroupSubscriptions(ctx, sub).then(
+                (result) => result.familySubscriptions,
+              ),
         ]);
+        const { memberCount, primarySubscription } =
+          await getFamilyGroupSubscriptions(ctx, sub);
+        const familyAssociatedNames = await Promise.all(
+          familySubscriptions
+            .filter((item) => item._id !== primarySubscription._id)
+            .map(async (item) => {
+              const relatedUser = await ctx.db
+                .query("users")
+                .withIndex("by_externalId", (q) =>
+                  q.eq("externalId", item.userId),
+                )
+                .first();
+              return relatedUser?.fullName ?? relatedUser?.email ?? item.userId;
+            }),
+        );
         return {
           ...sub,
           plan,
+          billingSubscriptionId: primarySubscription._id,
+          coveredMemberCount: memberCount,
+          familyAssociatedNames,
+          payableAmountArs: plan ? plan.priceArs * memberCount : 0,
           userFullName: user?.fullName ?? user?.email ?? sub.userId,
         };
       }),
+    );
+  },
+});
+
+export const getActiveFamilyGroups = query({
+  args: {},
+  handler: async (ctx) => {
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdminOrTrainer(ctx, membership.organizationId);
+
+    const subscriptions = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
+      )
+      .collect();
+
+    const familyHeads = subscriptions.filter(
+      (sub) =>
+        !sub.familyParentSubscriptionId &&
+        sub.status !== "cancelled" &&
+        (sub.familyMemberUserIds?.length ?? 0) >= 0,
+    );
+
+    const results = await Promise.all(
+      familyHeads.map(async (sub) => {
+        const [plan, user, childSubscriptions] = await Promise.all([
+          ctx.db.get(sub.planId),
+          ctx.db
+            .query("users")
+            .withIndex("by_externalId", (q) => q.eq("externalId", sub.userId))
+            .first(),
+          ctx.db
+            .query("memberPlanSubscriptions")
+            .withIndex("by_family_parent", (q) =>
+              q.eq("familyParentSubscriptionId", sub._id),
+            )
+            .filter((q) => q.neq(q.field("status"), "cancelled"))
+            .collect(),
+        ]);
+
+        if (!plan?.isFamilyPlan) return null;
+
+        const associatedNames = await Promise.all(
+          childSubscriptions.map(async (child) => {
+            const childUser = await ctx.db
+              .query("users")
+              .withIndex("by_externalId", (q) =>
+                q.eq("externalId", child.userId),
+              )
+              .first();
+            return childUser?.fullName ?? childUser?.email ?? child.userId;
+          }),
+        );
+
+        return {
+          subscriptionId: sub._id,
+          userId: sub.userId,
+          headName: user?.fullName ?? user?.email ?? sub.userId,
+          planId: sub.planId,
+          planName: plan.name,
+          associatedNames,
+          coveredMemberCount: 1 + childSubscriptions.length,
+          payableAmountArs: plan.priceArs * (1 + childSubscriptions.length),
+        };
+      }),
+    );
+
+    return results.filter(
+      (
+        result,
+      ): result is {
+        subscriptionId: Id<"memberPlanSubscriptions">;
+        userId: string;
+        headName: string;
+        planId: Id<"membershipPlans">;
+        planName: string;
+        associatedNames: string[];
+        coveredMemberCount: number;
+        payableAmountArs: number;
+      } => result !== null,
     );
   },
 });
@@ -195,6 +335,7 @@ export const assignToMember = mutation({
   args: {
     userId: v.string(),
     planId: v.id("membershipPlans"),
+    familyMemberUserIds: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
@@ -227,6 +368,16 @@ export const assignToMember = mutation({
       throw new Error("Este plan no está activo");
     }
 
+    const familyMemberUserIds = Array.from(
+      new Set(
+        (args.familyMemberUserIds ?? []).filter((userId) => userId !== args.userId),
+      ),
+    );
+
+    if (!plan.isFamilyPlan && familyMemberUserIds.length > 0) {
+      throw new Error("Solo podés asociar miembros en planes familiares");
+    }
+
     // Check no existing active/suspended subscription
     const existing = await ctx.db
       .query("memberPlanSubscriptions")
@@ -244,16 +395,69 @@ export const assignToMember = mutation({
       );
     }
 
+    for (const familyUserId of familyMemberUserIds) {
+      const familyMembership = await ctx.db
+        .query("organizationMemberships")
+        .withIndex("by_organization_user", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("userId", familyUserId),
+        )
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .first();
+
+      if (!familyMembership || familyMembership.role !== "member") {
+        throw new Error("Todos los asociados deben ser miembros activos");
+      }
+
+      const existingFamilySubscription = await ctx.db
+        .query("memberPlanSubscriptions")
+        .withIndex("by_organization_user", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("userId", familyUserId),
+        )
+        .filter((q) => q.neq(q.field("status"), "cancelled"))
+        .first();
+
+      if (existingFamilySubscription) {
+        throw new Error(
+          "Uno de los miembros asociados ya tiene un plan activo o suspendido",
+        );
+      }
+    }
+
     const now = Date.now();
     const subscriptionId = await ctx.db.insert("memberPlanSubscriptions", {
       organizationId: membership.organizationId,
       userId: args.userId,
       planId: args.planId,
+      familyHeadUserId: plan.isFamilyPlan ? args.userId : undefined,
+      familyMemberUserIds:
+        plan.isFamilyPlan && familyMemberUserIds.length
+          ? familyMemberUserIds
+          : undefined,
       status: "active",
       activatedAt: now,
       createdAt: now,
       updatedAt: now,
     });
+
+    if (plan.isFamilyPlan && familyMemberUserIds.length > 0) {
+      for (const familyUserId of familyMemberUserIds) {
+        await ctx.db.insert("memberPlanSubscriptions", {
+          organizationId: membership.organizationId,
+          userId: familyUserId,
+          planId: args.planId,
+          familyHeadUserId: args.userId,
+          familyParentSubscriptionId: subscriptionId,
+          status: "active",
+          activatedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
 
     // Create payment record for current billing period
     await createPaymentForCurrentPeriod(ctx, {
@@ -264,6 +468,104 @@ export const assignToMember = mutation({
     });
 
     return subscriptionId;
+  },
+});
+
+export const associateToFamilyGroup = mutation({
+  args: {
+    userId: v.string(),
+    parentSubscriptionId: v.id("memberPlanSubscriptions"),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdminOrTrainer(ctx, membership.organizationId);
+
+    const [targetMembership, existingSubscription, parentSubscription] =
+      await Promise.all([
+        ctx.db
+          .query("organizationMemberships")
+          .withIndex("by_organization_user", (q) =>
+            q
+              .eq("organizationId", membership.organizationId)
+              .eq("userId", args.userId),
+          )
+          .filter((q) => q.eq(q.field("status"), "active"))
+          .first(),
+        ctx.db
+          .query("memberPlanSubscriptions")
+          .withIndex("by_organization_user", (q) =>
+            q
+              .eq("organizationId", membership.organizationId)
+              .eq("userId", args.userId),
+          )
+          .filter((q) => q.neq(q.field("status"), "cancelled"))
+          .first(),
+        ctx.db.get(args.parentSubscriptionId),
+      ]);
+
+    if (!targetMembership || targetMembership.role !== "member") {
+      throw new Error("El usuario debe ser un miembro activo");
+    }
+    if (existingSubscription) {
+      throw new Error("El miembro ya tiene un plan activo o suspendido");
+    }
+    if (
+      !parentSubscription ||
+      parentSubscription.organizationId !== membership.organizationId
+    ) {
+      throw new Error("Grupo familiar no encontrado");
+    }
+    if (parentSubscription.familyParentSubscriptionId) {
+      throw new Error("Debés seleccionar una suscripción titular");
+    }
+    if (parentSubscription.status === "cancelled") {
+      throw new Error("El grupo familiar no está activo");
+    }
+    if (parentSubscription.userId === args.userId) {
+      throw new Error("El titular ya pertenece a ese grupo");
+    }
+
+    const plan = await ctx.db.get(parentSubscription.planId);
+    if (!plan?.isFamilyPlan) {
+      throw new Error("La suscripción seleccionada no corresponde a un plan familiar");
+    }
+
+    const activeChildSubscriptions = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_family_parent", (q) =>
+        q.eq("familyParentSubscriptionId", parentSubscription._id),
+      )
+      .filter((q) => q.neq(q.field("status"), "cancelled"))
+      .collect();
+
+    const currentMemberIds = Array.from(
+      new Set(activeChildSubscriptions.map((subscription) => subscription.userId)),
+    );
+
+    if (currentMemberIds.includes(args.userId)) {
+      throw new Error("El miembro ya está asociado a este grupo familiar");
+    }
+
+    const now = Date.now();
+    await ctx.db.insert("memberPlanSubscriptions", {
+      organizationId: membership.organizationId,
+      userId: args.userId,
+      planId: parentSubscription.planId,
+      familyHeadUserId: parentSubscription.userId,
+      familyParentSubscriptionId: parentSubscription._id,
+      status: parentSubscription.status === "suspended" ? "suspended" : "active",
+      activatedAt: parentSubscription.activatedAt ?? now,
+      suspendedAt:
+        parentSubscription.status === "suspended" ? parentSubscription.suspendedAt ?? now : undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await ctx.db.patch(parentSubscription._id, {
+      familyMemberUserIds: [...currentMemberIds, args.userId],
+      updatedAt: now,
+    });
   },
 });
 
@@ -317,6 +619,22 @@ export const cancel = mutation({
       cancelledAt: now,
       updatedAt: now,
     });
+
+    const childSubscriptions = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_family_parent", (q) =>
+        q.eq("familyParentSubscriptionId", subscription._id),
+      )
+      .collect();
+
+    for (const childSubscription of childSubscriptions) {
+      if (childSubscription.status === "cancelled") continue;
+      await ctx.db.patch(childSubscription._id, {
+        status: "cancelled",
+        cancelledAt: now,
+        updatedAt: now,
+      });
+    }
 
     // Auto-revoke active bonification if subscription is cancelled
     const activeBonification = await ctx.db
@@ -446,6 +764,8 @@ export const autoSuspendUnpaid = internalMutation({
         .collect();
 
       for (const sub of activeSubscriptions) {
+        if (sub.familyParentSubscriptionId) continue;
+
         const plan = await ctx.db.get(sub.planId);
         if (!plan) continue;
 
@@ -505,12 +825,20 @@ export const autoSuspendUnpaid = internalMutation({
           .first();
 
         if (!approvedPayment) {
-          await ctx.db.patch(sub._id, {
-            status: "suspended",
-            suspendedAt: Date.now(),
-            updatedAt: Date.now(),
-          });
-          suspendedCount++;
+          const now = Date.now();
+          const { familySubscriptions } = await getFamilyGroupSubscriptions(
+            ctx,
+            sub,
+          );
+          for (const familySubscription of familySubscriptions) {
+            if (familySubscription.status === "suspended") continue;
+            await ctx.db.patch(familySubscription._id, {
+              status: "suspended",
+              suspendedAt: now,
+              updatedAt: now,
+            });
+            suspendedCount++;
+          }
         }
       }
     }
@@ -539,9 +867,15 @@ async function createAdvancePayments(
 ) {
   const now = Date.now();
   const d = new Date(now);
-  const discountedPrice = Math.round(
+  const { memberCount } = await getFamilyGroupSubscriptions(ctx, {
+    _id: params.subscriptionId,
+    organizationId: params.organizationId,
+    status: "active",
+  });
+  const discountedPricePerMember = Math.round(
     params.plan.priceArs * (1 - params.discountPercentage / 100),
   );
+  const discountedPrice = discountedPricePerMember * memberCount;
 
   for (let i = 0; i < params.months; i++) {
     const monthDate = new Date(d.getFullYear(), d.getMonth() + i, 1);
@@ -592,6 +926,11 @@ async function createPaymentForCurrentPeriod(
   const now = Date.now();
   const d = new Date(now);
   const billingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const { memberCount } = await getFamilyGroupSubscriptions(ctx, {
+    _id: params.subscriptionId,
+    organizationId: params.organizationId,
+    status: "active",
+  });
 
   // Check if a payment already exists for this period and subscription
   const existing = await ctx.db
@@ -611,7 +950,8 @@ async function createPaymentForCurrentPeriod(
     subscriptionId: params.subscriptionId,
     planId: params.plan._id,
     billingPeriod,
-    amountArs: params.plan.priceArs,
+    amountArs: params.plan.priceArs * memberCount,
+    totalAmountArs: params.plan.priceArs * memberCount,
     status: "pending",
     createdAt: now,
     updatedAt: now,

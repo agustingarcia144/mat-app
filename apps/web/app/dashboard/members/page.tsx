@@ -135,8 +135,11 @@ export default function MembersPage() {
 
     return onlyMembers.map((member): FilterableMemberTableRow => {
       const subscription = latestSubscriptionByUser.get(member.id)
-      const currentPayment = subscription
-        ? currentPaymentBySubscription.get(String(subscription._id))
+      const billingSubscriptionId = subscription
+        ? String(subscription.billingSubscriptionId ?? subscription._id)
+        : null
+      const currentPayment = billingSubscriptionId
+        ? currentPaymentBySubscription.get(billingSubscriptionId)
         : null
 
       const assignedPlanName = subscription?.plan?.name ?? 'Sin Plan'

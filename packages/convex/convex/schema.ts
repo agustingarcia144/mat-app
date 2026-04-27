@@ -650,6 +650,7 @@ export default defineSchema({
     organizationId: v.id("organizations"),
     name: v.string(), // "Plan Básico", "2 veces/semana"
     description: v.optional(v.string()),
+    isFamilyPlan: v.optional(v.boolean()),
     priceArs: v.number(), // Price in ARS (whole pesos)
     weeklyClassLimit: v.number(), // Max classes per week (Mon-Sun)
     paymentWindowStartDay: v.number(), // Day of month payment opens (1-28)
@@ -687,6 +688,9 @@ export default defineSchema({
     organizationId: v.id("organizations"),
     userId: v.string(), // Clerk user ID
     planId: v.id("membershipPlans"),
+    familyHeadUserId: v.optional(v.string()),
+    familyParentSubscriptionId: v.optional(v.id("memberPlanSubscriptions")),
+    familyMemberUserIds: v.optional(v.array(v.string())),
     status: v.union(
       v.literal("active"),
       v.literal("suspended"),
@@ -701,6 +705,8 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_organization_user", ["organizationId", "userId"])
     .index("by_organization_status", ["organizationId", "status"])
+    .index("by_family_parent", ["familyParentSubscriptionId"])
+    .index("by_family_head", ["organizationId", "familyHeadUserId"])
     .index("by_user", ["userId"]),
 
   // Plan payments - monthly payment records with proof upload and admin review

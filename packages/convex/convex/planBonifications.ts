@@ -183,10 +183,10 @@ export const create = mutation({
       !subscription ||
       subscription.organizationId !== membership.organizationId
     ) {
-      throw new Error("SuscripciÃ³n no encontrada");
+      throw new Error("Suscripción no encontrada");
     }
     if (subscription.status === "cancelled") {
-      throw new Error("No se puede bonificar una suscripciÃ³n cancelada");
+      throw new Error("No se puede bonificar una suscripción cancelada");
     }
 
     const plan = await ctx.db.get(subscription.planId);
@@ -200,7 +200,7 @@ export const create = mutation({
       )
       .first();
     if (existing) {
-      throw new Error("Esta suscripciÃ³n ya tiene una bonificaciÃ³n activa");
+      throw new Error("Esta suscripción ya tiene una bonificación activa");
     }
 
     // Validate discount value
@@ -241,7 +241,7 @@ export const create = mutation({
 
     if (existingPayments) {
       throw new Error(
-        "No se puede bonificar una suscripciÃ³n con pagos adelantados pendientes. EliminÃ¡ los pagos futuros primero.",
+        "No se puede bonificar una suscripción con pagos adelantados pendientes. Eliminá los pagos futuros primero.",
       );
     }
 
@@ -350,10 +350,10 @@ export const revoke = mutation({
       !bonification ||
       bonification.organizationId !== membership.organizationId
     ) {
-      throw new Error("BonificaciÃ³n no encontrada");
+      throw new Error("Bonificación no encontrada");
     }
     if (bonification.status === "revoked") {
-      throw new Error("Esta bonificaciÃ³n ya fue revocada");
+      throw new Error("Esta bonificación ya fue revocada");
     }
 
     const now = Date.now();
@@ -398,7 +398,7 @@ export const update = mutation({
       !bonification ||
       bonification.organizationId !== membership.organizationId
     ) {
-      throw new Error("BonificaciÃ³n no encontrada");
+      throw new Error("Bonificación no encontrada");
     }
     if (bonification.status !== "active") {
       throw new Error("Solo se pueden modificar bonificaciones activas");
@@ -437,7 +437,7 @@ export const update = mutation({
 
 /**
  * Internal mutation: auto-generate approved payments for active bonifications.
- * Called by daily cron. Idempotent â€” safe to run multiple times per period.
+ * Called by daily cron. Idempotent — safe to run multiple times per period.
  */
 export const generateBonificationPayments = internalMutation({
   args: {},
