@@ -230,6 +230,7 @@ export const membershipPlanSchema = z
   .object({
     name: z.string().min(1, "El nombre es requerido").trim(),
     description: z.string().optional(),
+    isFamilyPlan: z.boolean().default(false),
     priceArs: z.coerce
       .number()
       .int("El precio debe ser un número entero")
