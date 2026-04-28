@@ -24,6 +24,7 @@ interface PaymentDetailDialogProps {
   billingPeriod: string;
   amountArs: number;
   status: string;
+  coveredMembers?: string[];
 }
 
 const STATUS_LABELS: Record<
@@ -68,6 +69,7 @@ export default function PaymentDetailDialog({
   billingPeriod,
   amountArs,
   status,
+  coveredMembers,
 }: PaymentDetailDialogProps) {
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -95,6 +97,11 @@ export default function PaymentDetailDialog({
             <div>
               <span className="text-muted-foreground">Miembro:</span>
               <p className="font-medium">{memberName}</p>
+              {coveredMembers && coveredMembers.length > 1 ? (
+                <p className="text-xs text-muted-foreground">
+                  Cubre a: {coveredMembers.join(", ")}
+                </p>
+              ) : null}
             </div>
             <div>
               <span className="text-muted-foreground">Plan:</span>

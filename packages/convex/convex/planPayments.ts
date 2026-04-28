@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
   requireAuth,
@@ -15,6 +16,63 @@ type InterestTier = {
 };
 
 type AppliedTier = InterestTier & { amountArs: number };
+
+async function getPaymentCoverage(
+  ctx: { db: any },
+  subscription: {
+    _id: Id<"memberPlanSubscriptions">;
+    organizationId: Id<"organizations">;
+    userId: string;
+    familyParentSubscriptionId?: Id<"memberPlanSubscriptions">;
+  },
+) {
+  const billingSubscription = subscription.familyParentSubscriptionId
+    ? await ctx.db.get(subscription.familyParentSubscriptionId)
+    : subscription;
+
+  if (!billingSubscription) {
+    throw new Error("Suscripción principal no encontrada");
+  }
+
+  const childSubscriptions = await ctx.db
+    .query("memberPlanSubscriptions")
+    .withIndex("by_family_parent", (q: any) =>
+      q.eq("familyParentSubscriptionId", billingSubscription._id),
+    )
+    .collect();
+
+  const coveredSubscriptions = [billingSubscription, ...childSubscriptions].filter(
+    (item) => item.status !== "cancelled",
+  );
+
+  return {
+    billingSubscription,
+    coveredSubscriptions,
+    coveredMemberCount: coveredSubscriptions.length,
+  };
+}
+
+async function setFamilySubscriptionsStatus(
+  ctx: { db: any },
+  subscription: {
+    _id: Id<"memberPlanSubscriptions">;
+    organizationId: Id<"organizations">;
+    userId: string;
+    familyParentSubscriptionId?: Id<"memberPlanSubscriptions">;
+  },
+  status: "active" | "suspended",
+  now: number,
+) {
+  const { coveredSubscriptions } = await getPaymentCoverage(ctx, subscription);
+
+  for (const item of coveredSubscriptions) {
+    await ctx.db.patch(item._id, {
+      status,
+      suspendedAt: status === "active" ? undefined : now,
+      updatedAt: now,
+    });
+  }
+}
 
 function computeInterest(
   baseAmount: number,
@@ -76,7 +134,9 @@ export const getMyCurrentPeriodPayment = query({
 
     if (!subscription) return null;
 
-    const plan = await ctx.db.get(subscription.planId);
+    const { billingSubscription, coveredMemberCount } =
+      await getPaymentCoverage(ctx, subscription);
+    const plan = await ctx.db.get(billingSubscription.planId as Id<"membershipPlans">);
 
     const d = new Date();
     const billingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -85,7 +145,7 @@ export const getMyCurrentPeriodPayment = query({
       .query("planPayments")
       .withIndex("by_subscription_period", (q) =>
         q
-          .eq("subscriptionId", subscription._id)
+          .eq("subscriptionId", billingSubscription._id)
           .eq("billingPeriod", billingPeriod),
       )
       .first();
@@ -94,6 +154,8 @@ export const getMyCurrentPeriodPayment = query({
 
     return {
       ...payment,
+      coveredMemberCount,
+      coveredUserIds: coveredMemberCount > 1 ? billingSubscription.familyMemberUserIds : undefined,
       planInterestTiers: plan?.interestTiers ?? [],
       planPaymentWindowEndDay: plan?.paymentWindowEndDay ?? 28,
     };
@@ -125,13 +187,28 @@ export const getMyPayments = query({
 
     const { identity, membership } = orgCtx;
 
-    const payments = await ctx.db
-      .query("planPayments")
+    const subscription = await ctx.db
+      .query("memberPlanSubscriptions")
       .withIndex("by_organization_user", (q) =>
         q
           .eq("organizationId", membership.organizationId)
           .eq("userId", identity.subject),
       )
+      .filter((q) => q.neq(q.field("status"), "cancelled"))
+      .first();
+
+    if (!subscription) return [];
+
+    const { billingSubscription } = await getPaymentCoverage(ctx, subscription);
+
+    const payments = await ctx.db
+      .query("planPayments")
+      .withIndex("by_organization_user", (q) =>
+        q
+          .eq("organizationId", membership.organizationId)
+          .eq("userId", billingSubscription.userId),
+      )
+      .filter((q) => q.eq(q.field("subscriptionId"), billingSubscription._id))
       .collect();
 
     // Sort newest first
@@ -299,6 +376,14 @@ export const getOrganizationMetrics = query({
       }
     }
 
+    const familyGroupSizes = new Map<string, number>();
+    for (const subscription of activeSubscriptions) {
+      const billingKey = String(
+        subscription.familyParentSubscriptionId ?? subscription._id,
+      );
+      familyGroupSizes.set(billingKey, (familyGroupSizes.get(billingKey) ?? 0) + 1);
+    }
+
     let expectedRevenueArs = 0;
     let approvedRevenueArs = 0;
     let interestRevenueArs = 0;
@@ -330,10 +415,21 @@ export const getOrganizationMetrics = query({
       const plan = plans.get(String(subscription.planId));
       const planName = plan?.name ?? "Plan eliminado";
       const planPrice = plan?.priceArs ?? 0;
-      const currentPayment = paymentBySubscription.get(
-        String(subscription._id),
+      const billingSubscriptionId = String(
+        subscription.familyParentSubscriptionId ?? subscription._id,
       );
-      const isBonified = bonifiedSubscriptionIds.has(String(subscription._id));
+      const currentPayment = paymentBySubscription.get(billingSubscriptionId);
+      const isBonified = bonifiedSubscriptionIds.has(billingSubscriptionId);
+      const familyGroupSize = familyGroupSizes.get(billingSubscriptionId) ?? 1;
+      const approvedAmountPerMember = currentPayment
+        ? Math.round(
+            (currentPayment.totalAmountArs ?? currentPayment.amountArs) /
+              familyGroupSize,
+          )
+        : 0;
+      const interestAmountPerMember = currentPayment
+        ? Math.round((currentPayment.interestTotalArs ?? 0) / familyGroupSize)
+        : 0;
 
       if (subscription.status === "suspended") suspendedCount += 1;
 
@@ -372,11 +468,9 @@ export const getOrganizationMetrics = query({
         if (!currentPayment.isBonification) {
           approvedCount += 1;
           planEntry.approvedMembers += 1;
-          const approvedAmount =
-            currentPayment.totalAmountArs ?? currentPayment.amountArs;
-          approvedRevenueArs += approvedAmount;
-          interestRevenueArs += currentPayment.interestTotalArs ?? 0;
-          planEntry.approvedRevenueArs += approvedAmount;
+          approvedRevenueArs += approvedAmountPerMember;
+          interestRevenueArs += interestAmountPerMember;
+          planEntry.approvedRevenueArs += approvedAmountPerMember;
         }
       } else if (currentPayment.status === "in_review") {
         inReviewCount += 1;
@@ -714,7 +808,7 @@ export const uploadProof = mutation({
 
     // Calculate interest at upload time
     const subscription = await ctx.db.get(payment.subscriptionId);
-    const plan = subscription ? await ctx.db.get(subscription.planId) : null;
+    const plan = subscription ? await ctx.db.get(subscription.planId as Id<"membershipPlans">) : null;
 
     const now = Date.now();
     const interest = plan?.interestTiers?.length
@@ -766,6 +860,11 @@ export const approve = mutation({
       throw new Error("Este pago no está en revisión");
     }
 
+    const subscription = await ctx.db.get(payment.subscriptionId);
+    if (!subscription) {
+      throw new Error("Suscripción no encontrada");
+    }
+
     const now = Date.now();
     await ctx.db.patch(args.paymentId, {
       status: "approved",
@@ -775,15 +874,7 @@ export const approve = mutation({
       updatedAt: now,
     });
 
-    // Reactivate subscription if it was suspended
-    const subscription = await ctx.db.get(payment.subscriptionId);
-    if (subscription && subscription.status === "suspended") {
-      await ctx.db.patch(subscription._id, {
-        status: "active",
-        suspendedAt: undefined,
-        updatedAt: now,
-      });
-    }
+    await setFamilySubscriptionsStatus(ctx, subscription, "active", now);
   },
 });
 
@@ -869,22 +960,28 @@ export const recordPayment = mutation({
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdminOrTrainer(ctx, membership.organizationId);
 
-    const subscription = await ctx.db.get(args.subscriptionId);
+    const selectedSubscription = await ctx.db.get(args.subscriptionId);
     if (
-      !subscription ||
-      subscription.organizationId !== membership.organizationId
+      !selectedSubscription ||
+      selectedSubscription.organizationId !== membership.organizationId
     ) {
       throw new Error("Suscripción no encontrada");
     }
 
-    const plan = await ctx.db.get(subscription.planId);
+    const { billingSubscription, coveredMemberCount } = await getPaymentCoverage(
+      ctx,
+      selectedSubscription,
+    );
+
+    const subscription = billingSubscription;
+    const plan = await ctx.db.get(subscription.planId as Id<"membershipPlans">);
     if (!plan) throw new Error("Plan no encontrado");
 
     // Block manual payments for bonified subscriptions
     const activeBonification = await ctx.db
       .query("planBonifications")
       .withIndex("by_subscription_status", (q) =>
-        q.eq("subscriptionId", args.subscriptionId).eq("status", "active"),
+        q.eq("subscriptionId", subscription._id).eq("status", "active"),
       )
       .first();
     if (activeBonification) {
@@ -903,7 +1000,7 @@ export const recordPayment = mutation({
       .query("planPayments")
       .withIndex("by_subscription_period", (q) =>
         q
-          .eq("subscriptionId", args.subscriptionId)
+          .eq("subscriptionId", subscription._id)
           .eq("billingPeriod", args.billingPeriod),
       )
       .first();
@@ -912,7 +1009,8 @@ export const recordPayment = mutation({
     }
 
     const now = Date.now();
-    const amountArs = args.amountArs ?? plan.priceArs;
+    const defaultAmountArs = plan.priceArs * coveredMemberCount;
+    const amountArs = args.amountArs ?? defaultAmountArs;
 
     if (existing) {
       // Update the existing pending/declined/in_review payment
@@ -935,7 +1033,7 @@ export const recordPayment = mutation({
       await ctx.db.insert("planPayments", {
         organizationId: membership.organizationId,
         userId: subscription.userId,
-        subscriptionId: args.subscriptionId,
+        subscriptionId: subscription._id,
         planId: subscription.planId,
         billingPeriod: args.billingPeriod,
         amountArs,
@@ -955,14 +1053,7 @@ export const recordPayment = mutation({
       });
     }
 
-    // Reactivate subscription if it was suspended
-    if (subscription.status === "suspended") {
-      await ctx.db.patch(subscription._id, {
-        status: "active",
-        suspendedAt: undefined,
-        updatedAt: now,
-      });
-    }
+    await setFamilySubscriptionsStatus(ctx, subscription, "active", now);
   },
 });
 
@@ -972,8 +1063,12 @@ export const recordPayment = mutation({
 async function enrichPayments(ctx: { db: any }, payments: any[]) {
   return await Promise.all(
     payments.map(async (payment) => {
+      const subscription = await ctx.db.get(payment.subscriptionId);
+      const coverage = subscription
+        ? await getPaymentCoverage(ctx, subscription)
+        : null;
       const [plan, user] = await Promise.all([
-        ctx.db.get(payment.planId),
+        ctx.db.get(payment.planId as Id<"membershipPlans">),
         ctx.db
           .query("users")
           .withIndex("by_externalId", (q: any) =>
@@ -981,10 +1076,25 @@ async function enrichPayments(ctx: { db: any }, payments: any[]) {
           )
           .first(),
       ]);
+      const coveredMemberNames = coverage
+        ? await Promise.all(
+            coverage.coveredSubscriptions.map(async (item) => {
+              const relatedUser = await ctx.db
+                .query("users")
+                .withIndex("by_externalId", (q: any) =>
+                  q.eq("externalId", item.userId),
+                )
+                .first();
+              return relatedUser?.fullName ?? relatedUser?.email ?? item.userId;
+            }),
+          )
+        : [user?.fullName ?? user?.email ?? payment.userId];
       return {
         ...payment,
         planName: plan?.name ?? "Plan eliminado",
         userFullName: user?.fullName ?? user?.email ?? payment.userId,
+        coveredMemberCount: coverage?.coveredMemberCount ?? 1,
+        coveredMemberNames,
       };
     }),
   );

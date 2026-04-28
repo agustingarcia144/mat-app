@@ -1,7 +1,7 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
-import { Eye, MoreVertical, UserX } from 'lucide-react'
+import { Eye, MoreVertical, UserRoundPlus, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import StatusBadge from '@/components/shared/badges/status-badge'
@@ -18,6 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { api } from '@/convex/_generated/api'
 import type { Member } from '@repo/core'
+import AssociateFamilyGroupDialog from '@/components/features/members/table/associate-family-group-dialog'
 
 export type MemberTableRow = Member & {
   assignedPlanName: string
@@ -48,12 +49,14 @@ function MemberNameCell({ member }: { member: MemberTableRow }) {
 
 function MemberActionsCell({ member }: { member: MemberTableRow }) {
   const [open, setOpen] = useState(false)
+  const [associateFamilyOpen, setAssociateFamilyOpen] = useState(false)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const setMemberInactive = useMutation(
     api.organizationMemberships.setMemberInactive
   )
   const memberStatus = member.status?.toLowerCase() ?? ''
   const isInactive = memberStatus === 'inactive' || memberStatus === 'inactivo'
+  const hasPlan = member.assignedPlanName !== 'Sin Plan'
 
   const handleSetInactive = async () => {
     if (isInactive) return
@@ -97,6 +100,13 @@ function MemberActionsCell({ member }: { member: MemberTableRow }) {
               Ver
             </DropdownMenuItem>
             <DropdownMenuItem
+              onClick={() => setAssociateFamilyOpen(true)}
+              disabled={isInactive || hasPlan}
+            >
+              <UserRoundPlus className="mr-2 h-4 w-4" />
+              Asociar a Grupo Familiar
+            </DropdownMenuItem>
+            <DropdownMenuItem
               onClick={() => {
                 void handleSetInactive()
               }}
@@ -113,6 +123,14 @@ function MemberActionsCell({ member }: { member: MemberTableRow }) {
           member={member}
           open={open}
           onClose={() => setOpen(false)}
+        />
+      ) : null}
+      {associateFamilyOpen ? (
+        <AssociateFamilyGroupDialog
+          memberId={member.id}
+          memberName={member.name}
+          open={associateFamilyOpen}
+          onOpenChange={setAssociateFamilyOpen}
         />
       ) : null}
     </>

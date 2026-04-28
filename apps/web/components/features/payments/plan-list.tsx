@@ -134,8 +134,13 @@ export default function PlanList() {
                     className="border-t border-border hover:bg-muted/30"
                   >
                     <td className="p-3">
-                      <div>
-                        <p className="font-medium">{plan.name}</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{plan.name}</p>
+                          {plan.isFamilyPlan ? (
+                            <Badge variant="outline">Familiar</Badge>
+                          ) : null}
+                        </div>
                         {plan.description && (
                           <p className="text-xs text-muted-foreground">
                             {plan.description}

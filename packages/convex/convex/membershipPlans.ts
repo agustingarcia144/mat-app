@@ -73,6 +73,7 @@ export const create = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
+    isFamilyPlan: v.optional(v.boolean()),
     priceArs: v.number(),
     weeklyClassLimit: v.number(),
     paymentWindowStartDay: v.number(),
@@ -92,6 +93,7 @@ export const create = mutation({
       organizationId: membership.organizationId,
       name: args.name.trim(),
       description: args.description?.trim() || undefined,
+      isFamilyPlan: args.isFamilyPlan ?? false,
       priceArs: args.priceArs,
       weeklyClassLimit: args.weeklyClassLimit,
       paymentWindowStartDay: args.paymentWindowStartDay,
@@ -118,6 +120,7 @@ export const update = mutation({
     planId: v.id("membershipPlans"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
+    isFamilyPlan: v.optional(v.boolean()),
     priceArs: v.optional(v.number()),
     weeklyClassLimit: v.optional(v.number()),
     paymentWindowStartDay: v.optional(v.number()),
@@ -138,6 +141,7 @@ export const update = mutation({
     const merged = {
       name: args.name ?? plan.name,
       description: args.description ?? plan.description,
+      isFamilyPlan: args.isFamilyPlan ?? plan.isFamilyPlan ?? false,
       priceArs: args.priceArs ?? plan.priceArs,
       weeklyClassLimit: args.weeklyClassLimit ?? plan.weeklyClassLimit,
       paymentWindowStartDay:
@@ -151,6 +155,7 @@ export const update = mutation({
     if (args.name !== undefined) patch.name = args.name.trim();
     if (args.description !== undefined)
       patch.description = args.description.trim() || undefined;
+    if (args.isFamilyPlan !== undefined) patch.isFamilyPlan = args.isFamilyPlan;
     if (args.priceArs !== undefined) patch.priceArs = args.priceArs;
     if (args.weeklyClassLimit !== undefined)
       patch.weeklyClassLimit = args.weeklyClassLimit;
