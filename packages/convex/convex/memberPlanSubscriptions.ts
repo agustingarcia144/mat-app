@@ -33,7 +33,7 @@ async function getFamilyGroupSubscriptions(
 
   const childSubscriptions = await ctx.db
     .query("memberPlanSubscriptions")
-    .withIndex("by_family_parent", (q) =>
+    .withIndex("by_family_parent", (q: any) =>
       q.eq("familyParentSubscriptionId", primarySubscription._id),
     )
     .collect();

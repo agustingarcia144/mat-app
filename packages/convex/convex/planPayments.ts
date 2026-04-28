@@ -136,7 +136,7 @@ export const getMyCurrentPeriodPayment = query({
 
     const { billingSubscription, coveredMemberCount } =
       await getPaymentCoverage(ctx, subscription);
-    const plan = await ctx.db.get(billingSubscription.planId);
+    const plan = await ctx.db.get(billingSubscription.planId as Id<"membershipPlans">);
 
     const d = new Date();
     const billingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -808,7 +808,7 @@ export const uploadProof = mutation({
 
     // Calculate interest at upload time
     const subscription = await ctx.db.get(payment.subscriptionId);
-    const plan = subscription ? await ctx.db.get(subscription.planId) : null;
+    const plan = subscription ? await ctx.db.get(subscription.planId as Id<"membershipPlans">) : null;
 
     const now = Date.now();
     const interest = plan?.interestTiers?.length
@@ -974,7 +974,7 @@ export const recordPayment = mutation({
     );
 
     const subscription = billingSubscription;
-    const plan = await ctx.db.get(subscription.planId);
+    const plan = await ctx.db.get(subscription.planId as Id<"membershipPlans">);
     if (!plan) throw new Error("Plan no encontrado");
 
     // Block manual payments for bonified subscriptions
@@ -1068,7 +1068,7 @@ async function enrichPayments(ctx: { db: any }, payments: any[]) {
         ? await getPaymentCoverage(ctx, subscription)
         : null;
       const [plan, user] = await Promise.all([
-        ctx.db.get(payment.planId),
+        ctx.db.get(payment.planId as Id<"membershipPlans">),
         ctx.db
           .query("users")
           .withIndex("by_externalId", (q: any) =>
