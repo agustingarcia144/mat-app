@@ -1,5 +1,5 @@
-import React from "react";
-import { Image, StyleSheet, Text as RNText, View } from "react-native";
+import React from 'react'
+import { Image, StyleSheet, Text as RNText, View } from 'react-native'
 import {
   Column,
   Host,
@@ -7,35 +7,34 @@ import {
   ListItem,
   RNHostView,
   Text,
-} from "@expo/ui/jetpack-compose";
-import { clickable, fillMaxWidth } from "@expo/ui/jetpack-compose/modifiers";
-import { toAndroidListItemColors } from "./jetpack-compose-colors.android";
-import type { ProfileNativeListProps } from "./profile-native-list.types";
+} from '@expo/ui/jetpack-compose'
+import { clickable, fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers'
+import { toAndroidListItemColors } from './jetpack-compose-colors.android'
+import type { ProfileNativeListProps } from './profile-native-list.types'
 
-const DARK_TEXT = "#f4f4f5";
-const LIGHT_TEXT = "#18181b";
-const DARK_MUTED = "#a1a1aa";
-const LIGHT_MUTED = "#71717a";
-const DARK_ROW = "#141414";
-const LIGHT_ROW = "#f4f4f5";
-const DANGER_COLOR = "#ef4444";
+const DARK_TEXT = '#f4f4f5'
+const LIGHT_TEXT = '#18181b'
+const DARK_MUTED = '#a1a1aa'
+const LIGHT_MUTED = '#71717a'
+const DARK_ROW = '#141414'
+const LIGHT_ROW = '#f4f4f5'
 
 function textColor(isDark: boolean) {
-  return isDark ? DARK_TEXT : LIGHT_TEXT;
+  return isDark ? DARK_TEXT : LIGHT_TEXT
 }
 
 function mutedColor(isDark: boolean) {
-  return isDark ? DARK_MUTED : LIGHT_MUTED;
+  return isDark ? DARK_MUTED : LIGHT_MUTED
 }
 
 function rowColor(isDark: boolean) {
-  return isDark ? DARK_ROW : LIGHT_ROW;
+  return isDark ? DARK_ROW : LIGHT_ROW
 }
 
 function ProfileHeader({
   profile,
   isDark,
-}: Pick<ProfileNativeListProps, "profile" | "isDark">) {
+}: Pick<ProfileNativeListProps, 'profile' | 'isDark'>) {
   return (
     <RNHostView matchContents>
       <View style={styles.profileHeader}>
@@ -51,15 +50,15 @@ function ProfileHeader({
               styles.avatarPlaceholder,
               {
                 backgroundColor: isDark
-                  ? "rgba(255,255,255,0.12)"
-                  : "rgba(0,0,0,0.08)",
+                  ? 'rgba(255,255,255,0.12)'
+                  : 'rgba(0,0,0,0.08)',
               },
             ]}
           >
             <RNText
               style={[
                 styles.avatarPlaceholderText,
-                { color: isDark ? "#fff" : "#000" },
+                { color: isDark ? '#fff' : '#000' },
               ]}
             >
               {profile.initials}
@@ -78,7 +77,7 @@ function ProfileHeader({
         ) : null}
       </View>
     </RNHostView>
-  );
+  )
 }
 
 function NativeRow({
@@ -89,14 +88,14 @@ function NativeRow({
   rowColorOverride,
   showTrailing = true,
 }: {
-  title: string;
-  isDark: boolean;
-  onPress?: () => void;
-  textColorOverride?: string;
-  rowColorOverride?: string;
-  showTrailing?: boolean;
+  title: string
+  isDark: boolean
+  onPress?: () => void
+  textColorOverride?: string
+  rowColorOverride?: string
+  showTrailing?: boolean
 }) {
-  const currentTextColor = textColorOverride ?? textColor(isDark);
+  const currentTextColor = textColorOverride ?? textColor(isDark)
 
   return (
     <ListItem
@@ -110,7 +109,7 @@ function NativeRow({
       <ListItem.HeadlineContent>
         <Text
           color={currentTextColor}
-          style={{ typography: "bodyLarge", fontWeight: "600" }}
+          style={{ typography: 'bodyLarge', fontWeight: '600' }}
         >
           {title}
         </Text>
@@ -121,18 +120,18 @@ function NativeRow({
         </ListItem.TrailingContent>
       ) : null}
     </ListItem>
-  );
+  )
 }
 
 function SectionHeader({ title, isDark }: { title: string; isDark: boolean }) {
   return (
     <Text
       color={mutedColor(isDark)}
-      style={{ typography: "titleMedium", fontWeight: "600" }}
+      style={{ typography: 'titleMedium', fontWeight: '600' }}
     >
       {title}
     </Text>
-  );
+  )
 }
 
 export function ProfileNativeList({
@@ -146,7 +145,7 @@ export function ProfileNativeList({
   return (
     <Host
       style={[styles.host, { backgroundColor }]}
-      colorScheme={isDark ? "dark" : "light"}
+      colorScheme={isDark ? 'dark' : 'light'}
       useViewportSizeMeasurement
     >
       <LazyColumn
@@ -169,21 +168,21 @@ export function ProfileNativeList({
             {organizations.orgError ? (
               <Text
                 color={mutedColor(isDark)}
-                style={{ typography: "bodyMedium" }}
+                style={{ typography: 'bodyMedium' }}
               >
                 {organizations.orgError}
               </Text>
             ) : null}
             {organizations.memberships.map((membership, index) => {
               const isCurrent =
-                membership.organizationId === organizations.activeOrgId;
+                membership.organizationId === organizations.activeOrgId
               const isSwitching =
-                membership.organizationId === organizations.switchingOrgId;
+                membership.organizationId === organizations.switchingOrgId
 
               return (
                 <NativeRow
                   key={`${membership.organizationId}-${index}`}
-                  title={`${membership.organizationName}${isCurrent ? " (actual)" : ""}${isSwitching ? "..." : ""}`}
+                  title={`${membership.organizationName}${isCurrent ? ' (actual)' : ''}${isSwitching ? '...' : ''}`}
                   isDark={isDark}
                   onPress={
                     isCurrent || organizations.switchingOrgId
@@ -191,7 +190,7 @@ export function ProfileNativeList({
                       : () => organizations.onSwitch(membership.organizationId)
                   }
                 />
-              );
+              )
             })}
           </Column>
         ) : null}
@@ -213,26 +212,19 @@ export function ProfileNativeList({
         <Column verticalArrangement={{ spacedBy: 8 }}>
           <SectionHeader title="Cuenta" isDark={isDark} />
           <NativeRow
+            title="Administrar cuenta"
+            isDark={isDark}
+            onPress={actions.onManageAccount}
+          />
+          <NativeRow
             title="Cerrar sesión"
             isDark={isDark}
             onPress={actions.onSignOut}
           />
         </Column>
-
-        <Column verticalArrangement={{ spacedBy: 8 }}>
-          <SectionHeader title="Zona peligrosa" isDark={isDark} />
-          <NativeRow
-            title="Eliminar cuenta permanentemente"
-            isDark={isDark}
-            textColorOverride={DANGER_COLOR}
-            rowColorOverride={backgroundColor}
-            showTrailing={false}
-            onPress={actions.onDeleteAccount}
-          />
-        </Column>
       </LazyColumn>
     </Host>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -240,36 +232,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileHeader: {
-    alignItems: "center",
+    alignItems: 'center',
     paddingVertical: 8,
   },
   avatar: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "rgba(0,0,0,0.06)",
+    backgroundColor: 'rgba(0,0,0,0.06)',
     marginBottom: 12,
   },
   avatarPlaceholder: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
   },
   avatarPlaceholderText: {
     fontSize: 24,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   profileTitle: {
     fontSize: 20,
-    fontWeight: "600",
-    textAlign: "center",
+    fontWeight: '600',
+    textAlign: 'center',
     marginBottom: 4,
   },
   profileSubtitle: {
     fontSize: 13,
-    textAlign: "center",
+    textAlign: 'center',
   },
-});
+})

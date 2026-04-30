@@ -7,7 +7,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { addDays, endOfWeek, format, getISODay, startOfWeek } from "date-fns";
+import { addDays, endOfWeek, format, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
@@ -45,10 +45,8 @@ type CalendarWeekViewProps = {
     performedOn: string;
     status: string;
   }[];
-  workoutDays?: {
-    dayOfWeek?: number;
-    [key: string]: unknown;
-  }[];
+  /** YMD strings (yyyy-MM-dd) for days that have a scheduled workout within the active assignment's date range */
+  daysWithWorkouts?: string[];
   /** YMD strings (yyyy-MM-dd) for days that have at least one reserved class */
   daysWithClasses?: string[];
   /** YMD strings (yyyy-MM-dd) for days that have at least one attended class */
@@ -60,7 +58,7 @@ export function CalendarWeekView({
   onDateSelect,
   onWeekChange,
   weekSessions,
-  workoutDays,
+  daysWithWorkouts,
   daysWithClasses,
   daysWithAttendedClasses,
 }: CalendarWeekViewProps) {
@@ -99,10 +97,8 @@ export function CalendarWeekView({
       (s) => s.performedOn === ymd && s.status === "started",
     ) ?? false;
 
-  const hasScheduledWorkout = (isoWeekday: number) =>
-    workoutDays?.some(
-      (d) => d.dayOfWeek !== undefined && d.dayOfWeek === isoWeekday,
-    ) ?? false;
+  const hasScheduledWorkout = (ymd: string) =>
+    daysWithWorkouts?.includes(ymd) ?? false;
 
   const hasClassOnDay = (ymd: string) =>
     daysWithClasses?.includes(ymd) ?? false;
@@ -205,8 +201,7 @@ export function CalendarWeekView({
                   const isToday = ymd === format(new Date(), "yyyy-MM-dd");
                   const hasCompleted = completedForDay(ymd);
                   const hasInProgress = inProgressForDay(ymd);
-                  const isoWeekday = getISODay(date);
-                  const hasScheduled = hasScheduledWorkout(isoWeekday);
+                  const hasScheduled = hasScheduledWorkout(ymd);
                   const hasClass = hasClassOnDay(ymd);
                   const hasWorkoutOrClass = hasScheduled || hasClass;
 

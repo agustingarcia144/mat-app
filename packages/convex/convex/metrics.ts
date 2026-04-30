@@ -4,8 +4,14 @@ import { requireCurrentOrganizationMembership } from "./permissions";
 type MetricPoint = {
   performedOn: string;
   weight: number | null;
+  reps: number | null;
   volume: number | null;
   timeSeconds: number | null;
+};
+
+type InternalMetricPoint = MetricPoint & {
+  repsTotal: number;
+  repsSamples: number;
 };
 
 function parseLeadingNumber(value?: string | null): number | null {
@@ -155,7 +161,7 @@ export const getExerciseMetricsByMembers = query({
             entriesCount: number;
             lastPerformedOn: string | null;
             planificationIds: Set<string>;
-            pointsByDate: Map<string, MetricPoint>;
+            pointsByDate: Map<string, InternalMetricPoint>;
           }
         >;
       }
@@ -276,6 +282,9 @@ export const getExerciseMetricsByMembers = query({
         const previousPoint = exerciseEntry.pointsByDate.get(
           session.performedOn,
         );
+        const nextRepsTotal = (previousPoint?.repsTotal ?? 0) + (reps ?? 0);
+        const nextRepsSamples =
+          (previousPoint?.repsSamples ?? 0) + (reps !== null ? 1 : 0);
         const nextVolume = (previousPoint?.volume ?? 0) + (volume ?? 0);
         const nextTimeSeconds =
           (previousPoint?.timeSeconds ?? 0) + (timeSeconds ?? 0);
@@ -287,6 +296,12 @@ export const getExerciseMetricsByMembers = query({
             previousPoint?.weight !== undefined
               ? Math.max(previousPoint.weight, weight ?? previousPoint.weight)
               : weight,
+          reps:
+            nextRepsSamples > 0
+              ? Number((nextRepsTotal / nextRepsSamples).toFixed(2))
+              : null,
+          repsTotal: nextRepsTotal,
+          repsSamples: nextRepsSamples,
           volume: nextVolume > 0 ? nextVolume : null,
           timeSeconds: nextTimeSeconds > 0 ? nextTimeSeconds : null,
         });
@@ -301,9 +316,9 @@ export const getExerciseMetricsByMembers = query({
       .map((member) => {
         const exercises = Array.from(member.exercises.values())
           .map((exercise) => {
-            const points = Array.from(exercise.pointsByDate.values()).sort(
-              (a, b) => a.performedOn.localeCompare(b.performedOn),
-            );
+            const points = Array.from(exercise.pointsByDate.values())
+              .sort((a, b) => a.performedOn.localeCompare(b.performedOn))
+              .map(({ repsTotal, repsSamples, ...point }) => point);
 
             const firstPoint = points[0] ?? null;
             const latestPoint = points[points.length - 1] ?? null;

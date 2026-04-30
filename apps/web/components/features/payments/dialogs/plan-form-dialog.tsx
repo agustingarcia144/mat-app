@@ -73,6 +73,7 @@ export default function PlanFormDialog({
     defaultValues: {
       name: "",
       description: "",
+      isFamilyPlan: false,
       priceArs: 0,
       weeklyClassLimit: 2,
       paymentWindowStartDay: 1,
@@ -98,6 +99,7 @@ export default function PlanFormDialog({
 
   const watchedEndDay = watch("paymentWindowEndDay") ?? 10;
   const watchedTiers = watch("interestTiers");
+  const isFamilyPlan = watch("isFamilyPlan");
 
   // Sorted absolute days for all tiers — used to compute per-tier date ranges
   const sortedTierDays = [...(watchedTiers ?? [])]
@@ -116,6 +118,7 @@ export default function PlanFormDialog({
       reset({
         name: existingPlan.name,
         description: existingPlan.description ?? "",
+        isFamilyPlan: existingPlan.isFamilyPlan ?? false,
         priceArs: existingPlan.priceArs,
         weeklyClassLimit: existingPlan.weeklyClassLimit,
         paymentWindowStartDay: existingPlan.paymentWindowStartDay,
@@ -131,6 +134,7 @@ export default function PlanFormDialog({
       reset({
         name: "",
         description: "",
+        isFamilyPlan: false,
         priceArs: 0,
         weeklyClassLimit: 2,
         paymentWindowStartDay: 1,
@@ -168,6 +172,7 @@ export default function PlanFormDialog({
           planId,
           name: data.name,
           description: data.description || undefined,
+          isFamilyPlan: data.isFamilyPlan,
           priceArs: data.priceArs,
           weeklyClassLimit: data.weeklyClassLimit,
           paymentWindowStartDay: data.paymentWindowStartDay,
@@ -180,6 +185,7 @@ export default function PlanFormDialog({
         await createPlan({
           name: data.name,
           description: data.description || undefined,
+          isFamilyPlan: data.isFamilyPlan,
           priceArs: data.priceArs,
           weeklyClassLimit: data.weeklyClassLimit,
           paymentWindowStartDay: data.paymentWindowStartDay,
@@ -225,6 +231,31 @@ export default function PlanFormDialog({
               rows={2}
               placeholder="Descripción del plan..."
             />
+          </Field>
+
+          <Field>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-amber-300/60 bg-amber-50/40 p-4">
+              <Checkbox
+                checked={isFamilyPlan}
+                onCheckedChange={(checked) =>
+                  setValue("isFamilyPlan", Boolean(checked), {
+                    shouldValidate: true,
+                  })
+                }
+              />
+              <div className="space-y-1">
+                <FieldLabel className="cursor-pointer text-sm font-semibold">
+                  Es familiar
+                </FieldLabel>
+                <FieldDescription>
+                  Marca este plan para poder asignarlo con un titular y varios
+                  miembros asociados.
+                </FieldDescription>
+                <p className="text-xs font-medium text-amber-700">
+                  {isFamilyPlan ? "Plan familiar activado" : "Plan individual"}
+                </p>
+              </div>
+            </label>
           </Field>
 
           <Field>

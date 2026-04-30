@@ -72,6 +72,8 @@ export default function AssignPlanDialog({
   const [assignUserId, setAssignUserId] = useState("");
   const [assignPlanId, setAssignPlanId] = useState("");
   const [assignMemberOpen, setAssignMemberOpen] = useState(false);
+  const [familyMemberOpen, setFamilyMemberOpen] = useState(false);
+  const [familyMemberUserIds, setFamilyMemberUserIds] = useState<string[]>([]);
 
   // Unassign state
   const [unassignSubscriptionId, setUnassignSubscriptionId] = useState("");
@@ -111,6 +113,15 @@ export default function AssignPlanDialog({
     () => plans?.find((p) => p._id === assignPlanId),
     [plans, assignPlanId],
   );
+  const familyCandidates = useMemo(() => {
+    if (!selectedAssignPlan?.isFamilyPlan) return [];
+    return membersWithoutPlan.filter((member) => member.userId !== assignUserId);
+  }, [membersWithoutPlan, selectedAssignPlan, assignUserId]);
+  const selectedFamilyMembers = useMemo(
+    () =>
+      familyCandidates.filter((member) => familyMemberUserIds.includes(member.userId)),
+    [familyCandidates, familyMemberUserIds],
+  );
   const selectedUnassignSub = useMemo(
     () => subscriptionsWithPlan.find((s) => s._id === unassignSubscriptionId),
     [subscriptionsWithPlan, unassignSubscriptionId],
@@ -121,8 +132,13 @@ export default function AssignPlanDialog({
     if (!open) return;
     setAssignUserId("");
     setAssignPlanId("");
+    setFamilyMemberUserIds([]);
     setUnassignSubscriptionId("");
   }, [open]);
+
+  useEffect(() => {
+    setFamilyMemberUserIds([]);
+  }, [assignPlanId, assignUserId]);
 
   const handleAssign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,6 +148,10 @@ export default function AssignPlanDialog({
       await assignPlan({
         userId: assignUserId,
         planId: assignPlanId as Id<"membershipPlans">,
+        familyMemberUserIds:
+          selectedAssignPlan?.isFamilyPlan && familyMemberUserIds.length > 0
+            ? familyMemberUserIds
+            : undefined,
       });
       toast.success("Plan asignado correctamente");
       onOpenChange(false);
@@ -183,7 +203,7 @@ export default function AssignPlanDialog({
             </TabsTrigger>
           </TabsList>
 
-          {/* ── ASSIGN TAB ── */}
+          {/* -- ASSIGN TAB -- */}
           <TabsContent value="assign">
             <form onSubmit={handleAssign} className="space-y-4 pt-2">
               <Field>
@@ -275,6 +295,101 @@ export default function AssignPlanDialog({
                 </Select>
               </Field>
 
+              {selectedAssignPlan?.isFamilyPlan ? (
+                <Field>
+                  <FieldLabel>Miembros asociados</FieldLabel>
+                  <Popover
+                    open={familyMemberOpen}
+                    onOpenChange={setFamilyMemberOpen}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={familyMemberOpen}
+                        className="w-full justify-between font-normal"
+                      >
+                        {selectedFamilyMembers.length > 0
+                          ? `${selectedFamilyMembers.length} miembro(s) seleccionados`
+                          : "Seleccionar miembros asociados..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="p-0"
+                      align="start"
+                      style={{ width: "var(--radix-popover-trigger-width)" }}
+                    >
+                      <Command>
+                        <CommandInput placeholder="Buscar miembro..." />
+                        <CommandList>
+                          <CommandEmpty>
+                            No hay miembros disponibles para asociar.
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {familyCandidates.map((member) => {
+                              const isSelected = familyMemberUserIds.includes(
+                                member.userId,
+                              );
+                              return (
+                                <CommandItem
+                                  key={member.userId}
+                                  value={`${member.fullName ?? ""} ${member.email ?? ""}`}
+                                  onSelect={() => {
+                                    setFamilyMemberUserIds((current) =>
+                                      current.includes(member.userId)
+                                        ? current.filter(
+                                            (userId) => userId !== member.userId,
+                                          )
+                                        : [...current, member.userId],
+                                    );
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      isSelected ? "opacity-100" : "opacity-0",
+                                    )}
+                                  />
+                                  <div className="flex flex-col">
+                                    <span>
+                                      {member.fullName ??
+                                        member.email ??
+                                        member.userId}
+                                    </span>
+                                    {member.email && member.fullName && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {member.email}
+                                      </span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              );
+                            })}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FieldDescription>
+                    Seleccioná los familiares que quedarán asociados al titular
+                    de este plan.
+                  </FieldDescription>
+                  {selectedFamilyMembers.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {selectedFamilyMembers.map((member) => (
+                        <div
+                          key={member.userId}
+                          className="rounded-full border px-3 py-1 text-xs"
+                        >
+                          {member.fullName ?? member.email ?? member.userId}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </Field>
+              ) : null}
+
               {selectedAssignPlan && (
                 <div className="rounded-lg border bg-muted/50 p-3 text-sm space-y-1">
                   <p className="font-medium">{selectedAssignPlan.name}</p>
@@ -290,6 +405,11 @@ export default function AssignPlanDialog({
                     {selectedAssignPlan.paymentWindowStartDay} al{" "}
                     {selectedAssignPlan.paymentWindowEndDay}
                   </p>
+                  {selectedAssignPlan.isFamilyPlan ? (
+                    <p className="text-muted-foreground">
+                      Plan familiar para titular y miembros asociados.
+                    </p>
+                  ) : null}
                 </div>
               )}
 
@@ -312,7 +432,7 @@ export default function AssignPlanDialog({
             </form>
           </TabsContent>
 
-          {/* ── UNASSIGN TAB ── */}
+          {/* -- UNASSIGN TAB -- */}
           <TabsContent value="unassign">
             <form onSubmit={handleUnassign} className="space-y-4 pt-2">
               <Field>

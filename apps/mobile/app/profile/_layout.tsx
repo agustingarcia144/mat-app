@@ -9,7 +9,12 @@ import { ExerciseVideoProvider } from "@/contexts/exercise-video-context";
 
 export default function ProfileLayout() {
   const colorScheme = useColorScheme();
-  const backgroundColor = colorScheme === "dark" ? "#000" : "#fff";
+  const isDark = colorScheme === "dark";
+  // On iOS the profile index uses a dark-gray body (#111111); match the header to it.
+  // Other screens keep the standard dark (#000) / light (#fff) surface.
+  const indexHeaderBg =
+    Platform.OS === "ios" ? (isDark ? "#111111" : "#fff") : isDark ? "#000" : "#fff";
+  const backgroundColor = isDark ? "#000" : "#fff";
   const headerTintColor = Colors[colorScheme ?? "light"].text;
 
   return (
@@ -22,10 +27,22 @@ export default function ProfileLayout() {
             headerTransparent: true,
             headerTitle: "Configuración",
             headerShadowVisible: false,
-            headerStyle: { backgroundColor },
+            headerStyle: { backgroundColor: indexHeaderBg },
             headerTintColor,
             headerRight: () => <HeaderCloseButton />,
             headerLeft: () => null,
+          }}
+        />
+        <Stack.Screen
+          name="manage-account"
+          options={{
+            headerShown: true,
+            headerTransparent: true,
+            headerTitle: "Administrar cuenta",
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor: indexHeaderBg },
+            headerTintColor,
+            headerLeft: () => <HeaderBackButton />,
           }}
         />
         <Stack.Screen

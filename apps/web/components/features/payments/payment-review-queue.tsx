@@ -53,6 +53,7 @@ export default function PaymentReviewQueue() {
     planName: string;
     billingPeriod: string;
     amountArs: number;
+    coveredMembers?: string[];
   } | null>(null);
 
   const handleReview = (
@@ -64,6 +65,7 @@ export default function PaymentReviewQueue() {
       planName: payment.planName,
       billingPeriod: payment.billingPeriod,
       amountArs: payment.amountArs,
+      coveredMembers: payment.coveredMemberNames,
     });
     setReviewOpen(true);
   };
@@ -96,6 +98,11 @@ export default function PaymentReviewQueue() {
                     <p className="text-sm text-muted-foreground">
                       {payment.planName}
                     </p>
+                    {payment.coveredMemberCount > 1 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Cubre a: {payment.coveredMemberNames.join(", ")}
+                      </p>
+                    ) : null}
                   </div>
                   <Badge
                     variant="outline"
@@ -145,6 +152,7 @@ export default function PaymentReviewQueue() {
           planName={selectedPayment.planName}
           billingPeriod={selectedPayment.billingPeriod}
           amountArs={selectedPayment.amountArs}
+          coveredMembers={selectedPayment.coveredMembers}
         />
       )}
     </>

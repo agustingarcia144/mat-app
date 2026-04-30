@@ -120,7 +120,9 @@ export default function RecordPaymentDialog({
   const eligibleSubscriptions = useMemo(
     () =>
       (subscriptions ?? []).filter(
-        (s) => s.status === "active" || s.status === "suspended",
+        (s) =>
+          (s.status === "active" || s.status === "suspended") &&
+          !s.familyParentSubscriptionId,
       ),
     [subscriptions],
   );
@@ -148,7 +150,8 @@ export default function RecordPaymentDialog({
   // When subscription changes, prefill amount
   useEffect(() => {
     if (selectedSubscription?.plan) {
-      const price = selectedSubscription.plan.priceArs;
+      const price =
+        selectedSubscription.payableAmountArs ?? selectedSubscription.plan.priceArs;
       setAmountDisplay(price.toLocaleString("es-AR"));
       setAmountOverride(undefined);
     }
@@ -269,8 +272,15 @@ export default function RecordPaymentDialog({
                             <span>{sub.userFullName}</span>
                             <span className="text-xs text-muted-foreground">
                               {sub.plan?.name ?? "Plan"}{" "}
+                              {(sub.coveredMemberCount ?? 1) > 1 &&
+                                `(${sub.coveredMemberCount} miembros)`}{" "}
                               {sub.status === "suspended" && "(suspendido)"}
                             </span>
+                            {sub.familyAssociatedNames?.length > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                Asociados: {sub.familyAssociatedNames.join(", ")}
+                              </span>
+                            )}
                           </div>
                         </CommandItem>
                       ))}
@@ -281,7 +291,7 @@ export default function RecordPaymentDialog({
             </Popover>
             {!subscriptionId && (
               <FieldDescription>
-                Solo se muestran miembros con suscripción activa o suspendida.
+                Solo se muestran titulares con suscripción activa o suspendida.
               </FieldDescription>
             )}
           </Field>
@@ -349,15 +359,23 @@ export default function RecordPaymentDialog({
                 onChange={handleAmountChange}
                 placeholder={
                   selectedSubscription?.plan
-                    ? selectedSubscription.plan.priceArs.toLocaleString("es-AR")
+                    ? (
+                        selectedSubscription.payableAmountArs ??
+                        selectedSubscription.plan.priceArs
+                      ).toLocaleString("es-AR")
                     : "0"
                 }
               />
             </div>
             {selectedSubscription?.plan && (
               <FieldDescription>
-                Precio del plan: $
-                {selectedSubscription.plan.priceArs.toLocaleString("es-AR")}
+                Monto sugerido: $
+                {(
+                  selectedSubscription.payableAmountArs ??
+                  selectedSubscription.plan.priceArs
+                ).toLocaleString("es-AR")}
+                {(selectedSubscription.coveredMemberCount ?? 1) > 1 &&
+                  ` (${selectedSubscription.coveredMemberCount} miembros x $${selectedSubscription.plan.priceArs.toLocaleString("es-AR")})`}
               </FieldDescription>
             )}
           </Field>

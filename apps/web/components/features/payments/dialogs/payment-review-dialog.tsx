@@ -26,6 +26,7 @@ interface PaymentReviewDialogProps {
   planName: string;
   billingPeriod: string;
   amountArs: number;
+  coveredMembers?: string[];
 }
 
 function formatBillingPeriod(period: string): string {
@@ -56,6 +57,7 @@ export default function PaymentReviewDialog({
   planName,
   billingPeriod,
   amountArs,
+  coveredMembers,
 }: PaymentReviewDialogProps) {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -118,6 +120,11 @@ export default function PaymentReviewDialog({
             <div>
               <span className="text-muted-foreground">Miembro:</span>
               <p className="font-medium">{memberName}</p>
+              {coveredMembers && coveredMembers.length > 1 ? (
+                <p className="text-xs text-muted-foreground">
+                  Cubre a: {coveredMembers.join(", ")}
+                </p>
+              ) : null}
             </div>
             <div>
               <span className="text-muted-foreground">Plan:</span>

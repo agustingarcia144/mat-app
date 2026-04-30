@@ -86,7 +86,7 @@ export default function PaymentsOverview() {
   return (
     <Card className="flex h-full min-h-[220px] w-full flex-col overflow-hidden rounded-2xl border bg-background/60 p-4 md:h-[220px] md:px-5 md:pb-5 md:pt-3">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-lg font-semibold">Pulso financiero</h3>
+        <h3 className="text-lg font-semibold">Balance Financiero</h3>
         <Link
           href="/dashboard/metrics/payments"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"

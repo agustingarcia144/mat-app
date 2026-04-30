@@ -102,6 +102,7 @@ export default function PaymentHistoryList() {
     billingPeriod: string;
     amountArs: number;
     status: string;
+    coveredMembers?: string[];
   };
 
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -122,6 +123,7 @@ export default function PaymentHistoryList() {
     billingPeriod: payment.billingPeriod,
     amountArs: payment.amountArs,
     status: payment.status,
+    coveredMembers: payment.coveredMemberNames,
   });
 
   const handleView = (payment: NonNullable<typeof payments>[number]) => {
@@ -207,7 +209,16 @@ export default function PaymentHistoryList() {
                       key={payment._id}
                       className="border-t border-border hover:bg-muted/30"
                     >
-                      <td className="p-3">{payment.userFullName}</td>
+                      <td className="p-3">
+                        <div>
+                          <p>{payment.userFullName}</p>
+                          {payment.coveredMemberCount > 1 ? (
+                            <p className="text-xs text-muted-foreground">
+                              Asociados: {payment.coveredMemberNames.slice(1).join(", ")}
+                            </p>
+                          ) : null}
+                        </div>
+                      </td>
                       <td className="p-3">{payment.planName}</td>
                       <td className="p-3">
                         {formatBillingPeriod(payment.billingPeriod)}
@@ -302,6 +313,7 @@ export default function PaymentHistoryList() {
           billingPeriod={selectedPayment.billingPeriod}
           amountArs={selectedPayment.amountArs}
           status={selectedPayment.status}
+          coveredMembers={selectedPayment.coveredMembers}
         />
       )}
 

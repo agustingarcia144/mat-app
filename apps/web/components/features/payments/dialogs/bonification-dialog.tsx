@@ -126,6 +126,7 @@ export default function BonificationDialog({
       (subscriptions ?? []).filter(
         (s) =>
           (s.status === "active" || s.status === "suspended") &&
+          !s.familyParentSubscriptionId &&
           !bonifiedSubscriptionIds.has(String(s._id)),
       ),
     [subscriptions, bonifiedSubscriptionIds],
@@ -285,12 +286,18 @@ export default function BonificationDialog({
                                 <span className="text-xs text-muted-foreground">
                                   {sub.plan?.name ?? "Plan"}
                                   {" · $"}
-                                  {sub.plan?.priceArs.toLocaleString("es-AR") ??
-                                    "0"}
+                                  {(sub.payableAmountArs ?? sub.plan?.priceArs ?? 0).toLocaleString("es-AR")}
                                   /mes
+                                  {(sub.coveredMemberCount ?? 1) > 1 &&
+                                    ` (${sub.coveredMemberCount} miembros)`}
                                   {sub.status === "suspended" &&
                                     " (suspendido)"}
                                 </span>
+                                {sub.familyAssociatedNames?.length > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Asociados: {sub.familyAssociatedNames.join(", ")}
+                                  </span>
+                                )}
                               </div>
                             </CommandItem>
                           ))}
@@ -300,8 +307,8 @@ export default function BonificationDialog({
                   </PopoverContent>
                 </Popover>
                 <FieldDescription>
-                  Solo se muestran miembros con plan activo o suspendido sin
-                  bonificación.
+                  Solo se muestran titulares e individuales con plan activo o
+                  suspendido sin bonificación.
                 </FieldDescription>
               </Field>
 
@@ -426,7 +433,10 @@ export default function BonificationDialog({
                   </div>
                   <p className="text-muted-foreground">
                     {selectedSubscription.plan.name}: $
-                    {selectedSubscription.plan.priceArs.toLocaleString("es-AR")}
+                    {(
+                      selectedSubscription.payableAmountArs ??
+                      selectedSubscription.plan.priceArs
+                    ).toLocaleString("es-AR")}
                     /mes
                   </p>
                   <p className="font-semibold text-purple-600 dark:text-purple-400">
