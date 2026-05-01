@@ -12,6 +12,7 @@ import {
   background as swiftBackground,
   font,
   foregroundStyle,
+  listRowBackground,
   listStyle,
   scrollContentBackground,
   tint,
@@ -30,7 +31,7 @@ const SCREEN_BG = '#111111'
  */
 function ProfileHeader({ profile }: Pick<ProfileNativeListProps, 'profile'>) {
   return (
-    <RNHostView matchContents>
+    <RNHostView matchContents modifiers={[listRowBackground('clear')]}>
       <View style={styles.profileHeader}>
         {profile.imageUrl ? (
           <Image
