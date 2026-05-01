@@ -58,7 +58,7 @@ export default function MembersPage() {
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization()
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
-    canQueryCurrentOrganization ? {} : 'skip'
+    canQueryCurrentOrganization ? { includeInactive: true } : 'skip'
   )
   const subscriptions = useQuery(
     api.memberPlanSubscriptions.getByOrganization,
