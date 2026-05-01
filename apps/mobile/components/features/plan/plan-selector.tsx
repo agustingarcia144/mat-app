@@ -110,7 +110,7 @@ export default function PlanSelector() {
           </View>
         ) : (
           <View style={styles.plansList}>
-            {plans.map((plan) => {
+            {plans.filter((plan) => !plan.isFamilyPlan).map((plan) => {
               const discounts = (plan.advancePaymentDiscounts ??
                 []) as AdvanceDiscount[];
               const hasDiscounts = discounts.length > 0;

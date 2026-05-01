@@ -49,10 +49,26 @@ export default function DashboardContent() {
     user?.id ? { userId: user.id } : "skip",
   );
 
-  const activeAssignment = useMemo(
-    () => assignments?.find((a) => a.status === "active"),
-    [assignments],
-  );
+  const activeAssignment = useMemo(() => {
+    const active = assignments?.filter((a) => a.status === "active") ?? [];
+    if (active.length === 0) return undefined;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Prefer the assignment whose date range contains today
+    const current = active.find((a) => {
+      const start = a.startDate ? new Date(a.startDate) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      const end = a.endDate ? new Date(a.endDate) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+      const afterStart = !start || today >= start;
+      const beforeEnd = !end || today <= end;
+      return afterStart && beforeEnd;
+    });
+
+    return current ?? active[0];
+  }, [assignments]);
 
   const organizationUsesPlanifications = useQuery(
     api.planificationAssignments.organizationUsesPlanifications,
