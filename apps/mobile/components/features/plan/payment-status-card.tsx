@@ -71,13 +71,11 @@ export default function PaymentStatusCard({
   if (payment === undefined) return null; // Loading
   if (!payment) return null; // No payment record yet
 
-  const isBonification =
-    payment.isBonification || payment.paymentMethod === "bonification";
-  const statusInfo = isBonification
-    ? PAYMENT_STATUS.bonification
-    : (PAYMENT_STATUS[payment.status] ?? PAYMENT_STATUS.pending);
+  const isFullyBonified = payment.paymentMethod === "bonification";
+  const hasDiscount = payment.isBonification || isFullyBonified;
+  const statusInfo = PAYMENT_STATUS[payment.status] ?? PAYMENT_STATUS.pending;
   const canUpload =
-    !isBonification &&
+    !isFullyBonified &&
     (payment.status === "pending" || payment.status === "declined");
 
   return (
@@ -102,6 +100,27 @@ export default function PaymentStatusCard({
             {statusInfo.label}
           </Text>
         </View>
+        {hasDiscount ? (
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor: isDark
+                  ? PAYMENT_STATUS.bonification.color + "33"
+                  : PAYMENT_STATUS.bonification.bgColor,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                { color: PAYMENT_STATUS.bonification.color },
+              ]}
+            >
+              {PAYMENT_STATUS.bonification.label}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {payment.interestApplied?.length ? (

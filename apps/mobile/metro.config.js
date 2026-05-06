@@ -1,8 +1,8 @@
-const { getDefaultConfig } = require("expo/metro-config");
 const path = require("path");
+const { getSentryExpoConfig } = require("@sentry/react-native/metro");
 
 /** @type {import('expo/metro-config').MetroConfig} */
-const config = getDefaultConfig(__dirname);
+const config = getSentryExpoConfig(__dirname);
 
 // Monorepo setup
 const projectRoot = __dirname;
