@@ -183,10 +183,10 @@ export const create = mutation({
       !subscription ||
       subscription.organizationId !== membership.organizationId
     ) {
-      throw new Error("Suscripción no encontrada");
+      throw new Error("Suscripciï¿½n no encontrada");
     }
     if (subscription.status === "cancelled") {
-      throw new Error("No se puede bonificar una suscripción cancelada");
+      throw new Error("No se puede bonificar una suscripciï¿½n cancelada");
     }
 
     const plan = await ctx.db.get(subscription.planId);
@@ -200,7 +200,7 @@ export const create = mutation({
       )
       .first();
     if (existing) {
-      throw new Error("Esta suscripción ya tiene una bonificación activa");
+      throw new Error("Esta suscripciï¿½n ya tiene una bonificaciï¿½n activa");
     }
 
     // Validate discount value
@@ -241,7 +241,7 @@ export const create = mutation({
 
     if (existingPayments) {
       throw new Error(
-        "No se puede bonificar una suscripción con pagos adelantados pendientes. Eliminá los pagos futuros primero.",
+        "No se puede bonificar una suscripciï¿½n con pagos adelantados pendientes. Eliminï¿½ los pagos futuros primero.",
       );
     }
 
@@ -268,7 +268,8 @@ export const create = mutation({
       args.discountValue,
     );
 
-    // Generate approved payment for current billing period
+    // Generate payment for current billing period
+    const isFullBonification = effectiveAmount === 0;
     const currentPayment = await ctx.db
       .query("planPayments")
       .withIndex("by_subscription_period", (q) =>
@@ -279,48 +280,79 @@ export const create = mutation({
       .first();
 
     if (currentPayment) {
-      // Patch existing pending/declined/in_review payment to approved bonification
       if (currentPayment.status !== "approved") {
-        await ctx.db.patch(currentPayment._id, {
-          status: "approved",
-          amountArs: effectiveAmount,
-          totalAmountArs: effectiveAmount,
+        if (isFullBonification) {
+          // Full bonification: mark as approved â€” user owes nothing
+          await ctx.db.patch(currentPayment._id, {
+            status: "approved",
+            amountArs: 0,
+            totalAmountArs: 0,
+            paymentMethod: "bonification",
+            bonificationId,
+            isBonification: true,
+            recordedBy: identity.subject,
+            reviewedBy: identity.subject,
+            reviewedAt: now,
+            reviewNotes: undefined,
+            interestApplied: undefined,
+            interestTotalArs: undefined,
+            updatedAt: now,
+          });
+        } else {
+          // Partial bonification: update amount but keep pending â€” user still needs to pay
+          await ctx.db.patch(currentPayment._id, {
+            amountArs: effectiveAmount,
+            totalAmountArs: effectiveAmount,
+            bonificationId,
+            isBonification: true,
+            interestApplied: undefined,
+            interestTotalArs: undefined,
+            updatedAt: now,
+          });
+        }
+      }
+    } else {
+      if (isFullBonification) {
+        // Full bonification: create approved payment for $0
+        await ctx.db.insert("planPayments", {
+          organizationId: membership.organizationId,
+          userId: subscription.userId,
+          subscriptionId: args.subscriptionId,
+          planId: subscription.planId,
+          billingPeriod: currentBillingPeriod,
+          amountArs: 0,
+          totalAmountArs: 0,
           paymentMethod: "bonification",
           bonificationId,
           isBonification: true,
           recordedBy: identity.subject,
+          status: "approved",
           reviewedBy: identity.subject,
           reviewedAt: now,
-          reviewNotes: undefined,
-          interestApplied: undefined,
-          interestTotalArs: undefined,
+          createdAt: now,
+          updatedAt: now,
+        });
+      } else {
+        // Partial bonification: create pending payment with discounted amount
+        await ctx.db.insert("planPayments", {
+          organizationId: membership.organizationId,
+          userId: subscription.userId,
+          subscriptionId: args.subscriptionId,
+          planId: subscription.planId,
+          billingPeriod: currentBillingPeriod,
+          amountArs: effectiveAmount,
+          totalAmountArs: effectiveAmount,
+          bonificationId,
+          isBonification: true,
+          status: "pending",
+          createdAt: now,
           updatedAt: now,
         });
       }
-    } else {
-      // Create new approved bonification payment
-      await ctx.db.insert("planPayments", {
-        organizationId: membership.organizationId,
-        userId: subscription.userId,
-        subscriptionId: args.subscriptionId,
-        planId: subscription.planId,
-        billingPeriod: currentBillingPeriod,
-        amountArs: effectiveAmount,
-        totalAmountArs: effectiveAmount,
-        paymentMethod: "bonification",
-        bonificationId,
-        isBonification: true,
-        recordedBy: identity.subject,
-        status: "approved",
-        reviewedBy: identity.subject,
-        reviewedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      });
     }
 
-    // Reactivate suspended subscription
-    if (subscription.status === "suspended") {
+    // Reactivate suspended subscription only for full bonifications
+    if (isFullBonification && subscription.status === "suspended") {
       await ctx.db.patch(subscription._id, {
         status: "active",
         suspendedAt: undefined,
@@ -350,10 +382,10 @@ export const revoke = mutation({
       !bonification ||
       bonification.organizationId !== membership.organizationId
     ) {
-      throw new Error("Bonificación no encontrada");
+      throw new Error("Bonificaciï¿½n no encontrada");
     }
     if (bonification.status === "revoked") {
-      throw new Error("Esta bonificación ya fue revocada");
+      throw new Error("Esta bonificaciï¿½n ya fue revocada");
     }
 
     const now = Date.now();
@@ -398,7 +430,7 @@ export const update = mutation({
       !bonification ||
       bonification.organizationId !== membership.organizationId
     ) {
-      throw new Error("Bonificación no encontrada");
+      throw new Error("Bonificaciï¿½n no encontrada");
     }
     if (bonification.status !== "active") {
       throw new Error("Solo se pueden modificar bonificaciones activas");
@@ -436,8 +468,10 @@ export const update = mutation({
 });
 
 /**
- * Internal mutation: auto-generate approved payments for active bonifications.
- * Called by daily cron. Idempotent — safe to run multiple times per period.
+ * Internal mutation: auto-generate payments for active bonifications.
+ * Full bonifications (100%) create approved payments; partial bonifications
+ * create pending payments with the discounted amount.
+ * Called by daily cron. Idempotent â€” safe to run multiple times per period.
  */
 export const generateBonificationPayments = internalMutation({
   args: {},
@@ -491,6 +525,7 @@ export const generateBonificationPayments = internalMutation({
           bonification.discountType,
           bonification.discountValue,
         );
+        const isFullBonification = effectiveAmount === 0;
 
         const nowMs = Date.now();
 
@@ -505,49 +540,84 @@ export const generateBonificationPayments = internalMutation({
           .first();
 
         if (pendingPayment && pendingPayment.status !== "approved") {
-          await ctx.db.patch(pendingPayment._id, {
-            status: "approved",
-            amountArs: effectiveAmount,
-            totalAmountArs: effectiveAmount,
-            paymentMethod: "bonification",
-            bonificationId: bonification._id,
-            isBonification: true,
-            recordedBy: bonification.createdBy,
-            reviewedBy: bonification.createdBy,
-            reviewedAt: nowMs,
-            interestApplied: undefined,
-            interestTotalArs: undefined,
-            updatedAt: nowMs,
-          });
+          if (isFullBonification) {
+            // Full bonification: mark as approved â€” user owes nothing
+            await ctx.db.patch(pendingPayment._id, {
+              status: "approved",
+              amountArs: 0,
+              totalAmountArs: 0,
+              paymentMethod: "bonification",
+              bonificationId: bonification._id,
+              isBonification: true,
+              recordedBy: bonification.createdBy,
+              reviewedBy: bonification.createdBy,
+              reviewedAt: nowMs,
+              interestApplied: undefined,
+              interestTotalArs: undefined,
+              updatedAt: nowMs,
+            });
+          } else {
+            // Partial bonification: update amount but keep pending
+            await ctx.db.patch(pendingPayment._id, {
+              amountArs: effectiveAmount,
+              totalAmountArs: effectiveAmount,
+              bonificationId: bonification._id,
+              isBonification: true,
+              interestApplied: undefined,
+              interestTotalArs: undefined,
+              updatedAt: nowMs,
+            });
+          }
         } else if (!pendingPayment) {
-          await ctx.db.insert("planPayments", {
-            organizationId: org._id,
-            userId: bonification.userId,
-            subscriptionId: bonification.subscriptionId,
-            planId: bonification.planId,
-            billingPeriod,
-            amountArs: effectiveAmount,
-            totalAmountArs: effectiveAmount,
-            paymentMethod: "bonification",
-            bonificationId: bonification._id,
-            isBonification: true,
-            recordedBy: bonification.createdBy,
-            status: "approved",
-            reviewedBy: bonification.createdBy,
-            reviewedAt: nowMs,
-            createdAt: nowMs,
-            updatedAt: nowMs,
-          });
+          if (isFullBonification) {
+            // Full bonification: create approved payment for $0
+            await ctx.db.insert("planPayments", {
+              organizationId: org._id,
+              userId: bonification.userId,
+              subscriptionId: bonification.subscriptionId,
+              planId: bonification.planId,
+              billingPeriod,
+              amountArs: 0,
+              totalAmountArs: 0,
+              paymentMethod: "bonification",
+              bonificationId: bonification._id,
+              isBonification: true,
+              recordedBy: bonification.createdBy,
+              status: "approved",
+              reviewedBy: bonification.createdBy,
+              reviewedAt: nowMs,
+              createdAt: nowMs,
+              updatedAt: nowMs,
+            });
+          } else {
+            // Partial bonification: create pending payment with discounted amount
+            await ctx.db.insert("planPayments", {
+              organizationId: org._id,
+              userId: bonification.userId,
+              subscriptionId: bonification.subscriptionId,
+              planId: bonification.planId,
+              billingPeriod,
+              amountArs: effectiveAmount,
+              totalAmountArs: effectiveAmount,
+              bonificationId: bonification._id,
+              isBonification: true,
+              status: "pending",
+              createdAt: nowMs,
+              updatedAt: nowMs,
+            });
+          }
         }
 
-        // Reactivate suspended subscription if needed
-        const subscription = await ctx.db.get(bonification.subscriptionId);
-        if (subscription && subscription.status === "suspended") {
-          await ctx.db.patch(subscription._id, {
-            status: "active",
-            suspendedAt: undefined,
-            updatedAt: nowMs,
-          });
+        // Reactivate suspended subscription only for full bonifications
+        if (isFullBonification) {
+          const subscription = await ctx.db.get(bonification.subscriptionId);
+          if (subscription && subscription.status === "suspended") {
+            await ctx.db.patch(subscription._id, {
+              status: "active",
+              suspendedAt: undefined,
+              updatedAt: nowMs,
+            });
+          }
         }
 
         generatedCount++;

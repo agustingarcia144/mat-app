@@ -8,6 +8,7 @@ import {
   requireCurrentOrganizationMembership,
   tryActiveOrgContext,
 } from "./permissions";
+import { computeBonificationAmount } from "./planBonifications";
 
 type InterestTier = {
   daysAfterWindowEnd: number;
@@ -41,9 +42,10 @@ async function getPaymentCoverage(
     )
     .collect();
 
-  const coveredSubscriptions = [billingSubscription, ...childSubscriptions].filter(
-    (item) => item.status !== "cancelled",
-  );
+  const coveredSubscriptions = [
+    billingSubscription,
+    ...childSubscriptions,
+  ].filter((item) => item.status !== "cancelled");
 
   return {
     billingSubscription,
@@ -136,12 +138,14 @@ export const getMyCurrentPeriodPayment = query({
 
     const { billingSubscription, coveredMemberCount } =
       await getPaymentCoverage(ctx, subscription);
-    const plan = await ctx.db.get(billingSubscription.planId as Id<"membershipPlans">);
+    const plan = await ctx.db.get(
+      billingSubscription.planId as Id<"membershipPlans">,
+    );
 
     const d = new Date();
     const billingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
-    const payment = await ctx.db
+    const currentPeriodPayment = await ctx.db
       .query("planPayments")
       .withIndex("by_subscription_period", (q) =>
         q
@@ -150,12 +154,54 @@ export const getMyCurrentPeriodPayment = query({
       )
       .first();
 
+    let payment = currentPeriodPayment;
+
+    if (!payment) {
+      const payments = await ctx.db
+        .query("planPayments")
+        .withIndex("by_organization_user", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("userId", billingSubscription.userId),
+        )
+        .filter((q) => q.eq(q.field("subscriptionId"), billingSubscription._id))
+        .collect();
+
+      const currentOrPastPayments = payments.filter(
+        (item) => item.billingPeriod <= billingPeriod,
+      );
+      const byMostRecentPeriod = (
+        a: (typeof payments)[number],
+        b: (typeof payments)[number],
+      ) =>
+        a.billingPeriod === b.billingPeriod
+          ? b.updatedAt - a.updatedAt
+          : a.billingPeriod < b.billingPeriod
+            ? 1
+            : -1;
+
+      payment =
+        currentOrPastPayments
+          .filter(
+            (item) =>
+              item.status === "pending" ||
+              item.status === "declined" ||
+              item.status === "in_review",
+          )
+          .sort(byMostRecentPeriod)[0] ??
+        currentOrPastPayments.sort(byMostRecentPeriod)[0] ??
+        null;
+    }
+
     if (!payment) return null;
 
     return {
       ...payment,
       coveredMemberCount,
-      coveredUserIds: coveredMemberCount > 1 ? billingSubscription.familyMemberUserIds : undefined,
+      coveredUserIds:
+        coveredMemberCount > 1
+          ? billingSubscription.familyMemberUserIds
+          : undefined,
       planInterestTiers: plan?.interestTiers ?? [],
       planPaymentWindowEndDay: plan?.paymentWindowEndDay ?? 28,
     };
@@ -301,40 +347,36 @@ export const getOrganizationMetrics = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdmin(ctx, membership.organizationId);
 
-    const [
-      payments,
-      subscriptions,
-      activeBonifications,
-      financeTransactions,
-    ] = await Promise.all([
-      ctx.db
-        .query("planPayments")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .collect(),
-      ctx.db
-        .query("memberPlanSubscriptions")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .collect(),
-      ctx.db
-        .query("planBonifications")
-        .withIndex("by_organization_status", (q) =>
-          q
-            .eq("organizationId", membership.organizationId)
-            .eq("status", "active"),
-        )
-        .collect(),
-      ctx.db
-        .query("financeTransactions")
-        .withIndex("by_organization_period", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .filter((q) => q.eq(q.field("status"), "active"))
-        .collect(),
-    ]);
+    const [payments, subscriptions, activeBonifications, financeTransactions] =
+      await Promise.all([
+        ctx.db
+          .query("planPayments")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .collect(),
+        ctx.db
+          .query("memberPlanSubscriptions")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .collect(),
+        ctx.db
+          .query("planBonifications")
+          .withIndex("by_organization_status", (q) =>
+            q
+              .eq("organizationId", membership.organizationId)
+              .eq("status", "active"),
+          )
+          .collect(),
+        ctx.db
+          .query("financeTransactions")
+          .withIndex("by_organization_period", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .filter((q) => q.eq(q.field("status"), "active"))
+          .collect(),
+      ]);
 
     // Build a set of bonified subscription IDs for fast lookup
     const bonifiedSubscriptionIds = new Set(
@@ -381,7 +423,10 @@ export const getOrganizationMetrics = query({
       const billingKey = String(
         subscription.familyParentSubscriptionId ?? subscription._id,
       );
-      familyGroupSizes.set(billingKey, (familyGroupSizes.get(billingKey) ?? 0) + 1);
+      familyGroupSizes.set(
+        billingKey,
+        (familyGroupSizes.get(billingKey) ?? 0) + 1,
+      );
     }
 
     let expectedRevenueArs = 0;
@@ -701,8 +746,7 @@ export const getOrganizationMetrics = query({
         netResultArs: selectedNetResultArs,
         profitabilityPct:
           hasExpenseData && selectedIncomeArs > 0
-            ? Math.round((selectedNetResultArs / selectedIncomeArs) * 1000) /
-              10
+            ? Math.round((selectedNetResultArs / selectedIncomeArs) * 1000) / 10
             : null,
         hasExpenseData,
       },
@@ -784,7 +828,7 @@ export const uploadProof = mutation({
       throw new Error("No se puede subir comprobante en este estado");
     }
 
-    // Block proof upload for bonified subscriptions
+    // Block proof upload only for fully bonified subscriptions (100% discount)
     const activeBonification = await ctx.db
       .query("planBonifications")
       .withIndex("by_subscription_status", (q) =>
@@ -792,9 +836,19 @@ export const uploadProof = mutation({
       )
       .first();
     if (activeBonification) {
-      throw new Error(
-        "Tu plan tiene una bonificación activa. No necesitás subir comprobante.",
-      );
+      const bonifiedPlan = await ctx.db.get(activeBonification.planId);
+      const effectiveAmount = bonifiedPlan
+        ? computeBonificationAmount(
+            bonifiedPlan.priceArs,
+            activeBonification.discountType,
+            activeBonification.discountValue,
+          )
+        : 0;
+      if (effectiveAmount === 0) {
+        throw new Error(
+          "Tu plan tiene una bonificación activa. No necesitás subir comprobante.",
+        );
+      }
     }
 
     // Delete old proof file if re-uploading
@@ -808,7 +862,9 @@ export const uploadProof = mutation({
 
     // Calculate interest at upload time
     const subscription = await ctx.db.get(payment.subscriptionId);
-    const plan = subscription ? await ctx.db.get(subscription.planId as Id<"membershipPlans">) : null;
+    const plan = subscription
+      ? await ctx.db.get(subscription.planId as Id<"membershipPlans">)
+      : null;
 
     const now = Date.now();
     const interest = plan?.interestTiers?.length
@@ -968,16 +1024,14 @@ export const recordPayment = mutation({
       throw new Error("Suscripción no encontrada");
     }
 
-    const { billingSubscription, coveredMemberCount } = await getPaymentCoverage(
-      ctx,
-      selectedSubscription,
-    );
+    const { billingSubscription, coveredMemberCount } =
+      await getPaymentCoverage(ctx, selectedSubscription);
 
     const subscription = billingSubscription;
     const plan = await ctx.db.get(subscription.planId as Id<"membershipPlans">);
     if (!plan) throw new Error("Plan no encontrado");
 
-    // Block manual payments for bonified subscriptions
+    // Block manual payments only for fully bonified subscriptions (100% discount)
     const activeBonification = await ctx.db
       .query("planBonifications")
       .withIndex("by_subscription_status", (q) =>
@@ -985,9 +1039,16 @@ export const recordPayment = mutation({
       )
       .first();
     if (activeBonification) {
-      throw new Error(
-        "Esta suscripción tiene una bonificación activa. Revocá la bonificación primero para registrar pagos manuales.",
+      const effectiveAmount = computeBonificationAmount(
+        plan.priceArs,
+        activeBonification.discountType,
+        activeBonification.discountValue,
       );
+      if (effectiveAmount === 0) {
+        throw new Error(
+          "Esta suscripción tiene una bonificación activa. Revocá la bonificación primero para registrar pagos manuales.",
+        );
+      }
     }
 
     // Validate billing period format

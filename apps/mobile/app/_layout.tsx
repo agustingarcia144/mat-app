@@ -2,12 +2,27 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import "react-native-reanimated";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@repo/convex";
+import * as Sentry from "@sentry/react-native";
 import Providers from "@/components/providers/providers";
 import { usePendingJoin } from "@/contexts/pending-join-context";
 import { registerForPushNotificationsAsync } from "@/lib/push-notifications";
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: true,
+
+  // Enable Logs
+  enableLogs: false,
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -28,6 +43,42 @@ function RootLayoutNav() {
     api.pushNotifications.registerDeviceToken,
   );
   const registeredForUserRef = useRef<string | null>(null);
+
+  // Track whether the user ever had an active membership this session.
+  // When membership drops from non-null to null (e.g. transient auth failure
+  // on flaky Android networks), wait before redirecting to select-organization
+  // to give the auth token time to refresh.
+  const hadMembershipRef = useRef(false);
+  const [orgRedirectReady, setOrgRedirectReady] = useState(false);
+
+  useEffect(() => {
+    if (currentMembership != null) {
+      hadMembershipRef.current = true;
+      setOrgRedirectReady(false);
+      return;
+    }
+
+    // currentMembership is null or undefined
+    if (currentMembership === undefined) {
+      // Still loading — not ready to redirect
+      setOrgRedirectReady(false);
+      return;
+    }
+
+    // currentMembership is null (query ran, no membership found)
+    if (!hadMembershipRef.current) {
+      // Never had a membership — redirect immediately
+      setOrgRedirectReady(true);
+      return;
+    }
+
+    // Had a membership before but lost it — wait briefly for auth to recover
+    setOrgRedirectReady(false);
+    const timer = setTimeout(() => {
+      setOrgRedirectReady(true);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [currentMembership]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -73,6 +124,7 @@ function RootLayoutNav() {
 
     // Authenticated users must always have an active org before they can access app content.
     if (!hasActiveOrganization) {
+      if (!orgRedirectReady) return; // Wait for debounce before redirecting
       if (!inOrgSelection && !inJoinConfirm) {
         router.replace("/select-organization");
       }
@@ -116,6 +168,7 @@ function RootLayoutNav() {
     pendingLoading,
     convexUser,
     currentMembership,
+    orgRedirectReady,
     segments,
     router,
   ]);
@@ -191,10 +244,10 @@ function RootLayoutNav() {
   );
 }
 
-export default function RootLayout() {
+export default Sentry.wrap(function RootLayout() {
   return (
     <Providers>
       <RootLayoutNav />
     </Providers>
   );
-}
+});

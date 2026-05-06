@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useClerk } from "@clerk/expo";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@repo/convex";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -26,11 +26,14 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function SelectOrganizationScreen() {
+  const { isAuthenticated } = useConvexAuth();
   const organizations = useQuery(
     api.organizationMemberships.getMyOrganizations,
+    isAuthenticated ? {} : "skip",
   );
   const currentMembership = useQuery(
     api.organizationMemberships.getCurrentMembershipWithOrganization,
+    isAuthenticated ? {} : "skip",
   );
   const router = useRouter();
   const setActiveOrganization = useMutation(

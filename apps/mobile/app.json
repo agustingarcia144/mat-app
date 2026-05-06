@@ -16,9 +16,7 @@
         "NSUserNotificationsUsageDescription": "Mat te enviara recordatorios y avisos importantes sobre tus clases reservadas."
       },
       "icon": "./assets/app.icon",
-      "associatedDomains": [
-        "applinks:matgestion.app"
-      ]
+      "associatedDomains": ["applinks:matgestion.app"]
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -42,9 +40,7 @@
           "category": ["BROWSABLE", "DEFAULT"]
         }
       ],
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": ["android.permission.RECORD_AUDIO"]
     },
     "web": {
       "output": "static",
@@ -77,7 +73,15 @@
       ],
       "@react-native-community/datetimepicker",
       "@clerk/expo",
-      "expo-font"
+      "expo-font",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "mat-app"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

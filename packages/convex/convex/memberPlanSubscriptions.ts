@@ -13,6 +13,7 @@ import {
   requireActiveOrgContext,
   tryActiveOrgContext,
 } from "./permissions";
+import { computeBonificationAmount } from "./planBonifications";
 
 async function getFamilyGroupSubscriptions(
   ctx: { db: any },
@@ -772,14 +773,21 @@ export const autoSuspendUnpaid = internalMutation({
         // Plans with interest tiers never auto-suspend — they charge more instead
         if (plan.interestTiers && plan.interestTiers.length > 0) continue;
 
-        // Skip bonified subscriptions — they never auto-suspend
+        // Skip fully bonified subscriptions (100% discount) — they never auto-suspend
         const activeBonification = await ctx.db
           .query("planBonifications")
           .withIndex("by_subscription_status", (q) =>
             q.eq("subscriptionId", sub._id).eq("status", "active"),
           )
           .first();
-        if (activeBonification) continue;
+        if (activeBonification) {
+          const effectiveAmount = computeBonificationAmount(
+            plan.priceArs,
+            activeBonification.discountType,
+            activeBonification.discountValue,
+          );
+          if (effectiveAmount === 0) continue;
+        }
 
         // Skip if payment window hasn't closed yet
         if (currentDay <= plan.paymentWindowEndDay) continue;
