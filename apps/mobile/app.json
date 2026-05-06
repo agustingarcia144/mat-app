@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mat Gestion",
     "slug": "mat-app",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mat-app",
@@ -81,7 +81,9 @@
           "project": "react-native",
           "organization": "mat-app"
         }
-      ]
+      ],
+      "@sentry/react-native",
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,

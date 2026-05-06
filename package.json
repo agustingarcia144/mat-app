@@ -20,9 +20,12 @@
     "xmlbuilder": "15.1.1"
   },
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "@sentry/cli"
+    ],
     "overrides": {
-      "@types/react": "19.1.17",
-      "@types/react-dom": "19.1.0",
+      "@types/react": "19.2.14",
+      "@types/react-dom": "19.2.3",
       "zod": "4.3.6"
     },
     "ignoredBuiltDependencies": [
@@ -37,7 +40,7 @@
     ],
     "patchedDependencies": {
       "@clerk/expo@3.1.4": "patches/@clerk__expo@3.1.4.patch",
-      "expo-dev-launcher@55.0.27": "patches/expo-dev-launcher@55.0.27.patch"
+      "expo-dev-launcher@55.0.33": "patches/expo-dev-launcher@55.0.33.patch"
     }
   },
   "engines": {
