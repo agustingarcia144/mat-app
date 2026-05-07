@@ -1,17 +1,35 @@
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as WebBrowser from "expo-web-browser";
 import "react-native-reanimated";
 import { useEffect, useRef, useState } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useUser } from "@clerk/expo";
 import { api } from "@repo/convex";
 import * as Sentry from "@sentry/react-native";
 import Providers from "@/components/providers/providers";
 import { usePendingJoin } from "@/contexts/pending-join-context";
 import { registerForPushNotificationsAsync } from "@/lib/push-notifications";
+import { captureHandledError } from "@/lib/sentry";
+
+function normalizeNavigationSpanName(name: string) {
+  return name
+    .replace(/\/\d+(?=\/|$)/g, "/[id]")
+    .replace(/\/[0-9a-f]{8}-[0-9a-f-]{27,}(?=\/|$)/gi, "/[id]");
+}
+
+const sentryTracingIntegration = Sentry.reactNativeTracingIntegration({
+  beforeStartSpan: (options) => ({
+    ...options,
+    name: normalizeNavigationSpanName(options.name),
+  }),
+});
 
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  integrations: [sentryTracingIntegration],
+  tracesSampleRate: __DEV__ ? 1 : 0.2,
+  enableCaptureFailedRequests: true,
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -27,6 +45,7 @@ Sentry.init({
 WebBrowser.maybeCompleteAuthSession();
 
 function RootLayoutNav() {
+  const { user } = useUser();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const { pendingToken, isLoading: pendingLoading } = usePendingJoin();
   const convexUser = useQuery(
@@ -34,10 +53,11 @@ function RootLayoutNav() {
     isAuthenticated ? {} : "skip",
   );
   const currentMembership = useQuery(
-    api.organizationMemberships.getCurrentMembership,
+    api.organizationMemberships.getCurrentMembershipWithOrganization,
     isAuthenticated ? {} : "skip",
   );
   const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
   const upsertPushToken = useMutation(
     api.pushNotifications.registerDeviceToken,
@@ -79,6 +99,59 @@ function RootLayoutNav() {
     }, 3000);
     return () => clearTimeout(timer);
   }, [currentMembership]);
+
+  useEffect(() => {
+    sentryTracingIntegration.setCurrentRoute(pathname ?? "/");
+    Sentry.setTag("route", pathname ?? "/");
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      Sentry.setUser(null);
+      Sentry.setTag("auth_state", "anonymous");
+      Sentry.setTag("organization_id", "none");
+      Sentry.setTag("organization_role", "none");
+      Sentry.setContext("organization", null);
+      Sentry.setContext("convex_user", null);
+      return;
+    }
+
+    const primaryEmail =
+      user?.primaryEmailAddress?.emailAddress ??
+      user?.emailAddresses?.[0]?.emailAddress;
+
+    Sentry.setUser({
+      id: convexUser?.externalId ?? user?.id,
+      email: primaryEmail,
+      username: user?.username ?? convexUser?.username ?? undefined,
+    });
+    Sentry.setTag("auth_state", "authenticated");
+
+    if (convexUser) {
+      Sentry.setContext("convex_user", {
+        onboardingCompleted: convexUser.onboardingCompleted ?? false,
+        onboardingStep1Completed: convexUser.onboardingStep1Completed ?? false,
+      });
+    } else {
+      Sentry.setContext("convex_user", null);
+    }
+
+    if (currentMembership?.organization) {
+      Sentry.setTag("organization_id", currentMembership.organization._id);
+      Sentry.setTag("organization_role", currentMembership.role);
+      Sentry.setContext("organization", {
+        id: currentMembership.organization._id,
+        name: currentMembership.organization.name,
+        slug: currentMembership.organization.slug,
+        role: currentMembership.role,
+        status: currentMembership.status,
+      });
+    } else {
+      Sentry.setTag("organization_id", "none");
+      Sentry.setTag("organization_role", "none");
+      Sentry.setContext("organization", null);
+    }
+  }, [isAuthenticated, user, convexUser, currentMembership]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -207,6 +280,13 @@ function RootLayoutNav() {
         registeredForUserRef.current = convexUser.externalId;
       } catch (error) {
         console.warn("Push notification setup failed", error);
+        captureHandledError(error, {
+          area: "notifications",
+          action: "register_push_token",
+          extras: {
+            userId: convexUser.externalId,
+          },
+        });
       }
     };
 

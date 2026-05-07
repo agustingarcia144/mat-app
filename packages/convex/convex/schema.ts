@@ -15,6 +15,7 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     username: v.optional(v.string()),
     nickname: v.optional(v.string()),
+    isSuperAdmin: v.optional(v.boolean()),
     // App-specific fields not stored in Clerk
     birthday: v.optional(v.string()),
     phone: v.optional(v.string()),

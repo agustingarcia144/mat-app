@@ -3,6 +3,21 @@ import type { Doc, Id } from "./_generated/dataModel";
 
 type Ctx = QueryCtx | MutationCtx;
 type AppRole = "admin" | "trainer" | "member";
+type OrgMembershipLike = Pick<
+  Doc<"organizationMemberships">,
+  | "_creationTime"
+  | "createdAt"
+  | "description"
+  | "joinedAt"
+  | "lastActiveAt"
+  | "organizationId"
+  | "role"
+  | "status"
+  | "updatedAt"
+  | "userId"
+> & {
+  _id?: Doc<"organizationMemberships">["_id"];
+};
 export type OrgErrorCode =
   | "NOT_AUTHENTICATED"
   | "ORG_REQUIRED"
@@ -29,6 +44,11 @@ async function getUserRole(
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
 
+  if (await isSuperAdminUser(ctx, identity.subject)) {
+    const organization = await ctx.db.get(organizationId);
+    return organization ? "admin" : null;
+  }
+
   const membership = await ctx.db
     .query("organizationMemberships")
     .withIndex("by_organization_user", (q) =>
@@ -40,14 +60,62 @@ async function getUserRole(
   return membership?.role ?? null;
 }
 
+export async function getCurrentUserRecord(ctx: Ctx) {
+  const identity = await requireAuth(ctx);
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_externalId", (q) => q.eq("externalId", identity.subject))
+    .first();
+
+  return { identity, user };
+}
+
+async function isSuperAdminUser(ctx: Ctx, userId: string) {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_externalId", (q) => q.eq("externalId", userId))
+    .first();
+  return user?.isSuperAdmin === true;
+}
+
+function buildSyntheticSuperAdminMembership(
+  organizationId: Id<"organizations">,
+  userId: string,
+): OrgMembershipLike {
+  const now = Date.now();
+  return {
+    _creationTime: now,
+    organizationId,
+    userId,
+    description: undefined,
+    role: "admin",
+    status: "active",
+    joinedAt: now,
+    lastActiveAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
 /**
  * Require membership in a specific organization.
  */
 export async function requireOrganizationMembership(
   ctx: Ctx,
   organizationId: Id<"organizations">,
-): Promise<Doc<"organizationMemberships">> {
-  const identity = await requireAuth(ctx);
+): Promise<OrgMembershipLike> {
+  const { identity, user } = await getCurrentUserRecord(ctx);
+  if (user?.isSuperAdmin === true) {
+    const organization = await ctx.db.get(organizationId);
+    if (!organization) {
+      throw new OrgAccessError(
+        "ORG_NOT_SYNCED",
+        "Selected organization no longer exists",
+      );
+    }
+    return buildSyntheticSuperAdminMembership(organizationId, identity.subject);
+  }
+
   const membership = await ctx.db
     .query("organizationMemberships")
     .withIndex("by_organization_user", (q) =>
@@ -74,8 +142,30 @@ export async function requireOrganizationMembership(
  */
 export async function requireCurrentOrganizationMembership(
   ctx: Ctx,
-): Promise<Doc<"organizationMemberships">> {
-  const identity = await requireAuth(ctx);
+): Promise<OrgMembershipLike> {
+  const { identity, user } = await getCurrentUserRecord(ctx);
+
+  if (user?.isSuperAdmin === true) {
+    if (!user.activeOrganizationId) {
+      throw new OrgAccessError(
+        "ORG_REQUIRED",
+        "Super admin must select an active organization first.",
+      );
+    }
+
+    const selectedOrg = await ctx.db.get(user.activeOrganizationId);
+    if (!selectedOrg) {
+      throw new OrgAccessError(
+        "ORG_NOT_SYNCED",
+        "Selected organization no longer exists",
+      );
+    }
+
+    return buildSyntheticSuperAdminMembership(
+      user.activeOrganizationId,
+      identity.subject,
+    );
+  }
 
   const memberships = await ctx.db
     .query("organizationMemberships")
@@ -89,11 +179,6 @@ export async function requireCurrentOrganizationMembership(
       "User is not an active member of any organization",
     );
   }
-
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_externalId", (q) => q.eq("externalId", identity.subject))
-    .first();
 
   const selectedOrganizationId = user?.activeOrganizationId ?? null;
 
@@ -135,6 +220,11 @@ export async function isAdminOrTrainer(
   ctx: Ctx,
   organizationId: Id<"organizations">,
 ): Promise<boolean> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (identity && (await isSuperAdminUser(ctx, identity.subject))) {
+    const organization = await ctx.db.get(organizationId);
+    return organization !== null;
+  }
   const role = await getUserRole(ctx, organizationId);
   return role === "admin" || role === "trainer";
 }
@@ -146,6 +236,11 @@ export async function isAdmin(
   ctx: Ctx,
   organizationId: Id<"organizations">,
 ): Promise<boolean> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (identity && (await isSuperAdminUser(ctx, identity.subject))) {
+    const organization = await ctx.db.get(organizationId);
+    return organization !== null;
+  }
   const role = await getUserRole(ctx, organizationId);
   return role === "admin";
 }

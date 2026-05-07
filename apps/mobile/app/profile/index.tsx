@@ -33,6 +33,7 @@ import LoadingScreen from "@/components/shared/screens/loading-screen";
 import { useAppReset } from "@/components/providers/providers";
 import { Picker } from "@react-native-picker/picker";
 import { ProfileNativeList } from "@/components/features/profile/profile-native-list";
+import { captureHandledError } from "@/lib/sentry";
 
 const HEIGHT_CM = Array.from({ length: 151 }, (_, i) => 100 + i);
 const WEIGHT_KG = Array.from({ length: 171 }, (_, i) => 30 + i);
@@ -907,6 +908,13 @@ function ProfileContent() {
         router.replace("/");
       } catch (error) {
         console.error("Failed to switch organization", error);
+        captureHandledError(error, {
+          area: "organization",
+          action: "switch_organization_from_profile",
+          extras: {
+            selectedOrgId,
+          },
+        });
         setOrgError(
           "No se pudo cambiar de organización. Verifica tu conexión e intenta nuevamente.",
         );

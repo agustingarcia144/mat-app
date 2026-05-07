@@ -18,6 +18,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
 import { useAppReset } from "@/components/providers/providers";
+import { captureHandledError } from "@/lib/sentry";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",
@@ -86,6 +87,13 @@ export default function SelectOrganizationScreen() {
         router.replace("/");
       } catch (err) {
         console.error("Error setting active organization:", err);
+        captureHandledError(err, {
+          area: "organization",
+          action: "set_active_organization",
+          extras: {
+            organizationId,
+          },
+        });
         setError(
           "No pudimos cambiar de organización. Revisa tu conexión e intenta nuevamente.",
         );
@@ -150,6 +158,13 @@ export default function SelectOrganizationScreen() {
           );
         }
       } catch (err) {
+        captureHandledError(err, {
+          area: "organization",
+          action: "redeem_member_invite_code",
+          extras: {
+            codeLength: code.length,
+          },
+        });
         setError(
           err instanceof Error
             ? err.message
