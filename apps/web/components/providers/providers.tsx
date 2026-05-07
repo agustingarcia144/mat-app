@@ -2,6 +2,7 @@ import React from "react";
 import { ClerkProvider } from "@clerk/nextjs";
 import ConvexClientProvider from "./convex-provider";
 import { ThemeProvider } from "./theme-provider";
+import SentryProvider from "./sentry-provider";
 
 function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -11,14 +12,16 @@ function Providers({ children }: { children: React.ReactNode }) {
       afterSignOutUrl="/"
     >
       <ConvexClientProvider>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
+        <SentryProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+          </ThemeProvider>
+        </SentryProvider>
       </ConvexClientProvider>
     </ClerkProvider>
   );

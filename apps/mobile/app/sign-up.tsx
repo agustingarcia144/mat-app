@@ -24,6 +24,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
 import LoadingScreen from "@/components/shared/screens/loading-screen";
 import AntDesign from "@expo/vector-icons/AntDesign";
+import { captureHandledError } from "@/lib/sentry";
 
 const AUTH_LOADING_TIMEOUT_MS = 10000;
 
@@ -36,6 +37,10 @@ function AuthenticatedRedirect() {
         await getOrCreateUser();
       } catch (err) {
         console.error("Failed to get/create user:", err);
+        captureHandledError(err, {
+          area: "auth",
+          action: "get_or_create_user_after_sign_up",
+        });
       }
     };
     handleRedirect();
@@ -86,6 +91,10 @@ function SignUpForm() {
     } catch (error) {
       setError("Error al registrarse");
       console.error("Error al registrarse:", error);
+      captureHandledError(error, {
+        area: "auth",
+        action: "sign_up_with_password",
+      });
     } finally {
       setLoading(false);
     }
@@ -105,7 +114,11 @@ function SignUpForm() {
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
       }
-    } catch {
+    } catch (error) {
+      captureHandledError(error, {
+        area: "auth",
+        action: "verify_email_code",
+      });
       setError("Error al verificar el correo");
       setLoading(false);
     }
@@ -122,7 +135,11 @@ function SignUpForm() {
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId });
       }
-    } catch {
+    } catch (error) {
+      captureHandledError(error, {
+        area: "auth",
+        action: "sign_up_with_google",
+      });
       setError("Error al registrarse con Google");
     } finally {
       setLoading(false);
@@ -140,7 +157,11 @@ function SignUpForm() {
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId });
       }
-    } catch {
+    } catch (error) {
+      captureHandledError(error, {
+        area: "auth",
+        action: "sign_up_with_apple",
+      });
       setError("Error al registrarse con Apple");
     } finally {
       setLoading(false);

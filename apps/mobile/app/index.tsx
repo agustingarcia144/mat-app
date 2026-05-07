@@ -24,6 +24,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
 import AntDesign from '@expo/vector-icons/AntDesign'
 import LoadingScreen from '@/components/shared/screens/loading-screen'
+import { captureHandledError } from '@/lib/sentry'
 
 const AUTH_LOADING_TIMEOUT_MS = 10000
 
@@ -36,6 +37,10 @@ function AuthenticatedRedirect() {
         await getOrCreateUser()
       } catch (err) {
         console.error('Failed to get/create user:', err)
+        captureHandledError(err, {
+          area: 'auth',
+          action: 'get_or_create_user_after_sign_in',
+        })
       }
     }
     handleRedirect()
@@ -116,6 +121,10 @@ function SignInForm() {
       setError('Completá los pasos requeridos para iniciar sesión.')
     } catch (err) {
       console.error('Error al iniciar sesión:', err)
+      captureHandledError(err, {
+        area: 'auth',
+        action: 'sign_in_with_password',
+      })
       setError('Error al iniciar sesión')
     } finally {
       setLoading(false)
@@ -144,7 +153,14 @@ function SignInForm() {
       } else {
         setError('Código inválido o vencido. Revisá e intentá de nuevo.')
       }
-    } catch {
+    } catch (err) {
+      captureHandledError(err, {
+        area: 'auth',
+        action: 'verify_second_factor',
+        extras: {
+          strategy: secondFactorStrategy,
+        },
+      })
       setError('Error al verificar el código')
     } finally {
       setOtpLoading(false)
@@ -169,7 +185,11 @@ function SignInForm() {
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId })
       }
-    } catch {
+    } catch (err) {
+      captureHandledError(err, {
+        area: 'auth',
+        action: 'sign_in_with_google',
+      })
       setError('Error al iniciar sesión con Google')
     } finally {
       setLoading(false)
@@ -187,7 +207,11 @@ function SignInForm() {
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId })
       }
-    } catch {
+    } catch (err) {
+      captureHandledError(err, {
+        area: 'auth',
+        action: 'sign_in_with_apple',
+      })
       setError('Error al iniciar sesión con Apple')
     } finally {
       setLoading(false)

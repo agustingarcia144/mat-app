@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { captureHandledError } from "@/lib/sentry";
 
 const REDIRECT_URL_COMPLETE = "/select-organization";
 
@@ -43,6 +44,10 @@ export function SignInDialog({ open, onOpenChange }: Props) {
         })
         .catch((err) => {
           setIsOAuthLoading(false);
+          captureHandledError(err, {
+            area: "auth",
+            action: "sign_in_dialog_with_google_redirect",
+          });
           toast.error(
             err?.errors?.[0]?.longMessage ?? "Error al iniciar sesión",
           );
@@ -75,6 +80,10 @@ export function SignInDialog({ open, onOpenChange }: Props) {
         toast.error("Completá los pasos requeridos para iniciar sesión.");
       }
     } catch (err: unknown) {
+      captureHandledError(err, {
+        area: "auth",
+        action: "sign_in_dialog_with_password",
+      });
       const msg =
         err && typeof err === "object" && "errors" in err
           ? (err as { errors?: Array<{ longMessage?: string }> }).errors?.[0]

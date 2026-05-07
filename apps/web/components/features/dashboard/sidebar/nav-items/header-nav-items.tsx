@@ -20,6 +20,7 @@ import {
 import EditOrganizationDialog from "./edit-organization-dialog";
 import { api } from "@/convex/_generated/api";
 import { isOrgAdminRole } from "@/lib/security/roles";
+import { captureHandledError } from "@/lib/sentry";
 
 export default function HeaderNavItems() {
   const router = useRouter();
@@ -63,6 +64,13 @@ export default function HeaderNavItems() {
     } catch (error) {
       toast.error("No se pudo cambiar la organización");
       console.error(error);
+      captureHandledError(error, {
+        area: "organization",
+        action: "switch_organization_from_sidebar",
+        extras: {
+          organizationId,
+        },
+      });
     } finally {
       setSwitchingOrgId(null);
     }

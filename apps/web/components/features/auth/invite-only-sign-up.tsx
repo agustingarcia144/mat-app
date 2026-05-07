@@ -6,6 +6,7 @@ import { SignUp, useClerk, useUser } from "@clerk/nextjs";
 import { useSignIn } from "@clerk/nextjs/legacy";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { captureHandledError } from "@/lib/sentry";
 import {
   Card,
   CardContent,
@@ -104,6 +105,13 @@ export default function InviteOnlySignUp() {
         });
       })
       .catch(async (error: unknown) => {
+        captureHandledError(error, {
+          area: "auth",
+          action: "accept_invitation_ticket_sign_in",
+          extras: {
+            hasInviteToken: Boolean(inviteToken),
+          },
+        });
         const message =
           error && typeof error === "object" && "errors" in error
             ? (error as { errors?: Array<{ longMessage?: string }> })
@@ -125,6 +133,7 @@ export default function InviteOnlySignUp() {
   }, [
     accountStatus,
     isLoaded,
+    inviteToken,
     retryKey,
     router,
     setActive,

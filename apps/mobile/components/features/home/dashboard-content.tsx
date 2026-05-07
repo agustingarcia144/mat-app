@@ -19,13 +19,16 @@ import { useSubscriptionGate } from "@/hooks/use-subscription-gate";
 import { ThemedView } from "@/components/ui/themed-view";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
-import { format, getISODay, startOfWeek, endOfWeek } from "date-fns";
+import { format, startOfWeek, endOfWeek } from "date-fns";
 import { CalendarWeekView } from "@/components/features/home/calendar-week-view";
 import { NoActivePlanAlert } from "@/components/features/home/no-active-plan-alert";
 import { SubscriptionBanner } from "@/components/features/home/subscription-banner";
 import { ReservedClassesForDay } from "@/components/features/home/reserved-classes-for-day";
 import { RestDayPlaceholder } from "@/components/features/home/rest-day-placeholder";
-import { ScheduledWorkoutCard } from "@/components/features/home/scheduled-workout-card";
+import {
+  AssignmentDayWorkout,
+  useAssignmentScheduledDays,
+} from "@/components/features/home/assignment-day-workout";
 import { ScrollView } from "react-native-gesture-handler";
 
 const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const };
@@ -49,25 +52,21 @@ export default function DashboardContent() {
     user?.id ? { userId: user.id } : "skip",
   );
 
-  const activeAssignment = useMemo(() => {
+  const activeAssignments = useMemo(() => {
     const active = assignments?.filter((a) => a.status === "active") ?? [];
-    if (active.length === 0) return undefined;
+    if (active.length === 0) return [];
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Prefer the assignment whose date range contains today
-    const current = active.find((a) => {
-      const start = a.startDate ? new Date(a.startDate) : null;
-      if (start) start.setHours(0, 0, 0, 0);
-      const end = a.endDate ? new Date(a.endDate) : null;
-      if (end) end.setHours(23, 59, 59, 999);
-      const afterStart = !start || today >= start;
-      const beforeEnd = !end || today <= end;
-      return afterStart && beforeEnd;
+    // Sort: assignments whose date range contains today come first
+    return [...active].sort((a, b) => {
+      const aInRange = isInDateRange(a, today);
+      const bInRange = isInDateRange(b, today);
+      if (aInRange && !bInRange) return -1;
+      if (!aInRange && bInRange) return 1;
+      return 0;
     });
-
-    return current ?? active[0];
   }, [assignments]);
 
   const organizationUsesPlanifications = useQuery(
@@ -76,7 +75,8 @@ export default function DashboardContent() {
   );
 
   const showNoActivePlanAlert =
-    !activeAssignment && organizationUsesPlanifications === true;
+    activeAssignments.length === 0 &&
+    organizationUsesPlanifications === true;
 
   const tabBarHeight = Platform.OS === "ios" ? 49 : 56;
   const alertTabGap = 12;
@@ -105,72 +105,40 @@ export default function DashboardContent() {
     setSelectedDate(newDate);
   };
 
-  const workoutDays = useQuery(
-    api.workoutDays.getByPlanification,
-    activeAssignment?.planificationId
-      ? {
-          planificationId: activeAssignment.planificationId,
-          revisionId: activeAssignment.revisionId,
-        }
-      : "skip",
+  // Show all sessions from active assignments + completed sessions from others
+  const activeAssignmentIds = useMemo(
+    () => new Set(activeAssignments.map((a) => a._id)),
+    [activeAssignments],
   );
-
-  const allExercises = useQuery(
-    api.dayExercises.getByPlanification,
-    activeAssignment?.planificationId
-      ? {
-          planificationId: activeAssignment.planificationId,
-          revisionId: activeAssignment.revisionId,
-        }
-      : "skip",
-  );
-
-  const weekSessionsForActiveAssignment = useMemo(() => {
-    if (!weekSessions || !activeAssignment) return [];
-    return weekSessions.filter(
-      (session) => session.assignmentId === activeAssignment._id,
-    );
-  }, [weekSessions, activeAssignment]);
-  const completedSessionsFromOtherAssignments = useMemo(() => {
-    if (!weekSessions || !activeAssignment) return [];
-    return weekSessions.filter(
-      (session) =>
-        session.assignmentId !== activeAssignment._id &&
-        session.status === "completed",
-    );
-  }, [weekSessions, activeAssignment]);
   const weekSessionsForDisplay = useMemo(
     () =>
-      activeAssignment
-        ? [
-            ...weekSessionsForActiveAssignment,
-            ...completedSessionsFromOtherAssignments,
-          ]
-        : (weekSessions ?? []),
-    [
-      activeAssignment,
-      weekSessionsForActiveAssignment,
-      completedSessionsFromOtherAssignments,
-      weekSessions,
-    ],
+      (weekSessions ?? []).filter(
+        (s) =>
+          activeAssignmentIds.has(s.assignmentId) ||
+          s.status === "completed",
+      ),
+    [weekSessions, activeAssignmentIds],
   );
 
-  const exercisesByDay = useMemo(() => {
-    if (!allExercises) return {} as Record<string, typeof allExercises>;
-    const map: Record<string, typeof allExercises> = {};
-    allExercises.forEach((ex) => {
-      const dayId = ex.workoutDayId;
-      if (!map[dayId]) map[dayId] = [];
-      map[dayId].push(ex);
-    });
-    Object.keys(map).forEach((dayId) => {
-      map[dayId].sort((a, b) => a.order - b.order);
-    });
-    return map;
-  }, [allExercises]);
+  // Calendar dots: aggregate scheduled days from up to 2 assignments.
+  // Convex caches shared query subscriptions, so duplicates with
+  // AssignmentDayWorkout are free. The hook returns [] for undefined.
+  const scheduledDays0 = useAssignmentScheduledDays(
+    activeAssignments[0],
+    monday,
+    selectedDate,
+  );
+  const scheduledDays1 = useAssignmentScheduledDays(
+    activeAssignments[1],
+    monday,
+    selectedDate,
+  );
+  const daysWithScheduledWorkouts = useMemo(
+    () => Array.from(new Set([...scheduledDays0, ...scheduledDays1])),
+    [scheduledDays0, scheduledDays1],
+  );
 
   const selectedYmd = format(selectedDate, "yyyy-MM-dd");
-  const selectedISOWeekday = getISODay(selectedDate);
 
   const { startOfDay, endOfDay } = useMemo(() => {
     const d = new Date(selectedDate);
@@ -198,34 +166,6 @@ export default function DashboardContent() {
     api.classReservations.getByUserForDateRange,
     { startOfRange: startOfWeekMs, endOfRange: endOfWeekMs },
   );
-
-  const daysWithScheduledWorkouts = useMemo(() => {
-    if (!workoutDays || workoutDays.length === 0) return [];
-    const result: string[] = [];
-    const curr = new Date(monday);
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(curr);
-      const isoDay = getISODay(date);
-      const ymd = format(date, "yyyy-MM-dd");
-      const hasWorkout = workoutDays.some((d) => d.dayOfWeek === isoDay);
-      if (hasWorkout) {
-        let inRange = true;
-        if (activeAssignment?.startDate) {
-          const start = new Date(activeAssignment.startDate);
-          start.setHours(0, 0, 0, 0);
-          if (date < start) inRange = false;
-        }
-        if (activeAssignment?.endDate) {
-          const end = new Date(activeAssignment.endDate);
-          end.setHours(23, 59, 59, 999);
-          if (date > end) inRange = false;
-        }
-        if (inRange) result.push(ymd);
-      }
-      curr.setDate(curr.getDate() + 1);
-    }
-    return result;
-  }, [workoutDays, monday, activeAssignment]);
 
   const daysWithClasses = useMemo(
     () =>
@@ -264,118 +204,12 @@ export default function DashboardContent() {
     [reservationsForDay],
   );
 
-  const scheduledWorkoutDay = useMemo(() => {
-    if (!workoutDays) return null;
-    // Only show the planned workout if the selected date falls within the
-    // active assignment's date range — otherwise the workout didn't exist yet.
-    if (activeAssignment?.startDate) {
-      const start = new Date(activeAssignment.startDate);
-      start.setHours(0, 0, 0, 0);
-      const sel = new Date(selectedDate);
-      sel.setHours(0, 0, 0, 0);
-      if (sel < start) return null;
-    }
-    if (activeAssignment?.endDate) {
-      const end = new Date(activeAssignment.endDate);
-      end.setHours(23, 59, 59, 999);
-      if (selectedDate > end) return null;
-    }
-    return workoutDays.find((d) => d.dayOfWeek === selectedISOWeekday) ?? null;
-  }, [
-    workoutDays,
-    selectedISOWeekday,
-    activeAssignment?.startDate,
-    activeAssignment?.endDate,
-    selectedDate,
-  ]);
-  const sessionForSelected = useMemo(
-    () =>
-      weekSessionsForActiveAssignment.find(
-        (s) =>
-          s.performedOn === selectedYmd &&
-          s.workoutDayId === scheduledWorkoutDay?._id,
-      ) ??
-      weekSessionsForDisplay.find(
-        (s) =>
-          s.status === "completed" &&
-          s.performedOn === selectedYmd &&
-          s.workoutDayId === scheduledWorkoutDay?._id,
-      ) ??
-      weekSessionsForActiveAssignment.find(
-        (s) => s.performedOn === selectedYmd,
-      ) ??
-      weekSessionsForDisplay.find(
-        (s) => s.status === "completed" && s.performedOn === selectedYmd,
-      ) ??
-      null,
-    [
-      weekSessionsForActiveAssignment,
-      weekSessionsForDisplay,
-      selectedYmd,
-      scheduledWorkoutDay?._id,
-    ],
-  );
-
-  const historicalWorkoutDay = useQuery(
-    api.workoutDays.getById,
-    sessionForSelected && !scheduledWorkoutDay
-      ? { id: sessionForSelected.workoutDayId }
-      : "skip",
-  );
-  const workoutDayToDisplay =
-    scheduledWorkoutDay ?? historicalWorkoutDay ?? null;
-  const blocksForDisplayDay = useQuery(
-    api.exerciseBlocks.getByWorkoutDay,
-    workoutDayToDisplay?._id
-      ? { workoutDayId: workoutDayToDisplay._id }
-      : "skip",
-  );
-
-  const { statusBadgeLabel, statusBadgeVariant } = useMemo(() => {
-    if (!sessionForSelected) {
-      return {
-        statusBadgeLabel: "No Iniciado",
-        statusBadgeVariant: "notStarted" as const,
-      };
-    }
-    if (sessionForSelected.status === "completed") {
-      return {
-        statusBadgeLabel: "Completado",
-        statusBadgeVariant: "completed" as const,
-      };
-    }
-    if (sessionForSelected.status === "skipped") {
-      return {
-        statusBadgeLabel: "Omitido",
-        statusBadgeVariant: "skipped" as const,
-      };
-    }
-    return {
-      statusBadgeLabel: "En curso",
-      statusBadgeVariant: "inProgress" as const,
-    };
-  }, [sessionForSelected]);
-
-  const handleOpenWorkout = () => {
-    if (!hasActiveSubscription) return;
-    if (sessionForSelected) {
-      router.push(`/home/workout/${sessionForSelected._id}` as Href);
-    } else {
-      if (!activeAssignment || !scheduledWorkoutDay) return;
-      router.push(
-        `/home/workout/new?workoutDayId=${scheduledWorkoutDay._id}&performedOn=${selectedYmd}&assignmentId=${activeAssignment._id}` as Href,
-      );
-    }
-  };
+  const hasWorkoutOnSelected =
+    daysWithScheduledWorkouts.includes(selectedYmd) ||
+    weekSessionsForDisplay.some((s) => s.performedOn === selectedYmd);
 
   const todaySectionLoading =
-    weekSessions === undefined ||
-    reservationsForDay === undefined ||
-    (activeAssignment != null && workoutDays === undefined) ||
-    (sessionForSelected != null &&
-      scheduledWorkoutDay == null &&
-      historicalWorkoutDay === undefined) ||
-    (workoutDayToDisplay != null && blocksForDisplayDay === undefined);
+    weekSessions === undefined || reservationsForDay === undefined;
 
   return (
     <ThemedView style={styles.container}>
@@ -469,26 +303,24 @@ export default function DashboardContent() {
                     onPress={() => router.push("/plan" as Href)}
                   />
                 )}
-              {workoutDayToDisplay && (
-                <View
-                  style={
-                    !hasActiveSubscription ? { opacity: 0.5 } : undefined
-                  }
-                  pointerEvents={!hasActiveSubscription ? "none" : "auto"}
-                >
-                  <ScheduledWorkoutCard
-                    name={workoutDayToDisplay.name}
+              <View
+                style={
+                  !hasActiveSubscription ? { opacity: 0.5 } : undefined
+                }
+                pointerEvents={!hasActiveSubscription ? "none" : "auto"}
+              >
+                {activeAssignments.map((assignment) => (
+                  <AssignmentDayWorkout
+                    key={assignment._id}
+                    assignment={assignment}
+                    selectedDate={selectedDate}
+                    weekSessions={weekSessionsForDisplay}
                     isDark={isDark}
-                    statusBadgeVariant={statusBadgeVariant}
-                    statusBadgeLabel={statusBadgeLabel}
-                    blockCount={blocksForDisplayDay?.length ?? 0}
-                    exerciseCount={
-                      exercisesByDay[workoutDayToDisplay._id]?.length ?? 0
-                    }
-                    onPress={handleOpenWorkout}
+                    hasActiveSubscription={hasActiveSubscription}
+                    showPlanificationName={activeAssignments.length > 1}
                   />
-                </View>
-              )}
+                ))}
+              </View>
               {reservedClassesItems.length > 0 && (
                 <ReservedClassesForDay
                   reservations={reservedClassesItems}
@@ -499,8 +331,7 @@ export default function DashboardContent() {
                 />
               )}
               {reservedClassesItems.length === 0 &&
-                workoutDayToDisplay === null &&
-                sessionForSelected === null && <RestDayPlaceholder />}
+                !hasWorkoutOnSelected && <RestDayPlaceholder />}
             </>
           )}
         </ScrollView>
@@ -518,6 +349,19 @@ export default function DashboardContent() {
       )}
     </ThemedView>
   );
+}
+
+function isInDateRange(
+  a: { startDate?: number; endDate?: number },
+  today: Date,
+): boolean {
+  const start = a.startDate ? new Date(a.startDate) : null;
+  if (start) start.setHours(0, 0, 0, 0);
+  const end = a.endDate ? new Date(a.endDate) : null;
+  if (end) end.setHours(23, 59, 59, 999);
+  const afterStart = !start || today >= start;
+  const beforeEnd = !end || today <= end;
+  return afterStart && beforeEnd;
 }
 
 const styles = StyleSheet.create({
@@ -564,7 +408,6 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: 44,
     height: 44,
-    // borderRadius on the Image is required for Android to clip to circle; parent overflow is not enough
     borderRadius: 22,
   },
   avatarPlaceholder: {
@@ -582,43 +425,5 @@ const styles = StyleSheet.create({
   todaySectionLoadingText: {
     marginTop: 12,
     fontSize: 14,
-  },
-  todayTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  workoutCardButton: {
-    marginTop: 0,
-  },
-  sessionName: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  exerciseList: {
-    maxHeight: 180,
-    marginBottom: 16,
-  },
-  exerciseRow: {
-    marginBottom: 8,
-    paddingLeft: 8,
-    borderLeftWidth: 2,
-    borderLeftColor: "rgba(0, 0, 0, 0.25)",
-  },
-  exerciseName: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  exerciseMeta: {
-    fontSize: 13,
-    marginTop: 2,
-    opacity: 0.8,
-  },
-  primaryButton: {
-    height: 48,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
   },
 });

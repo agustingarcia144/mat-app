@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { captureHandledError } from "@/lib/sentry";
 import {
   Card,
   CardContent,
@@ -68,6 +69,13 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
         })
         .catch((err) => {
           setIsOAuthLoading(false);
+          captureHandledError(err, {
+            area: "auth",
+            action: "sign_in_with_google_redirect",
+            extras: {
+              redirectUrlComplete,
+            },
+          });
           toast.error(
             err?.errors?.[0]?.longMessage ?? "Error al iniciar sesión",
           );
@@ -98,6 +106,13 @@ export function SignInPageContent({ redirectUrlFromQuery }: Props) {
         toast.error("Completá los pasos requeridos para iniciar sesión.");
       }
     } catch (err: unknown) {
+      captureHandledError(err, {
+        area: "auth",
+        action: "sign_in_with_password",
+        extras: {
+          redirectUrlComplete,
+        },
+      });
       const msg =
         err && typeof err === "object" && "errors" in err
           ? (err as { errors?: Array<{ longMessage?: string }> }).errors?.[0]

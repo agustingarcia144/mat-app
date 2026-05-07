@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
+import { captureHandledError } from "@/lib/sentry";
 import {
   getOrgRoleLabel,
   isOrgStaffRole,
@@ -50,6 +51,14 @@ export default function SelectOrganizationPage() {
           organizationId: organizationId as never,
         });
         router.replace("/dashboard");
+      } catch (error) {
+        captureHandledError(error, {
+          area: "organization",
+          action: "set_active_organization_from_selection",
+          extras: {
+            organizationId,
+          },
+        });
       } finally {
         setLoadingOrgId(null);
       }

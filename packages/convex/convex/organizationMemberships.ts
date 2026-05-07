@@ -1,8 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
+  getCurrentUserRecord,
   requireAdminOrTrainer,
-  requireAuth,
   requireCurrentOrganizationMembership,
 } from "./permissions";
 
@@ -33,7 +33,7 @@ export const getOrganizationMemberships = query({
   },
   handler: async (ctx, args) => {
     const currentMembership = await requireCurrentOrganizationMembership(ctx);
-    const organizationId = currentMembership.organizationId;
+    const currentOrganizationId = currentMembership.organizationId;
     const isPrivilegedRole =
       currentMembership.role === "admin" ||
       currentMembership.role === "trainer";
@@ -41,7 +41,15 @@ export const getOrganizationMemberships = query({
       // Members should not be able to list all organization users.
       return [];
     }
-    if (args.organizationId && args.organizationId !== organizationId) {
+    const { user } = await getCurrentUserRecord(ctx);
+    const requestedOrganizationId =
+      args.organizationId ?? currentOrganizationId;
+
+    if (
+      user?.isSuperAdmin !== true &&
+      args.organizationId &&
+      args.organizationId !== currentOrganizationId
+    ) {
       // Stale client org context (e.g. fast org switch); avoid cross-org flashes.
       return [];
     }
@@ -50,7 +58,7 @@ export const getOrganizationMemberships = query({
     const membershipsQuery = ctx.db
       .query("organizationMemberships")
       .withIndex("by_organization", (q) =>
-        q.eq("organizationId", organizationId),
+        q.eq("organizationId", requestedOrganizationId),
       );
 
     const allMemberships = args.includeInactive
@@ -178,6 +186,36 @@ export const getMyStaffOrganizations = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
 
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_externalId", (q) => q.eq("externalId", identity.subject))
+      .first();
+
+    if (user?.isSuperAdmin === true) {
+      const organizations = await ctx.db.query("organizations").collect();
+      const orgs = await Promise.all(
+        organizations.map(async (organization) => {
+          const resolvedLogoUrl = await resolveLogoUrl(
+            ctx,
+            organization.logoStorageId,
+            organization.logoUrl,
+          );
+          return {
+            organizationId: organization._id,
+            organizationName: organization.name,
+            organizationSlug: organization.slug,
+            organizationLogoUrl: resolvedLogoUrl,
+            role: "admin" as const,
+            status: "active" as const,
+          };
+        }),
+      );
+
+      return orgs.sort((a, b) =>
+        (a.organizationName ?? "").localeCompare(b.organizationName ?? ""),
+      );
+    }
+
     const memberships = await ctx.db
       .query("organizationMemberships")
       .withIndex("by_user", (q) => q.eq("userId", identity.subject))
@@ -258,30 +296,32 @@ export const setActiveOrganization = mutation({
     organizationId: v.id("organizations"),
   },
   handler: async (ctx, args) => {
-    const identity = await requireAuth(ctx);
+    const { identity, user } = await getCurrentUserRecord(ctx);
 
     const organization = await ctx.db.get(args.organizationId);
     if (!organization) {
       throw new Error("Organization not found");
     }
 
-    const membership = await ctx.db
-      .query("organizationMemberships")
-      .withIndex("by_organization_user", (q) =>
-        q.eq("organizationId", organization._id).eq("userId", identity.subject),
-      )
-      .filter((q) => q.eq(q.field("status"), "active"))
-      .first();
+    const membership =
+      user?.isSuperAdmin === true
+        ? { allowed: true }
+        : await ctx.db
+            .query("organizationMemberships")
+            .withIndex("by_organization_user", (q) =>
+              q
+                .eq("organizationId", organization._id)
+                .eq("userId", identity.subject),
+            )
+            .filter((q) => q.eq(q.field("status"), "active"))
+            .first();
 
     if (!membership) {
       throw new Error("Access denied: not a member of this organization");
     }
 
     const now = Date.now();
-    const existingUser = await ctx.db
-      .query("users")
-      .withIndex("by_externalId", (q) => q.eq("externalId", identity.subject))
-      .first();
+    const existingUser = user;
 
     if (existingUser) {
       await ctx.db.patch(existingUser._id, {
@@ -299,6 +339,7 @@ export const setActiveOrganization = mutation({
       email: identity.email || undefined,
       imageUrl: identity.pictureUrl || undefined,
       username: identity.nickname || undefined,
+      isSuperAdmin: false,
       onboardingCompleted: false,
       activeOrganizationId: args.organizationId,
       createdAt: now,

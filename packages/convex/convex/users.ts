@@ -67,6 +67,7 @@ export const upsertFromClerk = internalMutation({
       email: primaryEmail,
       imageUrl: clerkUser.image_url || clerkUser.imageUrl || undefined,
       username: clerkUser.username || undefined,
+      isSuperAdmin: existing?.isSuperAdmin ?? false,
       // App-specific fields
       birthday: clerkUser.public_metadata?.birthday || undefined,
       createdAt: existing?.createdAt || createdAt,
@@ -139,6 +140,7 @@ export const getOrCreateCurrentUser = mutation({
       email,
       imageUrl: identity.pictureUrl || undefined,
       username: identity.nickname || undefined,
+      isSuperAdmin: false,
       onboardingCompleted: false,
       createdAt: now,
       updatedAt: now,
@@ -166,6 +168,30 @@ export const getCurrentUser = query({
       .query("users")
       .withIndex("by_externalId", (q) => q.eq("externalId", clerkUserId))
       .first();
+  },
+});
+
+export const setSuperAdmin = internalMutation({
+  args: {
+    userId: v.string(),
+    isSuperAdmin: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_externalId", (q) => q.eq("externalId", args.userId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(user._id, {
+      isSuperAdmin: args.isSuperAdmin,
+      updatedAt: Date.now(),
+    });
+
+    return await ctx.db.get(user._id);
   },
 });
 

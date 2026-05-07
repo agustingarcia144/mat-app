@@ -285,6 +285,33 @@ export const deleteAllClassesAndRelated = internalMutation({
 });
 
 /**
+ * Migration: initialize users.isSuperAdmin for existing rows.
+ */
+export const backfillUsersIsSuperAdmin = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    let patched = 0;
+    const now = Date.now();
+
+    for (const user of users) {
+      if (user.isSuperAdmin !== undefined) continue;
+      await ctx.db.patch(user._id, {
+        isSuperAdmin: false,
+        updatedAt: now,
+      });
+      patched += 1;
+    }
+
+    return {
+      success: true,
+      scanned: users.length,
+      patched,
+    };
+  },
+});
+
+/**
  * Migration: remove legacy Clerk-organization fields from existing documents.
  *
  * It strips:
