@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import {
   getCurrentUserRecord,
   requireAdminOrTrainer,
+  requireAuth,
   requireCurrentOrganizationMembership,
 } from "./permissions";
 

@@ -294,10 +294,12 @@ export const updatePhysicalInfo = mutation({
 
     try {
       const membership = await requireCurrentOrganizationMembership(ctx);
-      await ctx.db.patch(membership._id, {
-        description: args.description?.trim() || undefined,
-        updatedAt: now,
-      });
+      if (membership._id) {
+        await ctx.db.patch(membership._id, {
+          description: args.description?.trim() || undefined,
+          updatedAt: now,
+        });
+      }
     } catch {
       // No active membership — skip description
     }
@@ -381,10 +383,12 @@ export const completeOnboarding2 = mutation({
 
     try {
       const membership = await requireCurrentOrganizationMembership(ctx);
-      await ctx.db.patch(membership._id, {
-        description: args.description,
-        updatedAt: now,
-      });
+      if (membership._id) {
+        await ctx.db.patch(membership._id, {
+          description: args.description,
+          updatedAt: now,
+        });
+      }
     } catch {
       // No active org or membership — skip membership description
     }

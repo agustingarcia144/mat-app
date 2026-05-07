@@ -11,6 +11,17 @@ import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 
+function assignRef<T>(ref: unknown, value: T | null): void {
+  if (!ref) return;
+
+  if (typeof ref === "function") {
+    (ref as (instance: T | null) => void)(value);
+    return;
+  }
+
+  (ref as { current: T | null }).current = value;
+}
+
 function Calendar({
   className,
   classNames,
@@ -129,7 +140,9 @@ function Calendar({
           return (
             <div
               data-slot="calendar"
-              ref={rootRef}
+              ref={(node) => {
+                assignRef(rootRef, node);
+              }}
               className={cn(className)}
               {...props}
             />
