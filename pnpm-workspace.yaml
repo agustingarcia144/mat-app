@@ -11,5 +11,3 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
   utf-8-validate: true
-patchedDependencies:
-  '@clerk/expo@3.1.4': patches/@clerk__expo@3.1.4.patch
