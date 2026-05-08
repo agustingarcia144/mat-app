@@ -389,3 +389,42 @@ export const setMemberInactive = mutation({
     return { updated: true };
   },
 });
+
+/**
+ * Set a member as active in the current organization.
+ * Admin/trainer only.
+ */
+export const setMemberActive = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const currentMembership = await requireCurrentOrganizationMembership(ctx);
+    const organizationId = currentMembership.organizationId;
+    await requireAdminOrTrainer(ctx, organizationId);
+
+    const targetMembership = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization_user", (q) =>
+        q.eq("organizationId", organizationId).eq("userId", args.userId),
+      )
+      .first();
+
+    if (!targetMembership) {
+      throw new Error("User is not a member of the current organization");
+    }
+    if (targetMembership.role !== "member") {
+      throw new Error("Only members can be set as active");
+    }
+    if (targetMembership.status === "active") {
+      return { updated: false };
+    }
+
+    await ctx.db.patch(targetMembership._id, {
+      status: "active",
+      updatedAt: Date.now(),
+    });
+
+    return { updated: true };
+  },
+});

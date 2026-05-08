@@ -80,13 +80,13 @@ export default function MembersPage() {
   const [filtersSheetOpen, setFiltersSheetOpen] = useState(false)
   const [filterPlan, setFilterPlan] = useState('all')
   const [filterPlanStatus, setFilterPlanStatus] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterStatus, setFilterStatus] = useState('active')
   const [nameOrder, setNameOrder] = useState('default')
   const [createdFrom, setCreatedFrom] = useState('')
   const [createdTo, setCreatedTo] = useState('')
   const [sheetFilterPlan, setSheetFilterPlan] = useState('all')
   const [sheetFilterPlanStatus, setSheetFilterPlanStatus] = useState('all')
-  const [sheetFilterStatus, setSheetFilterStatus] = useState('all')
+  const [sheetFilterStatus, setSheetFilterStatus] = useState('active')
   const [sheetNameOrder, setSheetNameOrder] = useState('default')
   const [sheetCreatedFrom, setSheetCreatedFrom] = useState('')
   const [sheetCreatedTo, setSheetCreatedTo] = useState('')
@@ -234,7 +234,7 @@ export default function MembersPage() {
   const activeFiltersCount = [
     filterPlan !== 'all' ? filterPlan : '',
     filterPlanStatus !== 'all' ? filterPlanStatus : '',
-    filterStatus !== 'all' ? filterStatus : '',
+    filterStatus !== 'active' ? filterStatus : '',
     nameOrder !== 'default' ? nameOrder : '',
     createdFrom,
     createdTo,
@@ -441,13 +441,13 @@ export default function MembersPage() {
               onClick={() => {
                 setSheetFilterPlan('all')
                 setSheetFilterPlanStatus('all')
-                setSheetFilterStatus('all')
+                setSheetFilterStatus('active')
                 setSheetNameOrder('default')
                 setSheetCreatedFrom('')
                 setSheetCreatedTo('')
                 setFilterPlan('all')
                 setFilterPlanStatus('all')
-                setFilterStatus('all')
+                setFilterStatus('active')
                 setNameOrder('default')
                 setCreatedFrom('')
                 setCreatedTo('')
