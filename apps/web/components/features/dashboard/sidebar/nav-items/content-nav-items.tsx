@@ -9,22 +9,28 @@ import { useQuery } from "convex/react";
 import { DASHBOARD_NAV_ITEMS } from "@/lib/dashboard-nav";
 import { useUnsavedNavigationGuard } from "@/contexts/unsaved-changes-context";
 import { isOrgAdminRole } from "@/lib/security/roles";
+import { useOrgSettings } from "@/hooks/use-org-settings";
 import { api } from "@/convex/_generated/api";
 
 export default function ContentNavItems() {
   const pathname = usePathname();
   const router = useRouter();
   const membership = useQuery(api.organizationMemberships.getCurrentMembership);
+  const settings = useOrgSettings();
   const { requestNavigation } = useUnsavedNavigationGuard();
   const [optimisticPath, setOptimisticPath] = useOptimistic(pathname);
   const [, startTransition] = useTransition();
 
   const visibleNavItems = useMemo(() => {
     const isAdmin = isOrgAdminRole(membership?.role);
-    return DASHBOARD_NAV_ITEMS.filter(
-      (item) => !("adminOnly" in item && item.adminOnly) || isAdmin,
-    );
-  }, [membership?.role]);
+    return DASHBOARD_NAV_ITEMS.filter((item) => {
+      if (item.adminOnly && !isAdmin) return false;
+      if (item.featureFlag && settings) {
+        if (!settings[item.featureFlag]) return false;
+      }
+      return true;
+    });
+  }, [membership?.role, settings]);
 
   const handleNavigation = (url: string) => {
     const dashboardUrl = `/dashboard${url}`;

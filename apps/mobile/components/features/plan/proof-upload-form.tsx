@@ -204,7 +204,11 @@ export default function ProofUploadForm() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 16 },
+          {
+            paddingTop: insets.top + 60,
+            paddingBottom:
+              insets.bottom + (Platform.OS === "ios" ? 49 : 56) + 16,
+          },
         ]}
         keyboardShouldPersistTaps="handled"
       >

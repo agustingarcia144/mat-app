@@ -11,12 +11,16 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 import { Colors } from "@/constants/theme";
 import { ExerciseVideoProvider } from "@/contexts/exercise-video-context";
+import { useOrgSettings } from "@/hooks/use-org-settings";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
   const tintColor = Colors[colorScheme ?? "light"].tint;
   const tabBarBg = Colors[colorScheme ?? "light"].background;
+  const orgSettings = useOrgSettings();
+
+  const showClasses = orgSettings?.classesEnabled !== false;
 
   return (
     <ThemeProvider value={theme}>
@@ -44,18 +48,20 @@ export default function TabLayout() {
               }
             />
           </NativeTabs.Trigger>
-          <NativeTabs.Trigger name="classes">
-            <NativeTabs.Trigger.Label>Clases</NativeTabs.Trigger.Label>
-            <NativeTabs.Trigger.Icon
-              sf="calendar"
-              src={
-                <NativeTabs.Trigger.VectorIcon
-                  family={MaterialIcons}
-                  name="calendar-today"
-                />
-              }
-            />
-          </NativeTabs.Trigger>
+          {showClasses && (
+            <NativeTabs.Trigger name="classes">
+              <NativeTabs.Trigger.Label>Clases</NativeTabs.Trigger.Label>
+              <NativeTabs.Trigger.Icon
+                sf="calendar"
+                src={
+                  <NativeTabs.Trigger.VectorIcon
+                    family={MaterialIcons}
+                    name="calendar-today"
+                  />
+                }
+              />
+            </NativeTabs.Trigger>
+          )}
           <NativeTabs.Trigger name="plan">
             <NativeTabs.Trigger.Label>Mi Plan</NativeTabs.Trigger.Label>
             <NativeTabs.Trigger.Icon

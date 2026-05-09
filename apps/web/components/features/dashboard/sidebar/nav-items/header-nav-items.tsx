@@ -152,6 +152,16 @@ export default function HeaderNavItems() {
                 <Settings className="size-4" />
                 Editar organización
               </DropdownMenuItem>
+              {canEditOrganization && (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    router.push("/dashboard/settings");
+                  }}
+                >
+                  <Settings className="size-4" />
+                  Configuración
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </SidebarMenuItem>

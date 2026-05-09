@@ -11,6 +11,7 @@ import Providers from "@/components/providers/providers";
 import { usePendingJoin } from "@/contexts/pending-join-context";
 import { registerForPushNotificationsAsync } from "@/lib/push-notifications";
 import { captureHandledError } from "@/lib/sentry";
+import { useOTAUpdate } from "@/hooks/use-ota-update";
 
 function normalizeNavigationSpanName(name: string) {
   return name
@@ -45,6 +46,7 @@ Sentry.init({
 WebBrowser.maybeCompleteAuthSession();
 
 function RootLayoutNav() {
+  useOTAUpdate();
   const { user } = useUser();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const { pendingToken, isLoading: pendingLoading } = usePendingJoin();

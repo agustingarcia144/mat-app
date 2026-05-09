@@ -16,6 +16,7 @@ import { useQuery } from "convex/react";
 import { api } from "@repo/convex";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useSubscriptionGate } from "@/hooks/use-subscription-gate";
+import { useOrgSettings } from "@/hooks/use-org-settings";
 import { ThemedView } from "@/components/ui/themed-view";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
@@ -44,6 +45,9 @@ export default function DashboardContent() {
 
   const { status: subscriptionStatus, canAccess: hasActiveSubscription } =
     useSubscriptionGate();
+  const orgSettings = useOrgSettings();
+  const planificationsEnabled = orgSettings?.planificationsEnabled !== false;
+  const classesEnabled = orgSettings?.classesEnabled !== false;
 
   const [selectedDate, setSelectedDate] = useState(() => new Date());
 
@@ -75,6 +79,7 @@ export default function DashboardContent() {
   );
 
   const showNoActivePlanAlert =
+    planificationsEnabled &&
     activeAssignments.length === 0 &&
     organizationUsesPlanifications === true;
 
@@ -303,25 +308,27 @@ export default function DashboardContent() {
                     onPress={() => router.push("/plan" as Href)}
                   />
                 )}
-              <View
-                style={
-                  !hasActiveSubscription ? { opacity: 0.5 } : undefined
-                }
-                pointerEvents={!hasActiveSubscription ? "none" : "auto"}
-              >
-                {activeAssignments.map((assignment) => (
-                  <AssignmentDayWorkout
-                    key={assignment._id}
-                    assignment={assignment}
-                    selectedDate={selectedDate}
-                    weekSessions={weekSessionsForDisplay}
-                    isDark={isDark}
-                    hasActiveSubscription={hasActiveSubscription}
-                    showPlanificationName={activeAssignments.length > 1}
-                  />
-                ))}
-              </View>
-              {reservedClassesItems.length > 0 && (
+              {planificationsEnabled && (
+                <View
+                  style={
+                    !hasActiveSubscription ? { opacity: 0.5 } : undefined
+                  }
+                  pointerEvents={!hasActiveSubscription ? "none" : "auto"}
+                >
+                  {activeAssignments.map((assignment) => (
+                    <AssignmentDayWorkout
+                      key={assignment._id}
+                      assignment={assignment}
+                      selectedDate={selectedDate}
+                      weekSessions={weekSessionsForDisplay}
+                      isDark={isDark}
+                      hasActiveSubscription={hasActiveSubscription}
+                      showPlanificationName={activeAssignments.length > 1}
+                    />
+                  ))}
+                </View>
+              )}
+              {classesEnabled && reservedClassesItems.length > 0 && (
                 <ReservedClassesForDay
                   reservations={reservedClassesItems}
                   isDark={isDark}

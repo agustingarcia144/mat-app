@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { useOrgSettings } from "@/hooks/use-org-settings";
+import { FeatureDisabledPage } from "@/components/shared/feature-disabled-page";
 
 function currentPeriod() {
   const now = new Date();
@@ -44,6 +46,7 @@ function buildPeriodOptions() {
 }
 
 export default function IncomeExpensesPage() {
+  const orgSettings = useOrgSettings();
   const canQuery = useCanQueryCurrentOrganization();
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod);
   const [transactionOpen, setTransactionOpen] = useState(false);
@@ -72,6 +75,10 @@ export default function IncomeExpensesPage() {
   );
 
   const periodOptions = useMemo(() => buildPeriodOptions(), []);
+
+  if (orgSettings && !orgSettings.financeEnabled) {
+    return <FeatureDisabledPage featureName="Ingresos y egresos" />;
+  }
 
   const isLoadingAccess = membership === undefined;
   const isLoadingFinance =

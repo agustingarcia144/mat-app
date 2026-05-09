@@ -1,7 +1,7 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
-import { Eye, MoreVertical, UserRoundPlus, UserX } from 'lucide-react'
+import { Eye, MoreVertical, UserCheck, UserRoundPlus, UserX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import StatusBadge from '@/components/shared/badges/status-badge'
@@ -54,21 +54,28 @@ function MemberActionsCell({ member }: { member: MemberTableRow }) {
   const setMemberInactive = useMutation(
     api.organizationMemberships.setMemberInactive
   )
+  const setMemberActive = useMutation(api.organizationMemberships.setMemberActive)
   const memberStatus = member.status?.toLowerCase() ?? ''
   const isInactive = memberStatus === 'inactive' || memberStatus === 'inactivo'
   const hasPlan = member.assignedPlanName !== 'Sin Plan'
 
-  const handleSetInactive = async () => {
-    if (isInactive) return
+  const handleUpdateStatus = async () => {
     const shouldContinue = window.confirm(
-      'Este miembro pasará a estado inactivo. ¿Deseas continuar?'
+      isInactive
+        ? 'Este miembro pasará a estado activo. ¿Deseas continuar?'
+        : 'Este miembro pasará a estado inactivo. ¿Deseas continuar?'
     )
     if (!shouldContinue) return
 
     setIsUpdatingStatus(true)
     try {
-      await setMemberInactive({ userId: member.id })
-      toast.success('Miembro marcado como inactivo')
+      if (isInactive) {
+        await setMemberActive({ userId: member.id })
+        toast.success('Miembro activado')
+      } else {
+        await setMemberInactive({ userId: member.id })
+        toast.success('Miembro marcado como inactivo')
+      }
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -108,12 +115,16 @@ function MemberActionsCell({ member }: { member: MemberTableRow }) {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
-                void handleSetInactive()
+                void handleUpdateStatus()
               }}
-              disabled={isInactive || isUpdatingStatus}
+              disabled={isUpdatingStatus}
             >
-              <UserX className="mr-2 h-4 w-4" />
-              {isInactive ? 'Ya inactivo' : 'Marcar como inactivo'}
+              {isInactive ? (
+                <UserCheck className="mr-2 h-4 w-4" />
+              ) : (
+                <UserX className="mr-2 h-4 w-4" />
+              )}
+              {isInactive ? 'Activar usuario' : 'Marcar como inactivo'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

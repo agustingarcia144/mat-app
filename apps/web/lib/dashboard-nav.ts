@@ -9,9 +9,23 @@ import {
   CreditCard,
   UserCog,
   Wallet,
+  Settings,
 } from "lucide-react";
 
-export const DASHBOARD_NAV_ITEMS = [
+export type FeatureFlag =
+  | "planificationsEnabled"
+  | "classesEnabled"
+  | "financeEnabled";
+
+export type DashboardNavItem = {
+  label: string;
+  icon: LucideIcon;
+  url: string;
+  adminOnly?: boolean;
+  featureFlag?: FeatureFlag;
+};
+
+export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
   {
     label: "Inicio",
     icon: HomeIcon,
@@ -26,16 +40,19 @@ export const DASHBOARD_NAV_ITEMS = [
     label: "Planificaciones",
     icon: Dumbbell,
     url: "/planifications",
+    featureFlag: "planificationsEnabled",
   },
   {
     label: "Ejercicios",
     icon: ListChecks,
     url: "/exercises",
+    featureFlag: "planificationsEnabled",
   },
   {
     label: "Clases",
     icon: CalendarDays,
     url: "/classes",
+    featureFlag: "classesEnabled",
   },
   {
     label: "Pagos",
@@ -48,6 +65,7 @@ export const DASHBOARD_NAV_ITEMS = [
     icon: Wallet,
     url: "/income-expenses",
     adminOnly: true,
+    featureFlag: "financeEnabled",
   },
   {
     label: "Metricas",
@@ -60,11 +78,10 @@ export const DASHBOARD_NAV_ITEMS = [
     url: "/users",
     adminOnly: true,
   },
-] as const satisfies readonly {
-  label: string;
-  icon: LucideIcon;
-  url: string;
-  adminOnly?: boolean;
-}[];
-
-export type DashboardNavItem = (typeof DASHBOARD_NAV_ITEMS)[number];
+  {
+    label: "Configuracion",
+    icon: Settings,
+    url: "/settings",
+    adminOnly: true,
+  },
+];
