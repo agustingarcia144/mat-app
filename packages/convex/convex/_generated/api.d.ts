@@ -33,6 +33,7 @@ import type * as modelWeekSlots from "../modelWeekSlots.js";
 import type * as orgCreationCodes from "../orgCreationCodes.js";
 import type * as orgCreationCodesNode from "../orgCreationCodesNode.js";
 import type * as organizationMemberships from "../organizationMemberships.js";
+import type * as organizationSettings from "../organizationSettings.js";
 import type * as organizations from "../organizations.js";
 import type * as organizationsNode from "../organizationsNode.js";
 import type * as permissions from "../permissions.js";
@@ -87,6 +88,7 @@ declare const fullApi: ApiFromModules<{
   orgCreationCodes: typeof orgCreationCodes;
   orgCreationCodesNode: typeof orgCreationCodesNode;
   organizationMemberships: typeof organizationMemberships;
+  organizationSettings: typeof organizationSettings;
   organizations: typeof organizations;
   organizationsNode: typeof organizationsNode;
   permissions: typeof permissions;

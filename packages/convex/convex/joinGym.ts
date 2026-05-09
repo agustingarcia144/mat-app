@@ -158,6 +158,34 @@ export const submitJoinRequestInternal = internalMutation({
       };
     }
 
+    // Check if org has auto-approval enabled
+    const settings = await ctx.db
+      .query("organizationSettings")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .first();
+
+    if (settings?.memberAutoApproval) {
+      const now = Date.now();
+      await ctx.db.insert("organizationMemberships", {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        role: "member",
+        status: "active",
+        joinedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return {
+        success: true,
+        organizationId: args.organizationId,
+        organizationName: org.name,
+        pending: false,
+        message: "auto_approved",
+      };
+    }
+
     const existingPending = await ctx.db
       .query("organizationJoinRequests")
       .withIndex("by_organization_user", (q) =>

@@ -4,6 +4,8 @@ import { useQuery, useMutation } from "convex/react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
 import { Plus, FileStack, FolderTree, Search } from "lucide-react";
+import { useOrgSettings } from "@/hooks/use-org-settings";
+import { FeatureDisabledPage } from "@/components/shared/feature-disabled-page";
 import {
   useState,
   useCallback,
@@ -93,6 +95,7 @@ function PlanificationsDragEndMonitor({
 }
 
 export default function PlanificationsPage() {
+  const orgSettings = useOrgSettings();
   const isMobile = useIsMobile();
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
@@ -255,6 +258,10 @@ export default function PlanificationsPage() {
       .toLowerCase()
       .includes(normalizedSearch);
   });
+
+  if (orgSettings && !orgSettings.planificationsEnabled) {
+    return <FeatureDisabledPage featureName="Planificaciones" />;
+  }
 
   const searchInput = (
     <div className="relative w-full md:max-w-md">

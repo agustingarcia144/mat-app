@@ -92,6 +92,21 @@ export default defineSchema({
     .index("by_organization_status", ["organizationId", "status"])
     .index("by_organization_user", ["organizationId", "userId"]),
 
+  // Organization-level settings (feature toggles, membership config).
+  // One row per org; if no row exists, defaults apply (all enabled, no auto-approval).
+  organizationSettings: defineTable({
+    organizationId: v.id("organizations"),
+    // Feature toggles
+    planificationsEnabled: v.boolean(),
+    classesEnabled: v.boolean(),
+    financeEnabled: v.boolean(),
+    // Membership
+    memberAutoApproval: v.boolean(),
+    // Timestamps
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_organization", ["organizationId"]),
+
   // Organization invitations managed inside Convex (replaces Clerk invitations).
   organizationInvitations: defineTable({
     organizationId: v.id("organizations"),

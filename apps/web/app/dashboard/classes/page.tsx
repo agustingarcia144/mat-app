@@ -63,8 +63,11 @@ import { es } from "date-fns/locale";
 import { type Doc, type Id } from "@/convex/_generated/dataModel";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { useOrgSettings } from "@/hooks/use-org-settings";
+import { FeatureDisabledPage } from "@/components/shared/feature-disabled-page";
 
 export default function ClassesPage() {
+  const orgSettings = useOrgSettings();
   const canQueryOrgData = useCanQueryCurrentOrganization();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedView, setSelectedView] = useState<
@@ -239,6 +242,10 @@ export default function ClassesPage() {
       isSameDay(new Date(s.startTime), bulkCancelDayDate),
     );
   }, [enrichedSchedules, bulkCancelDayDate, bulkCancelDayOpen]);
+
+  if (orgSettings && !orgSettings.classesEnabled) {
+    return <FeatureDisabledPage featureName="Clases" />;
+  }
 
   return (
     <DashboardPageContainer className="space-y-4 py-4 md:space-y-6 md:py-6">
