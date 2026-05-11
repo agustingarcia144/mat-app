@@ -348,11 +348,16 @@ export const getByPlanification = query({
 
     const dayIds = workoutDays.map((d) => d._id);
 
-    // Get all exercises for all days
-    const allExercises = await ctx.db.query("dayExercises").collect();
-    const relevantExercises = allExercises.filter((ex) =>
-      dayIds.includes(ex.workoutDayId),
+    // Get all exercises for all days using the indexed query (one per day)
+    const exercisesPerDay = await Promise.all(
+      dayIds.map((dayId) =>
+        ctx.db
+          .query("dayExercises")
+          .withIndex("by_workout_day", (q) => q.eq("workoutDayId", dayId))
+          .collect(),
+      ),
     );
+    const relevantExercises = exercisesPerDay.flat();
 
     // Fetch exercise details
     const exercisesWithDetails = await Promise.all(
