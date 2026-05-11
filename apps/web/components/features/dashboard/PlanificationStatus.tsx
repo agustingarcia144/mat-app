@@ -62,6 +62,59 @@ function computePlanStatus(assignment: any) {
   return { status: "active", daysLeft, daysExpired: null };
 }
 
+function getDateTime(value: any, fallback: number) {
+  return safeDate(value)?.getTime() ?? fallback;
+}
+
+function pickRelevantAssignment(assignments: any[] | undefined) {
+  const activeAssignments =
+    assignments?.filter((a: any) => a.status === "active") ?? [];
+
+  if (activeAssignments.length === 0) return null;
+
+  const withStatus = activeAssignments.map((assignment: any) => ({
+    assignment,
+    planStatus: computePlanStatus(assignment),
+  }));
+
+  const byNewestStart = (a: any, b: any) =>
+    getDateTime(b.assignment.startDate, 0) -
+      getDateTime(a.assignment.startDate, 0) ||
+    (b.assignment.createdAt ?? 0) - (a.assignment.createdAt ?? 0);
+
+  const byNextStart = (a: any, b: any) =>
+    getDateTime(a.assignment.startDate, Number.MAX_SAFE_INTEGER) -
+      getDateTime(b.assignment.startDate, Number.MAX_SAFE_INTEGER) ||
+    (b.assignment.createdAt ?? 0) - (a.assignment.createdAt ?? 0);
+
+  const byLatestEnd = (a: any, b: any) =>
+    getDateTime(b.assignment.endDate, 0) -
+      getDateTime(a.assignment.endDate, 0) ||
+    (b.assignment.createdAt ?? 0) - (a.assignment.createdAt ?? 0);
+
+  const current = withStatus
+    .filter(
+      ({ planStatus }: any) =>
+        planStatus.status === "active" ||
+        planStatus.status === "expiring_soon",
+    )
+    .sort(byNewestStart);
+
+  if (current[0]) return current[0].assignment;
+
+  const upcoming = withStatus
+    .filter(({ planStatus }: any) => planStatus.status === "not_started")
+    .sort(byNextStart);
+
+  if (upcoming[0]) return upcoming[0].assignment;
+
+  const expired = withStatus
+    .filter(({ planStatus }: any) => planStatus.status === "expired")
+    .sort(byLatestEnd);
+
+  return expired[0]?.assignment ?? activeAssignments[0] ?? null;
+}
+
 const normalize = (v?: string) => v?.toLowerCase().trim() ?? "";
 
 export default function PlanificationStatus() {
@@ -103,9 +156,7 @@ export default function PlanificationStatus() {
       const res = assignmentsByUser[m.id];
       const assignments = res instanceof Error ? undefined : res;
 
-      const activeAssignment = assignments?.find(
-        (a: any) => a.status === "active",
-      );
+      const activeAssignment = pickRelevantAssignment(assignments);
 
       const planStatus = computePlanStatus(activeAssignment);
 

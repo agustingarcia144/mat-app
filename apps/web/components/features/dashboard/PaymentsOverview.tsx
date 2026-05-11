@@ -6,8 +6,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock3,
-  CreditCard,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
@@ -60,13 +60,16 @@ export default function PaymentsOverview() {
     : (() => {
         const periods = [...data.monthlyOverview].slice(0, 6).reverse();
         const maxAmount = Math.max(
-          ...periods.map((period) => period.approvedAmountArs),
+          ...periods.map((period) => Math.abs(period.netResultArs)),
           1,
         );
 
         return periods.map((period) => ({
           ...period,
-          heightPct: Math.max((period.approvedAmountArs / maxAmount) * 100, 10),
+          heightPct: Math.max(
+            (Math.abs(period.netResultArs) / maxAmount) * 100,
+            10,
+          ),
         }));
       })();
 
@@ -82,6 +85,11 @@ export default function PaymentsOverview() {
   }
 
   const selectedOverview = data.selectedOverview;
+  const selectedNetResultArs = selectedOverview?.netResultArs ?? 0;
+  const selectedIncomeArs = selectedOverview?.totalIncomeArs ?? 0;
+  const selectedExpenseArs = selectedOverview?.expenseArs ?? 0;
+  const balanceTone =
+    selectedNetResultArs < 0 ? "text-red-600" : "text-emerald-600";
 
   return (
     <Card className="flex h-full min-h-[220px] w-full flex-col overflow-hidden rounded-2xl border bg-background/60 p-4 md:h-[220px] md:px-5 md:pb-5 md:pt-3">
@@ -100,14 +108,19 @@ export default function PaymentsOverview() {
         <div className="grid gap-3 sm:grid-cols-3 sm:items-stretch">
           <div className="flex h-full min-h-[112px] flex-col rounded-2xl border bg-emerald-500/5 p-3">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">Ingresos</span>
-              <CreditCard className="h-4 w-4 text-emerald-600" />
+              <span className="text-xs text-muted-foreground">
+                Balance de cuentas
+              </span>
+              <Wallet className={`h-4 w-4 ${balanceTone}`} />
             </div>
-            <p className="mt-2 text-xl font-semibold text-emerald-600 md:text-2xl">
-              {formatCompactCurrency(selectedOverview?.approvedAmountArs ?? 0)}
+            <p
+              className={`mt-2 text-xl font-semibold md:text-2xl ${balanceTone}`}
+            >
+              {formatCompactCurrency(selectedNetResultArs)}
             </p>
             <p className="mt-auto pt-2 text-[11px] text-muted-foreground">
-              Pagos aprobados del periodo
+              {formatCompactCurrency(selectedIncomeArs)} -{" "}
+              {formatCompactCurrency(selectedExpenseArs)}
             </p>
           </div>
 
@@ -143,7 +156,7 @@ export default function PaymentsOverview() {
         <div className="flex h-full min-h-[112px] flex-col rounded-2xl border bg-background/40 p-3 xl:max-w-[220px]">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium">Evolucion de ingresos</p>
+              <p className="text-sm font-medium">Evolucion del balance</p>
               <p className="text-[11px] text-muted-foreground">
                 Ultimos {chartData.length} periodos
               </p>
@@ -168,7 +181,10 @@ export default function PaymentsOverview() {
                   <div className="flex h-full w-full items-end">
                     <div
                       className={cn(
-                        "w-full rounded-t-xl bg-gradient-to-t from-emerald-500 to-emerald-300 transition-all",
+                        "w-full rounded-t-xl bg-gradient-to-t transition-all",
+                        period.netResultArs < 0
+                          ? "from-red-500 to-red-300"
+                          : "from-emerald-500 to-emerald-300",
                         period.billingPeriod === data.selectedPeriod &&
                           "from-primary to-primary/70",
                       )}
@@ -180,7 +196,7 @@ export default function PaymentsOverview() {
                       {formatShortPeriod(period.billingPeriod)}
                     </p>
                     <p className="text-[9px] text-muted-foreground">
-                      {formatCompactCurrency(period.approvedAmountArs)}
+                      {formatCompactCurrency(period.netResultArs)}
                     </p>
                   </div>
                 </div>
