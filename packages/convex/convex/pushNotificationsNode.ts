@@ -35,14 +35,36 @@ export const sendExpoPushForEvent: ReturnType<typeof internalAction> =
         v.literal("class_start_reminder"),
         v.literal("attendance_reminder"),
         v.literal("class_spot_available"),
+        v.literal("workout_completion_reminder"),
+        v.literal("payment_review_approved"),
+        v.literal("payment_review_declined"),
       ),
       userId: v.string(),
-      scheduleId: v.id("classSchedules"),
+      scheduleId: v.optional(v.id("classSchedules")),
+      workoutSessionId: v.optional(v.id("workoutDaySessions")),
+      paymentId: v.optional(v.id("planPayments")),
       title: v.string(),
       body: v.string(),
       data: v.optional(v.any()),
     },
     handler: async (ctx, args) => {
+      if (args.type === "workout_completion_reminder") {
+        if (!args.workoutSessionId) {
+          return { status: "skipped", reason: "Missing workout session" };
+        }
+
+        const session = await ctx.runQuery(
+          internal.workoutDaySessions.getStatusForNotification,
+          { id: args.workoutSessionId },
+        );
+        if (!session || session.status !== "started") {
+          return {
+            status: "skipped",
+            reason: "Workout session is no longer started",
+          } as const;
+        }
+      }
+
       const event = await ctx.runMutation(
         internal.pushNotifications.createNotificationEventIfMissing,
         {
@@ -50,6 +72,8 @@ export const sendExpoPushForEvent: ReturnType<typeof internalAction> =
           type: args.type,
           userId: args.userId,
           scheduleId: args.scheduleId,
+          workoutSessionId: args.workoutSessionId,
+          paymentId: args.paymentId,
         },
       );
 

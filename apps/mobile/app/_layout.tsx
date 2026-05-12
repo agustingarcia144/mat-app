@@ -1,5 +1,12 @@
-import { Stack, usePathname, useRouter, useSegments } from "expo-router";
+import {
+  Stack,
+  usePathname,
+  useRouter,
+  useSegments,
+  type Href,
+} from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import * as Notifications from "expo-notifications";
 import * as WebBrowser from "expo-web-browser";
 import "react-native-reanimated";
 import { useEffect, useRef, useState } from "react";
@@ -17,6 +24,24 @@ function normalizeNavigationSpanName(name: string) {
   return name
     .replace(/\/\d+(?=\/|$)/g, "/[id]")
     .replace(/\/[0-9a-f]{8}-[0-9a-f-]{27,}(?=\/|$)/gi, "/[id]");
+}
+
+function getNotificationHref(
+  data: Notifications.NotificationContent["data"],
+): Href | null {
+  const href = data?.href;
+  if (typeof href !== "string") {
+    return null;
+  }
+
+  if (
+    href.startsWith("/home/workout/") ||
+    href === "/(tabs)/plan/payment-history"
+  ) {
+    return href as Href;
+  }
+
+  return null;
 }
 
 const sentryTracingIntegration = Sentry.reactNativeTracingIntegration({
@@ -65,6 +90,7 @@ function RootLayoutNav() {
     api.pushNotifications.registerDeviceToken,
   );
   const registeredForUserRef = useRef<string | null>(null);
+  const handledNotificationResponseRef = useRef<string | null>(null);
 
   // Track whether the user ever had an active membership this session.
   // When membership drops from non-null to null (e.g. transient auth failure
@@ -106,6 +132,47 @@ function RootLayoutNav() {
     sentryTracingIntegration.setCurrentRoute(pathname ?? "/");
     Sentry.setTag("route", pathname ?? "/");
   }, [pathname]);
+
+  useEffect(() => {
+    if (
+      !isAuthenticated ||
+      convexUser === undefined ||
+      currentMembership === undefined ||
+      currentMembership == null ||
+      convexUser == null ||
+      !convexUser.onboardingCompleted
+    ) {
+      return;
+    }
+
+    const openNotificationTarget = (
+      response: Notifications.NotificationResponse | null,
+    ) => {
+      const href = response
+        ? getNotificationHref(response.notification.request.content.data)
+        : null;
+      const responseId = response?.notification.request.identifier ?? null;
+      if (responseId && handledNotificationResponseRef.current === responseId) {
+        return;
+      }
+      if (href) {
+        handledNotificationResponseRef.current = responseId;
+        router.push(href);
+      }
+    };
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      openNotificationTarget,
+    );
+
+    void Notifications.getLastNotificationResponseAsync().then(
+      openNotificationTarget,
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isAuthenticated, convexUser, currentMembership, router]);
 
   useEffect(() => {
     if (!isAuthenticated) {

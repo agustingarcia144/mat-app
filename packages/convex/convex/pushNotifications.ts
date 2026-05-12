@@ -23,6 +23,13 @@ function buildAttendanceReminderCopy(className: string) {
   };
 }
 
+function buildWorkoutCompletionReminderCopy() {
+  return {
+    title: "Termina tu entrenamiento",
+    body: "Pasaron 2 horas desde que empezaste. Completalo para guardar tu progreso.",
+  };
+}
+
 async function getClassNameCached(
   ctx: MutationCtx,
   classId: Id<"classes">,
@@ -130,9 +137,14 @@ export const createNotificationEventIfMissing = internalMutation({
       v.literal("class_start_reminder"),
       v.literal("attendance_reminder"),
       v.literal("class_spot_available"),
+      v.literal("workout_completion_reminder"),
+      v.literal("payment_review_approved"),
+      v.literal("payment_review_declined"),
     ),
     userId: v.string(),
-    scheduleId: v.id("classSchedules"),
+    scheduleId: v.optional(v.id("classSchedules")),
+    workoutSessionId: v.optional(v.id("workoutDaySessions")),
+    paymentId: v.optional(v.id("planPayments")),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -153,6 +165,8 @@ export const createNotificationEventIfMissing = internalMutation({
       type: args.type,
       userId: args.userId,
       scheduleId: args.scheduleId,
+      workoutSessionId: args.workoutSessionId,
+      paymentId: args.paymentId,
       status: "pending",
       attempts: 0,
       createdAt: now,
@@ -358,6 +372,83 @@ export const sendPreClassReminders = internalMutation({
       windowStart,
       windowEnd,
     };
+  },
+});
+
+export const sendWorkoutCompletionReminder = internalMutation({
+  args: {
+    sessionId: v.id("workoutDaySessions"),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+    if (!session || session.status !== "started") {
+      return { enqueued: false, reason: "Session is no longer started" };
+    }
+
+    const copy = buildWorkoutCompletionReminderCopy();
+    const eventKey = `workout_completion_reminder:${args.sessionId}`;
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.pushNotificationsNode.sendExpoPushForEvent,
+      {
+        eventKey,
+        type: "workout_completion_reminder",
+        userId: session.userId,
+        workoutSessionId: args.sessionId,
+        title: copy.title,
+        body: copy.body,
+        data: {
+          type: "workout_completion_reminder",
+          sessionId: args.sessionId,
+          href: `/home/workout/${args.sessionId}`,
+        },
+      },
+    );
+
+    return { enqueued: true };
+  },
+});
+
+export const sendPaymentReviewNotification = internalMutation({
+  args: {
+    paymentId: v.id("planPayments"),
+    status: v.union(v.literal("approved"), v.literal("declined")),
+  },
+  handler: async (ctx, args) => {
+    const payment = await ctx.db.get(args.paymentId);
+    if (!payment || payment.status !== args.status) {
+      return { enqueued: false, reason: "Payment status changed" };
+    }
+
+    const isApproved = args.status === "approved";
+    const eventKey = `payment_review_${args.status}:${args.paymentId}`;
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.pushNotificationsNode.sendExpoPushForEvent,
+      {
+        eventKey,
+        type: isApproved
+          ? "payment_review_approved"
+          : "payment_review_declined",
+        userId: payment.userId,
+        paymentId: args.paymentId,
+        title: isApproved ? "Pago aprobado" : "Pago rechazado",
+        body: isApproved
+          ? "Tu gimnasio aprobo el comprobante."
+          : "Tu gimnasio rechazo el comprobante. Revisa el motivo y volve a subirlo.",
+        data: {
+          type: isApproved
+            ? "payment_review_approved"
+            : "payment_review_declined",
+          paymentId: args.paymentId,
+          href: "/(tabs)/plan/payment-history",
+        },
+      },
+    );
+
+    return { enqueued: true };
   },
 });
 

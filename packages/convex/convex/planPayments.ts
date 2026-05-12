@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
   requireAuth,
@@ -17,6 +18,62 @@ type InterestTier = {
 };
 
 type AppliedTier = InterestTier & { amountArs: number };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_PAYMENT_TIMEZONE = "America/Argentina/Buenos_Aires";
+
+function getPaymentTimezone(timezone?: string) {
+  return timezone && timezone.trim() !== ""
+    ? timezone.trim()
+    : DEFAULT_PAYMENT_TIMEZONE;
+}
+
+function getZonedDateParts(timestamp: number, timezone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date(timestamp));
+  const partMap = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+
+  return {
+    year: parseInt(partMap.year!, 10),
+    month: parseInt(partMap.month!, 10),
+    day: parseInt(partMap.day!, 10),
+  };
+}
+
+function getDaysAfterPaymentWindow(
+  billingPeriod: string,
+  paymentWindowEndDay: number,
+  nowMs: number,
+  timezone: string,
+) {
+  const [yearStr, monthStr] = billingPeriod.split("-");
+  const billingYear = parseInt(yearStr!, 10);
+  const billingMonth = parseInt(monthStr!, 10);
+  const nowParts = getZonedDateParts(nowMs, timezone);
+
+  const windowEndDateMs = Date.UTC(
+    billingYear,
+    billingMonth - 1,
+    paymentWindowEndDay,
+  );
+  const currentLocalDateMs = Date.UTC(
+    nowParts.year,
+    nowParts.month - 1,
+    nowParts.day,
+  );
+
+  return Math.max(
+    0,
+    Math.floor((currentLocalDateMs - windowEndDateMs) / DAY_MS),
+  );
+}
 
 async function getPaymentCoverage(
   ctx: { db: any },
@@ -82,14 +139,14 @@ function computeInterest(
   billingPeriod: string,
   paymentWindowEndDay: number,
   nowMs: number,
+  timezone: string,
 ): { applied: AppliedTier[]; totalArs: number; totalAmount: number } {
-  const [yearStr, monthStr] = billingPeriod.split("-");
-  const windowEndMs = Date.UTC(
-    parseInt(yearStr!, 10),
-    parseInt(monthStr!, 10) - 1,
+  const daysElapsed = getDaysAfterPaymentWindow(
+    billingPeriod,
     paymentWindowEndDay,
+    nowMs,
+    timezone,
   );
-  const daysElapsed = Math.max(0, Math.floor((nowMs - windowEndMs) / 86400000));
 
   if (daysElapsed === 0 || tiers.length === 0) {
     return { applied: [], totalArs: 0, totalAmount: baseAmount };
@@ -110,6 +167,50 @@ function computeInterest(
   }
 
   return { applied, totalArs, totalAmount: baseAmount + totalArs };
+}
+
+function getInterestFields(interest: {
+  applied: AppliedTier[];
+  totalArs: number;
+  totalAmount: number;
+}) {
+  return {
+    interestApplied: interest.applied.length ? interest.applied : undefined,
+    interestTotalArs: interest.totalArs > 0 ? interest.totalArs : undefined,
+    totalAmountArs: interest.totalAmount,
+  };
+}
+
+async function computePaymentInterest(
+  ctx: { db: any },
+  payment: {
+    organizationId: Id<"organizations">;
+    subscriptionId: Id<"memberPlanSubscriptions">;
+    amountArs: number;
+    billingPeriod: string;
+  },
+  paidAtMs: number,
+) {
+  const subscription = await ctx.db.get(payment.subscriptionId);
+  const [plan, organization] = await Promise.all([
+    subscription
+      ? ctx.db.get(subscription.planId as Id<"membershipPlans">)
+      : null,
+    ctx.db.get(payment.organizationId),
+  ]);
+
+  if (!plan?.interestTiers?.length) {
+    return { applied: [], totalArs: 0, totalAmount: payment.amountArs };
+  }
+
+  return computeInterest(
+    payment.amountArs,
+    plan.interestTiers as InterestTier[],
+    payment.billingPeriod,
+    plan.paymentWindowEndDay,
+    paidAtMs,
+    getPaymentTimezone(organization?.timezone),
+  );
 }
 
 /**
@@ -138,9 +239,10 @@ export const getMyCurrentPeriodPayment = query({
 
     const { billingSubscription, coveredMemberCount } =
       await getPaymentCoverage(ctx, subscription);
-    const plan = await ctx.db.get(
-      billingSubscription.planId as Id<"membershipPlans">,
-    );
+    const [plan, organization] = await Promise.all([
+      ctx.db.get(billingSubscription.planId as Id<"membershipPlans">),
+      ctx.db.get(membership.organizationId),
+    ]);
 
     const d = new Date();
     const billingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -204,6 +306,7 @@ export const getMyCurrentPeriodPayment = query({
           : undefined,
       planInterestTiers: plan?.interestTiers ?? [],
       planPaymentWindowEndDay: plan?.paymentWindowEndDay ?? 28,
+      planPaymentTimezone: getPaymentTimezone(organization?.timezone),
     };
   },
 });
@@ -218,6 +321,19 @@ export const getById = query({
     const payment = await ctx.db.get(args.paymentId);
     if (!payment || payment.organizationId !== membership.organizationId)
       return null;
+
+    if (payment.status === "in_review" && payment.proofUploadedAt) {
+      const interest = await computePaymentInterest(
+        ctx,
+        payment,
+        payment.proofUploadedAt,
+      );
+      return {
+        ...payment,
+        ...getInterestFields(interest),
+      };
+    }
+
     return payment;
   },
 });
@@ -860,22 +976,8 @@ export const uploadProof = mutation({
       }
     }
 
-    // Calculate interest at upload time
-    const subscription = await ctx.db.get(payment.subscriptionId);
-    const plan = subscription
-      ? await ctx.db.get(subscription.planId as Id<"membershipPlans">)
-      : null;
-
     const now = Date.now();
-    const interest = plan?.interestTiers?.length
-      ? computeInterest(
-          payment.amountArs,
-          plan.interestTiers as InterestTier[],
-          payment.billingPeriod,
-          plan.paymentWindowEndDay,
-          now,
-        )
-      : { applied: [], totalArs: 0, totalAmount: payment.amountArs };
+    const interest = await computePaymentInterest(ctx, payment, now);
 
     await ctx.db.patch(args.paymentId, {
       proofStorageId: args.storageId,
@@ -883,9 +985,7 @@ export const uploadProof = mutation({
       proofContentType: args.contentType,
       proofUploadedAt: now,
       status: "in_review",
-      interestApplied: interest.applied.length ? interest.applied : undefined,
-      interestTotalArs: interest.totalArs > 0 ? interest.totalArs : undefined,
-      totalAmountArs: interest.totalAmount,
+      ...getInterestFields(interest),
       // Clear previous review data on re-upload
       reviewedBy: undefined,
       reviewedAt: undefined,
@@ -922,8 +1022,14 @@ export const approve = mutation({
     }
 
     const now = Date.now();
+    const interest = await computePaymentInterest(
+      ctx,
+      payment,
+      payment.proofUploadedAt ?? now,
+    );
     await ctx.db.patch(args.paymentId, {
       status: "approved",
+      ...getInterestFields(interest),
       reviewedBy: identity.subject,
       reviewedAt: now,
       reviewNotes: args.notes?.trim() || undefined,
@@ -931,6 +1037,15 @@ export const approve = mutation({
     });
 
     await setFamilySubscriptionsStatus(ctx, subscription, "active", now);
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.pushNotifications.sendPaymentReviewNotification,
+      {
+        paymentId: args.paymentId,
+        status: "approved",
+      },
+    );
   },
 });
 
@@ -963,6 +1078,15 @@ export const decline = mutation({
       reviewNotes: args.notes?.trim() || undefined,
       updatedAt: now,
     });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.pushNotifications.sendPaymentReviewNotification,
+      {
+        paymentId: args.paymentId,
+        status: "declined",
+      },
+    );
   },
 });
 
