@@ -21,9 +21,13 @@ function endOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
 }
 
+function startOfDateMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
 function startOfMonth(timestamp: number) {
   const date = new Date(timestamp);
-  return new Date(date.getFullYear(), date.getMonth(), 1);
+  return startOfDateMonth(date);
 }
 
 export default function ActiveMembers() {
@@ -31,6 +35,10 @@ export default function ActiveMembers() {
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
     canQueryCurrentOrganization ? { includeInactive: true } : "skip",
+  );
+  const subscriptions = useQuery(
+    api.memberPlanSubscriptions.getByOrganization,
+    canQueryCurrentOrganization ? {} : "skip",
   );
 
   const memberMemberships = useMemo(
@@ -41,18 +49,20 @@ export default function ActiveMembers() {
     [memberships],
   );
 
-  const activeMembers = useMemo(
+  const assignedPlanUserIds = useMemo(
     () =>
-      memberMemberships.filter((member: any) => {
-        const status = member.status?.toLowerCase();
-        return status === "active" || status === "activo";
-      }),
-    [memberMemberships],
+      new Set(
+        (subscriptions ?? [])
+          .filter((subscription: any) => subscription.status !== "cancelled")
+          .map((subscription: any) => subscription.userId),
+      ),
+    [subscriptions],
   );
 
   const monthlyMembers = useMemo(() => {
     const now = new Date();
-    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentMonth = startOfDateMonth(now);
+    const currentMonthKey = monthKey(currentMonth);
     const defaultStartMonth = new Date(
       now.getFullYear(),
       now.getMonth() - 5,
@@ -80,18 +90,23 @@ export default function ActiveMembers() {
       return {
         key: monthKey(date),
         label: monthLabel(date),
+        startAt: date.getTime(),
         endAt: endOfMonth(date).getTime(),
       };
     });
 
     return months.map((month) => {
-      const monthDate = new Date(`${month.key}-01T00:00:00`);
-      const isFutureMonth = monthDate > currentMonth;
+      const isFutureMonth = month.startAt > currentMonth.getTime();
+      const isCurrentMonth = month.key === currentMonthKey;
 
       return {
         ...month,
         count: isFutureMonth
           ? 0
+          : isCurrentMonth
+            ? memberMemberships.filter((member: any) =>
+                assignedPlanUserIds.has(member.userId),
+              ).length
           : memberMemberships.filter((member: any) => {
               const joinedAt = member.joinedAt ?? member.createdAt;
               const status = member.status?.toLowerCase();
@@ -102,20 +117,22 @@ export default function ActiveMembers() {
                 typeof joinedAt === "number" &&
                 joinedAt <= month.endAt &&
                 (typeof inactiveSince !== "number" ||
-                  inactiveSince > month.endAt)
+                  inactiveSince >= month.startAt)
               );
             }).length,
       };
     });
-  }, [memberMemberships]);
+  }, [assignedPlanUserIds, memberMemberships]);
 
-  const activeCount = activeMembers.length;
+  const activeCount = memberMemberships.filter((member: any) =>
+    assignedPlanUserIds.has(member.userId),
+  ).length;
   const maxMonthlyMembers = Math.max(
     ...monthlyMembers.map((month) => month.count),
     1,
   );
 
-  if (!memberships) return null;
+  if (!memberships || !subscriptions) return null;
 
   return (
     <Card className="flex min-h-[220px] w-full max-w-none flex-col rounded-2xl border bg-background/60 p-4 md:h-[220px] md:p-5">

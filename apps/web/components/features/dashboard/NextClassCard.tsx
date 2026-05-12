@@ -166,7 +166,7 @@ export default function NextClassCard({
           return (
             <div
               key={schedule._id}
-              className="flex min-h-[150px] flex-1 flex-col rounded-lg border p-4"
+              className="flex min-h-[180px] flex-1 flex-col rounded-lg border p-4"
             >
               <div className="space-y-1">
                 <p className="font-medium leading-tight">
