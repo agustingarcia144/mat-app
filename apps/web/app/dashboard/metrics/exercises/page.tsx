@@ -509,9 +509,7 @@ export default function ExerciseMetricsPage() {
 
   const selectedMemberData = useQuery(
     api.metrics.getExerciseMetricsByMember,
-    canQuery && selectedMemberId && !isFantasyMemberId(selectedMemberId)
-      ? { userId: selectedMemberId }
-      : "skip",
+    canQuery && selectedMemberId ? { userId: selectedMemberId } : "skip",
   );
 
   useEffect(() => {
@@ -534,33 +532,10 @@ export default function ExerciseMetricsPage() {
   }, [activeMemberListData]);
 
   const members = useMemo<MemberMetricSummary[]>(() => {
-    const fantasyMembers = SHOW_FANTASY_MEMBERS
-      ? FANTASY_MEMBERS.filter((member) => {
-          const term = memberSearch.trim().toLowerCase();
-          if (!term) return true;
-          return (
-            member.name.toLowerCase().includes(term) ||
-            member.email?.toLowerCase().includes(term)
-          );
-        })
-      : [];
+    return isSearchingMembers ? realMembers : realMembers.slice(0, memberLimit);
+  }, [isSearchingMembers, memberLimit, realMembers]);
 
-    const nextMembers = [...realMembers, ...fantasyMembers];
-    return isSearchingMembers ? nextMembers : nextMembers.slice(0, memberLimit);
-  }, [isSearchingMembers, memberLimit, memberSearch, realMembers]);
-
-  const totalMembers =
-    (activeMemberListData?.totalMembers ?? 0) +
-    (SHOW_FANTASY_MEMBERS
-      ? FANTASY_MEMBERS.filter((member) => {
-          const term = memberSearch.trim().toLowerCase();
-          if (!term) return true;
-          return (
-            member.name.toLowerCase().includes(term) ||
-            member.email?.toLowerCase().includes(term)
-          );
-        }).length
-      : 0);
+  const totalMembers = activeMemberListData?.totalMembers ?? 0;
   const hasMoreMembers =
     !isSearchingMembers &&
     (Boolean(activeMemberListData?.hasMore) || totalMembers > members.length);
@@ -591,18 +566,10 @@ export default function ExerciseMetricsPage() {
       return selectedMemberData.member as MemberMetric;
     }
 
-    if (!isFantasyMemberId(selectedMemberId)) return null;
-    const fantasyMember =
-      FANTASY_MEMBERS.find((member) => member.userId === selectedMemberId) ??
-      null;
-    return fantasyMember
-      ? { ...fantasyMember, exercises: buildFantasyExercises(fantasyMember) }
-      : null;
-  }, [selectedMemberData, selectedMemberId]);
+    return null;
+  }, [selectedMemberData]);
   const isSelectedMemberLoading =
-    Boolean(selectedMemberId) &&
-    !isFantasyMemberId(selectedMemberId) &&
-    selectedMemberData === undefined;
+    Boolean(selectedMemberId) && selectedMemberData === undefined;
 
   useEffect(() => {
     setMemberLimit(MEMBERS_PAGE_SIZE);
