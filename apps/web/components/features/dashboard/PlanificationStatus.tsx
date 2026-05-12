@@ -266,7 +266,7 @@ export default function PlanificationStatus() {
       title="Estado de Planificaciones"
       variant="list"
       compact
-      className="min-h-[410px] w-full min-w-0 max-w-none"
+      className="min-h-[460px] w-full min-w-0 max-w-none md:h-auto"
       actionLabel="Ver mas +"
       actionHref="/dashboard/planifications"
       actionIcon={Dumbbell}
@@ -315,8 +315,8 @@ export default function PlanificationStatus() {
         ) : (
           <div
             className={`min-h-0 pr-2 md:pr-3 ${
-              membersWithIssues.length > 5
-                ? "max-h-[240px] overflow-y-auto"
+              membersWithIssues.length > 6
+                ? "max-h-[252px] overflow-y-auto"
                 : ""
             }`}
           >

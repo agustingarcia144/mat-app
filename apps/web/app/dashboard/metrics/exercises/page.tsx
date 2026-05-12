@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import {
   ArrowLeft,
@@ -77,7 +77,7 @@ type PlanificationOption = {
   status: "active" | "historical";
 };
 
-type MemberMetric = {
+type MemberMetricSummary = {
   userId: string;
   name: string;
   email: string | null;
@@ -85,8 +85,21 @@ type MemberMetric = {
   totalSessions: number;
   lastPerformedOn: string | null;
   planifications: PlanificationOption[];
+};
+
+type MemberMetric = MemberMetricSummary & {
   exercises: ExerciseMetric[];
 };
+
+type MemberListData = {
+  members: MemberMetricSummary[];
+  hasMore: boolean;
+  totalMembers: number;
+};
+
+const MEMBERS_PAGE_SIZE = 25;
+const MEMBERS_SEARCH_LIMIT = 200;
+const METRICS_LIST_MAX_HEIGHT_CLASS = "min-h-0 flex-1 overflow-y-auto";
 
 const DEFAULT_COLUMNS: ColumnKey[] = [
   "trend",
@@ -139,7 +152,10 @@ function formatMetricValue(value?: number | null, suffix = "kg") {
   }).format(value)} ${suffix}`;
 }
 
-function formatChartValue(value: number | null | undefined, metric: ChartMetric) {
+function formatChartValue(
+  value: number | null | undefined,
+  metric: ChartMetric,
+) {
   return formatMetricValue(value, metric === "weight" ? "kg" : "rep");
 }
 
@@ -301,10 +317,10 @@ function MetricLineChart({
     metric === "reps"
       ? "hsl(24 95% 53%)"
       : trend === "up"
-      ? "hsl(142 71% 45%)"
-      : trend === "down"
-        ? "hsl(0 72% 51%)"
-        : "hsl(213 94% 45%)";
+        ? "hsl(142 71% 45%)"
+        : trend === "down"
+          ? "hsl(0 72% 51%)"
+          : "hsl(213 94% 45%)";
 
   const values = points
     .map((point) => point[metric])
@@ -458,19 +474,10 @@ function MetricLineChart({
 
 export default function ExerciseMetricsPage() {
   const canQuery = useCanQueryCurrentOrganization();
-  const data = useQuery(
-    api.metrics.getExerciseMetricsByMembers,
-    canQuery ? {} : "skip",
-  );
-
-  const members = useMemo<MemberMetric[]>(() => {
-    if (!data?.members) return [];
-    return data.members as MemberMetric[];
-  }, [data]);
-
   const [memberSearch, setMemberSearch] = useState("");
   const [exerciseSearch, setExerciseSearch] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [memberLimit, setMemberLimit] = useState(MEMBERS_PAGE_SIZE);
   const [selectedPlanificationId, setSelectedPlanificationId] = useState<
     string | null
   >(null);
@@ -482,31 +489,114 @@ export default function ExerciseMetricsPage() {
   const [chartGranularity, setChartGranularity] =
     useState<ChartGranularity>("day");
   const [chartMetric, setChartMetric] = useState<ChartMetric>("weight");
+  const [cachedMemberListData, setCachedMemberListData] =
+    useState<MemberListData | null>(null);
+  const membersScrollRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreMembersRef = useRef<HTMLDivElement | null>(null);
+  const isLoadingMoreMembersRef = useRef(false);
+  const memberSearchTerm = memberSearch.trim();
+  const isSearchingMembers = memberSearchTerm.length > 0;
 
-  const filteredMembers = useMemo(() => {
-    if (!memberSearch.trim()) return members;
-    const term = memberSearch.trim().toLowerCase();
-    return members.filter(
-      (member) =>
-        member.name.toLowerCase().includes(term) ||
-        member.email?.toLowerCase().includes(term),
-    );
-  }, [memberSearch, members]);
+  const memberListData = useQuery(
+    api.metrics.listExerciseMetricMembers,
+    canQuery
+      ? {
+          limit: isSearchingMembers ? MEMBERS_SEARCH_LIMIT : memberLimit,
+          search: memberSearchTerm || undefined,
+        }
+      : "skip",
+  );
+
+  const selectedMemberData = useQuery(
+    api.metrics.getExerciseMetricsByMember,
+    canQuery && selectedMemberId ? { userId: selectedMemberId } : "skip",
+  );
 
   useEffect(() => {
-    if (!filteredMembers.length) {
-      setSelectedMemberId(null);
+    setCachedMemberListData(null);
+  }, [memberSearchTerm]);
+
+  useEffect(() => {
+    if (!memberListData) return;
+    setCachedMemberListData(memberListData as MemberListData);
+  }, [memberListData]);
+
+  const activeMemberListData =
+    (memberListData as MemberListData | undefined) ?? cachedMemberListData;
+  const isLoadingAdditionalMembers =
+    memberListData === undefined && cachedMemberListData !== null;
+
+  const realMembers = useMemo<MemberMetricSummary[]>(() => {
+    if (!activeMemberListData?.members) return [];
+    return activeMemberListData.members;
+  }, [activeMemberListData]);
+
+  const members = useMemo<MemberMetricSummary[]>(() => {
+    return isSearchingMembers ? realMembers : realMembers.slice(0, memberLimit);
+  }, [isSearchingMembers, memberLimit, realMembers]);
+
+  const totalMembers = activeMemberListData?.totalMembers ?? 0;
+  const hasMoreMembers =
+    !isSearchingMembers &&
+    (Boolean(activeMemberListData?.hasMore) || totalMembers > members.length);
+
+  const loadMoreMembers = () => {
+    if (
+      isSearchingMembers ||
+      !hasMoreMembers ||
+      isLoadingAdditionalMembers ||
+      isLoadingMoreMembersRef.current
+    ) {
       return;
     }
-    if (!filteredMembers.some((member) => member.userId === selectedMemberId)) {
-      setSelectedMemberId(filteredMembers[0]?.userId ?? null);
-    }
-  }, [filteredMembers, selectedMemberId]);
 
-  const selectedMember = useMemo(
+    isLoadingMoreMembersRef.current = true;
+    setMemberLimit((current) =>
+      Math.min(current + MEMBERS_PAGE_SIZE, totalMembers),
+    );
+  };
+
+  const selectedMemberSummary = useMemo(
     () => members.find((member) => member.userId === selectedMemberId) ?? null,
     [members, selectedMemberId],
   );
+
+  const selectedMember = useMemo(() => {
+    if (selectedMemberData?.member) {
+      return selectedMemberData.member as MemberMetric;
+    }
+
+    return null;
+  }, [selectedMemberData]);
+  const isSelectedMemberLoading =
+    Boolean(selectedMemberId) && selectedMemberData === undefined;
+
+  useEffect(() => {
+    setMemberLimit(MEMBERS_PAGE_SIZE);
+    isLoadingMoreMembersRef.current = false;
+  }, [memberSearch]);
+
+  useEffect(() => {
+    isLoadingMoreMembersRef.current = false;
+  }, [members.length]);
+
+  useEffect(() => {
+    const node = loadMoreMembersRef.current;
+    const root = membersScrollRef.current;
+    if (!node || !root || !hasMoreMembers || isLoadingAdditionalMembers) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadMoreMembers();
+        }
+      },
+      { root, rootMargin: "120px" },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMoreMembers, isLoadingAdditionalMembers, members.length]);
 
   useEffect(() => {
     if (!selectedMember) {
@@ -567,8 +657,8 @@ export default function ExerciseMetricsPage() {
   }
 
   return (
-    <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-      <div className="space-y-3">
+    <DashboardPageContainer className="flex h-[calc(100vh-68px)] flex-col gap-4 overflow-hidden py-4 md:py-5">
+      <div className="shrink-0 space-y-2">
         <Link
           href="/dashboard/metrics"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
@@ -576,20 +666,20 @@ export default function ExerciseMetricsPage() {
           <ArrowLeft className="size-4" />
           Volver a metricas
         </Link>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold md:text-3xl">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold">
             Metricas de Ejercicios de alumnos
           </h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
+          <p className="max-w-3xl text-sm text-muted-foreground">
             Elegi un miembro, filtralo por plani y expandi el ejercicio que
             quieras revisar con grafico e historial.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="space-y-4 rounded-2xl border bg-card/70 p-4">
-          <div className="space-y-2">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col gap-4 rounded-2xl border bg-card/70 p-4">
+          <div className="shrink-0 space-y-2">
             <p className="text-sm font-medium">Miembros</p>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -602,17 +692,28 @@ export default function ExerciseMetricsPage() {
             </div>
           </div>
 
-          {data === undefined ? (
+          {activeMemberListData === null ? (
             <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-              Cargando metricas...
+              Cargando alumnos...
             </div>
-          ) : filteredMembers.length === 0 ? (
+          ) : members.length === 0 ? (
             <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
               No hay miembros con actividad para mostrar.
             </div>
           ) : (
-            <div className="space-y-2">
-              {filteredMembers.map((member) => {
+            <div
+              ref={membersScrollRef}
+              onScroll={(event) => {
+                const target = event.currentTarget;
+                const distanceToBottom =
+                  target.scrollHeight - target.scrollTop - target.clientHeight;
+                if (distanceToBottom < 160) {
+                  loadMoreMembers();
+                }
+              }}
+              className={cn("space-y-2 pr-1", METRICS_LIST_MAX_HEIGHT_CLASS)}
+            >
+              {members.map((member) => {
                 const activePlanification = member.planifications.find(
                   (planification) => planification.status === "active",
                 );
@@ -624,6 +725,8 @@ export default function ExerciseMetricsPage() {
                     onClick={() => {
                       setSelectedMemberId(member.userId);
                       setSelectedExerciseId(null);
+                      setSelectedPlanificationId(null);
+                      setExerciseSearch("");
                     }}
                     className={cn(
                       "w-full rounded-xl border px-3 py-3 text-left transition-colors",
@@ -657,463 +760,499 @@ export default function ExerciseMetricsPage() {
                   </button>
                 );
               })}
+              {hasMoreMembers ? (
+                <div
+                  ref={loadMoreMembersRef}
+                  className="rounded-xl border border-dashed p-3 text-center text-xs text-muted-foreground"
+                >
+                  {isLoadingAdditionalMembers
+                    ? "Cargando mas alumnos..."
+                    : "Baja para cargar mas alumnos"}
+                </div>
+              ) : totalMembers > MEMBERS_PAGE_SIZE && !isSearchingMembers ? (
+                <div className="p-2 text-center text-xs text-muted-foreground">
+                  Mostrando {members.length} de {totalMembers}
+                </div>
+              ) : null}
             </div>
           )}
         </aside>
 
-        <section className="space-y-4">
-          {!selectedMember ? (
-            <div className="rounded-2xl border border-dashed p-8 text-sm text-muted-foreground">
-              Selecciona un miembro para ver sus metricas.
+        <section className="flex min-h-0 flex-col gap-4">
+          <div className="shrink-0 rounded-2xl border bg-card/70 p-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <SlidersHorizontal className="size-4" />
+                Columnas visibles
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {COLUMN_OPTIONS.map((option) => {
+                  const checked = visibleColumns.includes(option.key);
+                  return (
+                    <label
+                      key={option.key}
+                      className="flex items-center gap-2 rounded-full border px-3 py-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(value) =>
+                          toggleColumn(option.key, value === true)
+                        }
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
-          ) : (
-            <>
-              <div className="rounded-2xl border bg-card/70 p-4">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="size-11 border">
-                        <AvatarImage
-                          src={selectedMember.imageUrl ?? undefined}
-                        />
-                        <AvatarFallback>
-                          {getInitials(selectedMember.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h2 className="text-xl font-semibold">
-                          {selectedMember.name}
-                        </h2>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedMember.email ?? "Sin email"}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Ultima actividad:{" "}
-                      {formatDate(selectedMember.lastPerformedOn)}
-                    </p>
-                  </div>
+          </div>
 
-                  <div className="grid gap-3 md:grid-cols-2 xl:min-w-[520px]">
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Plani</p>
-                      <Select
-                        value={selectedPlanificationId ?? undefined}
-                        onValueChange={(value) => {
-                          setSelectedPlanificationId(value);
-                          setSelectedExerciseId(null);
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Elegi una plani" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedMember.planifications.map(
-                            (planification) => (
-                              <SelectItem
-                                key={planification.planificationId}
-                                value={planification.planificationId}
-                              >
-                                {planification.planificationName}
-                                {planification.status === "active"
-                                  ? " (Activa)"
-                                  : " (Historica)"}
-                              </SelectItem>
-                            ),
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Buscar ejercicio</p>
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          value={exerciseSearch}
-                          onChange={(event) =>
-                            setExerciseSearch(event.target.value)
-                          }
-                          placeholder="Ej. sentadilla"
-                          className="pl-9"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-col gap-3 rounded-xl border bg-background/60 p-4">
-                  <div className="flex items-center gap-2 text-sm font-medium">
-                    <SlidersHorizontal className="size-4" />
-                    Columnas visibles
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    {COLUMN_OPTIONS.map((option) => {
-                      const checked = visibleColumns.includes(option.key);
-                      return (
-                        <label
-                          key={option.key}
-                          className="flex items-center gap-2 rounded-full border px-3 py-2 text-sm"
-                        >
-                          <Checkbox
-                            checked={checked}
-                            onCheckedChange={(value) =>
-                              toggleColumn(option.key, value === true)
-                            }
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            {!selectedMemberId ? (
+              <div className="rounded-2xl border border-dashed p-8 text-sm text-muted-foreground">
+                Selecciona un miembro para ver sus metricas.
+              </div>
+            ) : isSelectedMemberLoading ? (
+              <div className="rounded-2xl border border-dashed p-8 text-sm text-muted-foreground">
+                Cargando metricas de{" "}
+                {selectedMemberSummary?.name ?? "este alumno"}...
+              </div>
+            ) : !selectedMember ? (
+              <div className="rounded-2xl border border-dashed p-8 text-sm text-muted-foreground">
+                No se encontraron metricas para este alumno.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-2xl border bg-card/70 p-4">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="size-11 border">
+                          <AvatarImage
+                            src={selectedMember.imageUrl ?? undefined}
                           />
-                          <span>{option.label}</span>
-                        </label>
-                      );
-                    })}
+                          <AvatarFallback>
+                            {getInitials(selectedMember.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h2 className="text-xl font-semibold">
+                            {selectedMember.name}
+                          </h2>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedMember.email ?? "Sin email"}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Ultima actividad:{" "}
+                        {formatDate(selectedMember.lastPerformedOn)}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2 xl:min-w-[520px]">
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Plani</p>
+                        <Select
+                          value={selectedPlanificationId ?? undefined}
+                          onValueChange={(value) => {
+                            setSelectedPlanificationId(value);
+                            setSelectedExerciseId(null);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Elegi una plani" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {selectedMember.planifications.map(
+                              (planification) => (
+                                <SelectItem
+                                  key={planification.planificationId}
+                                  value={planification.planificationId}
+                                >
+                                  {planification.planificationName}
+                                  {planification.status === "active"
+                                    ? " (Activa)"
+                                    : " (Historica)"}
+                                </SelectItem>
+                              ),
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Buscar ejercicio</p>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <Input
+                            value={exerciseSearch}
+                            onChange={(event) =>
+                              setExerciseSearch(event.target.value)
+                            }
+                            placeholder="Ej. sentadilla"
+                            className="pl-9"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="rounded-2xl border bg-card/70">
-                <div className="border-b px-4 py-3 text-sm text-muted-foreground">
-                  {selectedPlanificationId
-                    ? "Ejercicios filtrados por la plani seleccionada."
-                    : "Mostrando todos los ejercicios."}
-                </div>
-
-                {visibleExercises.length === 0 ? (
-                  <div className="p-6 text-sm text-muted-foreground">
-                    No hay ejercicios para esa plani con el filtro actual.
+                <div className="rounded-2xl border bg-card/70">
+                  <div className="border-b px-4 py-3 text-sm text-muted-foreground">
+                    {selectedPlanificationId
+                      ? "Ejercicios filtrados por la plani seleccionada."
+                      : "Mostrando todos los ejercicios."}
                   </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="min-w-[260px]">
-                          Ejercicio
-                        </TableHead>
-                        {visibleColumns.includes("trend") ? (
-                          <TableHead>Tendencia</TableHead>
-                        ) : null}
-                        {visibleColumns.includes("firstWeight") ? (
-                          <TableHead>Primer peso</TableHead>
-                        ) : null}
-                        {visibleColumns.includes("latestWeight") ? (
-                          <TableHead>Ultimo peso</TableHead>
-                        ) : null}
-                        {visibleColumns.includes("delta") ? (
-                          <TableHead>Evolucion</TableHead>
-                        ) : null}
-                        {visibleColumns.includes("bestWeight") ? (
-                          <TableHead>Mejor peso</TableHead>
-                        ) : null}
-                        {visibleColumns.includes("averageReps") ? (
-                          <TableHead>Promedio reps</TableHead>
-                        ) : null}
-                        {visibleColumns.includes("latestReps") ? (
-                          <TableHead>Ultimas reps</TableHead>
-                        ) : null}
-                        {visibleColumns.includes("lastDate") ? (
-                          <TableHead>Ultima fecha</TableHead>
-                        ) : null}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visibleExercises.map((exercise) => {
-                        const isOpen =
-                          exercise.exerciseId === selectedExerciseId;
-                        const aggregatedPoints = aggregateChartPoints(
-                          exercise.points,
-                          chartGranularity,
-                        );
-                        const latestReps =
-                          exercise.points[exercise.points.length - 1]?.reps ??
-                          null;
-                        const averageReps = getAverageReps(exercise.points);
 
-                        return (
-                          <Fragment key={exercise.exerciseId}>
-                            <TableRow
-                              className={cn(
-                                "cursor-pointer",
-                                isOpen && "bg-accent/30 hover:bg-accent/30",
-                              )}
-                              onClick={() =>
-                                setSelectedExerciseId((current) =>
-                                  current === exercise.exerciseId
-                                    ? null
-                                    : exercise.exerciseId,
-                                )
-                              }
-                            >
-                              <TableCell>
-                                <div className="flex items-center gap-3">
-                                  {isOpen ? (
-                                    <ChevronDown className="size-4 text-muted-foreground" />
-                                  ) : (
-                                    <ChevronRight className="size-4 text-muted-foreground" />
-                                  )}
-                                  <div>
-                                    <p className="font-medium">
-                                      {exercise.exerciseName}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {exercise.entriesCount} registros
-                                    </p>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              {visibleColumns.includes("trend") ? (
-                                <TableCell>
-                                  <TrendBadge trend={exercise.trend} />
-                                </TableCell>
-                              ) : null}
-                              {visibleColumns.includes("firstWeight") ? (
-                                <TableCell>
-                                  {formatMetricValue(exercise.firstWeight)}
-                                </TableCell>
-                              ) : null}
-                              {visibleColumns.includes("latestWeight") ? (
-                                <TableCell>
-                                  {formatMetricValue(exercise.latestWeight)}
-                                </TableCell>
-                              ) : null}
-                              {visibleColumns.includes("delta") ? (
-                                <TableCell
-                                  className={cn(
-                                    exercise.weightDelta !== null &&
-                                      exercise.weightDelta > 0 &&
-                                      "text-emerald-600",
-                                    exercise.weightDelta !== null &&
-                                      exercise.weightDelta < 0 &&
-                                      "text-red-600",
-                                  )}
-                                >
-                                  {formatDelta(exercise.weightDelta)}
-                                </TableCell>
-                              ) : null}
-                              {visibleColumns.includes("bestWeight") ? (
-                                <TableCell>
-                                  {formatMetricValue(exercise.bestWeight)}
-                                </TableCell>
-                              ) : null}
-                              {visibleColumns.includes("averageReps") ? (
-                                <TableCell>
-                                  {formatMetricValue(averageReps, "rep")}
-                                </TableCell>
-                              ) : null}
-                              {visibleColumns.includes("latestReps") ? (
-                                <TableCell>
-                                  {formatMetricValue(latestReps, "rep")}
-                                </TableCell>
-                              ) : null}
-                              {visibleColumns.includes("lastDate") ? (
-                                <TableCell>
-                                  {formatDate(exercise.lastPerformedOn)}
-                                </TableCell>
-                              ) : null}
-                            </TableRow>
-
-                            {isOpen ? (
-                              <TableRow>
-                                <TableCell
-                                  colSpan={1 + visibleColumns.length}
-                                  className="bg-background/40 p-0"
-                                >
-                                  <div className="space-y-5 px-4 py-5">
-                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                                      <div className="rounded-xl border bg-background/60 p-4">
-                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                          Primer peso
-                                        </p>
-                                        <p className="mt-2 text-lg font-semibold">
-                                          {formatMetricValue(
-                                            exercise.firstWeight,
-                                          )}
-                                        </p>
-                                      </div>
-                                      <div className="rounded-xl border bg-background/60 p-4">
-                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                          Ultimo peso
-                                        </p>
-                                        <p className="mt-2 text-lg font-semibold">
-                                          {formatMetricValue(
-                                            exercise.latestWeight,
-                                          )}
-                                        </p>
-                                      </div>
-                                      <div className="rounded-xl border bg-background/60 p-4">
-                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                          Mejor peso
-                                        </p>
-                                        <p className="mt-2 text-lg font-semibold">
-                                          {formatMetricValue(
-                                            exercise.bestWeight,
-                                          )}
-                                        </p>
-                                      </div>
-                                      <div className="rounded-xl border bg-background/60 p-4">
-                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                          Evolucion
-                                        </p>
-                                        <p
-                                          className={cn(
-                                            "mt-2 text-lg font-semibold",
-                                            exercise.weightDelta !== null &&
-                                              exercise.weightDelta > 0 &&
-                                              "text-emerald-600",
-                                            exercise.weightDelta !== null &&
-                                              exercise.weightDelta < 0 &&
-                                              "text-red-600",
-                                            exercise.weightDelta === 0 &&
-                                              "text-blue-600",
-                                          )}
-                                        >
-                                          {formatDelta(exercise.weightDelta)}
-                                        </p>
-                                      </div>
-                                      <div className="rounded-xl border bg-background/60 p-4">
-                                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                                          Ultimas reps
-                                        </p>
-                                        <p className="mt-2 text-lg font-semibold">
-                                          {formatMetricValue(
-                                            latestReps,
-                                            "rep",
-                                          )}
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
-                                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                        <div>
-                                          <p className="font-medium">
-                                            Evolucion por ejercicio
-                                          </p>
-                                          <p className="text-sm text-muted-foreground">
-                                            El grafico resume pesos o
-                                            repeticiones segun la vista elegida.
-                                          </p>
-                                        </div>
-
-                                        <div className="grid w-full gap-2 md:w-auto md:grid-cols-2">
-                                          <Select
-                                            value={chartMetric}
-                                            onValueChange={(value) =>
-                                              setChartMetric(
-                                                value as ChartMetric,
-                                              )
-                                            }
-                                          >
-                                            <SelectTrigger>
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {CHART_METRIC_OPTIONS.map(
-                                                (option) => (
-                                                  <SelectItem
-                                                    key={option.value}
-                                                    value={option.value}
-                                                  >
-                                                    {option.label}
-                                                  </SelectItem>
-                                                ),
-                                              )}
-                                            </SelectContent>
-                                          </Select>
-
-                                          <Select
-                                            value={chartGranularity}
-                                            onValueChange={(value) =>
-                                              setChartGranularity(
-                                                value as ChartGranularity,
-                                              )
-                                            }
-                                          >
-                                            <SelectTrigger>
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {CHART_GRANULARITY_OPTIONS.map(
-                                                (option) => (
-                                                  <SelectItem
-                                                    key={option.value}
-                                                    value={option.value}
-                                                  >
-                                                    {option.label}
-                                                  </SelectItem>
-                                                ),
-                                              )}
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-                                      </div>
-
-                                      <MetricLineChart
-                                        points={aggregatedPoints}
-                                        trend={exercise.trend}
-                                        metric={chartMetric}
-                                      />
-                                    </div>
-
-                                    <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
-                                      <div>
-                                        <p className="font-medium">Historial</p>
-                                        <p className="text-sm text-muted-foreground">
-                                          Fechas, pesos y repeticiones de cada
-                                          registro.
-                                        </p>
-                                      </div>
-
-                                      <div className="overflow-hidden rounded-xl border">
-                                        <Table>
-                                          <TableHeader>
-                                            <TableRow>
-                                              <TableHead>Fecha</TableHead>
-                                              <TableHead>Peso</TableHead>
-                                              <TableHead>Repeticiones</TableHead>
-                                            </TableRow>
-                                          </TableHeader>
-                                          <TableBody>
-                                            {exercise.points
-                                              .slice()
-                                              .reverse()
-                                              .map((point) => (
-                                                <TableRow
-                                                  key={`${exercise.exerciseId}-${point.performedOn}`}
-                                                >
-                                                  <TableCell>
-                                                    {formatDate(
-                                                      point.performedOn,
-                                                    )}
-                                                  </TableCell>
-                                                  <TableCell>
-                                                    {formatMetricValue(
-                                                      point.weight,
-                                                    )}
-                                                  </TableCell>
-                                                  <TableCell>
-                                                    {formatMetricValue(
-                                                      point.reps,
-                                                      "rep",
-                                                    )}
-                                                  </TableCell>
-                                                </TableRow>
-                                              ))}
-                                          </TableBody>
-                                        </Table>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
+                  {visibleExercises.length === 0 ? (
+                    <div className="p-6 text-sm text-muted-foreground">
+                      No hay ejercicios para esa plani con el filtro actual.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full caption-bottom text-sm">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="min-w-[260px]">
+                              Ejercicio
+                            </TableHead>
+                            {visibleColumns.includes("trend") ? (
+                              <TableHead>Tendencia</TableHead>
                             ) : null}
-                          </Fragment>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
+                            {visibleColumns.includes("firstWeight") ? (
+                              <TableHead>Primer peso</TableHead>
+                            ) : null}
+                            {visibleColumns.includes("latestWeight") ? (
+                              <TableHead>Ultimo peso</TableHead>
+                            ) : null}
+                            {visibleColumns.includes("delta") ? (
+                              <TableHead>Evolucion</TableHead>
+                            ) : null}
+                            {visibleColumns.includes("bestWeight") ? (
+                              <TableHead>Mejor peso</TableHead>
+                            ) : null}
+                            {visibleColumns.includes("averageReps") ? (
+                              <TableHead>Promedio reps</TableHead>
+                            ) : null}
+                            {visibleColumns.includes("latestReps") ? (
+                              <TableHead>Ultimas reps</TableHead>
+                            ) : null}
+                            {visibleColumns.includes("lastDate") ? (
+                              <TableHead>Ultima fecha</TableHead>
+                            ) : null}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {visibleExercises.map((exercise) => {
+                            const isOpen =
+                              exercise.exerciseId === selectedExerciseId;
+                            const aggregatedPoints = aggregateChartPoints(
+                              exercise.points,
+                              chartGranularity,
+                            );
+                            const latestReps =
+                              exercise.points[exercise.points.length - 1]
+                                ?.reps ?? null;
+                            const averageReps = getAverageReps(exercise.points);
+
+                            return (
+                              <Fragment key={exercise.exerciseId}>
+                                <TableRow
+                                  className={cn(
+                                    "cursor-pointer",
+                                    isOpen && "bg-accent/30 hover:bg-accent/30",
+                                  )}
+                                  onClick={() =>
+                                    setSelectedExerciseId((current) =>
+                                      current === exercise.exerciseId
+                                        ? null
+                                        : exercise.exerciseId,
+                                    )
+                                  }
+                                >
+                                  <TableCell>
+                                    <div className="flex items-center gap-3">
+                                      {isOpen ? (
+                                        <ChevronDown className="size-4 text-muted-foreground" />
+                                      ) : (
+                                        <ChevronRight className="size-4 text-muted-foreground" />
+                                      )}
+                                      <div>
+                                        <p className="font-medium">
+                                          {exercise.exerciseName}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {exercise.entriesCount} registros
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  {visibleColumns.includes("trend") ? (
+                                    <TableCell>
+                                      <TrendBadge trend={exercise.trend} />
+                                    </TableCell>
+                                  ) : null}
+                                  {visibleColumns.includes("firstWeight") ? (
+                                    <TableCell>
+                                      {formatMetricValue(exercise.firstWeight)}
+                                    </TableCell>
+                                  ) : null}
+                                  {visibleColumns.includes("latestWeight") ? (
+                                    <TableCell>
+                                      {formatMetricValue(exercise.latestWeight)}
+                                    </TableCell>
+                                  ) : null}
+                                  {visibleColumns.includes("delta") ? (
+                                    <TableCell
+                                      className={cn(
+                                        exercise.weightDelta !== null &&
+                                          exercise.weightDelta > 0 &&
+                                          "text-emerald-600",
+                                        exercise.weightDelta !== null &&
+                                          exercise.weightDelta < 0 &&
+                                          "text-red-600",
+                                      )}
+                                    >
+                                      {formatDelta(exercise.weightDelta)}
+                                    </TableCell>
+                                  ) : null}
+                                  {visibleColumns.includes("bestWeight") ? (
+                                    <TableCell>
+                                      {formatMetricValue(exercise.bestWeight)}
+                                    </TableCell>
+                                  ) : null}
+                                  {visibleColumns.includes("averageReps") ? (
+                                    <TableCell>
+                                      {formatMetricValue(averageReps, "rep")}
+                                    </TableCell>
+                                  ) : null}
+                                  {visibleColumns.includes("latestReps") ? (
+                                    <TableCell>
+                                      {formatMetricValue(latestReps, "rep")}
+                                    </TableCell>
+                                  ) : null}
+                                  {visibleColumns.includes("lastDate") ? (
+                                    <TableCell>
+                                      {formatDate(exercise.lastPerformedOn)}
+                                    </TableCell>
+                                  ) : null}
+                                </TableRow>
+
+                                {isOpen ? (
+                                  <TableRow>
+                                    <TableCell
+                                      colSpan={1 + visibleColumns.length}
+                                      className="bg-background/40 p-0"
+                                    >
+                                      <div className="space-y-5 px-4 py-5">
+                                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                          <div className="rounded-xl border bg-background/60 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                              Primer peso
+                                            </p>
+                                            <p className="mt-2 text-lg font-semibold">
+                                              {formatMetricValue(
+                                                exercise.firstWeight,
+                                              )}
+                                            </p>
+                                          </div>
+                                          <div className="rounded-xl border bg-background/60 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                              Ultimo peso
+                                            </p>
+                                            <p className="mt-2 text-lg font-semibold">
+                                              {formatMetricValue(
+                                                exercise.latestWeight,
+                                              )}
+                                            </p>
+                                          </div>
+                                          <div className="rounded-xl border bg-background/60 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                              Mejor peso
+                                            </p>
+                                            <p className="mt-2 text-lg font-semibold">
+                                              {formatMetricValue(
+                                                exercise.bestWeight,
+                                              )}
+                                            </p>
+                                          </div>
+                                          <div className="rounded-xl border bg-background/60 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                              Evolucion
+                                            </p>
+                                            <p
+                                              className={cn(
+                                                "mt-2 text-lg font-semibold",
+                                                exercise.weightDelta !== null &&
+                                                  exercise.weightDelta > 0 &&
+                                                  "text-emerald-600",
+                                                exercise.weightDelta !== null &&
+                                                  exercise.weightDelta < 0 &&
+                                                  "text-red-600",
+                                                exercise.weightDelta === 0 &&
+                                                  "text-blue-600",
+                                              )}
+                                            >
+                                              {formatDelta(
+                                                exercise.weightDelta,
+                                              )}
+                                            </p>
+                                          </div>
+                                          <div className="rounded-xl border bg-background/60 p-4">
+                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                              Ultimas reps
+                                            </p>
+                                            <p className="mt-2 text-lg font-semibold">
+                                              {formatMetricValue(
+                                                latestReps,
+                                                "rep",
+                                              )}
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
+                                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                            <div>
+                                              <p className="font-medium">
+                                                Evolucion por ejercicio
+                                              </p>
+                                              <p className="text-sm text-muted-foreground">
+                                                El grafico resume pesos o
+                                                repeticiones segun la vista
+                                                elegida.
+                                              </p>
+                                            </div>
+
+                                            <div className="grid w-full gap-2 md:w-auto md:grid-cols-2">
+                                              <Select
+                                                value={chartMetric}
+                                                onValueChange={(value) =>
+                                                  setChartMetric(
+                                                    value as ChartMetric,
+                                                  )
+                                                }
+                                              >
+                                                <SelectTrigger>
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {CHART_METRIC_OPTIONS.map(
+                                                    (option) => (
+                                                      <SelectItem
+                                                        key={option.value}
+                                                        value={option.value}
+                                                      >
+                                                        {option.label}
+                                                      </SelectItem>
+                                                    ),
+                                                  )}
+                                                </SelectContent>
+                                              </Select>
+
+                                              <Select
+                                                value={chartGranularity}
+                                                onValueChange={(value) =>
+                                                  setChartGranularity(
+                                                    value as ChartGranularity,
+                                                  )
+                                                }
+                                              >
+                                                <SelectTrigger>
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {CHART_GRANULARITY_OPTIONS.map(
+                                                    (option) => (
+                                                      <SelectItem
+                                                        key={option.value}
+                                                        value={option.value}
+                                                      >
+                                                        {option.label}
+                                                      </SelectItem>
+                                                    ),
+                                                  )}
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+                                          </div>
+
+                                          <MetricLineChart
+                                            points={aggregatedPoints}
+                                            trend={exercise.trend}
+                                            metric={chartMetric}
+                                          />
+                                        </div>
+
+                                        <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
+                                          <div>
+                                            <p className="font-medium">
+                                              Historial
+                                            </p>
+                                            <p className="text-sm text-muted-foreground">
+                                              Fechas, pesos y repeticiones de
+                                              cada registro.
+                                            </p>
+                                          </div>
+
+                                          <div className="overflow-hidden rounded-xl border">
+                                            <Table>
+                                              <TableHeader>
+                                                <TableRow>
+                                                  <TableHead>Fecha</TableHead>
+                                                  <TableHead>Peso</TableHead>
+                                                  <TableHead>
+                                                    Repeticiones
+                                                  </TableHead>
+                                                </TableRow>
+                                              </TableHeader>
+                                              <TableBody>
+                                                {exercise.points
+                                                  .slice()
+                                                  .reverse()
+                                                  .map((point) => (
+                                                    <TableRow
+                                                      key={`${exercise.exerciseId}-${point.performedOn}`}
+                                                    >
+                                                      <TableCell>
+                                                        {formatDate(
+                                                          point.performedOn,
+                                                        )}
+                                                      </TableCell>
+                                                      <TableCell>
+                                                        {formatMetricValue(
+                                                          point.weight,
+                                                        )}
+                                                      </TableCell>
+                                                      <TableCell>
+                                                        {formatMetricValue(
+                                                          point.reps,
+                                                          "rep",
+                                                        )}
+                                                      </TableCell>
+                                                    </TableRow>
+                                                  ))}
+                                              </TableBody>
+                                            </Table>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ) : null}
+                              </Fragment>
+                            );
+                          })}
+                        </TableBody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </section>
       </div>
     </DashboardPageContainer>
