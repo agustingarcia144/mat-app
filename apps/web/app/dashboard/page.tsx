@@ -60,7 +60,7 @@ export default function Page() {
         <NextClassCard
           onOpenDetail={handleOpenScheduleDetail}
           pageSize={2}
-          className="min-h-[410px] bg-background/60"
+          className="min-h-[460px] bg-background/60"
         />
       </div>
 

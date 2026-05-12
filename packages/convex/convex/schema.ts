@@ -386,6 +386,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_organization_performedOn", ["organizationId", "performedOn"])
     .index("by_user_performedOn", ["userId", "performedOn"])
     .index("by_user_assignment_performedOn", [
       "userId",
