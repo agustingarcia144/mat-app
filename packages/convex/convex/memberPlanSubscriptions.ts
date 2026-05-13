@@ -4,6 +4,7 @@ import {
   query,
   type MutationCtx,
 } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
@@ -726,132 +727,175 @@ export const changePlan = mutation({
 });
 
 /**
- * Internal mutation: auto-suspend subscriptions with no approved payment
- * past the payment window.
+ * Internal mutation: enqueue small auto-suspend batches per organization.
+ * The per-org worker paginates active subscriptions to avoid cron timeouts.
  */
 export const autoSuspendUnpaid = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    // Get all organizations
+  args: {
+    subscriptionLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
     const orgs = await ctx.db.query("organizations").collect();
+
+    for (const org of orgs) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.memberPlanSubscriptions.autoSuspendUnpaidForOrg,
+        {
+          orgId: org._id,
+          subscriptionLimit: args.subscriptionLimit,
+        },
+      );
+    }
+
+    return { enqueuedOrganizations: orgs.length };
+  },
+});
+
+export const autoSuspendUnpaidForOrg = internalMutation({
+  args: {
+    orgId: v.id("organizations"),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    subscriptionLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const org = await ctx.db.get(args.orgId);
+    if (!org) return { processedSubscriptions: 0, suspendedCount: 0 };
+
+    const timezone =
+      org.timezone && org.timezone.trim() !== "" ? org.timezone : "UTC";
+    const subscriptionLimit = args.subscriptionLimit ?? 50;
+
+    // Determine current date in org timezone
+    const nowDate = new Date();
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = formatter.formatToParts(nowDate);
+    const partMap = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+    const currentDay = parseInt(partMap.day!, 10);
+    const currentMonth = partMap.month!;
+    const currentYear = partMap.year!;
+    const billingPeriod = `${currentYear}-${currentMonth}`;
+
+    const page = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization_status", (q) =>
+        q.eq("organizationId", org._id).eq("status", "active"),
+      )
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: subscriptionLimit,
+      });
 
     let suspendedCount = 0;
 
-    for (const org of orgs) {
-      const timezone =
-        org.timezone && org.timezone.trim() !== "" ? org.timezone : "UTC";
+    for (const sub of page.page) {
+      if (sub.familyParentSubscriptionId) continue;
 
-      // Determine current date in org timezone
-      const now = new Date();
-      const formatter = new Intl.DateTimeFormat("en-US", {
+      const plan = await ctx.db.get(sub.planId);
+      if (!plan) continue;
+
+      // Plans with interest tiers never auto-suspend — they charge more instead
+      if (plan.interestTiers && plan.interestTiers.length > 0) continue;
+
+      // Skip fully bonified subscriptions (100% discount) — they never auto-suspend
+      const activeBonification = await ctx.db
+        .query("planBonifications")
+        .withIndex("by_subscription_status", (q) =>
+          q.eq("subscriptionId", sub._id).eq("status", "active"),
+        )
+        .first();
+      if (activeBonification) {
+        const effectiveAmount = computeBonificationAmount(
+          plan.priceArs,
+          activeBonification.discountType,
+          activeBonification.discountValue,
+        );
+        if (effectiveAmount === 0) continue;
+      }
+
+      // Skip if payment window hasn't closed yet
+      if (currentDay <= plan.paymentWindowEndDay) continue;
+
+      // Grace period: skip if activated after the payment window closed this month
+      // (i.e., member joined mid-month past the window)
+      const activatedDate = new Date(sub.activatedAt);
+      const activatedFormatter = new Intl.DateTimeFormat("en-US", {
         timeZone: timezone,
         year: "numeric",
         month: "2-digit",
-        day: "2-digit",
       });
-      const parts = formatter.formatToParts(now);
-      const partMap = Object.fromEntries(parts.map((p) => [p.type, p.value]));
-      const currentDay = parseInt(partMap.day!, 10);
-      const currentMonth = partMap.month!;
-      const currentYear = partMap.year!;
-      const billingPeriod = `${currentYear}-${currentMonth}`;
+      const activatedParts = activatedFormatter.formatToParts(activatedDate);
+      const activatedPartMap = Object.fromEntries(
+        activatedParts.map((p) => [p.type, p.value]),
+      );
+      const activatedPeriod = `${activatedPartMap.year}-${activatedPartMap.month}`;
 
-      // Get all active subscriptions for this org
-      const activeSubscriptions = await ctx.db
-        .query("memberPlanSubscriptions")
-        .withIndex("by_organization_status", (q) =>
-          q.eq("organizationId", org._id).eq("status", "active"),
-        )
-        .collect();
-
-      for (const sub of activeSubscriptions) {
-        if (sub.familyParentSubscriptionId) continue;
-
-        const plan = await ctx.db.get(sub.planId);
-        if (!plan) continue;
-
-        // Plans with interest tiers never auto-suspend — they charge more instead
-        if (plan.interestTiers && plan.interestTiers.length > 0) continue;
-
-        // Skip fully bonified subscriptions (100% discount) — they never auto-suspend
-        const activeBonification = await ctx.db
-          .query("planBonifications")
-          .withIndex("by_subscription_status", (q) =>
-            q.eq("subscriptionId", sub._id).eq("status", "active"),
-          )
-          .first();
-        if (activeBonification) {
-          const effectiveAmount = computeBonificationAmount(
-            plan.priceArs,
-            activeBonification.discountType,
-            activeBonification.discountValue,
-          );
-          if (effectiveAmount === 0) continue;
-        }
-
-        // Skip if payment window hasn't closed yet
-        if (currentDay <= plan.paymentWindowEndDay) continue;
-
-        // Grace period: skip if activated after the payment window closed this month
-        // (i.e., member joined mid-month past the window)
-        const activatedDate = new Date(sub.activatedAt);
-        const activatedFormatter = new Intl.DateTimeFormat("en-US", {
+      if (activatedPeriod === billingPeriod) {
+        // Member activated this month — check if they activated after the window closed
+        const activatedDayFormatter = new Intl.DateTimeFormat("en-US", {
           timeZone: timezone,
-          year: "numeric",
-          month: "2-digit",
+          day: "2-digit",
         });
-        const activatedParts = activatedFormatter.formatToParts(activatedDate);
-        const activatedPartMap = Object.fromEntries(
-          activatedParts.map((p) => [p.type, p.value]),
+        const activatedDayParts =
+          activatedDayFormatter.formatToParts(activatedDate);
+        const activatedDay = parseInt(
+          activatedDayParts.find((p) => p.type === "day")?.value ?? "0",
+          10,
         );
-        const activatedPeriod = `${activatedPartMap.year}-${activatedPartMap.month}`;
-
-        if (activatedPeriod === billingPeriod) {
-          // Member activated this month — check if they activated after the window closed
-          const activatedDayFormatter = new Intl.DateTimeFormat("en-US", {
-            timeZone: timezone,
-            day: "2-digit",
-          });
-          const activatedDayParts =
-            activatedDayFormatter.formatToParts(activatedDate);
-          const activatedDay = parseInt(
-            activatedDayParts.find((p) => p.type === "day")?.value ?? "0",
-            10,
-          );
-          if (activatedDay > plan.paymentWindowEndDay) {
-            continue; // Grace period: skip this month
-          }
+        if (activatedDay > plan.paymentWindowEndDay) {
+          continue; // Grace period: skip this month
         }
+      }
 
-        // Check if there's an approved payment for this period
-        const approvedPayment = await ctx.db
-          .query("planPayments")
-          .withIndex("by_subscription_period", (q) =>
-            q.eq("subscriptionId", sub._id).eq("billingPeriod", billingPeriod),
-          )
-          .filter((q) => q.eq(q.field("status"), "approved"))
-          .first();
+      // Check if there's an approved payment for this period
+      const approvedPayment = await ctx.db
+        .query("planPayments")
+        .withIndex("by_subscription_period", (q) =>
+          q.eq("subscriptionId", sub._id).eq("billingPeriod", billingPeriod),
+        )
+        .filter((q) => q.eq(q.field("status"), "approved"))
+        .first();
 
-        if (!approvedPayment) {
-          const now = Date.now();
-          const { familySubscriptions } = await getFamilyGroupSubscriptions(
-            ctx,
-            sub,
-          );
-          for (const familySubscription of familySubscriptions) {
-            if (familySubscription.status === "suspended") continue;
-            await ctx.db.patch(familySubscription._id, {
-              status: "suspended",
-              suspendedAt: now,
-              updatedAt: now,
-            });
-            suspendedCount++;
-          }
+      if (!approvedPayment) {
+        const now = Date.now();
+        const { familySubscriptions } = await getFamilyGroupSubscriptions(
+          ctx,
+          sub,
+        );
+        for (const familySubscription of familySubscriptions) {
+          if (familySubscription.status === "suspended") continue;
+          await ctx.db.patch(familySubscription._id, {
+            status: "suspended",
+            suspendedAt: now,
+            updatedAt: now,
+          });
+          suspendedCount++;
         }
       }
     }
 
-    return { suspendedCount };
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.memberPlanSubscriptions.autoSuspendUnpaidForOrg,
+        {
+          orgId: args.orgId,
+          cursor: page.continueCursor,
+          subscriptionLimit,
+        },
+      );
+    }
+
+    return {
+      processedSubscriptions: page.page.length,
+      suspendedCount,
+      isDone: page.isDone,
+    };
   },
 });
 
