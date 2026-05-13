@@ -10,7 +10,10 @@
     "convex:codegen": "pnpm --filter convex codegen",
     "android": "pnpm --filter mobile run android",
     "ios": "pnpm --filter mobile run ios",
-    "testflight": "pnpm --filter mobile run testflight"
+    "testflight": "pnpm --filter mobile run testflight",
+    "admin": "pnpm --filter mobile-admin run dev",
+    "android:admin": "pnpm --filter mobile-admin run android",
+    "ios:admin": "pnpm --filter mobile-admin run ios"
   },
   "devDependencies": {
     "prettier": "^3.1.1",
