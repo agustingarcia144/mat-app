@@ -6,10 +6,9 @@ import {
   ListChecks,
   CalendarDays,
   BarChart3,
-  CreditCard,
   UserCog,
-  Wallet,
   Settings,
+  Landmark,
 } from "lucide-react";
 
 export type FeatureFlag =
@@ -55,17 +54,10 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
     featureFlag: "classesEnabled",
   },
   {
-    label: "Pagos",
-    icon: CreditCard,
-    url: "/payments",
+    label: "Finanzas",
+    icon: Landmark,
+    url: "/finance",
     adminOnly: true,
-  },
-  {
-    label: "Ingresos y egresos",
-    icon: Wallet,
-    url: "/income-expenses",
-    adminOnly: true,
-    featureFlag: "financeEnabled",
   },
   {
     label: "Metricas",

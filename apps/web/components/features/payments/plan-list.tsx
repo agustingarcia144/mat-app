@@ -157,8 +157,9 @@ export default function PlanList() {
                         : plan.weeklyClassLimit}
                     </td>
                     <td className="p-3">
-                      Día {plan.paymentWindowStartDay} al{" "}
-                      {plan.paymentWindowEndDay}
+                      {(plan.billingMode ?? "calendar") === "join_date"
+                        ? "Por ingreso"
+                        : `Día ${plan.paymentWindowStartDay} al ${plan.paymentWindowEndDay}`}
                     </td>
                     <td className="p-3">
                       <Badge variant={plan.isActive ? "default" : "secondary"}>

@@ -401,9 +401,10 @@ export default function AssignPlanDialog({
                       : `${selectedAssignPlan.weeklyClassLimit} clases/semana`}
                   </p>
                   <p className="text-muted-foreground">
-                    Ventana de pago: día{" "}
-                    {selectedAssignPlan.paymentWindowStartDay} al{" "}
-                    {selectedAssignPlan.paymentWindowEndDay}
+                    {(selectedAssignPlan.billingMode ?? "calendar") ===
+                    "join_date"
+                      ? "Cobro por ingreso: renueva según la fecha de alta"
+                      : `Ventana de pago: día ${selectedAssignPlan.paymentWindowStartDay} al ${selectedAssignPlan.paymentWindowEndDay}`}
                   </p>
                   {selectedAssignPlan.isFamilyPlan ? (
                     <p className="text-muted-foreground">

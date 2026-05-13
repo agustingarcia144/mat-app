@@ -175,8 +175,9 @@ export default function PlanSelector() {
                         { color: isDark ? "#ccc" : "#444" },
                       ]}
                     >
-                      Pago del {plan.paymentWindowStartDay} al{" "}
-                      {plan.paymentWindowEndDay} de cada mes
+                      {(plan.billingMode ?? "calendar") === "join_date"
+                        ? "Pago mensual según fecha de ingreso"
+                        : `Pago del ${plan.paymentWindowStartDay} al ${plan.paymentWindowEndDay} de cada mes`}
                     </Text>
                   </View>
 

@@ -18,6 +18,7 @@ type InterestTier = {
 };
 
 type AppliedTier = InterestTier & { amountArs: number };
+type BillingMode = "calendar" | "join_date";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PAYMENT_TIMEZONE = "America/Argentina/Buenos_Aires";
@@ -52,17 +53,17 @@ function getDaysAfterPaymentWindow(
   paymentWindowEndDay: number,
   nowMs: number,
   timezone: string,
+  dueAt?: number,
 ) {
   const [yearStr, monthStr] = billingPeriod.split("-");
   const billingYear = parseInt(yearStr!, 10);
   const billingMonth = parseInt(monthStr!, 10);
   const nowParts = getZonedDateParts(nowMs, timezone);
 
-  const windowEndDateMs = Date.UTC(
-    billingYear,
-    billingMonth - 1,
-    paymentWindowEndDay,
-  );
+  const dueParts = dueAt ? getZonedDateParts(dueAt, timezone) : null;
+  const windowEndDateMs = dueParts
+    ? Date.UTC(dueParts.year, dueParts.month - 1, dueParts.day)
+    : Date.UTC(billingYear, billingMonth - 1, paymentWindowEndDay);
   const currentLocalDateMs = Date.UTC(
     nowParts.year,
     nowParts.month - 1,
@@ -73,6 +74,65 @@ function getDaysAfterPaymentWindow(
     0,
     Math.floor((currentLocalDateMs - windowEndDateMs) / DAY_MS),
   );
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function addMonths(year: number, month: number, monthsToAdd: number) {
+  const date = new Date(Date.UTC(year, month - 1 + monthsToAdd, 1));
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
+
+function getBillingCycle(
+  plan: { billingMode?: BillingMode; paymentWindowEndDay?: number },
+  activatedAt: number,
+  referenceAt: number,
+  timezone: string,
+) {
+  const mode = plan.billingMode ?? "calendar";
+  const ref = getZonedDateParts(referenceAt, timezone);
+
+  if (mode === "join_date") {
+    const activated = getZonedDateParts(activatedAt, timezone);
+    const anchorDay = activated.day;
+    const currentAnchorDay = Math.min(
+      anchorDay,
+      daysInMonth(ref.year, ref.month),
+    );
+    const startMonth =
+      ref.day >= currentAnchorDay
+        ? { year: ref.year, month: ref.month }
+        : addMonths(ref.year, ref.month, -1);
+    const endMonth = addMonths(startMonth.year, startMonth.month, 1);
+    const cycleStartDay = Math.min(
+      anchorDay,
+      daysInMonth(startMonth.year, startMonth.month),
+    );
+    const cycleEndDay = Math.min(
+      anchorDay,
+      daysInMonth(endMonth.year, endMonth.month),
+    );
+
+    return {
+      billingPeriod: `${startMonth.year}-${String(startMonth.month).padStart(2, "0")}`,
+      cycleStartAt: Date.UTC(
+        startMonth.year,
+        startMonth.month - 1,
+        cycleStartDay,
+      ),
+      cycleEndAt: Date.UTC(endMonth.year, endMonth.month - 1, cycleEndDay),
+      dueAt: Date.UTC(startMonth.year, startMonth.month - 1, cycleStartDay),
+    };
+  }
+
+  return {
+    billingPeriod: `${ref.year}-${String(ref.month).padStart(2, "0")}`,
+    cycleStartAt: Date.UTC(ref.year, ref.month - 1, 1),
+    cycleEndAt: Date.UTC(ref.year, ref.month, 1),
+    dueAt: Date.UTC(ref.year, ref.month - 1, plan.paymentWindowEndDay ?? 28),
+  };
 }
 
 async function getPaymentCoverage(
@@ -140,12 +200,14 @@ function computeInterest(
   paymentWindowEndDay: number,
   nowMs: number,
   timezone: string,
+  dueAt?: number,
 ): { applied: AppliedTier[]; totalArs: number; totalAmount: number } {
   const daysElapsed = getDaysAfterPaymentWindow(
     billingPeriod,
     paymentWindowEndDay,
     nowMs,
     timezone,
+    dueAt,
   );
 
   if (daysElapsed === 0 || tiers.length === 0) {
@@ -188,6 +250,7 @@ async function computePaymentInterest(
     subscriptionId: Id<"memberPlanSubscriptions">;
     amountArs: number;
     billingPeriod: string;
+    dueAt?: number;
   },
   paidAtMs: number,
 ) {
@@ -210,6 +273,7 @@ async function computePaymentInterest(
     plan.paymentWindowEndDay,
     paidAtMs,
     getPaymentTimezone(organization?.timezone),
+    payment.dueAt,
   );
 }
 
@@ -244,8 +308,16 @@ export const getMyCurrentPeriodPayment = query({
       ctx.db.get(membership.organizationId),
     ]);
 
-    const d = new Date();
-    const billingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const timezone = getPaymentTimezone(organization?.timezone);
+    const cycle = plan
+      ? getBillingCycle(plan, billingSubscription.activatedAt, Date.now(), timezone)
+      : null;
+    const billingPeriod =
+      cycle?.billingPeriod ??
+      (() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      })();
 
     const currentPeriodPayment = await ctx.db
       .query("planPayments")
@@ -306,7 +378,9 @@ export const getMyCurrentPeriodPayment = query({
           : undefined,
       planInterestTiers: plan?.interestTiers ?? [],
       planPaymentWindowEndDay: plan?.paymentWindowEndDay ?? 28,
-      planPaymentTimezone: getPaymentTimezone(organization?.timezone),
+      planPaymentTimezone: timezone,
+      planBillingMode: plan?.billingMode ?? "calendar",
+      planDueAt: payment.dueAt ?? cycle?.dueAt,
     };
   },
 });

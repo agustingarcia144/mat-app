@@ -41,9 +41,9 @@ const CARDS: CardItem[] = [
     flag: "planificationsEnabled",
   },
   {
-    label: "Pagos",
-    icon: "payments",
-    href: "/(tabs)/more/payments",
+    label: "Finanzas",
+    icon: "account-balance",
+    href: "/(tabs)/more/finance",
   },
   {
     label: "Métricas",

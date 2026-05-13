@@ -16,6 +16,104 @@ import {
 } from "./permissions";
 import { computeBonificationAmount } from "./planBonifications";
 
+type BillingMode = "calendar" | "join_date";
+
+type PlanBillingConfig = {
+  _id: Id<"membershipPlans">;
+  priceArs: number;
+  billingMode?: BillingMode;
+  paymentWindowStartDay?: number;
+  paymentWindowEndDay?: number;
+};
+
+function getZonedDateParts(timestamp: number, timezone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date(timestamp));
+  const partMap = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+
+  return {
+    year: parseInt(partMap.year!, 10),
+    month: parseInt(partMap.month!, 10),
+    day: parseInt(partMap.day!, 10),
+  };
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function addMonths(year: number, month: number, monthsToAdd: number) {
+  const date = new Date(Date.UTC(year, month - 1 + monthsToAdd, 1));
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
+
+function getFirstJoinDateBillingDueAt(activatedAt: number, timezone: string) {
+  const activated = getZonedDateParts(activatedAt, timezone);
+  const firstDueMonth = addMonths(activated.year, activated.month, 1);
+  const firstDueDay = Math.min(
+    activated.day,
+    daysInMonth(firstDueMonth.year, firstDueMonth.month),
+  );
+  return Date.UTC(firstDueMonth.year, firstDueMonth.month - 1, firstDueDay);
+}
+
+function getBillingCycle(
+  plan: { billingMode?: BillingMode; paymentWindowEndDay?: number },
+  activatedAt: number,
+  referenceAt: number,
+  timezone: string,
+) {
+  const mode = plan.billingMode ?? "calendar";
+  const ref = getZonedDateParts(referenceAt, timezone);
+
+  if (mode === "join_date") {
+    const activated = getZonedDateParts(activatedAt, timezone);
+    const anchorDay = activated.day;
+    const currentAnchorDay = Math.min(
+      anchorDay,
+      daysInMonth(ref.year, ref.month),
+    );
+    const startMonth =
+      ref.day >= currentAnchorDay
+        ? { year: ref.year, month: ref.month }
+        : addMonths(ref.year, ref.month, -1);
+    const endMonth = addMonths(startMonth.year, startMonth.month, 1);
+    const cycleStartDay = Math.min(
+      anchorDay,
+      daysInMonth(startMonth.year, startMonth.month),
+    );
+    const cycleEndDay = Math.min(
+      anchorDay,
+      daysInMonth(endMonth.year, endMonth.month),
+    );
+
+    return {
+      billingPeriod: `${startMonth.year}-${String(startMonth.month).padStart(2, "0")}`,
+      cycleStartAt: Date.UTC(
+        startMonth.year,
+        startMonth.month - 1,
+        cycleStartDay,
+      ),
+      cycleEndAt: Date.UTC(endMonth.year, endMonth.month - 1, cycleEndDay),
+      dueAt: Date.UTC(startMonth.year, startMonth.month - 1, cycleStartDay),
+    };
+  }
+
+  return {
+    billingPeriod: `${ref.year}-${String(ref.month).padStart(2, "0")}`,
+    cycleStartAt: Date.UTC(ref.year, ref.month - 1, 1),
+    cycleEndAt: Date.UTC(ref.year, ref.month, 1),
+    dueAt: Date.UTC(ref.year, ref.month - 1, plan.paymentWindowEndDay ?? 28),
+  };
+}
+
 async function getFamilyGroupSubscriptions(
   ctx: { db: any },
   subscription: {
@@ -40,9 +138,10 @@ async function getFamilyGroupSubscriptions(
     )
     .collect();
 
-  const familySubscriptions = [primarySubscription, ...childSubscriptions].filter(
-    (item) => item.status !== "cancelled",
-  );
+  const familySubscriptions = [
+    primarySubscription,
+    ...childSubscriptions,
+  ].filter((item) => item.status !== "cancelled");
 
   return {
     primarySubscription,
@@ -316,7 +415,7 @@ export const activate = mutation({
         months: advanceMonths,
         discountPercentage: discountTier.discountPercentage,
       });
-    } else {
+    } else if ((plan.billingMode ?? "calendar") !== "join_date") {
       // Single month — standard flow
       await createPaymentForCurrentPeriod(ctx, {
         organizationId: membership.organizationId,
@@ -372,7 +471,9 @@ export const assignToMember = mutation({
 
     const familyMemberUserIds = Array.from(
       new Set(
-        (args.familyMemberUserIds ?? []).filter((userId) => userId !== args.userId),
+        (args.familyMemberUserIds ?? []).filter(
+          (userId) => userId !== args.userId,
+        ),
       ),
     );
 
@@ -461,13 +562,16 @@ export const assignToMember = mutation({
       }
     }
 
-    // Create payment record for current billing period
-    await createPaymentForCurrentPeriod(ctx, {
-      organizationId: membership.organizationId,
-      userId: args.userId,
-      subscriptionId,
-      plan,
-    });
+    // Create payment record for current billing period.
+    // Join-date plans start billing one full month after activation.
+    if ((plan.billingMode ?? "calendar") !== "join_date") {
+      await createPaymentForCurrentPeriod(ctx, {
+        organizationId: membership.organizationId,
+        userId: args.userId,
+        subscriptionId,
+        plan,
+      });
+    }
 
     return subscriptionId;
   },
@@ -530,7 +634,9 @@ export const associateToFamilyGroup = mutation({
 
     const plan = await ctx.db.get(parentSubscription.planId);
     if (!plan?.isFamilyPlan) {
-      throw new Error("La suscripción seleccionada no corresponde a un plan familiar");
+      throw new Error(
+        "La suscripción seleccionada no corresponde a un plan familiar",
+      );
     }
 
     const activeChildSubscriptions = await ctx.db
@@ -542,7 +648,9 @@ export const associateToFamilyGroup = mutation({
       .collect();
 
     const currentMemberIds = Array.from(
-      new Set(activeChildSubscriptions.map((subscription) => subscription.userId)),
+      new Set(
+        activeChildSubscriptions.map((subscription) => subscription.userId),
+      ),
     );
 
     if (currentMemberIds.includes(args.userId)) {
@@ -556,10 +664,13 @@ export const associateToFamilyGroup = mutation({
       planId: parentSubscription.planId,
       familyHeadUserId: parentSubscription.userId,
       familyParentSubscriptionId: parentSubscription._id,
-      status: parentSubscription.status === "suspended" ? "suspended" : "active",
+      status:
+        parentSubscription.status === "suspended" ? "suspended" : "active",
       activatedAt: parentSubscription.activatedAt ?? now,
       suspendedAt:
-        parentSubscription.status === "suspended" ? parentSubscription.suspendedAt ?? now : undefined,
+        parentSubscription.status === "suspended"
+          ? (parentSubscription.suspendedAt ?? now)
+          : undefined,
       createdAt: now,
       updatedAt: now,
     });
@@ -714,13 +825,16 @@ export const changePlan = mutation({
       updatedAt: now,
     });
 
-    // Create payment for current period
-    await createPaymentForCurrentPeriod(ctx, {
-      organizationId: membership.organizationId,
-      userId: identity.subject,
-      subscriptionId,
-      plan: newPlan,
-    });
+    // Create payment for current period.
+    // Join-date plans start billing one full month after activation.
+    if ((newPlan.billingMode ?? "calendar") !== "join_date") {
+      await createPaymentForCurrentPeriod(ctx, {
+        organizationId: membership.organizationId,
+        userId: identity.subject,
+        subscriptionId,
+        plan: newPlan,
+      });
+    }
 
     return subscriptionId;
   },
@@ -776,10 +890,9 @@ export const autoSuspendUnpaidForOrg = internalMutation({
     });
     const parts = formatter.formatToParts(nowDate);
     const partMap = Object.fromEntries(parts.map((p) => [p.type, p.value]));
-    const currentDay = parseInt(partMap.day!, 10);
     const currentMonth = partMap.month!;
     const currentYear = partMap.year!;
-    const billingPeriod = `${currentYear}-${currentMonth}`;
+    const calendarBillingPeriod = `${currentYear}-${currentMonth}`;
 
     const page = await ctx.db
       .query("memberPlanSubscriptions")
@@ -818,8 +931,20 @@ export const autoSuspendUnpaidForOrg = internalMutation({
         if (effectiveAmount === 0) continue;
       }
 
-      // Skip if payment window hasn't closed yet
-      if (currentDay <= plan.paymentWindowEndDay) continue;
+      const cycle = getBillingCycle(
+        plan,
+        sub.activatedAt,
+        nowDate.getTime(),
+        timezone,
+      );
+      if (
+        (plan.billingMode ?? "calendar") === "join_date" &&
+        nowDate.getTime() <
+          getFirstJoinDateBillingDueAt(sub.activatedAt, timezone)
+      ) {
+        continue;
+      }
+      if (nowDate.getTime() <= cycle.dueAt) continue;
 
       // Grace period: skip if activated after the payment window closed this month
       // (i.e., member joined mid-month past the window)
@@ -835,7 +960,10 @@ export const autoSuspendUnpaidForOrg = internalMutation({
       );
       const activatedPeriod = `${activatedPartMap.year}-${activatedPartMap.month}`;
 
-      if (activatedPeriod === billingPeriod) {
+      if (
+        (plan.billingMode ?? "calendar") === "calendar" &&
+        activatedPeriod === calendarBillingPeriod
+      ) {
         // Member activated this month — check if they activated after the window closed
         const activatedDayFormatter = new Intl.DateTimeFormat("en-US", {
           timeZone: timezone,
@@ -856,7 +984,9 @@ export const autoSuspendUnpaidForOrg = internalMutation({
       const approvedPayment = await ctx.db
         .query("planPayments")
         .withIndex("by_subscription_period", (q) =>
-          q.eq("subscriptionId", sub._id).eq("billingPeriod", billingPeriod),
+          q
+            .eq("subscriptionId", sub._id)
+            .eq("billingPeriod", cycle.billingPeriod),
         )
         .filter((q) => q.eq(q.field("status"), "approved"))
         .first();
@@ -900,6 +1030,78 @@ export const autoSuspendUnpaidForOrg = internalMutation({
 });
 
 /**
+ * Internal mutation: ensure every billable subscription has a payment record
+ * for its current cycle. Calendar plans wait until their payment window opens;
+ * join-date plans open on each member's activation day.
+ */
+export const generateCurrentPeriodPayments = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const orgs = await ctx.db.query("organizations").collect();
+    let generatedCount = 0;
+
+    for (const org of orgs) {
+      const timezone =
+        org.timezone && org.timezone.trim() !== "" ? org.timezone : "UTC";
+      const now = Date.now();
+      const currentParts = getZonedDateParts(now, timezone);
+
+      const subscriptions = await ctx.db
+        .query("memberPlanSubscriptions")
+        .withIndex("by_organization", (q) => q.eq("organizationId", org._id))
+        .filter((q) => q.neq(q.field("status"), "cancelled"))
+        .collect();
+
+      for (const sub of subscriptions) {
+        if (sub.familyParentSubscriptionId) continue;
+
+        const plan = await ctx.db.get(sub.planId);
+        if (!plan) continue;
+
+        if (
+          (plan.billingMode ?? "calendar") === "join_date" &&
+          now < getFirstJoinDateBillingDueAt(sub.activatedAt, timezone)
+        ) {
+          continue;
+        }
+
+        if (
+          (plan.billingMode ?? "calendar") === "calendar" &&
+          currentParts.day < plan.paymentWindowStartDay
+        ) {
+          continue;
+        }
+
+        const activeBonification = await ctx.db
+          .query("planBonifications")
+          .withIndex("by_subscription_status", (q) =>
+            q.eq("subscriptionId", sub._id).eq("status", "active"),
+          )
+          .first();
+        if (activeBonification) {
+          const effectiveAmount = computeBonificationAmount(
+            plan.priceArs,
+            activeBonification.discountType,
+            activeBonification.discountValue,
+          );
+          if (effectiveAmount === 0) continue;
+        }
+
+        const paymentId = await createPaymentForCurrentPeriod(ctx, {
+          organizationId: org._id,
+          userId: sub.userId,
+          subscriptionId: sub._id,
+          plan,
+        });
+        if (paymentId) generatedCount++;
+      }
+    }
+
+    return { generatedCount };
+  },
+});
+
+/**
  * Helper: create advance payment records for multiple months with a discount.
  * Each month gets its own payment record with the discounted per-month amount.
  */
@@ -909,10 +1111,7 @@ async function createAdvancePayments(
     organizationId: Id<"organizations">;
     userId: string;
     subscriptionId: Id<"memberPlanSubscriptions">;
-    plan: {
-      _id: Id<"membershipPlans">;
-      priceArs: number;
-    };
+    plan: PlanBillingConfig;
     months: number;
     discountPercentage: number;
   },
@@ -932,6 +1131,21 @@ async function createAdvancePayments(
   for (let i = 0; i < params.months; i++) {
     const monthDate = new Date(d.getFullYear(), d.getMonth() + i, 1);
     const billingPeriod = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
+    const cycleStartAt = Date.UTC(
+      monthDate.getFullYear(),
+      monthDate.getMonth(),
+      1,
+    );
+    const cycleEndAt = Date.UTC(
+      monthDate.getFullYear(),
+      monthDate.getMonth() + 1,
+      1,
+    );
+    const dueAt = Date.UTC(
+      monthDate.getFullYear(),
+      monthDate.getMonth(),
+      params.plan.paymentWindowEndDay ?? 28,
+    );
 
     // Check if a payment already exists for this period
     const existing = await ctx.db
@@ -950,6 +1164,9 @@ async function createAdvancePayments(
         subscriptionId: params.subscriptionId,
         planId: params.plan._id,
         billingPeriod,
+        billingCycleStartAt: cycleStartAt,
+        billingCycleEndAt: cycleEndAt,
+        dueAt,
         amountArs: discountedPrice,
         totalAmountArs: discountedPrice,
         status: "pending",
@@ -969,15 +1186,22 @@ async function createPaymentForCurrentPeriod(
     organizationId: Id<"organizations">;
     userId: string;
     subscriptionId: Id<"memberPlanSubscriptions">;
-    plan: {
-      _id: Id<"membershipPlans">;
-      priceArs: number;
-    };
+    plan: PlanBillingConfig;
   },
 ) {
   const now = Date.now();
-  const d = new Date(now);
-  const billingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const organization = await ctx.db.get(params.organizationId);
+  const timezone =
+    organization?.timezone && organization.timezone.trim() !== ""
+      ? organization.timezone
+      : "UTC";
+  const subscription = await ctx.db.get(params.subscriptionId);
+  const cycle = getBillingCycle(
+    params.plan,
+    subscription?.activatedAt ?? now,
+    now,
+    timezone,
+  );
   const { memberCount } = await getFamilyGroupSubscriptions(ctx, {
     _id: params.subscriptionId,
     organizationId: params.organizationId,
@@ -990,7 +1214,7 @@ async function createPaymentForCurrentPeriod(
     .withIndex("by_subscription_period", (q) =>
       q
         .eq("subscriptionId", params.subscriptionId)
-        .eq("billingPeriod", billingPeriod),
+        .eq("billingPeriod", cycle.billingPeriod),
     )
     .first();
 
@@ -1001,7 +1225,10 @@ async function createPaymentForCurrentPeriod(
     userId: params.userId,
     subscriptionId: params.subscriptionId,
     planId: params.plan._id,
-    billingPeriod,
+    billingPeriod: cycle.billingPeriod,
+    billingCycleStartAt: cycle.cycleStartAt,
+    billingCycleEndAt: cycle.cycleEndAt,
+    dueAt: cycle.dueAt,
     amountArs: params.plan.priceArs * memberCount,
     totalAmountArs: params.plan.priceArs * memberCount,
     status: "pending",
