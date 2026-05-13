@@ -1,6 +1,11 @@
-import { useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "@repo/convex";
 
 export function useOrgSettings() {
-  return useQuery(api.organizationSettings.get);
+  const { isAuthenticated } = useConvexAuth();
+
+  return useQuery(
+    api.organizationSettings.get,
+    isAuthenticated ? {} : "skip",
+  );
 }

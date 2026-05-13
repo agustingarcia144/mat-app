@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import {
   requireCurrentOrganizationMembership,
   requireAdmin,
+  tryActiveOrgContext,
 } from "./permissions";
 
 const DEFAULTS = {
@@ -15,11 +16,15 @@ const DEFAULTS = {
 export const get = query({
   args: {},
   handler: async (ctx) => {
-    const membership = await requireCurrentOrganizationMembership(ctx);
+    const orgCtx = await tryActiveOrgContext(ctx);
+    if (!orgCtx) {
+      return null;
+    }
+
     const settings = await ctx.db
       .query("organizationSettings")
       .withIndex("by_organization", (q) =>
-        q.eq("organizationId", membership.organizationId),
+        q.eq("organizationId", orgCtx.organizationId),
       )
       .first();
 
@@ -27,7 +32,7 @@ export const get = query({
       return {
         ...DEFAULTS,
         _id: null as null,
-        organizationId: membership.organizationId,
+        organizationId: orgCtx.organizationId,
       };
     }
     return settings;
