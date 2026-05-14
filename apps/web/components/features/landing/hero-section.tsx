@@ -367,7 +367,7 @@ fbq('track', 'PageView');`}
                   isScrolled ? "px-2 text-xs" : "px-3"
                 }`}
               >
-                Activar
+                Tengo invitación
               </Link>
             </nav>
 
