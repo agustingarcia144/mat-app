@@ -14,6 +14,7 @@ interface PlanStatusCardProps {
     name: string;
     priceArs: number;
     weeklyClassLimit: number;
+    billingMode?: "calendar" | "join_date";
     paymentWindowStartDay: number;
     paymentWindowEndDay: number;
   } | null;
@@ -110,8 +111,9 @@ export default function PlanStatusCard({
       </View>
 
       <Text style={[styles.windowText, { color: isDark ? "#aaa" : "#666" }]}>
-        Ventana de pago: del {plan.paymentWindowStartDay} al{" "}
-        {plan.paymentWindowEndDay} de cada mes
+        {(plan.billingMode ?? "calendar") === "join_date"
+          ? "Cobro mensual según fecha de ingreso"
+          : `Ventana de pago: del ${plan.paymentWindowStartDay} al ${plan.paymentWindowEndDay} de cada mes`}
       </Text>
     </View>
   );

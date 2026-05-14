@@ -673,6 +673,10 @@ export default defineSchema({
     name: v.string(), // "Plan Básico", "2 veces/semana"
     description: v.optional(v.string()),
     isFamilyPlan: v.optional(v.boolean()),
+    // calendar: day-of-month payment window. join_date: each member pays on their activation day.
+    billingMode: v.optional(
+      v.union(v.literal("calendar"), v.literal("join_date")),
+    ),
     priceArs: v.number(), // Price in ARS (whole pesos)
     weeklyClassLimit: v.number(), // Max classes per week (Mon-Sun)
     paymentWindowStartDay: v.number(), // Day of month payment opens (1-28)
@@ -738,6 +742,9 @@ export default defineSchema({
     subscriptionId: v.id("memberPlanSubscriptions"),
     planId: v.id("membershipPlans"), // Denormalized for queries
     billingPeriod: v.string(), // "YYYY-MM" format
+    billingCycleStartAt: v.optional(v.number()),
+    billingCycleEndAt: v.optional(v.number()),
+    dueAt: v.optional(v.number()),
     amountArs: v.number(), // Base plan price at time of creation
     // How the payment was made. Absent on legacy rows (treated as proof_upload).
     paymentMethod: v.optional(

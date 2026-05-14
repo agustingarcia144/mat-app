@@ -2,6 +2,7 @@
 // Example: export type User = { id: string; name: string }
 
 export type InterestTierType = "percentage" | "fixed";
+export type BillingMode = "calendar" | "join_date";
 
 export type InterestTier = {
   daysAfterWindowEnd: number; // how many days after paymentWindowEndDay this tier activates (min 1)
@@ -45,17 +46,17 @@ function getDaysAfterPaymentWindow(
   paymentWindowEndDay: number,
   nowMs: number,
   timeZone: string,
+  dueAt?: number,
 ) {
   const [yearStr, monthStr] = billingPeriod.split("-");
   const billingYear = parseInt(yearStr!, 10);
   const billingMonth = parseInt(monthStr!, 10);
   const nowParts = getZonedDateParts(nowMs, timeZone);
 
-  const windowEndDateMs = Date.UTC(
-    billingYear,
-    billingMonth - 1,
-    paymentWindowEndDay,
-  );
+  const dueParts = dueAt ? getZonedDateParts(dueAt, timeZone) : null;
+  const windowEndDateMs = dueParts
+    ? Date.UTC(dueParts.year, dueParts.month - 1, dueParts.day)
+    : Date.UTC(billingYear, billingMonth - 1, paymentWindowEndDay);
   const currentLocalDateMs = Date.UTC(
     nowParts.year,
     nowParts.month - 1,
@@ -78,6 +79,7 @@ function getDaysAfterPaymentWindow(
  * @param paymentWindowEndDay  Day of month the payment window closes (1-28)
  * @param nowMs        Current timestamp in ms (defaults to Date.now())
  * @param timeZone     IANA timezone used to compare local calendar days
+ * @param dueAt        Optional exact due timestamp for join-date billing
  */
 export function calculateInterest(
   baseAmount: number,
@@ -86,12 +88,14 @@ export function calculateInterest(
   paymentWindowEndDay: number,
   nowMs: number = Date.now(),
   timeZone: string = "America/Argentina/Buenos_Aires",
+  dueAt?: number,
 ): InterestResult {
   const daysElapsed = getDaysAfterPaymentWindow(
     billingPeriod,
     paymentWindowEndDay,
     nowMs,
     timeZone,
+    dueAt,
   );
 
   if (daysElapsed === 0 || tiers.length === 0) {

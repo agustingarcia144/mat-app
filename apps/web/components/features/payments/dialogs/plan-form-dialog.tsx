@@ -1,43 +1,43 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { useForm, useFieldArray } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Button } from '@/components/ui/button'
+import { useEffect, useState } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
+} from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
   FieldLabel,
   FieldDescription,
   FieldError,
-} from '@/components/ui/field'
+} from "@/components/ui/field";
 import {
   membershipPlanSchema,
   type MembershipPlanForm,
-} from '@repo/core/schemas'
-import { type Id } from '@/convex/_generated/dataModel'
-import { toast } from 'sonner'
-import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
-import { ChevronDown, Plus, Trash2 } from 'lucide-react'
+} from "@repo/core/schemas";
+import { type Id } from "@/convex/_generated/dataModel";
+import { toast } from "sonner";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 
-const UNLIMITED_SENTINEL = 9999
+const UNLIMITED_SENTINEL = 9999;
 
 interface PlanFormDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  planId?: Id<'membershipPlans'>
-  onSuccess?: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  planId?: Id<"membershipPlans">;
+  onSuccess?: () => void;
 }
 
 export default function PlanFormDialog({
@@ -46,19 +46,22 @@ export default function PlanFormDialog({
   planId,
   onSuccess,
 }: PlanFormDialogProps) {
-  const canQuery = useCanQueryCurrentOrganization()
-  const isEditing = !!planId
+  const canQuery = useCanQueryCurrentOrganization();
+  const isEditing = !!planId;
 
   const existingPlan = useQuery(
     api.membershipPlans.getById,
-    isEditing && canQuery ? { planId } : 'skip'
-  )
+    isEditing && canQuery ? { planId } : "skip",
+  );
 
-  const createPlan = useMutation(api.membershipPlans.create)
-  const updatePlan = useMutation(api.membershipPlans.update)
+  const createPlan = useMutation(api.membershipPlans.create);
+  const updatePlan = useMutation(api.membershipPlans.update);
 
-  const [priceDisplay, setPriceDisplay] = useState('0')
-  const [isUnlimited, setIsUnlimited] = useState(false)
+  const [priceDisplay, setPriceDisplay] = useState("0");
+  const [isUnlimited, setIsUnlimited] = useState(false);
+  const [tierDayDrafts, setTierDayDrafts] = useState<Record<string, string>>(
+    {},
+  );
 
   const {
     register,
@@ -71,9 +74,10 @@ export default function PlanFormDialog({
   } = useForm<MembershipPlanForm>({
     resolver: zodResolver(membershipPlanSchema as any) as any,
     defaultValues: {
-      name: '',
-      description: '',
+      name: "",
+      description: "",
       isFamilyPlan: false,
+      billingMode: "calendar",
       priceArs: 0,
       weeklyClassLimit: 2,
       paymentWindowStartDay: 1,
@@ -81,12 +85,12 @@ export default function PlanFormDialog({
       interestTiers: [],
       advancePaymentDiscounts: [],
     },
-  })
+  });
 
   const { fields, append, remove } = useFieldArray({
     control,
-    name: 'interestTiers',
-  })
+    name: "interestTiers",
+  });
 
   const {
     fields: discountFields,
@@ -94,123 +98,137 @@ export default function PlanFormDialog({
     remove: removeDiscount,
   } = useFieldArray({
     control,
-    name: 'advancePaymentDiscounts',
-  })
+    name: "advancePaymentDiscounts",
+  });
 
-  const watchedEndDay = watch('paymentWindowEndDay') ?? 10
-  const watchedTiers = watch('interestTiers')
-  const isFamilyPlan = watch('isFamilyPlan')
+  const watchedEndDay = watch("paymentWindowEndDay") ?? 10;
+  const watchedTiers = watch("interestTiers");
+  const isFamilyPlan = watch("isFamilyPlan");
+  const billingMode = watch("billingMode") ?? "calendar";
+  const isCalendarBilling = billingMode === "calendar";
 
   // Sorted absolute days for all tiers — used to compute per-tier date ranges
   const sortedTierDays = [...(watchedTiers ?? [])]
-    .map((t) => watchedEndDay + (t?.daysAfterWindowEnd ?? 1))
-    .sort((a, b) => a - b)
+    .map(
+      (t) =>
+        (isCalendarBilling ? watchedEndDay : 0) + (t?.daysAfterWindowEnd ?? 1),
+    )
+    .sort((a, b) => a - b);
 
   const formatRangeDay = (d: number) =>
-    d <= 28 ? `${d}` : `${d - 28} (mes sig.)`
+    isCalendarBilling
+      ? d <= 28
+        ? `${d}`
+        : `${d - 28} (mes sig.)`
+      : `${d} día${d === 1 ? "" : "s"} posterior${d === 1 ? "" : "es"}`;
 
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
+    setTierDayDrafts({});
     if (existingPlan) {
-      const unlimited = existingPlan.weeklyClassLimit >= UNLIMITED_SENTINEL
-      setIsUnlimited(unlimited)
-      setPriceDisplay(existingPlan.priceArs.toLocaleString('es-AR'))
+      const unlimited = existingPlan.weeklyClassLimit >= UNLIMITED_SENTINEL;
+      setIsUnlimited(unlimited);
+      setPriceDisplay(existingPlan.priceArs.toLocaleString("es-AR"));
       reset({
         name: existingPlan.name,
-        description: existingPlan.description ?? '',
+        description: existingPlan.description ?? "",
         isFamilyPlan: existingPlan.isFamilyPlan ?? false,
+        billingMode: existingPlan.billingMode ?? "calendar",
         priceArs: existingPlan.priceArs,
         weeklyClassLimit: existingPlan.weeklyClassLimit,
         paymentWindowStartDay: existingPlan.paymentWindowStartDay,
         paymentWindowEndDay: existingPlan.paymentWindowEndDay,
         interestTiers: (existingPlan.interestTiers ??
-          []) as MembershipPlanForm['interestTiers'],
+          []) as MembershipPlanForm["interestTiers"],
         advancePaymentDiscounts: (existingPlan.advancePaymentDiscounts ??
-          []) as MembershipPlanForm['advancePaymentDiscounts'],
-      })
+          []) as MembershipPlanForm["advancePaymentDiscounts"],
+      });
     } else if (!isEditing) {
-      setIsUnlimited(false)
-      setPriceDisplay('0')
+      setIsUnlimited(false);
+      setPriceDisplay("0");
       reset({
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         isFamilyPlan: false,
+        billingMode: "calendar",
         priceArs: 0,
         weeklyClassLimit: 2,
         paymentWindowStartDay: 1,
         paymentWindowEndDay: 10,
         interestTiers: [],
         advancePaymentDiscounts: [],
-      })
+      });
     }
-  }, [open, existingPlan, isEditing, reset])
+  }, [open, existingPlan, isEditing, reset]);
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '')
-    const num = digits ? parseInt(digits, 10) : 0
-    setPriceDisplay(num.toLocaleString('es-AR'))
-    setValue('priceArs', num, { shouldValidate: true })
-  }
+    const digits = e.target.value.replace(/\D/g, "");
+    const num = digits ? parseInt(digits, 10) : 0;
+    setPriceDisplay(num.toLocaleString("es-AR"));
+    setValue("priceArs", num, { shouldValidate: true });
+  };
 
   const handleUnlimitedToggle = (checked: boolean) => {
-    setIsUnlimited(checked)
-    setValue('weeklyClassLimit', checked ? UNLIMITED_SENTINEL : 2, {
+    setIsUnlimited(checked);
+    setValue("weeklyClassLimit", checked ? UNLIMITED_SENTINEL : 2, {
       shouldValidate: true,
-    })
-  }
+    });
+  };
 
   const onSubmit = async (data: MembershipPlanForm) => {
     try {
       const interestTiers = data.interestTiers?.length
         ? data.interestTiers
-        : undefined
+        : undefined;
       const advancePaymentDiscounts = data.advancePaymentDiscounts?.length
         ? data.advancePaymentDiscounts
-        : undefined
+        : undefined;
       if (isEditing && planId) {
         await updatePlan({
           planId,
           name: data.name,
           description: data.description || undefined,
           isFamilyPlan: data.isFamilyPlan,
+          billingMode: data.billingMode,
           priceArs: data.priceArs,
           weeklyClassLimit: data.weeklyClassLimit,
           paymentWindowStartDay: data.paymentWindowStartDay,
           paymentWindowEndDay: data.paymentWindowEndDay,
           interestTiers,
           advancePaymentDiscounts,
-        })
-        toast.success('Plan actualizado')
+        });
+        toast.success("Plan actualizado");
       } else {
         await createPlan({
           name: data.name,
           description: data.description || undefined,
           isFamilyPlan: data.isFamilyPlan,
+          billingMode: data.billingMode,
           priceArs: data.priceArs,
           weeklyClassLimit: data.weeklyClassLimit,
           paymentWindowStartDay: data.paymentWindowStartDay,
           paymentWindowEndDay: data.paymentWindowEndDay,
           interestTiers,
           advancePaymentDiscounts,
-        })
-        toast.success('Plan creado')
+        });
+        toast.success("Plan creado");
       }
-      onOpenChange(false)
-      onSuccess?.()
+      onOpenChange(false);
+      onSuccess?.();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al guardar')
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
     }
-  }
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{isEditing ? 'Editar plan' : 'Nuevo plan'}</SheetTitle>
+          <SheetTitle>{isEditing ? "Editar plan" : "Nuevo plan"}</SheetTitle>
           <SheetDescription>
             {isEditing
-              ? 'Modifica los datos del plan de membresía.'
-              : 'Crea un nuevo plan de membresía para tus miembros.'}
+              ? "Modifica los datos del plan de membresía."
+              : "Crea un nuevo plan de membresía para tus miembros."}
           </SheetDescription>
         </SheetHeader>
 
@@ -218,7 +236,7 @@ export default function PlanFormDialog({
           <Field>
             <FieldLabel>Nombre</FieldLabel>
             <Input
-              {...register('name')}
+              {...register("name")}
               placeholder="Ej: Plan Básico, 2 veces/semana"
             />
             {errors.name && <FieldError>{errors.name.message}</FieldError>}
@@ -227,7 +245,7 @@ export default function PlanFormDialog({
           <Field>
             <FieldLabel>Descripción (opcional)</FieldLabel>
             <Textarea
-              {...register('description')}
+              {...register("description")}
               rows={2}
               placeholder="Descripción del plan..."
             />
@@ -238,7 +256,7 @@ export default function PlanFormDialog({
               <Checkbox
                 checked={isFamilyPlan}
                 onCheckedChange={(checked) =>
-                  setValue('isFamilyPlan', Boolean(checked), {
+                  setValue("isFamilyPlan", Boolean(checked), {
                     shouldValidate: true,
                   })
                 }
@@ -280,10 +298,10 @@ export default function PlanFormDialog({
             <div className="flex items-center gap-3">
               <Input
                 type="number"
-                {...register('weeklyClassLimit', { valueAsNumber: true })}
+                {...register("weeklyClassLimit", { valueAsNumber: true })}
                 placeholder="2"
                 disabled={isUnlimited}
-                className={isUnlimited ? 'opacity-40' : ''}
+                className={isUnlimited ? "opacity-40" : ""}
               />
               <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
                 <Checkbox
@@ -303,48 +321,101 @@ export default function PlanFormDialog({
           </Field>
 
           <Field>
-            <FieldLabel>Ventana de pago</FieldLabel>
-            <div className="grid grid-cols-2 items-start gap-3">
-              <Field>
-                <FieldLabel className="text-muted-foreground font-normal">
-                  Día inicio
-                </FieldLabel>
-                <Input
-                  type="number"
-                  {...register('paymentWindowStartDay', {
-                    valueAsNumber: true,
-                  })}
-                  min={1}
-                  max={28}
+            <FieldLabel>Tipo de cobro</FieldLabel>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                <Checkbox
+                  checked={billingMode === "calendar"}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setValue("billingMode", "calendar", {
+                        shouldValidate: true,
+                      });
+                    }
+                  }}
                 />
-                {errors.paymentWindowStartDay && (
-                  <FieldError>
-                    {errors.paymentWindowStartDay.message}
-                  </FieldError>
-                )}
-              </Field>
+                <div className="space-y-1">
+                  <FieldLabel className="cursor-pointer text-sm font-semibold">
+                    Calendario
+                  </FieldLabel>
+                  <FieldDescription>
+                    Cobra con ventana fija del mes, como funciona actualmente.
+                  </FieldDescription>
+                </div>
+              </label>
 
-              <Field>
-                <FieldLabel className="text-muted-foreground font-normal">
-                  Día fin
-                </FieldLabel>
-                <Input
-                  type="number"
-                  {...register('paymentWindowEndDay', { valueAsNumber: true })}
-                  min={1}
-                  max={28}
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                <Checkbox
+                  checked={billingMode === "join_date"}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setValue("billingMode", "join_date", {
+                        shouldValidate: true,
+                      });
+                    }
+                  }}
                 />
-                {errors.paymentWindowEndDay && (
-                  <FieldError>{errors.paymentWindowEndDay.message}</FieldError>
-                )}
-              </Field>
+                <div className="space-y-1">
+                  <FieldLabel className="cursor-pointer text-sm font-semibold">
+                    Por ingreso
+                  </FieldLabel>
+                  <FieldDescription>
+                    Cobra cada mes según el día en que ingresó el miembro.
+                  </FieldDescription>
+                </div>
+              </label>
             </div>
-            <FieldDescription>
-              {fields.length > 0
-                ? 'Con cargos por mora configurados, el plan no se suspende automáticamente.'
-                : 'Sin cargos por mora, el plan se suspende automáticamente si no se aprobó el pago.'}
-            </FieldDescription>
           </Field>
+
+          {isCalendarBilling ? (
+            <Field>
+              <FieldLabel>Ventana de pago</FieldLabel>
+              <div className="grid grid-cols-2 items-start gap-3">
+                <Field>
+                  <FieldLabel className="text-muted-foreground font-normal">
+                    Día inicio
+                  </FieldLabel>
+                  <Input
+                    type="number"
+                    {...register("paymentWindowStartDay", {
+                      valueAsNumber: true,
+                    })}
+                    min={1}
+                    max={28}
+                  />
+                  {errors.paymentWindowStartDay && (
+                    <FieldError>
+                      {errors.paymentWindowStartDay.message}
+                    </FieldError>
+                  )}
+                </Field>
+
+                <Field>
+                  <FieldLabel className="text-muted-foreground font-normal">
+                    Día fin
+                  </FieldLabel>
+                  <Input
+                    type="number"
+                    {...register("paymentWindowEndDay", {
+                      valueAsNumber: true,
+                    })}
+                    min={1}
+                    max={28}
+                  />
+                  {errors.paymentWindowEndDay && (
+                    <FieldError>
+                      {errors.paymentWindowEndDay.message}
+                    </FieldError>
+                  )}
+                </Field>
+              </div>
+              <FieldDescription>
+                {fields.length > 0
+                  ? "Con cargos por mora configurados, el plan no se suspende automáticamente."
+                  : "Sin cargos por mora, el plan se suspende automáticamente si no se aprobó el pago."}
+              </FieldDescription>
+            </Field>
+          ) : null}
 
           {/* Interest tiers */}
           <Field>
@@ -358,7 +429,7 @@ export default function PlanFormDialog({
                 onClick={() =>
                   append({
                     daysAfterWindowEnd: 5,
-                    type: 'percentage',
+                    type: "percentage",
                     value: 0,
                   })
                 }
@@ -375,13 +446,23 @@ export default function PlanFormDialog({
             ) : (
               <div className="space-y-3">
                 {fields.map((field, index) => {
-                  const days = watchedTiers?.[index]?.daysAfterWindowEnd ?? 1
-                  const absoluteDay = watchedEndDay + days
-                  const sortedIdx = sortedTierDays.indexOf(absoluteDay)
-                  const nextTierDay = sortedTierDays[sortedIdx + 1]
+                  const storedDays = watchedTiers?.[index]?.daysAfterWindowEnd;
+                  const days =
+                    typeof storedDays === "number" &&
+                    Number.isFinite(storedDays)
+                      ? storedDays
+                      : 1;
+                  const absoluteDay =
+                    (isCalendarBilling ? watchedEndDay : 0) + days;
+                  const draftKey = `${field.id}-${isCalendarBilling ? "calendar" : "join"}`;
+                  const dayInputValue =
+                    tierDayDrafts[draftKey] ??
+                    String(isCalendarBilling ? absoluteDay : days);
+                  const sortedIdx = sortedTierDays.indexOf(absoluteDay);
+                  const nextTierDay = sortedTierDays[sortedIdx + 1];
                   const rangeLabel = nextTierDay
                     ? `Desde el ${formatRangeDay(absoluteDay)} hasta el ${formatRangeDay(nextTierDay - 1)}`
-                    : `Desde el ${formatRangeDay(absoluteDay)} en adelante`
+                    : `Desde el ${formatRangeDay(absoluteDay)} en adelante`;
 
                   return (
                     <div
@@ -409,28 +490,35 @@ export default function PlanFormDialog({
                       <div className="grid grid-cols-3 gap-2">
                         <Field>
                           <FieldLabel className="text-muted-foreground text-xs font-normal">
-                            Día del mes
+                            {isCalendarBilling
+                              ? "Día del mes"
+                              : "Días posteriores"}
                           </FieldLabel>
                           <Input
                             type="number"
-                            min={watchedEndDay + 1}
-                            max={watchedEndDay + 28}
-                            value={absoluteDay}
+                            min={isCalendarBilling ? watchedEndDay + 1 : 1}
+                            max={isCalendarBilling ? watchedEndDay + 28 : 365}
+                            value={dayInputValue}
                             onChange={(e) => {
-                              const dayOfMonth =
-                                parseInt(e.target.value, 10) || 0
-                              const relative = Math.max(
-                                1,
-                                dayOfMonth - watchedEndDay
-                              )
+                              const rawValue = e.target.value;
+                              setTierDayDrafts((current) => ({
+                                ...current,
+                                [draftKey]: rawValue,
+                              }));
+                              const inputValue = parseInt(rawValue, 10);
+                              const relative = Number.isFinite(inputValue)
+                                ? isCalendarBilling
+                                  ? inputValue - watchedEndDay
+                                  : inputValue
+                                : undefined;
                               setValue(
                                 `interestTiers.${index}.daysAfterWindowEnd`,
-                                relative,
-                                { shouldValidate: true }
-                              )
+                                relative as number,
+                                { shouldValidate: true },
+                              );
                             }}
                           />
-                          {absoluteDay > 28 && (
+                          {isCalendarBilling && absoluteDay > 28 && (
                             <p className="text-muted-foreground text-xs">
                               Día {absoluteDay - 28} del mes siguiente
                             </p>
@@ -461,7 +549,7 @@ export default function PlanFormDialog({
                             type="number"
                             min={0}
                             step={
-                              watchedTiers?.[index]?.type === 'fixed'
+                              watchedTiers?.[index]?.type === "fixed"
                                 ? 100
                                 : 0.5
                             }
@@ -478,7 +566,7 @@ export default function PlanFormDialog({
                         </FieldError>
                       )}
                     </div>
-                  )
+                  );
                 })}
                 <FieldDescription>
                   Los tramos son acumulativos: si aplican varios, todos se
@@ -527,7 +615,7 @@ export default function PlanFormDialog({
                             `advancePaymentDiscounts.${index}.months`,
                             {
                               valueAsNumber: true,
-                            }
+                            },
                           )}
                           className="border-input bg-background h-9 w-full appearance-none rounded-md border pl-2 pr-7 text-sm"
                         >
@@ -550,7 +638,7 @@ export default function PlanFormDialog({
                         step="any"
                         {...register(
                           `advancePaymentDiscounts.${index}.discountPercentage`,
-                          { valueAsNumber: true }
+                          { valueAsNumber: true },
                         )}
                       />
                     </Field>
@@ -585,11 +673,11 @@ export default function PlanFormDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isEditing ? 'Guardar cambios' : 'Crear plan'}
+              {isEditing ? "Guardar cambios" : "Crear plan"}
             </Button>
           </div>
         </form>
       </SheetContent>
     </Sheet>
-  )
+  );
 }
