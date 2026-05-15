@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   StyleSheet,
   TextInput,
   View,
@@ -22,11 +23,20 @@ import { EmptyState } from "@/components/ui/empty-state";
 const normalize = (value?: string) =>
   value?.toString().trim().toLowerCase() ?? "";
 
+type StatusFilter = "all" | "active" | "inactive";
+
+const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+  { key: "all", label: "Todos" },
+  { key: "active", label: "Activo" },
+  { key: "inactive", label: "Inactivo" },
+];
+
 export default function MembersListScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
   const memberships = useQuery(
     api.organizationMemberships.getOrganizationMemberships,
@@ -41,14 +51,23 @@ export default function MembersListScreen() {
   }, [memberships]);
 
   const filtered = useMemo(() => {
+    let result = members;
+    if (statusFilter !== "all") {
+      result = result.filter((m) => {
+        const s = normalize(m.status);
+        return statusFilter === "active"
+          ? s === "active" || s === "activo"
+          : s === "inactive" || s === "inactivo";
+      });
+    }
     const term = normalize(search);
-    if (!term) return members;
-    return members.filter(
+    if (!term) return result;
+    return result.filter(
       (m) =>
         normalize(m.name).includes(term) ||
         normalize(m.email).includes(term),
     );
-  }, [members, search]);
+  }, [members, search, statusFilter]);
 
   return (
     <ThemedView style={styles.container}>
@@ -89,6 +108,38 @@ export default function MembersListScreen() {
             onChangeText={setSearch}
             autoCapitalize="none"
           />
+        </View>
+
+        <View style={styles.filtersRow}>
+          {STATUS_FILTERS.map((f) => {
+            const active = statusFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                style={[
+                  styles.filterChip,
+                  {
+                    backgroundColor: active
+                      ? isDark ? "#fff" : "#111"
+                      : isDark ? Colors.dark.muted : Colors.light.muted,
+                    borderColor: active
+                      ? isDark ? "#fff" : "#111"
+                      : isDark ? Colors.dark.border : Colors.light.border,
+                  },
+                ]}
+                onPress={() => setStatusFilter(f.key)}
+              >
+                <ThemedText
+                  style={[
+                    styles.filterChipText,
+                    { color: active ? (isDark ? "#000" : "#fff") : isDark ? Colors.dark.subtle : Colors.light.subtle },
+                  ]}
+                >
+                  {f.label}
+                </ThemedText>
+              </Pressable>
+            );
+          })}
         </View>
 
         {memberships === undefined ? (
@@ -171,5 +222,24 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
+  },
+  filtersRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  filterChip: {
+    height: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 16,
   },
 });

@@ -61,10 +61,13 @@ export default function InviteOnlySignUp() {
   const ticket = searchParams.get("__clerk_ticket");
   const accountStatus = searchParams.get("__clerk_status");
   const inviteToken = searchParams.get("invite_token");
+  const inviteCode = searchParams.get("invite_code");
   const redirectUrl = searchParams.get("redirect_url");
   const fallbackRedirect = inviteToken
     ? `/invitations/accept?token=${encodeURIComponent(inviteToken)}`
-    : STAFF_REDIRECT;
+    : inviteCode
+      ? `/invite-code?code=${encodeURIComponent(inviteCode)}&continue=1`
+      : STAFF_REDIRECT;
   const postSignUpRedirect = getSafeRedirectUrl(redirectUrl, fallbackRedirect);
   const attemptedRef = useRef(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -110,6 +113,7 @@ export default function InviteOnlySignUp() {
           action: "accept_invitation_ticket_sign_in",
           extras: {
             hasInviteToken: Boolean(inviteToken),
+            hasInviteCode: Boolean(inviteCode),
           },
         });
         const message =
@@ -133,6 +137,7 @@ export default function InviteOnlySignUp() {
   }, [
     accountStatus,
     isLoaded,
+    inviteCode,
     inviteToken,
     retryKey,
     router,
@@ -142,7 +147,7 @@ export default function InviteOnlySignUp() {
     ticket,
   ]);
 
-  if (!ticket && !inviteToken) {
+  if (!ticket && !inviteToken && !inviteCode) {
     return (
       <InvitationStatusCard
         title="Acceso solo por invitación"

@@ -6,7 +6,7 @@ export default function MembersLayout() {
 
   return (
     <Stack screenOptions={screenOptions}>
-      <Stack.Screen name="index" options={{ title: "Miembros" }} />
+      <Stack.Screen name="index" options={{ title: "Miembros", headerBackTitle: "" }} />
       <Stack.Screen name="[memberId]" options={{ title: "Detalle del miembro" }} />
     </Stack>
   );

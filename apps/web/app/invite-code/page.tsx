@@ -20,6 +20,17 @@ import { Label } from "@/components/ui/label";
 
 type ValidationReason = "invalid" | "expired" | "revoked" | "consumed" | null;
 
+type PendingOrganizationCreation = {
+  code: string;
+  organizationName: string;
+  organizationAddress?: string;
+  organizationPhone?: string;
+  organizationEmail?: string;
+  phone?: string;
+};
+
+const PENDING_ORG_CREATION_KEY = "mat.pendingOrgCreation";
+
 function getReasonMessage(reason: ValidationReason) {
   if (reason === "expired") return "El codigo vencio. Pedi uno nuevo.";
   if (reason === "revoked") return "Este codigo fue revocado.";
@@ -33,6 +44,40 @@ function normalizeCode(value: string) {
     .trim()
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
+}
+
+function getPendingOrganizationCreation() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const rawValue = window.sessionStorage.getItem(PENDING_ORG_CREATION_KEY);
+    if (!rawValue) return null;
+    const parsed = JSON.parse(rawValue) as Partial<PendingOrganizationCreation>;
+    if (!parsed.code || !parsed.organizationName) return null;
+
+    return {
+      code: normalizeCode(parsed.code),
+      organizationName: parsed.organizationName,
+      organizationAddress: parsed.organizationAddress,
+      organizationPhone: parsed.organizationPhone,
+      organizationEmail: parsed.organizationEmail,
+      phone: parsed.phone,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function setPendingOrganizationCreation(value: PendingOrganizationCreation) {
+  window.sessionStorage.setItem(
+    PENDING_ORG_CREATION_KEY,
+    JSON.stringify(value),
+  );
+}
+
+function clearPendingOrganizationCreation() {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(PENDING_ORG_CREATION_KEY);
 }
 
 function InviteCodeContent() {
@@ -60,6 +105,7 @@ function InviteCodeContent() {
   const [phone, setPhone] = React.useState("");
 
   const autoValidatedRef = React.useRef(false);
+  const autoSubmittedRef = React.useRef(false);
 
   const handleValidate = React.useCallback(
     async (value: string) => {
@@ -82,7 +128,11 @@ function InviteCodeContent() {
 
         setValidatedCode(normalized);
         setValidationReason(null);
-        router.replace(`/invite-code?code=${encodeURIComponent(normalized)}`);
+        const nextParams = new URLSearchParams({ code: normalized });
+        if (searchParams.get("continue") === "1") {
+          nextParams.set("continue", "1");
+        }
+        router.replace(`/invite-code?${nextParams.toString()}`);
       } catch (error) {
         setValidatedCode(null);
         setValidationReason("invalid");
@@ -95,7 +145,7 @@ function InviteCodeContent() {
         setIsValidating(false);
       }
     },
-    [router, validateCode],
+    [router, searchParams, validateCode],
   );
 
   React.useEffect(() => {
@@ -107,8 +157,70 @@ function InviteCodeContent() {
 
   const redirectUrl = React.useMemo(() => {
     const codeForReturn = validatedCode ?? normalizeCode(inviteCode);
-    return `/invite-code${codeForReturn ? `?code=${encodeURIComponent(codeForReturn)}` : ""}`;
+    return `/invite-code${codeForReturn ? `?code=${encodeURIComponent(codeForReturn)}&continue=1` : ""}`;
   }, [inviteCode, validatedCode]);
+
+  const redeemOrganization = React.useCallback(
+    async (details: PendingOrganizationCreation) => {
+      await redeemCode({
+        code: details.code,
+        organizationName: details.organizationName.trim(),
+        organizationAddress: details.organizationAddress?.trim() || undefined,
+        organizationPhone: details.organizationPhone?.trim() || undefined,
+        organizationEmail: details.organizationEmail?.trim() || undefined,
+        phone: details.phone?.trim() || undefined,
+      });
+    },
+    [redeemCode],
+  );
+
+  React.useEffect(() => {
+    if (
+      autoSubmittedRef.current ||
+      !isLoaded ||
+      !userId ||
+      !validatedCode ||
+      searchParams.get("continue") !== "1"
+    ) {
+      return;
+    }
+
+    const pending = getPendingOrganizationCreation();
+    if (!pending || pending.code !== validatedCode) return;
+
+    autoSubmittedRef.current = true;
+    setOrganizationName(pending.organizationName);
+    setOrganizationAddress(pending.organizationAddress ?? "");
+    setOrganizationPhone(pending.organizationPhone ?? "");
+    setOrganizationEmail(pending.organizationEmail ?? "");
+    setPhone(pending.phone ?? "");
+    setIsSubmitting(true);
+
+    void redeemOrganization(pending)
+      .then(() => {
+        clearPendingOrganizationCreation();
+        toast.success("Organizacion creada correctamente");
+        router.push("/dashboard");
+      })
+      .catch((error: unknown) => {
+        autoSubmittedRef.current = false;
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo crear la organizacion",
+        );
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
+  }, [
+    isLoaded,
+    redeemOrganization,
+    router,
+    searchParams,
+    userId,
+    validatedCode,
+  ]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -121,16 +233,27 @@ function InviteCodeContent() {
       return;
     }
 
+    const details = {
+      code: validatedCode,
+      organizationName: organizationName.trim(),
+      organizationAddress: organizationAddress.trim() || undefined,
+      organizationPhone: organizationPhone.trim() || undefined,
+      organizationEmail: organizationEmail.trim() || undefined,
+      phone: phone.trim() || undefined,
+    };
+
+    if (isLoaded && !userId) {
+      setPendingOrganizationCreation(details);
+      router.push(
+        `/sign-up?invite_code=${encodeURIComponent(validatedCode)}&redirect_url=${encodeURIComponent(redirectUrl)}`,
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await redeemCode({
-        code: validatedCode,
-        organizationName: organizationName.trim(),
-        organizationAddress: organizationAddress.trim() || undefined,
-        organizationPhone: organizationPhone.trim() || undefined,
-        organizationEmail: organizationEmail.trim() || undefined,
-        phone: phone.trim() || undefined,
-      });
+      await redeemOrganization(details);
+      clearPendingOrganizationCreation();
       toast.success("Organizacion creada correctamente");
       router.push("/dashboard");
     } catch (error) {
@@ -142,6 +265,19 @@ function InviteCodeContent() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const storeCurrentDetails = () => {
+    if (!validatedCode || !organizationName.trim()) return;
+
+    setPendingOrganizationCreation({
+      code: validatedCode,
+      organizationName: organizationName.trim(),
+      organizationAddress: organizationAddress.trim() || undefined,
+      organizationPhone: organizationPhone.trim() || undefined,
+      organizationEmail: organizationEmail.trim() || undefined,
+      phone: phone.trim() || undefined,
+    });
   };
 
   return (
@@ -186,28 +322,7 @@ function InviteCodeContent() {
             ) : null}
           </form>
 
-          {validatedCode && isLoaded && !userId ? (
-            <div className="space-y-3 rounded-md border p-4">
-              <p className="text-sm text-muted-foreground">
-                El codigo es valido. Ahora inicia sesion para continuar con la
-                creacion.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button asChild>
-                  <Link
-                    href={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`}
-                  >
-                    Iniciar sesion
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link href="/">Volver al inicio</Link>
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          {validatedCode && userId ? (
+          {validatedCode ? (
             <form
               className="space-y-4 rounded-md border p-4"
               onSubmit={handleSubmit}
@@ -268,11 +383,25 @@ function InviteCodeContent() {
                   disabled={isSubmitting}
                 />
               </div>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting
-                  ? "Creando organizacion..."
-                  : "Crear organizacion"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" disabled={isSubmitting || !isLoaded}>
+                  {isSubmitting
+                    ? "Creando organizacion..."
+                    : userId
+                      ? "Crear organizacion"
+                      : "Continuar con registro"}
+                </Button>
+                {!userId ? (
+                  <Button asChild variant="outline">
+                    <Link
+                      href={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`}
+                      onClick={storeCurrentDetails}
+                    >
+                      Ya tengo cuenta
+                    </Link>
+                  </Button>
+                ) : null}
+              </div>
             </form>
           ) : null}
         </CardContent>

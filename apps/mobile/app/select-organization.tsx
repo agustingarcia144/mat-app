@@ -11,6 +11,11 @@ import {
   ScrollView,
 } from "react-native";
 import { useClerk } from "@clerk/expo";
+import {
+  CameraView,
+  useCameraPermissions,
+  type BarcodeScanningResult,
+} from "expo-camera";
 import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@repo/convex";
 import { useRouter } from "expo-router";
@@ -18,6 +23,8 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
 import { useAppReset } from "@/components/providers/providers";
+import { usePendingJoin } from "@/contexts/pending-join-context";
+import { parseJoinTokenFromUrl } from "@/lib/pending-join";
 import { captureHandledError } from "@/lib/sentry";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -53,9 +60,13 @@ export default function SelectOrganizationScreen() {
   const [inviteCode, setInviteCode] = useState("");
   const [inviteFeedback, setInviteFeedback] = useState<string | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [hasScannedQr, setHasScannedQr] = useState(false);
   const [lastSelectedOrgId, setLastSelectedOrgId] = useState<string | null>(
     null,
   );
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const { setPendingToken } = usePendingJoin();
   const hasAttemptedAutoSelect = useRef(false);
   const isLoaded =
     organizations !== undefined && currentMembership !== undefined;
@@ -132,6 +143,54 @@ export default function SelectOrganizationScreen() {
   }
 
   if (validOrganizations.length === 0) {
+    const openQrScanner = async () => {
+      setError(null);
+      setInviteFeedback(null);
+
+      if (!cameraPermission?.granted) {
+        const nextPermission = await requestCameraPermission();
+        if (!nextPermission.granted) {
+          setError(
+            "Necesitamos acceso a la cámara para escanear el QR de invitación.",
+          );
+          return;
+        }
+      }
+
+      setHasScannedQr(false);
+      setScannerOpen(true);
+    };
+
+    const handleQrScanned = async ({ data }: BarcodeScanningResult) => {
+      if (hasScannedQr) return;
+      setHasScannedQr(true);
+      setError(null);
+      setInviteFeedback(null);
+
+      const token = parseJoinTokenFromUrl(data);
+      if (!token) {
+        setError("Este QR no corresponde a una invitación de MAT.");
+        setTimeout(() => setHasScannedQr(false), 1200);
+        return;
+      }
+
+      try {
+        await setPendingToken(token);
+        setScannerOpen(false);
+        router.replace("/join-gym-confirm");
+      } catch (err) {
+        captureHandledError(err, {
+          area: "organization",
+          action: "scan_member_invite_qr",
+          extras: {
+            qrDataLength: data.length,
+          },
+        });
+        setError("No pudimos abrir la invitación. Intenta nuevamente.");
+        setHasScannedQr(false);
+      }
+    };
+
     const redeemInviteCode = async () => {
       const code = inviteCode.trim();
       if (!code) {
@@ -190,13 +249,71 @@ export default function SelectOrganizationScreen() {
           <View style={styles.noOrgWrapper}>
             <EmptyState
               title="No se encontraron organizaciones"
-              description="Ingresa un código de invitación para solicitar acceso."
+              description="Ingresa un código de invitación o escanea el QR del gimnasio para solicitar acceso."
             />
             <View style={styles.codeCard}>
               <Text
                 style={[styles.codeTitle, { color: isDark ? "#fff" : "#000" }]}
               >
                 Código de invitación
+              </Text>
+              <ThemedPressable
+                type="secondary"
+                lightColor="#f4f4f5"
+                darkColor="#18181b"
+                style={styles.scanButton}
+                onPress={() => {
+                  if (scannerOpen) {
+                    setScannerOpen(false);
+                    setHasScannedQr(false);
+                    return;
+                  }
+
+                  void openQrScanner();
+                }}
+                disabled={inviteLoading}
+              >
+                <Text
+                  style={[
+                    styles.buttonText,
+                    { color: isDark ? "#fff" : "#000" },
+                  ]}
+                >
+                  {scannerOpen ? "Cerrar cámara" : "Escanear QR"}
+                </Text>
+              </ThemedPressable>
+              {scannerOpen ? (
+                <View
+                  style={[
+                    styles.scannerContainer,
+                    { borderColor: isDark ? "#27272a" : "#e4e4e7" },
+                  ]}
+                >
+                  <CameraView
+                    style={styles.scanner}
+                    active={scannerOpen}
+                    facing="back"
+                    barcodeScannerSettings={{
+                      barcodeTypes: ["qr"],
+                    }}
+                    onBarcodeScanned={
+                      hasScannedQr
+                        ? undefined
+                        : (event) => {
+                            void handleQrScanned(event);
+                          }
+                    }
+                  />
+                  <View pointerEvents="none" style={styles.scannerFrame} />
+                </View>
+              ) : null}
+              <Text
+                style={[
+                  styles.orText,
+                  { color: isDark ? "#71717a" : "#a1a1aa" },
+                ]}
+              >
+                o ingresa el código manual
               </Text>
               <TextInput
                 style={[
@@ -400,6 +517,39 @@ const styles = StyleSheet.create({
   codeTitle: {
     fontSize: 16,
     fontWeight: "600",
+  },
+  scanButton: {
+    minHeight: 48,
+    borderRadius: 9999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  scannerContainer: {
+    height: 260,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    position: "relative",
+    backgroundColor: "#000",
+  },
+  scanner: {
+    flex: 1,
+  },
+  scannerFrame: {
+    position: "absolute",
+    top: 54,
+    left: 54,
+    right: 54,
+    bottom: 54,
+    borderWidth: 2,
+    borderColor: "#fff",
+    borderRadius: 14,
+  },
+  orText: {
+    fontSize: 12,
+    textAlign: "center",
   },
   codeInput: {
     height: 48,
