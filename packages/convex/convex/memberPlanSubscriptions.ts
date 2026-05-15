@@ -142,12 +142,54 @@ async function getFamilyGroupSubscriptions(
     primarySubscription,
     ...childSubscriptions,
   ].filter((item) => item.status !== "cancelled");
+  const activeFamilySubscriptions = (
+    await Promise.all(
+      familySubscriptions.map(async (item) => {
+        const membership = await ctx.db
+          .query("organizationMemberships")
+          .withIndex("by_organization_user", (q: any) =>
+            q
+              .eq("organizationId", item.organizationId)
+              .eq("userId", item.userId),
+          )
+          .filter((q: any) =>
+            q.and(
+              q.eq(q.field("role"), "member"),
+              q.eq(q.field("status"), "active"),
+            ),
+          )
+          .first();
+
+        return membership ? item : null;
+      }),
+    )
+  ).filter(
+    (item): item is (typeof familySubscriptions)[number] => item !== null,
+  );
 
   return {
     primarySubscription,
-    familySubscriptions,
-    memberCount: familySubscriptions.length,
+    familySubscriptions: activeFamilySubscriptions,
+    memberCount: activeFamilySubscriptions.length,
   };
+}
+
+async function isActiveMember(
+  ctx: { db: any },
+  organizationId: Id<"organizations">,
+  userId: string,
+) {
+  const membership = await ctx.db
+    .query("organizationMemberships")
+    .withIndex("by_organization_user", (q: any) =>
+      q.eq("organizationId", organizationId).eq("userId", userId),
+    )
+    .filter((q: any) =>
+      q.and(q.eq(q.field("role"), "member"), q.eq(q.field("status"), "active")),
+    )
+    .first();
+
+  return Boolean(membership);
 }
 
 /**
@@ -908,6 +950,9 @@ export const autoSuspendUnpaidForOrg = internalMutation({
 
     for (const sub of page.page) {
       if (sub.familyParentSubscriptionId) continue;
+      if (!(await isActiveMember(ctx, sub.organizationId, sub.userId))) {
+        continue;
+      }
 
       const plan = await ctx.db.get(sub.planId);
       if (!plan) continue;
@@ -1054,6 +1099,9 @@ export const generateCurrentPeriodPayments = internalMutation({
 
       for (const sub of subscriptions) {
         if (sub.familyParentSubscriptionId) continue;
+        if (!(await isActiveMember(ctx, sub.organizationId, sub.userId))) {
+          continue;
+        }
 
         const plan = await ctx.db.get(sub.planId);
         if (!plan) continue;

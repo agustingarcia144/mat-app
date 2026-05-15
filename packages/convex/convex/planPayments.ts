@@ -163,11 +163,18 @@ async function getPaymentCoverage(
     billingSubscription,
     ...childSubscriptions,
   ].filter((item) => item.status !== "cancelled");
+  const activeMemberUserIds = await getActiveMemberUserIds(
+    ctx,
+    billingSubscription.organizationId,
+  );
+  const chargeableSubscriptions = coveredSubscriptions.filter((item) =>
+    activeMemberUserIds.has(item.userId),
+  );
 
   return {
     billingSubscription,
-    coveredSubscriptions,
-    coveredMemberCount: coveredSubscriptions.length,
+    coveredSubscriptions: chargeableSubscriptions,
+    coveredMemberCount: chargeableSubscriptions.length,
   };
 }
 
@@ -277,6 +284,34 @@ async function computePaymentInterest(
   );
 }
 
+async function getActiveMemberUserIds(
+  ctx: { db: any },
+  organizationId: Id<"organizations">,
+): Promise<Set<string>> {
+  const activeMemberships = await ctx.db
+    .query("organizationMemberships")
+    .withIndex("by_organization", (q: any) =>
+      q.eq("organizationId", organizationId),
+    )
+    .filter((q: any) =>
+      q.and(q.eq(q.field("role"), "member"), q.eq(q.field("status"), "active")),
+    )
+    .collect();
+
+  return new Set<string>(
+    activeMemberships.map((membership: any) => String(membership.userId)),
+  );
+}
+
+function isChargeablePayment(
+  payment: { userId: string; status: string },
+  activeMemberUserIds: Set<string>,
+) {
+  return (
+    payment.status === "approved" || activeMemberUserIds.has(payment.userId)
+  );
+}
+
 /**
  * Get the current user's payment for the current billing period.
  */
@@ -310,7 +345,12 @@ export const getMyCurrentPeriodPayment = query({
 
     const timezone = getPaymentTimezone(organization?.timezone);
     const cycle = plan
-      ? getBillingCycle(plan, billingSubscription.activatedAt, Date.now(), timezone)
+      ? getBillingCycle(
+          plan,
+          billingSubscription.activatedAt,
+          Date.now(),
+          timezone,
+        )
       : null;
     const billingPeriod =
       cycle?.billingPeriod ??
@@ -461,14 +501,21 @@ export const getPendingByOrganization = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdminOrTrainer(ctx, membership.organizationId);
 
-    const payments = await ctx.db
-      .query("planPayments")
-      .withIndex("by_organization_status", (q) =>
-        q
-          .eq("organizationId", membership.organizationId)
-          .eq("status", "in_review"),
-      )
-      .collect();
+    const activeMemberUserIds = await getActiveMemberUserIds(
+      ctx,
+      membership.organizationId,
+    );
+
+    const payments = (
+      await ctx.db
+        .query("planPayments")
+        .withIndex("by_organization_status", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("status", "in_review"),
+        )
+        .collect()
+    ).filter((payment) => isChargeablePayment(payment, activeMemberUserIds));
 
     return await enrichPayments(ctx, payments);
   },
@@ -492,21 +539,28 @@ export const getByOrganization = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdminOrTrainer(ctx, membership.organizationId);
 
-    const payments = args.status
-      ? await ctx.db
-          .query("planPayments")
-          .withIndex("by_organization_status", (q) =>
-            q
-              .eq("organizationId", membership.organizationId)
-              .eq("status", args.status!),
-          )
-          .collect()
-      : await ctx.db
-          .query("planPayments")
-          .withIndex("by_organization", (q) =>
-            q.eq("organizationId", membership.organizationId),
-          )
-          .collect();
+    const activeMemberUserIds = await getActiveMemberUserIds(
+      ctx,
+      membership.organizationId,
+    );
+
+    const payments = (
+      args.status
+        ? await ctx.db
+            .query("planPayments")
+            .withIndex("by_organization_status", (q) =>
+              q
+                .eq("organizationId", membership.organizationId)
+                .eq("status", args.status!),
+            )
+            .collect()
+        : await ctx.db
+            .query("planPayments")
+            .withIndex("by_organization", (q) =>
+              q.eq("organizationId", membership.organizationId),
+            )
+            .collect()
+    ).filter((payment) => isChargeablePayment(payment, activeMemberUserIds));
 
     const enriched = await enrichPayments(ctx, payments);
     return enriched.sort((a, b) => b.createdAt - a.createdAt);
@@ -537,36 +591,46 @@ export const getOrganizationMetrics = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdmin(ctx, membership.organizationId);
 
-    const [payments, subscriptions, activeBonifications, financeTransactions] =
-      await Promise.all([
-        ctx.db
-          .query("planPayments")
-          .withIndex("by_organization", (q) =>
-            q.eq("organizationId", membership.organizationId),
-          )
-          .collect(),
-        ctx.db
-          .query("memberPlanSubscriptions")
-          .withIndex("by_organization", (q) =>
-            q.eq("organizationId", membership.organizationId),
-          )
-          .collect(),
-        ctx.db
-          .query("planBonifications")
-          .withIndex("by_organization_status", (q) =>
-            q
-              .eq("organizationId", membership.organizationId)
-              .eq("status", "active"),
-          )
-          .collect(),
-        ctx.db
-          .query("financeTransactions")
-          .withIndex("by_organization_period", (q) =>
-            q.eq("organizationId", membership.organizationId),
-          )
-          .filter((q) => q.eq(q.field("status"), "active"))
-          .collect(),
-      ]);
+    const [
+      payments,
+      subscriptions,
+      activeBonifications,
+      financeTransactions,
+      activeMemberUserIds,
+    ] = await Promise.all([
+      ctx.db
+        .query("planPayments")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", membership.organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("memberPlanSubscriptions")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", membership.organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("planBonifications")
+        .withIndex("by_organization_status", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("status", "active"),
+        )
+        .collect(),
+      ctx.db
+        .query("financeTransactions")
+        .withIndex("by_organization_period", (q) =>
+          q.eq("organizationId", membership.organizationId),
+        )
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .collect(),
+      getActiveMemberUserIds(ctx, membership.organizationId),
+    ]);
+
+    const chargeablePayments = payments.filter((payment) =>
+      isChargeablePayment(payment, activeMemberUserIds),
+    );
 
     // Build a set of bonified subscription IDs for fast lookup
     const bonifiedSubscriptionIds = new Set(
@@ -574,7 +638,8 @@ export const getOrganizationMetrics = query({
     );
 
     const planIds = new Set<string>();
-    for (const payment of payments) planIds.add(String(payment.planId));
+    for (const payment of chargeablePayments)
+      planIds.add(String(payment.planId));
     for (const subscription of subscriptions) {
       planIds.add(String(subscription.planId));
     }
@@ -588,11 +653,13 @@ export const getOrganizationMetrics = query({
     );
 
     const activeSubscriptions = subscriptions.filter(
-      (subscription) => subscription.status !== "cancelled",
+      (subscription) =>
+        subscription.status !== "cancelled" &&
+        activeMemberUserIds.has(subscription.userId),
     );
     const currentBillingPeriod = getCurrentBillingPeriod();
 
-    const currentPayments = payments.filter(
+    const currentPayments = chargeablePayments.filter(
       (payment) => payment.billingPeriod === currentBillingPeriod,
     );
 
@@ -734,7 +801,7 @@ export const getOrganizationMetrics = query({
     );
 
     const methodCounts = new Map<string, number>();
-    const paymentsWithMethod = payments.filter((payment) =>
+    const paymentsWithMethod = chargeablePayments.filter((payment) =>
       Boolean(payment.paymentMethod),
     );
     for (const payment of paymentsWithMethod) {
@@ -750,7 +817,7 @@ export const getOrganizationMetrics = query({
       }))
       .sort((a, b) => b.count - a.count);
 
-    const reviewDurations = payments
+    const reviewDurations = chargeablePayments
       .filter(
         (payment) =>
           typeof payment.proofUploadedAt === "number" &&
@@ -772,12 +839,12 @@ export const getOrganizationMetrics = query({
 
     const recentPeriods = sortBillingPeriodsDesc([
       currentBillingPeriod,
-      ...payments.map((payment) => payment.billingPeriod),
+      ...chargeablePayments.map((payment) => payment.billingPeriod),
       ...financeTransactions.map((transaction) => transaction.period),
     ]).slice(0, 12);
 
     const monthlyOverview = recentPeriods.map((period) => {
-      const periodPayments = payments.filter(
+      const periodPayments = chargeablePayments.filter(
         (payment) => payment.billingPeriod === period,
       );
       const nonBonificationPayments = periodPayments.filter(
