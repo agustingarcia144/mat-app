@@ -1,6 +1,9 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireCurrentOrganizationMembership } from "./permissions";
+import {
+  requireAdmin,
+  requireCurrentOrganizationMembership,
+} from "./permissions";
 
 type MetricPoint = {
   performedOn: string;
@@ -51,6 +54,37 @@ function parseTimeSeconds(value?: string | null): number | null {
 
 function compareDatesDesc(a: string, b: string) {
   return a < b ? 1 : a > b ? -1 : 0;
+}
+
+function getCurrentBillingPeriod() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getPeriodFromTimestamp(timestamp: number) {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getPeriodRange(period: string) {
+  const [yearStr, monthStr] = period.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  return {
+    start: new Date(year, month - 1, 1).getTime(),
+    end: new Date(year, month, 1).getTime(),
+  };
+}
+
+function roundPercentage(value: number, total: number) {
+  if (total <= 0) return 0;
+  return Math.round((value / total) * 1000) / 10;
+}
+
+function sortPeriodsDesc(periods: string[]) {
+  return Array.from(new Set(periods)).sort((a, b) =>
+    a < b ? 1 : a > b ? -1 : 0,
+  );
 }
 
 function getPlanificationMetricStatus(assignment?: {
@@ -902,6 +936,155 @@ export const getExerciseMetricsByMembers = query({
         sessionsCount,
       },
       members: serializedMembers,
+    };
+  },
+});
+
+export const getChurnMetrics = query({
+  args: {
+    selectedPeriod: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdmin(ctx, membership.organizationId);
+
+    const subscriptions = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
+      )
+      .collect();
+
+    const planIds = Array.from(
+      new Set(subscriptions.map((subscription) => String(subscription.planId))),
+    );
+    const plans = new Map<string, { name?: string }>();
+    await Promise.all(
+      planIds.map(async (planId) => {
+        const plan = await ctx.db.get(planId as any);
+        if (plan && "name" in plan) plans.set(planId, { name: plan.name });
+      }),
+    );
+
+    const currentPeriod = getCurrentBillingPeriod();
+    const availablePeriods = sortPeriodsDesc([
+      currentPeriod,
+      ...subscriptions.map((subscription) =>
+        getPeriodFromTimestamp(subscription.activatedAt),
+      ),
+      ...subscriptions
+        .map((subscription) =>
+          typeof subscription.cancelledAt === "number"
+            ? getPeriodFromTimestamp(subscription.cancelledAt)
+            : null,
+        )
+        .filter((period): period is string => Boolean(period)),
+    ]).slice(0, 12);
+
+    const selectedPeriod =
+      args.selectedPeriod && availablePeriods.includes(args.selectedPeriod)
+        ? args.selectedPeriod
+        : currentPeriod;
+    const selectedIndex = availablePeriods.indexOf(selectedPeriod);
+    const previousPeriod =
+      selectedIndex >= 0 ? (availablePeriods[selectedIndex + 1] ?? null) : null;
+
+    const buildPeriodOverview = (period: string) => {
+      const { start, end } = getPeriodRange(period);
+      const activeAtStart = subscriptions.filter(
+        (subscription) =>
+          subscription.activatedAt < start &&
+          (typeof subscription.cancelledAt !== "number" ||
+            subscription.cancelledAt >= start),
+      );
+      const activeAtEnd = subscriptions.filter(
+        (subscription) =>
+          subscription.activatedAt < end &&
+          (typeof subscription.cancelledAt !== "number" ||
+            subscription.cancelledAt >= end),
+      );
+      const churned = subscriptions.filter(
+        (subscription) =>
+          typeof subscription.cancelledAt === "number" &&
+          subscription.cancelledAt >= start &&
+          subscription.cancelledAt < end,
+      );
+      const newSubscriptions = subscriptions.filter(
+        (subscription) =>
+          subscription.activatedAt >= start && subscription.activatedAt < end,
+      );
+      const suspendedAtEnd = activeAtEnd.filter(
+        (subscription) => subscription.status === "suspended",
+      );
+
+      const churnedByPlan = new Map<
+        string,
+        { planId: string; planName: string; churnedCount: number }
+      >();
+      for (const subscription of churned) {
+        const planId = String(subscription.planId);
+        const entry = churnedByPlan.get(planId) ?? {
+          planId,
+          planName: plans.get(planId)?.name ?? "Plan eliminado",
+          churnedCount: 0,
+        };
+        entry.churnedCount += 1;
+        churnedByPlan.set(planId, entry);
+      }
+
+      return {
+        period,
+        startingMembers: activeAtStart.length,
+        endingMembers: activeAtEnd.length,
+        newMembers: newSubscriptions.length,
+        churnedMembers: churned.length,
+        suspendedMembers: suspendedAtEnd.length,
+        netGrowth: newSubscriptions.length - churned.length,
+        churnRatePct: roundPercentage(churned.length, activeAtStart.length),
+        retentionRatePct:
+          activeAtStart.length > 0
+            ? Math.max(
+                0,
+                Math.round(
+                  ((activeAtStart.length - churned.length) /
+                    activeAtStart.length) *
+                    1000,
+                ) / 10,
+              )
+            : 100,
+        churnedByPlan: Array.from(churnedByPlan.values()).sort(
+          (a, b) => b.churnedCount - a.churnedCount,
+        ),
+      };
+    };
+
+    const monthlyOverview = availablePeriods.map(buildPeriodOverview);
+    const selectedOverview =
+      monthlyOverview.find((period) => period.period === selectedPeriod) ??
+      buildPeriodOverview(selectedPeriod);
+    const previousOverview = previousPeriod
+      ? (monthlyOverview.find((period) => period.period === previousPeriod) ??
+        buildPeriodOverview(previousPeriod))
+      : null;
+
+    return {
+      currentPeriod,
+      selectedPeriod,
+      previousPeriod,
+      availablePeriods,
+      selectedOverview,
+      previousOverview,
+      comparison: previousOverview
+        ? {
+            churnRateDeltaPct:
+              selectedOverview.churnRatePct - previousOverview.churnRatePct,
+            churnedMembersDelta:
+              selectedOverview.churnedMembers - previousOverview.churnedMembers,
+            endingMembersDelta:
+              selectedOverview.endingMembers - previousOverview.endingMembers,
+          }
+        : null,
+      monthlyOverview,
     };
   },
 });
