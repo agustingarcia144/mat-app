@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
-import { BarChart3, CheckCircle } from "lucide-react";
+import { CheckCircle, UserMinus } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
@@ -140,7 +141,13 @@ export default function ActiveMembers() {
         <div className="text-lg font-semibold text-foreground">
           Miembros activos
         </div>
-        <BarChart3 className="h-5 w-5 text-muted-foreground" />
+        <Link
+          href="/dashboard/metrics/churn"
+          className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-background/40 px-3 py-1.5 text-sm text-foreground shadow-sm transition-colors hover:bg-accent/40"
+        >
+          <UserMinus className="h-4 w-4" />
+          Ver mas +
+        </Link>
       </div>
 
       <div className="flex flex-1 items-center justify-center py-2 md:py-0">
