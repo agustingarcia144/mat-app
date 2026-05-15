@@ -83,6 +83,7 @@ export const getOrganizationMemberships = query({
           userId: membership.userId,
           role: membership.role,
           status: membership.status,
+          usesPlanification: membership.usesPlanification,
           createdAt: membership.createdAt,
           joinedAt: membership.joinedAt,
           updatedAt: membership.updatedAt,
@@ -422,6 +423,43 @@ export const setMemberActive = mutation({
 
     await ctx.db.patch(targetMembership._id, {
       status: "active",
+      updatedAt: Date.now(),
+    });
+
+    return { updated: true };
+  },
+});
+
+/**
+ * Configure whether a member should be included in planification tracking.
+ * Admin/trainer only. Missing values are treated as true by clients.
+ */
+export const setMemberUsesPlanification = mutation({
+  args: {
+    userId: v.string(),
+    usesPlanification: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const currentMembership = await requireCurrentOrganizationMembership(ctx);
+    const organizationId = currentMembership.organizationId;
+    await requireAdminOrTrainer(ctx, organizationId);
+
+    const targetMembership = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization_user", (q) =>
+        q.eq("organizationId", organizationId).eq("userId", args.userId),
+      )
+      .first();
+
+    if (!targetMembership) {
+      throw new Error("User is not a member of the current organization");
+    }
+    if (targetMembership.role !== "member") {
+      throw new Error("Only members can be configured for planification usage");
+    }
+
+    await ctx.db.patch(targetMembership._id, {
+      usesPlanification: args.usesPlanification,
       updatedAt: Date.now(),
     });
 

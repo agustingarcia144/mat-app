@@ -133,6 +133,10 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
   const [addDayOfWeek, setAddDayOfWeek] = useState<number>(1);
   const [addHour, setAddHour] = useState(9);
   const [addMinute, setAddMinute] = useState(0);
+  const [usesPlanificationOverride, setUsesPlanificationOverride] = useState<{
+    memberId: string;
+    value: boolean;
+  } | null>(null);
 
   const assignments = useQuery(
     api.planificationAssignments.getByUser,
@@ -150,6 +154,9 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
   const createFixedSlot = useMutation(api.fixedClassSlots.create);
   const removeFixedSlot = useMutation(api.fixedClassSlots.remove);
+  const setMemberUsesPlanification = useMutation(
+    api.organizationMemberships.setMemberUsesPlanification,
+  );
 
   type AssignmentWithPlanification = Doc<"planificationAssignments"> & {
     planification?: { _id: Id<"planifications">; name?: string } | null;
@@ -204,6 +211,11 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
   const assignment = visibleAssignments[selectedAssignmentIndex] ?? null;
 
   if (!member) return null;
+
+  const usesPlanification =
+    usesPlanificationOverride?.memberId === member.id
+      ? usesPlanificationOverride.value
+      : (member.usesPlanification ?? true);
 
   const initials =
     member.fullName
@@ -280,6 +292,36 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
       toast.success("Turno fijo eliminado");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Error al eliminar");
+    }
+  };
+
+  const handleUsesPlanificationChange = async (usesPlanification: boolean) => {
+    const currentUsesPlanification =
+      usesPlanificationOverride?.memberId === member.id
+        ? usesPlanificationOverride.value
+        : (member.usesPlanification ?? true);
+    if (currentUsesPlanification === usesPlanification) return;
+
+    try {
+      await setMemberUsesPlanification({
+        userId: member.id,
+        usesPlanification,
+      });
+      setUsesPlanificationOverride({
+        memberId: member.id,
+        value: usesPlanification,
+      });
+      toast.success(
+        usesPlanification
+          ? "El miembro usa planificación"
+          : "El miembro no utilizara planificacion.",
+      );
+    } catch (e: unknown) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : "Error al actualizar planificación del miembro",
+      );
     }
   };
 
@@ -380,13 +422,41 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 </p>
               </div>
 
-              <div className="sm:col-span-2">
+              <div>
                 <p className="text-muted-foreground">Fecha de nacimiento</p>
                 <p>
                   {birthDate && age !== null
                     ? `${format(birthDate, "dd/MM/yyyy")} (${age} años)`
                     : "-"}
                 </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">Usa planificación</p>
+                <div className="mt-1 inline-flex rounded-md border bg-background p-0.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={usesPlanification ? "default" : "ghost"}
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      void handleUsesPlanificationChange(true);
+                    }}
+                  >
+                    Si
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={!usesPlanification ? "default" : "ghost"}
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      void handleUsesPlanificationChange(false);
+                    }}
+                  >
+                    No
+                  </Button>
+                </div>
               </div>
             </div>
 
