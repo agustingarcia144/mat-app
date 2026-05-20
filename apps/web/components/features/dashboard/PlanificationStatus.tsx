@@ -130,7 +130,10 @@ export default function PlanificationStatus() {
 
     const all = mapMembershipsToMembers(memberships);
 
-    return all.filter((m: any) => normalize(m.role) === "member");
+    return all.filter(
+      (m: any) =>
+        normalize(m.role) === "member" && m.usesPlanification !== false,
+    );
   }, [memberships]);
 
   const queries = useMemo(() => {

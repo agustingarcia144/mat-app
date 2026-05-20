@@ -63,6 +63,7 @@ export default defineSchema({
       v.literal("member"),
     ),
     status: v.union(v.literal("active"), v.literal("inactive")),
+    usesPlanification: v.optional(v.boolean()),
     joinedAt: v.number(),
     lastActiveAt: v.optional(v.number()),
     // Timestamps

@@ -133,6 +133,7 @@ export type Member = {
   username?: string;
   role: string;
   status: string;
+  usesPlanification?: boolean;
   createdAt: Date | string | number;
   birthDate?: Date | string | number;
   joinedAt?: Date | string | number;
@@ -145,6 +146,7 @@ export type MembershipData = {
   userId: string;
   role: string;
   status: string;
+  usesPlanification?: boolean;
   createdAt: number;
   joinedAt: number;
   // User fields from users table

@@ -25,6 +25,7 @@ export function mapMembershipToMember(membership: MembershipData): Member {
     username: membership.username,
     role: membership.role,
     status: membership.status,
+    usesPlanification: membership.usesPlanification ?? true,
     createdAt: new Date(membership.createdAt).toLocaleDateString(),
     birthDate: new Date(membership.birthDate as number).toLocaleDateString(),
     joinedAt: new Date(membership.joinedAt as number).toLocaleDateString(),
