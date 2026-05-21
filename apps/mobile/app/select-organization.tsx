@@ -6,15 +6,18 @@ import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   TextInput,
   ScrollView,
+  Pressable,
 } from "react-native";
 import { useClerk } from "@clerk/expo";
 import {
   CameraView,
   useCameraPermissions,
   type BarcodeScanningResult,
+  type ScanningResult,
 } from "expo-camera";
 import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@repo/convex";
@@ -43,6 +46,10 @@ export default function SelectOrganizationScreen() {
     api.organizationMemberships.getCurrentMembershipWithOrganization,
     isAuthenticated ? {} : "skip",
   );
+  const pendingJoinRequests = useQuery(
+    api.joinGym.getMyPendingJoinRequests,
+    isAuthenticated ? {} : "skip",
+  );
   const router = useRouter();
   const setActiveOrganization = useMutation(
     api.organizationMemberships.setActiveOrganization,
@@ -68,8 +75,11 @@ export default function SelectOrganizationScreen() {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const { setPendingToken } = usePendingJoin();
   const hasAttemptedAutoSelect = useRef(false);
+  const scanHandledRef = useRef(false);
   const isLoaded =
-    organizations !== undefined && currentMembership !== undefined;
+    organizations !== undefined &&
+    currentMembership !== undefined &&
+    pendingJoinRequests !== undefined;
   const validOrganizations = React.useMemo(
     () =>
       (organizations ?? []).filter(
@@ -115,6 +125,57 @@ export default function SelectOrganizationScreen() {
     [resetApp, router, setActiveOrganization],
   );
 
+  const handleQrData = useCallback(
+    async (data: string) => {
+      if (scanHandledRef.current) return;
+      scanHandledRef.current = true;
+      setHasScannedQr(true);
+      setError(null);
+      setInviteFeedback(null);
+
+      const token = parseJoinTokenFromUrl(data);
+      if (!token) {
+        scanHandledRef.current = false;
+        setError("Este QR no corresponde a una invitación de MAT.");
+        setTimeout(() => setHasScannedQr(false), 1200);
+        return;
+      }
+
+      try {
+        setScannerOpen(false);
+        await CameraView.dismissScanner();
+        await setPendingToken(token);
+        router.replace("/join-gym-confirm");
+      } catch (err) {
+        scanHandledRef.current = false;
+        captureHandledError(err, {
+          area: "organization",
+          action: "scan_member_invite_qr",
+          extras: {
+            qrDataLength: data.length,
+          },
+        });
+        setError("No pudimos abrir la invitación. Intenta nuevamente.");
+        setHasScannedQr(false);
+      }
+    },
+    [router, setPendingToken],
+  );
+
+  useEffect(() => {
+    if (!CameraView.isModernBarcodeScannerAvailable) return;
+
+    const subscription = CameraView.onModernBarcodeScanned(
+      (event: ScanningResult) => {
+        if (event.data) {
+          void handleQrData(event.data);
+        }
+      },
+    );
+
+    return () => subscription.remove();
+  }, [handleQrData]);
+
   useEffect(() => {
     if (isLoaded && !hasAttemptedAutoSelect.current) {
       // If user has only one organization, auto-select it
@@ -143,6 +204,9 @@ export default function SelectOrganizationScreen() {
   }
 
   if (validOrganizations.length === 0) {
+    const pendingRequests = pendingJoinRequests ?? [];
+    const hasPendingJoinRequest = pendingRequests.length > 0;
+
     const openQrScanner = async () => {
       setError(null);
       setInviteFeedback(null);
@@ -157,38 +221,30 @@ export default function SelectOrganizationScreen() {
         }
       }
 
+      scanHandledRef.current = false;
       setHasScannedQr(false);
+
+      if (CameraView.isModernBarcodeScannerAvailable) {
+        try {
+          await CameraView.launchScanner({
+            barcodeTypes: ["qr"],
+            isHighlightingEnabled: true,
+            isGuidanceEnabled: true,
+          });
+          return;
+        } catch (err) {
+          captureHandledError(err, {
+            area: "organization",
+            action: "launch_member_invite_qr_scanner",
+          });
+        }
+      }
+
       setScannerOpen(true);
     };
 
     const handleQrScanned = async ({ data }: BarcodeScanningResult) => {
-      if (hasScannedQr) return;
-      setHasScannedQr(true);
-      setError(null);
-      setInviteFeedback(null);
-
-      const token = parseJoinTokenFromUrl(data);
-      if (!token) {
-        setError("Este QR no corresponde a una invitación de MAT.");
-        setTimeout(() => setHasScannedQr(false), 1200);
-        return;
-      }
-
-      try {
-        await setPendingToken(token);
-        setScannerOpen(false);
-        router.replace("/join-gym-confirm");
-      } catch (err) {
-        captureHandledError(err, {
-          area: "organization",
-          action: "scan_member_invite_qr",
-          extras: {
-            qrDataLength: data.length,
-          },
-        });
-        setError("No pudimos abrir la invitación. Intenta nuevamente.");
-        setHasScannedQr(false);
-      }
+      await handleQrData(data);
     };
 
     const redeemInviteCode = async () => {
@@ -248,140 +304,249 @@ export default function SelectOrganizationScreen() {
         >
           <View style={styles.noOrgWrapper}>
             <EmptyState
-              title="No se encontraron organizaciones"
-              description="Ingresa un código de invitación o escanea el QR del gimnasio para solicitar acceso."
+              title={
+                hasPendingJoinRequest
+                  ? "Solicitud en revisión"
+                  : "No se encontraron organizaciones"
+              }
+              description={
+                hasPendingJoinRequest
+                  ? "Tu solicitud fue enviada. Vas a poder acceder cuando un administrador la apruebe."
+                  : "Ingresa un código de invitación o escanea el QR del gimnasio para solicitar acceso."
+              }
             />
-            <View style={styles.codeCard}>
-              <Text
-                style={[styles.codeTitle, { color: isDark ? "#fff" : "#000" }]}
-              >
-                Código de invitación
-              </Text>
-              <ThemedPressable
-                type="secondary"
-                lightColor="#f4f4f5"
-                darkColor="#18181b"
-                style={styles.scanButton}
-                onPress={() => {
-                  if (scannerOpen) {
-                    setScannerOpen(false);
-                    setHasScannedQr(false);
-                    return;
-                  }
-
-                  void openQrScanner();
-                }}
-                disabled={inviteLoading}
+            {hasPendingJoinRequest ? (
+              <View
+                style={[
+                  styles.codeCard,
+                  { borderColor: isDark ? "#27272a" : "#e4e4e7" },
+                ]}
               >
                 <Text
                   style={[
-                    styles.buttonText,
+                    styles.codeTitle,
                     { color: isDark ? "#fff" : "#000" },
                   ]}
                 >
-                  {scannerOpen ? "Cerrar cámara" : "Escanear QR"}
+                  Esperando aprobación
                 </Text>
-              </ThemedPressable>
-              {scannerOpen ? (
-                <View
+                <View style={styles.pendingRequestList}>
+                  {pendingRequests.map((request) => (
+                    <View
+                      key={request._id}
+                      style={[
+                        styles.pendingRequestItem,
+                        { backgroundColor: isDark ? "#18181b" : "#f4f4f5" },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.pendingRequestOrg,
+                          { color: isDark ? "#fff" : "#000" },
+                        ]}
+                      >
+                        {request.organizationName}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.pendingRequestMeta,
+                          { color: isDark ? "#a1a1aa" : "#71717a" },
+                        ]}
+                      >
+                        Enviada el{" "}
+                        {new Date(request.requestedAt).toLocaleDateString(
+                          "es-AR",
+                        )}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                <Text
                   style={[
-                    styles.scannerContainer,
-                    { borderColor: isDark ? "#27272a" : "#e4e4e7" },
+                    styles.pendingHelpText,
+                    { color: isDark ? "#a1a1aa" : "#71717a" },
                   ]}
                 >
-                  <CameraView
-                    style={styles.scanner}
-                    active={scannerOpen}
-                    facing="back"
-                    barcodeScannerSettings={{
-                      barcodeTypes: ["qr"],
-                    }}
-                    onBarcodeScanned={
-                      hasScannedQr
-                        ? undefined
-                        : (event) => {
-                            void handleQrScanned(event);
-                          }
-                    }
-                  />
-                  <View pointerEvents="none" style={styles.scannerFrame} />
-                </View>
-              ) : null}
-              <Text
-                style={[
-                  styles.orText,
-                  { color: isDark ? "#71717a" : "#a1a1aa" },
-                ]}
-              >
-                o ingresa el código manual
-              </Text>
-              <TextInput
-                style={[
-                  styles.codeInput,
-                  {
-                    backgroundColor: isDark ? "#18181b" : "#f4f4f5",
-                    color: isDark ? "#fff" : "#000",
-                    borderColor: isDark ? "#27272a" : "#e4e4e7",
-                  },
-                ]}
-                placeholder="MEM-XXXX-XXXX-XX"
-                placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                value={inviteCode}
-                editable={!inviteLoading}
-                onChangeText={setInviteCode}
-              />
-              {inviteFeedback ? (
-                <Text style={styles.successText}>{inviteFeedback}</Text>
-              ) : null}
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-              <ThemedPressable
-                type="primary"
-                lightColor="#18181b"
-                darkColor="#f4f4f5"
-                style={styles.primaryButton}
-                onPress={() => {
-                  void redeemInviteCode();
-                }}
-                disabled={inviteLoading}
-              >
-                {inviteLoading ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={isDark ? "#000" : "#fff"}
-                  />
-                ) : (
+                  No hace falta enviar otra solicitud. Te avisaremos cuando el
+                  gimnasio apruebe tu acceso.
+                </Text>
+                <ThemedPressable
+                  type="secondary"
+                  lightColor="#f4f4f5"
+                  darkColor="#18181b"
+                  style={styles.secondaryButton}
+                  onPress={async () => {
+                    await signOut();
+                  }}
+                  disabled={inviteLoading}
+                >
                   <Text
                     style={[
                       styles.buttonText,
-                      { color: isDark ? "#000" : "#fff" },
+                      { color: isDark ? "#fff" : "#000" },
                     ]}
                   >
-                    Enviar solicitud
+                    Cerrar sesión
                   </Text>
-                )}
-              </ThemedPressable>
-              <ThemedPressable
-                type="secondary"
-                lightColor="#f4f4f5"
-                darkColor="#18181b"
-                style={styles.secondaryButton}
-                onPress={async () => {
-                  await signOut();
-                }}
-                disabled={inviteLoading}
-              >
+                </ThemedPressable>
+              </View>
+            ) : (
+              <View style={styles.codeCard}>
                 <Text
                   style={[
-                    styles.buttonText,
+                    styles.codeTitle,
                     { color: isDark ? "#fff" : "#000" },
                   ]}
                 >
-                  Cerrar sesión
+                  Código de invitación
                 </Text>
-              </ThemedPressable>
-            </View>
+                <ThemedPressable
+                  type="secondary"
+                  lightColor="#f4f4f5"
+                  darkColor="#18181b"
+                  style={styles.scanButton}
+                  onPress={() => {
+                    if (scannerOpen) {
+                      scanHandledRef.current = false;
+                      setScannerOpen(false);
+                      setHasScannedQr(false);
+                      return;
+                    }
+
+                    void openQrScanner();
+                  }}
+                  disabled={inviteLoading}
+                >
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      { color: isDark ? "#fff" : "#000" },
+                    ]}
+                  >
+                    {scannerOpen ? "Cerrar cámara" : "Escanear QR"}
+                  </Text>
+                </ThemedPressable>
+                <Modal
+                  visible={scannerOpen}
+                  animationType="slide"
+                  presentationStyle="fullScreen"
+                  onRequestClose={() => {
+                    scanHandledRef.current = false;
+                    setScannerOpen(false);
+                    setHasScannedQr(false);
+                  }}
+                >
+                  <View style={styles.scannerModal}>
+                    <CameraView
+                      key={scannerOpen ? "scanner-open" : "scanner-closed"}
+                      style={styles.scanner}
+                      active={scannerOpen}
+                      facing="back"
+                      barcodeScannerSettings={{
+                        barcodeTypes: ["qr"],
+                      }}
+                      onBarcodeScanned={
+                        scannerOpen && !hasScannedQr
+                          ? (event) => {
+                              void handleQrScanned(event);
+                            }
+                          : undefined
+                      }
+                    />
+                    <View pointerEvents="none" style={styles.scannerOverlay}>
+                      <View style={styles.scannerModalFrame} />
+                      <Text style={styles.scannerHint}>
+                        Apunta la cámara al QR del gimnasio
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={styles.scannerCloseButton}
+                      onPress={() => {
+                        scanHandledRef.current = false;
+                        setScannerOpen(false);
+                        setHasScannedQr(false);
+                      }}
+                    >
+                      <Text style={styles.scannerCloseText}>Cerrar</Text>
+                    </Pressable>
+                  </View>
+                </Modal>
+                <Text
+                  style={[
+                    styles.orText,
+                    { color: isDark ? "#71717a" : "#a1a1aa" },
+                  ]}
+                >
+                  o ingresa el código manual
+                </Text>
+                <TextInput
+                  style={[
+                    styles.codeInput,
+                    {
+                      backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                      color: isDark ? "#fff" : "#000",
+                      borderColor: isDark ? "#27272a" : "#e4e4e7",
+                    },
+                  ]}
+                  placeholder="MEM-XXXX-XXXX-XX"
+                  placeholderTextColor={isDark ? "#71717a" : "#a1a1aa"}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  value={inviteCode}
+                  editable={!inviteLoading}
+                  onChangeText={setInviteCode}
+                />
+                {inviteFeedback ? (
+                  <Text style={styles.successText}>{inviteFeedback}</Text>
+                ) : null}
+                {error ? <Text style={styles.errorText}>{error}</Text> : null}
+                <ThemedPressable
+                  type="primary"
+                  lightColor="#18181b"
+                  darkColor="#f4f4f5"
+                  style={styles.primaryButton}
+                  onPress={() => {
+                    void redeemInviteCode();
+                  }}
+                  disabled={inviteLoading}
+                >
+                  {inviteLoading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={isDark ? "#000" : "#fff"}
+                    />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        { color: isDark ? "#000" : "#fff" },
+                      ]}
+                    >
+                      Enviar solicitud
+                    </Text>
+                  )}
+                </ThemedPressable>
+                <ThemedPressable
+                  type="secondary"
+                  lightColor="#f4f4f5"
+                  darkColor="#18181b"
+                  style={styles.secondaryButton}
+                  onPress={async () => {
+                    await signOut();
+                  }}
+                  disabled={inviteLoading}
+                >
+                  <Text
+                    style={[
+                      styles.buttonText,
+                      { color: isDark ? "#fff" : "#000" },
+                    ]}
+                  >
+                    Cerrar sesión
+                  </Text>
+                </ThemedPressable>
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -526,26 +691,52 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "transparent",
   },
-  scannerContainer: {
-    height: 260,
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
-    position: "relative",
+  scannerModal: {
+    flex: 1,
     backgroundColor: "#000",
   },
   scanner: {
     flex: 1,
   },
-  scannerFrame: {
-    position: "absolute",
-    top: 54,
-    left: 54,
-    right: 54,
-    bottom: 54,
-    borderWidth: 2,
+  scannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+  },
+  scannerModalFrame: {
+    width: "82%",
+    aspectRatio: 1,
+    maxWidth: 360,
+    borderWidth: 3,
     borderColor: "#fff",
-    borderRadius: 14,
+    borderRadius: 28,
+  },
+  scannerHint: {
+    marginTop: 24,
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.55)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  scannerCloseButton: {
+    position: "absolute",
+    top: 56,
+    right: 20,
+    minHeight: 44,
+    paddingHorizontal: 18,
+    borderRadius: 9999,
+    backgroundColor: "rgba(0, 0, 0, 0.58)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scannerCloseText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
   },
   orText: {
     fontSize: 12,
@@ -579,6 +770,25 @@ const styles = StyleSheet.create({
   successText: {
     color: "#16a34a",
     fontSize: 13,
+  },
+  pendingRequestList: {
+    gap: 8,
+  },
+  pendingRequestItem: {
+    borderRadius: 12,
+    padding: 12,
+  },
+  pendingRequestOrg: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+  pendingRequestMeta: {
+    fontSize: 13,
+  },
+  pendingHelpText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   errorContainer: {
     borderRadius: 12,

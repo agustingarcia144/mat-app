@@ -310,6 +310,36 @@ export const listPendingJoinRequests = query({
   },
 });
 
+export const getMyPendingJoinRequests = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const requests = await ctx.db
+      .query("organizationJoinRequests")
+      .withIndex("by_user_status", (q) =>
+        q.eq("userId", identity.subject).eq("status", "pending"),
+      )
+      .collect();
+
+    requests.sort((a, b) => b.requestedAt - a.requestedAt);
+
+    return await Promise.all(
+      requests.map(async (request) => {
+        const organization = await ctx.db.get(request.organizationId);
+        return {
+          _id: request._id,
+          organizationId: request.organizationId,
+          organizationName: organization?.name ?? "Gimnasio",
+          requestedAt: request.requestedAt,
+          source: request.source,
+        };
+      }),
+    );
+  },
+});
+
 /** Internal: get request and org for approval validation. */
 export const getRequestAndOrg = internalQuery({
   args: { requestId: v.id("organizationJoinRequests") },

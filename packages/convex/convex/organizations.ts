@@ -10,10 +10,40 @@ import {
 import type { Id } from "./_generated/dataModel";
 import {
   requireAdmin,
+  requireAuth,
   requireCurrentOrganizationMembership,
 } from "./permissions";
 
 type StaffInviteRole = "admin" | "trainer";
+
+function slugifyOrganizationName(name: string): string {
+  const withoutAccents = name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const slug = withoutAccents
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50);
+  return slug || "organizacion";
+}
+
+async function ensureUniqueOrganizationSlug(
+  ctx: any,
+  baseSlug: string,
+): Promise<string> {
+  let candidate = baseSlug;
+  let counter = 2;
+  while (true) {
+    const exists = await ctx.db
+      .query("organizations")
+      .withIndex("by_slug", (q: any) => q.eq("slug", candidate))
+      .first();
+    if (!exists) return candidate;
+    candidate = `${baseSlug}-${counter}`;
+    counter += 1;
+  }
+}
 
 function normalizeRole(value: string): StaffInviteRole | null {
   if (value === "admin" || value === "trainer") {
@@ -144,6 +174,88 @@ export const updateCurrentOrganization = mutation({
 
     await ctx.db.patch(organization._id, patch);
     return { success: true };
+  },
+});
+
+export const createLiteOrganization = mutation({
+  args: {
+    name: v.string(),
+    address: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    timezone: v.optional(v.string()),
+    adminPhone: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx);
+    const now = Date.now();
+    const organizationName = args.name.trim();
+    if (!organizationName) {
+      throw new Error("El nombre de la organizacion es obligatorio");
+    }
+
+    const baseSlug = slugifyOrganizationName(organizationName);
+    const slug = await ensureUniqueOrganizationSlug(ctx, baseSlug);
+    const organizationId = await ctx.db.insert("organizations", {
+      name: organizationName,
+      slug,
+      address: args.address?.trim() || undefined,
+      phone: args.phone?.trim() || undefined,
+      email: args.email?.trim() || undefined,
+      timezone: args.timezone?.trim() || undefined,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await ctx.db.insert("organizationMemberships", {
+      organizationId,
+      userId: identity.subject,
+      role: "admin",
+      status: "active",
+      joinedAt: now,
+      lastActiveAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_externalId", (q) => q.eq("externalId", identity.subject))
+      .first();
+
+    if (existingUser) {
+      await ctx.db.patch(existingUser._id, {
+        firstName: existingUser.firstName ?? identity.givenName ?? undefined,
+        lastName: existingUser.lastName ?? identity.familyName ?? undefined,
+        fullName: existingUser.fullName ?? identity.name ?? undefined,
+        email: existingUser.email ?? identity.email ?? undefined,
+        imageUrl: existingUser.imageUrl ?? identity.pictureUrl ?? undefined,
+        username: existingUser.username ?? identity.nickname ?? undefined,
+        phone: args.adminPhone?.trim() || existingUser.phone,
+        activeOrganizationId: organizationId,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("users", {
+        externalId: identity.subject,
+        firstName: identity.givenName ?? undefined,
+        lastName: identity.familyName ?? undefined,
+        fullName: identity.name ?? undefined,
+        email: identity.email ?? undefined,
+        imageUrl: identity.pictureUrl ?? undefined,
+        username: identity.nickname ?? undefined,
+        phone: args.adminPhone?.trim() || undefined,
+        onboardingCompleted: false,
+        activeOrganizationId: organizationId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return {
+      organizationId,
+      organizationSlug: slug,
+    };
   },
 });
 

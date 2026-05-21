@@ -62,12 +62,15 @@ export default function InviteOnlySignUp() {
   const accountStatus = searchParams.get("__clerk_status");
   const inviteToken = searchParams.get("invite_token");
   const inviteCode = searchParams.get("invite_code");
+  const liteCheckout = searchParams.get("lite_checkout") === "1";
   const redirectUrl = searchParams.get("redirect_url");
   const fallbackRedirect = inviteToken
     ? `/invitations/accept?token=${encodeURIComponent(inviteToken)}`
     : inviteCode
       ? `/invite-code?code=${encodeURIComponent(inviteCode)}&continue=1`
-      : STAFF_REDIRECT;
+      : liteCheckout
+        ? "/?lite_checkout=1"
+        : STAFF_REDIRECT;
   const postSignUpRedirect = getSafeRedirectUrl(redirectUrl, fallbackRedirect);
   const attemptedRef = useRef(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -147,7 +150,7 @@ export default function InviteOnlySignUp() {
     ticket,
   ]);
 
-  if (!ticket && !inviteToken && !inviteCode) {
+  if (!ticket && !inviteToken && !inviteCode && !liteCheckout) {
     return (
       <InvitationStatusCard
         title="Acceso solo por invitación"

@@ -216,6 +216,7 @@ export default function MemberDetailScreen() {
         options={{
           title: displayName,
           headerBackTitle: "",
+          headerBackButtonDisplayMode: "minimal",
           headerRight: () => (
             <Pressable
               onPress={openOptions}

@@ -17,7 +17,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import EditOrganizationDialog from "./edit-organization-dialog";
 import { api } from "@/convex/_generated/api";
 import { isOrgAdminRole } from "@/lib/security/roles";
 import { captureHandledError } from "@/lib/sentry";
@@ -34,7 +33,6 @@ export default function HeaderNavItems() {
     api.organizationMemberships.setActiveOrganization,
   );
   const [switchingOrgId, setSwitchingOrgId] = useState<string | null>(null);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const isLoaded =
     membershipsQuery !== undefined && currentMembership !== undefined;
 
@@ -142,16 +140,6 @@ export default function HeaderNavItems() {
                 );
               })}
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={!canEditOrganization}
-                onSelect={(event) => {
-                  event.preventDefault();
-                  setIsEditDialogOpen(true);
-                }}
-              >
-                <Settings className="size-4" />
-                Editar organización
-              </DropdownMenuItem>
               {canEditOrganization && (
                 <DropdownMenuItem
                   onSelect={() => {
@@ -166,10 +154,6 @@ export default function HeaderNavItems() {
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
-      <EditOrganizationDialog
-        open={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
-      />
     </>
   );
 }

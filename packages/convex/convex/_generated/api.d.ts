@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as appBillingPlans from "../appBillingPlans.js";
 import type * as classAlerts from "../classAlerts.js";
 import type * as classQuota from "../classQuota.js";
 import type * as classReservations from "../classReservations.js";
@@ -27,11 +28,13 @@ import type * as memberInviteCodes from "../memberInviteCodes.js";
 import type * as memberInviteCodesNode from "../memberInviteCodesNode.js";
 import type * as memberPlanSubscriptions from "../memberPlanSubscriptions.js";
 import type * as membershipPlans from "../membershipPlans.js";
+import type * as mercadoPagoWebhook from "../mercadoPagoWebhook.js";
 import type * as metrics from "../metrics.js";
 import type * as migrations from "../migrations.js";
 import type * as modelWeekSlots from "../modelWeekSlots.js";
 import type * as orgCreationCodes from "../orgCreationCodes.js";
 import type * as orgCreationCodesNode from "../orgCreationCodesNode.js";
+import type * as organizationBilling from "../organizationBilling.js";
 import type * as organizationMemberships from "../organizationMemberships.js";
 import type * as organizationSettings from "../organizationSettings.js";
 import type * as organizations from "../organizations.js";
@@ -63,6 +66,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  appBillingPlans: typeof appBillingPlans;
   classAlerts: typeof classAlerts;
   classQuota: typeof classQuota;
   classReservations: typeof classReservations;
@@ -82,11 +86,13 @@ declare const fullApi: ApiFromModules<{
   memberInviteCodesNode: typeof memberInviteCodesNode;
   memberPlanSubscriptions: typeof memberPlanSubscriptions;
   membershipPlans: typeof membershipPlans;
+  mercadoPagoWebhook: typeof mercadoPagoWebhook;
   metrics: typeof metrics;
   migrations: typeof migrations;
   modelWeekSlots: typeof modelWeekSlots;
   orgCreationCodes: typeof orgCreationCodes;
   orgCreationCodesNode: typeof orgCreationCodesNode;
+  organizationBilling: typeof organizationBilling;
   organizationMemberships: typeof organizationMemberships;
   organizationSettings: typeof organizationSettings;
   organizations: typeof organizations;

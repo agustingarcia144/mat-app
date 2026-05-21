@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
   getCurrentUserRecord,
@@ -290,6 +290,45 @@ export const removeMember = mutation({
     });
 
     return { updated: true };
+  },
+});
+
+export const removeMemberFromOrganizationInternal = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const memberships = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization_user", (q) =>
+        q.eq("organizationId", args.organizationId).eq("userId", args.userId),
+      )
+      .collect();
+
+    for (const membership of memberships) {
+      await ctx.db.delete(membership._id);
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_externalId", (q) => q.eq("externalId", args.userId))
+      .first();
+
+    if (user?.activeOrganizationId === args.organizationId) {
+      const fallbackMembership = await ctx.db
+        .query("organizationMemberships")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .first();
+
+      await ctx.db.patch(user._id, {
+        activeOrganizationId: fallbackMembership?.organizationId,
+        updatedAt: Date.now(),
+      });
+    }
+
+    return { removed: memberships.length };
   },
 });
 
