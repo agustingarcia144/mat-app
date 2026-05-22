@@ -87,6 +87,15 @@ function getResourceId(payload: any, url: URL) {
   );
 }
 
+function isMercadoPagoSimulatorPayload(payload: any, resourceId: unknown) {
+  return (
+    String(resourceId ?? "") === "123456" &&
+    payload?.action === "updated" &&
+    payload?.date === "2021-11-01T02:02:02Z" &&
+    payload?.version === 8
+  );
+}
+
 async function fetchMercadoPagoResource(resourceType: string, resourceId: string) {
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
   if (!accessToken) {
@@ -151,6 +160,14 @@ export const mercadoPagoWebhook = httpAction(async (ctx, request) => {
 
   try {
     if (!resourceType || !resourceId) {
+      await ctx.runMutation(
+        unsafeInternal.organizationBilling.markWebhookProcessedInternal,
+        { eventId, status: "ignored" },
+      );
+      return new Response(null, { status: 200 });
+    }
+
+    if (isMercadoPagoSimulatorPayload(payload, resourceId)) {
       await ctx.runMutation(
         unsafeInternal.organizationBilling.markWebhookProcessedInternal,
         { eventId, status: "ignored" },

@@ -71,6 +71,8 @@ type PendingLiteCheckout = {
 };
 
 const PENDING_LITE_CHECKOUT_KEY = "mat.pendingLiteCheckout";
+const mercadoPagoCheckoutEnabled =
+  process.env.NEXT_PUBLIC_MERCADOPAGO_CHECKOUT_ENABLED === "true";
 
 function getPendingLiteCheckout() {
   if (typeof window === "undefined") return null;
@@ -392,6 +394,11 @@ export default function HeroSection() {
 
   const startLiteCheckout = React.useCallback(
     async (details: PendingLiteCheckout) => {
+      if (!mercadoPagoCheckoutEnabled) {
+        toast.error("El checkout de Mercado Pago no esta disponible");
+        return;
+      }
+
       if (!details.organizationName.trim()) {
         toast.error("Completa el nombre de la organizacion");
         return;
@@ -431,6 +438,8 @@ export default function HeroSection() {
     ) {
       return;
     }
+
+    if (!mercadoPagoCheckoutEnabled) return;
 
     const params = new URLSearchParams(window.location.search);
     if (params.get("lite_checkout") !== "1") return;
@@ -1016,11 +1025,15 @@ fbq('track', 'PageView');`}
                         </span>
                       </div>
                       <p className="mt-2 text-sm text-white/62">
-                        Se cobra en pesos argentinos mediante MercadoPago.
+                        {mercadoPagoCheckoutEnabled
+                          ? "Se cobra en pesos argentinos mediante MercadoPago."
+                          : "Activacion asistida mientras habilitamos el checkout automatico."}
                       </p>
                     </div>
                     <div className="rounded-full border border-[#2bc8b7]/40 bg-[#2bc8b7]/12 px-3 py-1 text-xs font-medium text-[#9ff4ea]">
-                      Cobro recurrente
+                      {mercadoPagoCheckoutEnabled
+                        ? "Cobro recurrente"
+                        : "Disponible"}
                     </div>
                   </div>
 
@@ -1037,23 +1050,35 @@ fbq('track', 'PageView');`}
                   </div>
 
                   <div className="mt-7 flex flex-col gap-3">
+                    {mercadoPagoCheckoutEnabled ? (
+                      <Button
+                        type="button"
+                        size="lg"
+                        className={orangeButtonClassName}
+                        onClick={() => setLiteDialogOpen(true)}
+                      >
+                        Activar Lite
+                        <ArrowRight className="ml-2 size-4" />
+                      </Button>
+                    ) : null}
                     <Button
-                      type="button"
+                      asChild
                       size="lg"
-                      className={orangeButtonClassName}
-                      onClick={() => setLiteDialogOpen(true)}
+                      className={
+                        mercadoPagoCheckoutEnabled
+                          ? blackButtonClassName
+                          : orangeButtonClassName
+                      }
                     >
-                      Activar Lite
-                      <ArrowRight className="ml-2 size-4" />
-                    </Button>
-                    <Button asChild size="lg" className={blackButtonClassName}>
                       <a
                         href={whatsappHref}
                         target="_blank"
                         rel="noreferrer"
                         onClick={() => trackWhatsAppClick("pricing_card_lite")}
                       >
-                        Consultar
+                        {mercadoPagoCheckoutEnabled
+                          ? "Consultar"
+                          : "Consultar activacion"}
                         <MessageCircle className="ml-2 size-4" />
                       </a>
                     </Button>

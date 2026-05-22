@@ -2,6 +2,7 @@ import {
   action,
   internalMutation,
   internalQuery,
+  mutation,
   query,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
@@ -43,6 +44,30 @@ const ALL_DASHBOARD_CARDS = [
 
 type BillingStatus = "active" | "inactive" | "grace_period" | "pending";
 
+function isMercadoPagoCheckoutEnabled() {
+  return process.env.MERCADOPAGO_CHECKOUT_ENABLED === "true";
+}
+
+async function requireSuperAdmin(ctx: any) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Unauthorized");
+  }
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_externalId", (q: any) =>
+      q.eq("externalId", identity.subject),
+    )
+    .first();
+
+  if (user?.isSuperAdmin !== true) {
+    throw new Error("Unauthorized: Super admin role required");
+  }
+
+  return identity;
+}
+
 function getLitePriceArsFromEnv() {
   const raw = process.env.MERCADOPAGO_LITE_PRICE_ARS;
   const price = raw ? Number(raw) : NaN;
@@ -56,6 +81,33 @@ function getGraceMs() {
   const raw = process.env.MERCADOPAGO_BILLING_GRACE_DAYS;
   const days = raw ? Number(raw) : DEFAULT_GRACE_DAYS;
   return Math.max(0, days) * 24 * 60 * 60 * 1000;
+}
+
+function getPublicMercadoPagoReturnBaseUrl() {
+  const raw = process.env.MERCADOPAGO_PUBLIC_APP_URL;
+  if (!raw) {
+    throw new Error("Missing MERCADOPAGO_PUBLIC_APP_URL");
+  }
+
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("MERCADOPAGO_PUBLIC_APP_URL must be a valid URL");
+  }
+
+  const hostname = url.hostname.toLowerCase();
+  const isLocalhost =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1";
+  if (url.protocol !== "https:" || isLocalhost) {
+    throw new Error(
+      "MERCADOPAGO_PUBLIC_APP_URL must be a public HTTPS URL. MercadoPago rejects localhost return URLs.",
+    );
+  }
+
+  return url.origin;
 }
 
 function nowWithinGrace(subscription: any, now = Date.now()) {
@@ -128,7 +180,9 @@ function mapMercadoPagoStatus(resource: any, existing: any | null) {
       existing?.entitlementStatus === "active" || nowWithinGrace(existing, now);
     return {
       status: "payment_failed" as const,
-      entitlementStatus: hadAccess ? ("grace_period" as const) : ("inactive" as const),
+      entitlementStatus: hadAccess
+        ? ("grace_period" as const)
+        : ("inactive" as const),
       lastPaymentStatus: "rejected" as const,
       graceUntil: hadAccess ? now + getGraceMs() : undefined,
     };
@@ -136,9 +190,10 @@ function mapMercadoPagoStatus(resource: any, existing: any | null) {
 
   return {
     status: "payment_failed" as const,
-    entitlementStatus: existing?.entitlementStatus === "active"
-      ? ("grace_period" as const)
-      : ("inactive" as const),
+    entitlementStatus:
+      existing?.entitlementStatus === "active"
+        ? ("grace_period" as const)
+        : ("inactive" as const),
     lastPaymentStatus: "unknown" as const,
     graceUntil:
       existing?.entitlementStatus === "active" ? now + getGraceMs() : undefined,
@@ -248,14 +303,20 @@ export const getCurrentBilling = query({
 export const createCheckout = action({
   args: {},
   handler: async (ctx): Promise<{ initPoint: string }> => {
+    if (!isMercadoPagoCheckoutEnabled()) {
+      throw new Error("MercadoPago checkout is not enabled");
+    }
+
     const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     if (!accessToken) {
       throw new Error("Missing MERCADOPAGO_ACCESS_TOKEN");
     }
 
-    const publicAppUrl = process.env.MERCADOPAGO_PUBLIC_APP_URL;
-    if (!publicAppUrl) {
-      throw new Error("Missing MERCADOPAGO_PUBLIC_APP_URL");
+    const publicAppUrl = getPublicMercadoPagoReturnBaseUrl();
+
+    const webhookUrl = process.env.MERCADOPAGO_WEBHOOK_URL;
+    if (!webhookUrl) {
+      throw new Error("Missing MERCADOPAGO_WEBHOOK_URL");
     }
 
     const planId = await ctx.runMutation(
@@ -284,7 +345,8 @@ export const createCheckout = action({
           transaction_amount: checkout.plan.priceArs,
           currency_id: "ARS",
         },
-        back_url: `${publicAppUrl.replace(/\/$/, "")}/dashboard/billing?mp_status=return`,
+        back_url: `${publicAppUrl}/dashboard/billing?mp_status=return`,
+        notification_url: webhookUrl,
         status: "pending",
       }),
     });
@@ -321,17 +383,22 @@ export const createCheckout = action({
 export const cancelCurrentSubscription = action({
   args: {},
   handler: async (ctx): Promise<{ ok: true }> => {
-    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
-    if (!accessToken) {
-      throw new Error("Missing MERCADOPAGO_ACCESS_TOKEN");
-    }
-
     const subscription = await ctx.runQuery(
-      unsafeInternal.organizationBilling.getCurrentSubscriptionForCancelInternal,
+      unsafeInternal.organizationBilling
+        .getCurrentSubscriptionForCancelInternal,
       {},
     );
 
     if (subscription?.mercadoPagoPreapprovalId) {
+      if (!isMercadoPagoCheckoutEnabled()) {
+        throw new Error("MercadoPago checkout is not enabled");
+      }
+
+      const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+      if (!accessToken) {
+        throw new Error("Missing MERCADOPAGO_ACCESS_TOKEN");
+      }
+
       const response = await fetch(
         `${MP_API_BASE}/preapproval/${encodeURIComponent(
           subscription.mercadoPagoPreapprovalId,
@@ -413,7 +480,9 @@ export const prepareCheckoutInternal = internalMutation({
       .first();
     const payerEmail = user?.email;
     if (!payerEmail) {
-      throw new Error("Current user email is required for MercadoPago checkout");
+      throw new Error(
+        "Current user email is required for MercadoPago checkout",
+      );
     }
 
     const now = Date.now();
@@ -444,6 +513,7 @@ export const prepareCheckoutInternal = internalMutation({
       {
         organizationId: membership.organizationId,
         billingPlanId: args.billingPlanId,
+        source: "mercadopago",
         mercadoPagoPayerEmail: payerEmail,
         externalReference,
         status: "pending",
@@ -464,6 +534,102 @@ export const prepareCheckoutInternal = internalMutation({
   },
 });
 
+export const activateOrganizationManually = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    billingPlanId: v.optional(v.id("appBillingPlans")),
+    source: v.optional(v.union(v.literal("manual"), v.literal("legacy"))),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireSuperAdmin(ctx);
+    const organization = await ctx.db.get(args.organizationId);
+    if (!organization) {
+      throw new Error("Organization not found");
+    }
+
+    const plan = args.billingPlanId
+      ? await ctx.db.get(args.billingPlanId)
+      : await ctx.db
+          .query("appBillingPlans")
+          .withIndex("by_key", (q) => q.eq("key", "lite"))
+          .first();
+
+    if (!plan || !plan.isActive) {
+      throw new Error("Active billing plan not found");
+    }
+
+    const now = Date.now();
+    const source = args.source ?? "manual";
+    const existing = await ctx.db
+      .query("organizationBillingSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("desc")
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        billingPlanId: plan._id,
+        source,
+        status: "authorized",
+        entitlementStatus: "active",
+        lastPaymentStatus: "approved",
+        graceUntil: undefined,
+        updatedAt: now,
+      });
+      return { subscriptionId: existing._id, updated: true };
+    }
+
+    const subscriptionId = await ctx.db.insert(
+      "organizationBillingSubscriptions",
+      {
+        organizationId: args.organizationId,
+        billingPlanId: plan._id,
+        source,
+        externalReference: `${source}:${args.organizationId}:${now}`,
+        status: "authorized",
+        entitlementStatus: "active",
+        lastPaymentStatus: "approved",
+        createdBy: identity.subject,
+        createdAt: now,
+        updatedAt: now,
+      },
+    );
+
+    return { subscriptionId, updated: false };
+  },
+});
+
+export const suspendOrganizationBillingManually = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
+    const subscription = await ctx.db
+      .query("organizationBillingSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("desc")
+      .first();
+
+    if (!subscription) {
+      throw new Error("Organization has no billing subscription");
+    }
+
+    await ctx.db.patch(subscription._id, {
+      status: "cancelled",
+      entitlementStatus: "inactive",
+      graceUntil: undefined,
+      updatedAt: Date.now(),
+    });
+
+    return { subscriptionId: subscription._id };
+  },
+});
+
 export const markCheckoutCreatedInternal = internalMutation({
   args: {
     subscriptionId: v.id("organizationBillingSubscriptions"),
@@ -471,6 +637,7 @@ export const markCheckoutCreatedInternal = internalMutation({
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.subscriptionId, {
+      source: "mercadopago",
       mercadoPagoPreapprovalId: args.mercadoPagoPreapprovalId,
       updatedAt: Date.now(),
     });
@@ -591,6 +758,7 @@ export const syncFromMercadoPagoInternal = internalMutation({
 
     const mapped = mapMercadoPagoStatus(resource, subscription);
     await ctx.db.patch(subscription._id, {
+      source: subscription.source ?? "mercadopago",
       mercadoPagoPreapprovalId: preapprovalId
         ? String(preapprovalId)
         : subscription.mercadoPagoPreapprovalId,
@@ -601,7 +769,8 @@ export const syncFromMercadoPagoInternal = internalMutation({
         parseDateMs(resource?.last_charged_date) ??
         subscription.currentPeriodStart,
       currentPeriodEnd:
-        parseDateMs(resource?.next_payment_date) ?? subscription.currentPeriodEnd,
+        parseDateMs(resource?.next_payment_date) ??
+        subscription.currentPeriodEnd,
       lastPaymentStatus: mapped.lastPaymentStatus,
       lastPaymentId:
         resource?.last_payment_id != null

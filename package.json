@@ -50,5 +50,5 @@
     "node": ">=18"
   },
   "name": "mat-app",
-  "packageManager": "pnpm@11.1.2"
+  "packageManager": "pnpm@10.28.2"
 }

@@ -223,10 +223,17 @@ export default defineSchema({
     .index("by_key", ["key"])
     .index("by_active", ["isActive"]),
 
-  // Organization-level MercadoPago subscriptions for MAT app access.
+  // Organization-level subscriptions for MAT app access.
   organizationBillingSubscriptions: defineTable({
     organizationId: v.id("organizations"),
     billingPlanId: v.id("appBillingPlans"),
+    source: v.optional(
+      v.union(
+        v.literal("mercadopago"),
+        v.literal("manual"),
+        v.literal("legacy"),
+      ),
+    ),
     mercadoPagoPreapprovalId: v.optional(v.string()),
     mercadoPagoPayerEmail: v.optional(v.string()),
     externalReference: v.string(),

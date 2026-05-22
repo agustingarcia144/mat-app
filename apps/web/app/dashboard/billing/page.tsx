@@ -24,6 +24,9 @@ const currency = new Intl.NumberFormat("es-AR", {
   maximumFractionDigits: 0,
 });
 
+const mercadoPagoCheckoutEnabled =
+  process.env.NEXT_PUBLIC_MERCADOPAGO_CHECKOUT_ENABLED === "true";
+
 function statusLabel(status: string | undefined) {
   switch (status) {
     case "active":
@@ -54,6 +57,9 @@ export default function BillingPage() {
   );
 
   const plan = billing?.plan;
+  const isMercadoPagoSubscription =
+    billing?.subscription?.source === "mercadopago" ||
+    Boolean(billing?.subscription?.mercadoPagoPreapprovalId);
   const billingStatus = entitlement?.billingStatus;
   const returnedFromMercadoPago = params.get("mp_status") === "return";
   const blocked = params.get("blocked") === "1";
@@ -134,7 +140,9 @@ export default function BillingPage() {
           <CardContent className="space-y-5">
             <div>
               <p className="text-3xl font-semibold">
-                {plan?.priceArs ? currency.format(plan.priceArs) : "ARS sin configurar"}
+                {plan?.priceArs
+                  ? currency.format(plan.priceArs)
+                  : "ARS sin configurar"}
               </p>
               <p className="text-sm text-muted-foreground">
                 por mes, equivalente comercial de USD{" "}
@@ -160,10 +168,16 @@ export default function BillingPage() {
 
             <div className="flex flex-wrap gap-2">
               {billingStatus === "active" ? (
-                <Button variant="outline" onClick={handleCancel}>
-                  Cancelar suscripción
-                </Button>
-              ) : (
+                isMercadoPagoSubscription && mercadoPagoCheckoutEnabled ? (
+                  <Button variant="outline" onClick={handleCancel}>
+                    Cancelar suscripción
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Tu suscripción está gestionada por MAT.
+                  </p>
+                )
+              ) : mercadoPagoCheckoutEnabled ? (
                 <Button
                   onClick={handleStartCheckout}
                   disabled={isStartingCheckout}
@@ -172,6 +186,10 @@ export default function BillingPage() {
                   {isStartingCheckout ? "Abriendo..." : "Pagar con MercadoPago"}
                   <ExternalLink className="size-4" />
                 </Button>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Para activar o regularizar tu suscripción, contactá a MAT.
+                </p>
               )}
             </div>
           </CardContent>
@@ -184,15 +202,19 @@ export default function BillingPage() {
               Verificación de acceso
             </CardTitle>
             <CardDescription>
-              MAT activa el plan únicamente con webhooks verificados.
+              MAT activa el plan con pagos verificados o habilitación interna.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <p>Estado actual: {statusLabel(billingStatus)}.</p>
-            <p>
-              La redirección desde MercadoPago no habilita el acceso por sí
-              sola.
-            </p>
+            {mercadoPagoCheckoutEnabled || isMercadoPagoSubscription ? (
+              <p>
+                La redirección desde MercadoPago no habilita el acceso por sí
+                sola.
+              </p>
+            ) : (
+              <p>La suscripción se administra internamente por MAT.</p>
+            )}
             {entitlement?.graceUntil ? (
               <p>
                 Gracia hasta:{" "}

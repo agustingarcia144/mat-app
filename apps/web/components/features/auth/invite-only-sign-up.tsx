@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SignUp, useClerk, useUser } from "@clerk/nextjs";
 import { useSignIn } from "@clerk/nextjs/legacy";
 import { Loader2 } from "lucide-react";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 
 const STAFF_REDIRECT = "/select-organization";
+const PENDING_LITE_CHECKOUT_KEY = "mat.pendingLiteCheckout";
 
 function getSafeRedirectUrl(value: string | null, fallback: string) {
   if (!value) return fallback;
@@ -54,6 +55,7 @@ function InvitationStatusCard({
 
 export default function InviteOnlySignUp() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { signOut } = useClerk();
   const { isLoaded, signIn, setActive } = useSignIn();
@@ -62,7 +64,13 @@ export default function InviteOnlySignUp() {
   const accountStatus = searchParams.get("__clerk_status");
   const inviteToken = searchParams.get("invite_token");
   const inviteCode = searchParams.get("invite_code");
-  const liteCheckout = searchParams.get("lite_checkout") === "1";
+  const isSignUpSsoCallback = pathname?.startsWith("/sign-up/sso-callback");
+  const hasPendingLiteCheckout =
+    typeof window !== "undefined" &&
+    Boolean(window.sessionStorage.getItem(PENDING_LITE_CHECKOUT_KEY));
+  const liteCheckout =
+    searchParams.get("lite_checkout") === "1" ||
+    (isSignUpSsoCallback && hasPendingLiteCheckout);
   const redirectUrl = searchParams.get("redirect_url");
   const fallbackRedirect = inviteToken
     ? `/invitations/accept?token=${encodeURIComponent(inviteToken)}`
