@@ -46,11 +46,28 @@ type FilterableMemberTableRow = MemberTableRow & {
   createdAtTimestamp: number
 }
 
+type BillingMode = 'calendar' | 'join_date'
+
 const normalizeMemberStatus = (value?: string) => {
   const normalized = normalize(value)
   if (normalized === 'active' || normalized === 'activo') return 'active'
   if (normalized === 'inactive' || normalized === 'inactivo') return 'inactive'
   return normalized
+}
+
+function getDayOfMonth(timestamp?: number | null) {
+  if (!timestamp) return null
+
+  const date = new Date(timestamp)
+  return Number.isNaN(date.getTime()) ? null : date.getDate()
+}
+
+function getPlanDueDayLabel(subscription?: any) {
+  const plan = subscription?.plan
+  if (!plan || (plan.billingMode ?? 'calendar') !== 'join_date') return '-'
+
+  const dueDay = getDayOfMonth(subscription.activatedAt ?? subscription.createdAt)
+  return dueDay ? `Día ${dueDay}` : '-'
 }
 
 export default function MembersPage() {
@@ -90,8 +107,6 @@ export default function MembersPage() {
   const [sheetNameOrder, setSheetNameOrder] = useState('default')
   const [sheetCreatedFrom, setSheetCreatedFrom] = useState('')
   const [sheetCreatedTo, setSheetCreatedTo] = useState('')
-
-  const columns = useMemo(() => getColumns(), [])
 
   const currentBillingPeriod = useMemo(() => {
     const now = new Date()
@@ -143,6 +158,9 @@ export default function MembersPage() {
         : null
 
       const assignedPlanName = subscription?.plan?.name ?? 'Sin Plan'
+      const planBillingMode = (subscription?.plan?.billingMode ??
+        'calendar') as BillingMode
+      const planDueDayLabel = getPlanDueDayLabel(subscription)
 
       let planPaymentStatus: MemberTableRow['planPaymentStatus'] = 'none'
 
@@ -159,11 +177,23 @@ export default function MembersPage() {
       return {
         ...member,
         assignedPlanName,
+        planBillingMode,
+        planDueDayLabel,
         planPaymentStatus,
         createdAtTimestamp: membershipCreatedAtByUser.get(member.id) ?? 0,
       }
     })
   }, [currentBillingPeriod, memberships, onlyMembers, payments, subscriptions])
+
+  const showPlanDueDayColumn = useMemo(
+    () => membersWithPlanData.some((member) => member.planBillingMode === 'join_date'),
+    [membersWithPlanData]
+  )
+
+  const columns = useMemo(
+    () => getColumns({ showPlanDueDayColumn }),
+    [showPlanDueDayColumn]
+  )
 
   const filteredMembers = useMemo(() => {
     const searchValue = normalize(search)
@@ -328,6 +358,12 @@ export default function MembersPage() {
                         <p className='truncate text-xs text-muted-foreground'>
                           {member.email || 'Sin email'}
                         </p>
+                        {member.planBillingMode === 'join_date' ? (
+                          <p className='truncate text-xs text-muted-foreground'>
+                            {member.assignedPlanName} - Vence{' '}
+                            {member.planDueDayLabel}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <StatusBadge status={isActive ? 'active' : 'inactive'} />

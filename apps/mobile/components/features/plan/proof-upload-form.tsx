@@ -268,6 +268,9 @@ export default function ProofUploadForm() {
                 currentPayment.planInterestTiers,
                 currentPayment.billingPeriod,
                 currentPayment.planPaymentWindowEndDay,
+                Date.now(),
+                currentPayment.planPaymentTimezone,
+                currentPayment.planDueAt,
               );
               return (
                 <View

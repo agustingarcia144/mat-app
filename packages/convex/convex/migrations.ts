@@ -312,6 +312,37 @@ export const backfillUsersIsSuperAdmin = internalMutation({
 });
 
 /**
+ * Migration: mark existing billing subscription rows with their source.
+ */
+export const backfillOrganizationBillingSources = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const subscriptions = await ctx.db
+      .query("organizationBillingSubscriptions")
+      .collect();
+    let patched = 0;
+    const now = Date.now();
+
+    for (const subscription of subscriptions) {
+      if (subscription.source !== undefined) continue;
+      await ctx.db.patch(subscription._id, {
+        source: subscription.mercadoPagoPreapprovalId
+          ? ("mercadopago" as const)
+          : ("legacy" as const),
+        updatedAt: now,
+      });
+      patched += 1;
+    }
+
+    return {
+      success: true,
+      scanned: subscriptions.length,
+      patched,
+    };
+  },
+});
+
+/**
  * Migration: remove legacy Clerk-organization fields from existing documents.
  *
  * It strips:

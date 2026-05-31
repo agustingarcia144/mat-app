@@ -63,6 +63,8 @@ export default defineSchema({
       v.literal("member"),
     ),
     status: v.union(v.literal("active"), v.literal("inactive")),
+    // Whether the member should be included in planification tracking.
+    usesPlanification: v.optional(v.boolean()),
     joinedAt: v.number(),
     lastActiveAt: v.optional(v.number()),
     // Timestamps
@@ -90,7 +92,8 @@ export default defineSchema({
   })
     .index("by_organization", ["organizationId"])
     .index("by_organization_status", ["organizationId", "status"])
-    .index("by_organization_user", ["organizationId", "userId"]),
+    .index("by_organization_user", ["organizationId", "userId"])
+    .index("by_user_status", ["userId", "status"]),
 
   // Organization-level settings (feature toggles, membership config).
   // One row per org; if no row exists, defaults apply (all enabled, no auto-approval).
@@ -194,6 +197,101 @@ export default defineSchema({
     .index("by_svixId", ["svixId"])
     .index("by_status", ["status"])
     .index("by_eventType", ["eventType"]),
+
+  // App-level billing plans for MAT organizations (SaaS billing).
+  appBillingPlans: defineTable({
+    key: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    referencePriceUsd: v.number(),
+    priceCurrency: v.literal("ARS"),
+    priceArs: v.number(),
+    frequency: v.number(),
+    frequencyType: v.union(
+      v.literal("months"),
+      v.literal("weeks"),
+      v.literal("years"),
+    ),
+    entitlements: v.object({
+      modules: v.array(v.string()),
+      dashboardCards: v.array(v.string()),
+    }),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_active", ["isActive"]),
+
+  // Organization-level subscriptions for MAT app access.
+  organizationBillingSubscriptions: defineTable({
+    organizationId: v.id("organizations"),
+    billingPlanId: v.id("appBillingPlans"),
+    source: v.optional(
+      v.union(
+        v.literal("mercadopago"),
+        v.literal("manual"),
+        v.literal("legacy"),
+      ),
+    ),
+    mercadoPagoPreapprovalId: v.optional(v.string()),
+    mercadoPagoPayerEmail: v.optional(v.string()),
+    externalReference: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("authorized"),
+      v.literal("paused"),
+      v.literal("cancelled"),
+      v.literal("expired"),
+      v.literal("payment_failed"),
+    ),
+    entitlementStatus: v.union(
+      v.literal("active"),
+      v.literal("inactive"),
+      v.literal("grace_period"),
+    ),
+    currentPeriodStart: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    lastPaymentStatus: v.optional(
+      v.union(
+        v.literal("approved"),
+        v.literal("pending"),
+        v.literal("rejected"),
+        v.literal("unknown"),
+      ),
+    ),
+    lastPaymentId: v.optional(v.string()),
+    lastWebhookAt: v.optional(v.number()),
+    graceUntil: v.optional(v.number()),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_externalReference", ["externalReference"])
+    .index("by_mercadoPagoPreapprovalId", ["mercadoPagoPreapprovalId"])
+    .index("by_status", ["status"]),
+
+  mercadoPagoWebhookEvents: defineTable({
+    eventId: v.string(),
+    requestId: v.string(),
+    type: v.string(),
+    action: v.optional(v.string()),
+    resourceId: v.optional(v.string()),
+    resourceType: v.optional(v.string()),
+    status: v.union(
+      v.literal("processing"),
+      v.literal("processed"),
+      v.literal("failed"),
+      v.literal("ignored"),
+    ),
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+  })
+    .index("by_eventId", ["eventId"])
+    .index("by_requestId", ["requestId"])
+    .index("by_resource", ["resourceType", "resourceId"]),
 
   // Exercises - Exercise library per organization
   exercises: defineTable({
@@ -641,9 +739,14 @@ export default defineSchema({
       v.literal("class_start_reminder"),
       v.literal("attendance_reminder"),
       v.literal("class_spot_available"),
+      v.literal("workout_completion_reminder"),
+      v.literal("payment_review_approved"),
+      v.literal("payment_review_declined"),
     ),
     userId: v.string(),
-    scheduleId: v.id("classSchedules"),
+    scheduleId: v.optional(v.id("classSchedules")),
+    workoutSessionId: v.optional(v.id("workoutDaySessions")),
+    paymentId: v.optional(v.id("planPayments")),
     status: v.union(
       v.literal("pending"),
       v.literal("sent"),
@@ -668,6 +771,10 @@ export default defineSchema({
     name: v.string(), // "Plan Básico", "2 veces/semana"
     description: v.optional(v.string()),
     isFamilyPlan: v.optional(v.boolean()),
+    // calendar: day-of-month payment window. join_date: each member pays on their activation day.
+    billingMode: v.optional(
+      v.union(v.literal("calendar"), v.literal("join_date")),
+    ),
     priceArs: v.number(), // Price in ARS (whole pesos)
     weeklyClassLimit: v.number(), // Max classes per week (Mon-Sun)
     paymentWindowStartDay: v.number(), // Day of month payment opens (1-28)
@@ -733,6 +840,9 @@ export default defineSchema({
     subscriptionId: v.id("memberPlanSubscriptions"),
     planId: v.id("membershipPlans"), // Denormalized for queries
     billingPeriod: v.string(), // "YYYY-MM" format
+    billingCycleStartAt: v.optional(v.number()),
+    billingCycleEndAt: v.optional(v.number()),
+    dueAt: v.optional(v.number()),
     amountArs: v.number(), // Base plan price at time of creation
     // How the payment was made. Absent on legacy rows (treated as proof_upload).
     paymentMethod: v.optional(

@@ -42,6 +42,13 @@ crons.interval(
 );
 
 crons.interval(
+  "generate-current-period-plan-payments",
+  { hours: 24 },
+  internal.memberPlanSubscriptions.generateCurrentPeriodPayments,
+  {},
+);
+
+crons.interval(
   "generate-bonification-payments",
   { hours: 24 },
   internal.planBonifications.generateBonificationPayments,

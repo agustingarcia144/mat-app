@@ -69,11 +69,14 @@ const advancePaymentDiscountV = v.object({
   discountPercentage: v.number(),
 });
 
+const billingModeV = v.union(v.literal("calendar"), v.literal("join_date"));
+
 export const create = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
     isFamilyPlan: v.optional(v.boolean()),
+    billingMode: v.optional(billingModeV),
     priceArs: v.number(),
     weeklyClassLimit: v.number(),
     paymentWindowStartDay: v.number(),
@@ -94,6 +97,7 @@ export const create = mutation({
       name: args.name.trim(),
       description: args.description?.trim() || undefined,
       isFamilyPlan: args.isFamilyPlan ?? false,
+      billingMode: args.billingMode ?? "calendar",
       priceArs: args.priceArs,
       weeklyClassLimit: args.weeklyClassLimit,
       paymentWindowStartDay: args.paymentWindowStartDay,
@@ -121,6 +125,7 @@ export const update = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     isFamilyPlan: v.optional(v.boolean()),
+    billingMode: v.optional(billingModeV),
     priceArs: v.optional(v.number()),
     weeklyClassLimit: v.optional(v.number()),
     paymentWindowStartDay: v.optional(v.number()),
@@ -142,6 +147,7 @@ export const update = mutation({
       name: args.name ?? plan.name,
       description: args.description ?? plan.description,
       isFamilyPlan: args.isFamilyPlan ?? plan.isFamilyPlan ?? false,
+      billingMode: args.billingMode ?? plan.billingMode ?? "calendar",
       priceArs: args.priceArs ?? plan.priceArs,
       weeklyClassLimit: args.weeklyClassLimit ?? plan.weeklyClassLimit,
       paymentWindowStartDay:
@@ -156,6 +162,7 @@ export const update = mutation({
     if (args.description !== undefined)
       patch.description = args.description.trim() || undefined;
     if (args.isFamilyPlan !== undefined) patch.isFamilyPlan = args.isFamilyPlan;
+    if (args.billingMode !== undefined) patch.billingMode = args.billingMode;
     if (args.priceArs !== undefined) patch.priceArs = args.priceArs;
     if (args.weeklyClassLimit !== undefined)
       patch.weeklyClassLimit = args.weeklyClassLimit;

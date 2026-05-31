@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
   requireAuth,
@@ -17,6 +18,122 @@ type InterestTier = {
 };
 
 type AppliedTier = InterestTier & { amountArs: number };
+type BillingMode = "calendar" | "join_date";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_PAYMENT_TIMEZONE = "America/Argentina/Buenos_Aires";
+
+function getPaymentTimezone(timezone?: string) {
+  return timezone && timezone.trim() !== ""
+    ? timezone.trim()
+    : DEFAULT_PAYMENT_TIMEZONE;
+}
+
+function getZonedDateParts(timestamp: number, timezone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date(timestamp));
+  const partMap = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+
+  return {
+    year: parseInt(partMap.year!, 10),
+    month: parseInt(partMap.month!, 10),
+    day: parseInt(partMap.day!, 10),
+  };
+}
+
+function getDaysAfterPaymentWindow(
+  billingPeriod: string,
+  paymentWindowEndDay: number,
+  nowMs: number,
+  timezone: string,
+  dueAt?: number,
+) {
+  const [yearStr, monthStr] = billingPeriod.split("-");
+  const billingYear = parseInt(yearStr!, 10);
+  const billingMonth = parseInt(monthStr!, 10);
+  const nowParts = getZonedDateParts(nowMs, timezone);
+
+  const dueParts = dueAt ? getZonedDateParts(dueAt, timezone) : null;
+  const windowEndDateMs = dueParts
+    ? Date.UTC(dueParts.year, dueParts.month - 1, dueParts.day)
+    : Date.UTC(billingYear, billingMonth - 1, paymentWindowEndDay);
+  const currentLocalDateMs = Date.UTC(
+    nowParts.year,
+    nowParts.month - 1,
+    nowParts.day,
+  );
+
+  return Math.max(
+    0,
+    Math.floor((currentLocalDateMs - windowEndDateMs) / DAY_MS),
+  );
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function addMonths(year: number, month: number, monthsToAdd: number) {
+  const date = new Date(Date.UTC(year, month - 1 + monthsToAdd, 1));
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
+
+function getBillingCycle(
+  plan: { billingMode?: BillingMode; paymentWindowEndDay?: number },
+  activatedAt: number,
+  referenceAt: number,
+  timezone: string,
+) {
+  const mode = plan.billingMode ?? "calendar";
+  const ref = getZonedDateParts(referenceAt, timezone);
+
+  if (mode === "join_date") {
+    const activated = getZonedDateParts(activatedAt, timezone);
+    const anchorDay = activated.day;
+    const currentAnchorDay = Math.min(
+      anchorDay,
+      daysInMonth(ref.year, ref.month),
+    );
+    const startMonth =
+      ref.day >= currentAnchorDay
+        ? { year: ref.year, month: ref.month }
+        : addMonths(ref.year, ref.month, -1);
+    const endMonth = addMonths(startMonth.year, startMonth.month, 1);
+    const cycleStartDay = Math.min(
+      anchorDay,
+      daysInMonth(startMonth.year, startMonth.month),
+    );
+    const cycleEndDay = Math.min(
+      anchorDay,
+      daysInMonth(endMonth.year, endMonth.month),
+    );
+
+    return {
+      billingPeriod: `${startMonth.year}-${String(startMonth.month).padStart(2, "0")}`,
+      cycleStartAt: Date.UTC(
+        startMonth.year,
+        startMonth.month - 1,
+        cycleStartDay,
+      ),
+      cycleEndAt: Date.UTC(endMonth.year, endMonth.month - 1, cycleEndDay),
+      dueAt: Date.UTC(startMonth.year, startMonth.month - 1, cycleStartDay),
+    };
+  }
+
+  return {
+    billingPeriod: `${ref.year}-${String(ref.month).padStart(2, "0")}`,
+    cycleStartAt: Date.UTC(ref.year, ref.month - 1, 1),
+    cycleEndAt: Date.UTC(ref.year, ref.month, 1),
+    dueAt: Date.UTC(ref.year, ref.month - 1, plan.paymentWindowEndDay ?? 28),
+  };
+}
 
 async function getPaymentCoverage(
   ctx: { db: any },
@@ -46,11 +163,18 @@ async function getPaymentCoverage(
     billingSubscription,
     ...childSubscriptions,
   ].filter((item) => item.status !== "cancelled");
+  const activeMemberUserIds = await getActiveMemberUserIds(
+    ctx,
+    billingSubscription.organizationId,
+  );
+  const chargeableSubscriptions = coveredSubscriptions.filter((item) =>
+    activeMemberUserIds.has(item.userId),
+  );
 
   return {
     billingSubscription,
-    coveredSubscriptions,
-    coveredMemberCount: coveredSubscriptions.length,
+    coveredSubscriptions: chargeableSubscriptions,
+    coveredMemberCount: chargeableSubscriptions.length,
   };
 }
 
@@ -82,14 +206,16 @@ function computeInterest(
   billingPeriod: string,
   paymentWindowEndDay: number,
   nowMs: number,
+  timezone: string,
+  dueAt?: number,
 ): { applied: AppliedTier[]; totalArs: number; totalAmount: number } {
-  const [yearStr, monthStr] = billingPeriod.split("-");
-  const windowEndMs = Date.UTC(
-    parseInt(yearStr!, 10),
-    parseInt(monthStr!, 10) - 1,
+  const daysElapsed = getDaysAfterPaymentWindow(
+    billingPeriod,
     paymentWindowEndDay,
+    nowMs,
+    timezone,
+    dueAt,
   );
-  const daysElapsed = Math.max(0, Math.floor((nowMs - windowEndMs) / 86400000));
 
   if (daysElapsed === 0 || tiers.length === 0) {
     return { applied: [], totalArs: 0, totalAmount: baseAmount };
@@ -110,6 +236,80 @@ function computeInterest(
   }
 
   return { applied, totalArs, totalAmount: baseAmount + totalArs };
+}
+
+function getInterestFields(interest: {
+  applied: AppliedTier[];
+  totalArs: number;
+  totalAmount: number;
+}) {
+  return {
+    interestApplied: interest.applied.length ? interest.applied : undefined,
+    interestTotalArs: interest.totalArs > 0 ? interest.totalArs : undefined,
+    totalAmountArs: interest.totalAmount,
+  };
+}
+
+async function computePaymentInterest(
+  ctx: { db: any },
+  payment: {
+    organizationId: Id<"organizations">;
+    subscriptionId: Id<"memberPlanSubscriptions">;
+    amountArs: number;
+    billingPeriod: string;
+    dueAt?: number;
+  },
+  paidAtMs: number,
+) {
+  const subscription = await ctx.db.get(payment.subscriptionId);
+  const [plan, organization] = await Promise.all([
+    subscription
+      ? ctx.db.get(subscription.planId as Id<"membershipPlans">)
+      : null,
+    ctx.db.get(payment.organizationId),
+  ]);
+
+  if (!plan?.interestTiers?.length) {
+    return { applied: [], totalArs: 0, totalAmount: payment.amountArs };
+  }
+
+  return computeInterest(
+    payment.amountArs,
+    plan.interestTiers as InterestTier[],
+    payment.billingPeriod,
+    plan.paymentWindowEndDay,
+    paidAtMs,
+    getPaymentTimezone(organization?.timezone),
+    payment.dueAt,
+  );
+}
+
+async function getActiveMemberUserIds(
+  ctx: { db: any },
+  organizationId: Id<"organizations">,
+): Promise<Set<string>> {
+  const activeMemberships = await ctx.db
+    .query("organizationMemberships")
+    .withIndex("by_organization", (q: any) =>
+      q.eq("organizationId", organizationId),
+    )
+    .filter((q: any) =>
+      q.and(q.eq(q.field("role"), "member"), q.eq(q.field("status"), "active")),
+    )
+    .collect();
+
+  return new Set<string>(
+    activeMemberships.map((membership: any) => String(membership.userId)),
+  );
+}
+
+function isChargeablePayment(
+  payment: { userId: string; status: string },
+  activeMemberUserIds: Set<string>,
+) {
+  return (
+    payment.status === "approved" || activeMemberUserIds.has(payment.userId)
+  );
 }
 
 /**
@@ -138,12 +338,26 @@ export const getMyCurrentPeriodPayment = query({
 
     const { billingSubscription, coveredMemberCount } =
       await getPaymentCoverage(ctx, subscription);
-    const plan = await ctx.db.get(
-      billingSubscription.planId as Id<"membershipPlans">,
-    );
+    const [plan, organization] = await Promise.all([
+      ctx.db.get(billingSubscription.planId as Id<"membershipPlans">),
+      ctx.db.get(membership.organizationId),
+    ]);
 
-    const d = new Date();
-    const billingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const timezone = getPaymentTimezone(organization?.timezone);
+    const cycle = plan
+      ? getBillingCycle(
+          plan,
+          billingSubscription.activatedAt,
+          Date.now(),
+          timezone,
+        )
+      : null;
+    const billingPeriod =
+      cycle?.billingPeriod ??
+      (() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      })();
 
     const currentPeriodPayment = await ctx.db
       .query("planPayments")
@@ -204,6 +418,9 @@ export const getMyCurrentPeriodPayment = query({
           : undefined,
       planInterestTiers: plan?.interestTiers ?? [],
       planPaymentWindowEndDay: plan?.paymentWindowEndDay ?? 28,
+      planPaymentTimezone: timezone,
+      planBillingMode: plan?.billingMode ?? "calendar",
+      planDueAt: payment.dueAt ?? cycle?.dueAt,
     };
   },
 });
@@ -218,6 +435,19 @@ export const getById = query({
     const payment = await ctx.db.get(args.paymentId);
     if (!payment || payment.organizationId !== membership.organizationId)
       return null;
+
+    if (payment.status === "in_review" && payment.proofUploadedAt) {
+      const interest = await computePaymentInterest(
+        ctx,
+        payment,
+        payment.proofUploadedAt,
+      );
+      return {
+        ...payment,
+        ...getInterestFields(interest),
+      };
+    }
+
     return payment;
   },
 });
@@ -271,14 +501,21 @@ export const getPendingByOrganization = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdminOrTrainer(ctx, membership.organizationId);
 
-    const payments = await ctx.db
-      .query("planPayments")
-      .withIndex("by_organization_status", (q) =>
-        q
-          .eq("organizationId", membership.organizationId)
-          .eq("status", "in_review"),
-      )
-      .collect();
+    const activeMemberUserIds = await getActiveMemberUserIds(
+      ctx,
+      membership.organizationId,
+    );
+
+    const payments = (
+      await ctx.db
+        .query("planPayments")
+        .withIndex("by_organization_status", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("status", "in_review"),
+        )
+        .collect()
+    ).filter((payment) => isChargeablePayment(payment, activeMemberUserIds));
 
     return await enrichPayments(ctx, payments);
   },
@@ -302,21 +539,28 @@ export const getByOrganization = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdminOrTrainer(ctx, membership.organizationId);
 
-    const payments = args.status
-      ? await ctx.db
-          .query("planPayments")
-          .withIndex("by_organization_status", (q) =>
-            q
-              .eq("organizationId", membership.organizationId)
-              .eq("status", args.status!),
-          )
-          .collect()
-      : await ctx.db
-          .query("planPayments")
-          .withIndex("by_organization", (q) =>
-            q.eq("organizationId", membership.organizationId),
-          )
-          .collect();
+    const activeMemberUserIds = await getActiveMemberUserIds(
+      ctx,
+      membership.organizationId,
+    );
+
+    const payments = (
+      args.status
+        ? await ctx.db
+            .query("planPayments")
+            .withIndex("by_organization_status", (q) =>
+              q
+                .eq("organizationId", membership.organizationId)
+                .eq("status", args.status!),
+            )
+            .collect()
+        : await ctx.db
+            .query("planPayments")
+            .withIndex("by_organization", (q) =>
+              q.eq("organizationId", membership.organizationId),
+            )
+            .collect()
+    ).filter((payment) => isChargeablePayment(payment, activeMemberUserIds));
 
     const enriched = await enrichPayments(ctx, payments);
     return enriched.sort((a, b) => b.createdAt - a.createdAt);
@@ -347,36 +591,46 @@ export const getOrganizationMetrics = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdmin(ctx, membership.organizationId);
 
-    const [payments, subscriptions, activeBonifications, financeTransactions] =
-      await Promise.all([
-        ctx.db
-          .query("planPayments")
-          .withIndex("by_organization", (q) =>
-            q.eq("organizationId", membership.organizationId),
-          )
-          .collect(),
-        ctx.db
-          .query("memberPlanSubscriptions")
-          .withIndex("by_organization", (q) =>
-            q.eq("organizationId", membership.organizationId),
-          )
-          .collect(),
-        ctx.db
-          .query("planBonifications")
-          .withIndex("by_organization_status", (q) =>
-            q
-              .eq("organizationId", membership.organizationId)
-              .eq("status", "active"),
-          )
-          .collect(),
-        ctx.db
-          .query("financeTransactions")
-          .withIndex("by_organization_period", (q) =>
-            q.eq("organizationId", membership.organizationId),
-          )
-          .filter((q) => q.eq(q.field("status"), "active"))
-          .collect(),
-      ]);
+    const [
+      payments,
+      subscriptions,
+      activeBonifications,
+      financeTransactions,
+      activeMemberUserIds,
+    ] = await Promise.all([
+      ctx.db
+        .query("planPayments")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", membership.organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("memberPlanSubscriptions")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", membership.organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("planBonifications")
+        .withIndex("by_organization_status", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("status", "active"),
+        )
+        .collect(),
+      ctx.db
+        .query("financeTransactions")
+        .withIndex("by_organization_period", (q) =>
+          q.eq("organizationId", membership.organizationId),
+        )
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .collect(),
+      getActiveMemberUserIds(ctx, membership.organizationId),
+    ]);
+
+    const chargeablePayments = payments.filter((payment) =>
+      isChargeablePayment(payment, activeMemberUserIds),
+    );
 
     // Build a set of bonified subscription IDs for fast lookup
     const bonifiedSubscriptionIds = new Set(
@@ -384,7 +638,8 @@ export const getOrganizationMetrics = query({
     );
 
     const planIds = new Set<string>();
-    for (const payment of payments) planIds.add(String(payment.planId));
+    for (const payment of chargeablePayments)
+      planIds.add(String(payment.planId));
     for (const subscription of subscriptions) {
       planIds.add(String(subscription.planId));
     }
@@ -398,11 +653,13 @@ export const getOrganizationMetrics = query({
     );
 
     const activeSubscriptions = subscriptions.filter(
-      (subscription) => subscription.status !== "cancelled",
+      (subscription) =>
+        subscription.status !== "cancelled" &&
+        activeMemberUserIds.has(subscription.userId),
     );
     const currentBillingPeriod = getCurrentBillingPeriod();
 
-    const currentPayments = payments.filter(
+    const currentPayments = chargeablePayments.filter(
       (payment) => payment.billingPeriod === currentBillingPeriod,
     );
 
@@ -544,7 +801,7 @@ export const getOrganizationMetrics = query({
     );
 
     const methodCounts = new Map<string, number>();
-    const paymentsWithMethod = payments.filter((payment) =>
+    const paymentsWithMethod = chargeablePayments.filter((payment) =>
       Boolean(payment.paymentMethod),
     );
     for (const payment of paymentsWithMethod) {
@@ -560,7 +817,7 @@ export const getOrganizationMetrics = query({
       }))
       .sort((a, b) => b.count - a.count);
 
-    const reviewDurations = payments
+    const reviewDurations = chargeablePayments
       .filter(
         (payment) =>
           typeof payment.proofUploadedAt === "number" &&
@@ -582,12 +839,12 @@ export const getOrganizationMetrics = query({
 
     const recentPeriods = sortBillingPeriodsDesc([
       currentBillingPeriod,
-      ...payments.map((payment) => payment.billingPeriod),
+      ...chargeablePayments.map((payment) => payment.billingPeriod),
       ...financeTransactions.map((transaction) => transaction.period),
     ]).slice(0, 12);
 
     const monthlyOverview = recentPeriods.map((period) => {
-      const periodPayments = payments.filter(
+      const periodPayments = chargeablePayments.filter(
         (payment) => payment.billingPeriod === period,
       );
       const nonBonificationPayments = periodPayments.filter(
@@ -860,22 +1117,8 @@ export const uploadProof = mutation({
       }
     }
 
-    // Calculate interest at upload time
-    const subscription = await ctx.db.get(payment.subscriptionId);
-    const plan = subscription
-      ? await ctx.db.get(subscription.planId as Id<"membershipPlans">)
-      : null;
-
     const now = Date.now();
-    const interest = plan?.interestTiers?.length
-      ? computeInterest(
-          payment.amountArs,
-          plan.interestTiers as InterestTier[],
-          payment.billingPeriod,
-          plan.paymentWindowEndDay,
-          now,
-        )
-      : { applied: [], totalArs: 0, totalAmount: payment.amountArs };
+    const interest = await computePaymentInterest(ctx, payment, now);
 
     await ctx.db.patch(args.paymentId, {
       proofStorageId: args.storageId,
@@ -883,9 +1126,7 @@ export const uploadProof = mutation({
       proofContentType: args.contentType,
       proofUploadedAt: now,
       status: "in_review",
-      interestApplied: interest.applied.length ? interest.applied : undefined,
-      interestTotalArs: interest.totalArs > 0 ? interest.totalArs : undefined,
-      totalAmountArs: interest.totalAmount,
+      ...getInterestFields(interest),
       // Clear previous review data on re-upload
       reviewedBy: undefined,
       reviewedAt: undefined,
@@ -922,8 +1163,14 @@ export const approve = mutation({
     }
 
     const now = Date.now();
+    const interest = await computePaymentInterest(
+      ctx,
+      payment,
+      payment.proofUploadedAt ?? now,
+    );
     await ctx.db.patch(args.paymentId, {
       status: "approved",
+      ...getInterestFields(interest),
       reviewedBy: identity.subject,
       reviewedAt: now,
       reviewNotes: args.notes?.trim() || undefined,
@@ -931,6 +1178,15 @@ export const approve = mutation({
     });
 
     await setFamilySubscriptionsStatus(ctx, subscription, "active", now);
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.pushNotifications.sendPaymentReviewNotification,
+      {
+        paymentId: args.paymentId,
+        status: "approved",
+      },
+    );
   },
 });
 
@@ -963,6 +1219,15 @@ export const decline = mutation({
       reviewNotes: args.notes?.trim() || undefined,
       updatedAt: now,
     });
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.pushNotifications.sendPaymentReviewNotification,
+      {
+        paymentId: args.paymentId,
+        status: "declined",
+      },
+    );
   },
 });
 

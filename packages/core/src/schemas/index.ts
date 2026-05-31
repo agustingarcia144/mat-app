@@ -231,6 +231,7 @@ export const membershipPlanSchema = z
     name: z.string().min(1, "El nombre es requerido").trim(),
     description: z.string().optional(),
     isFamilyPlan: z.boolean().default(false),
+    billingMode: z.enum(["calendar", "join_date"]).default("calendar"),
     priceArs: z.coerce
       .number()
       .int("El precio debe ser un número entero")

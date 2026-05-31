@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import {
-  ArrowRight,
+  BarChart3,
   CheckCircle2,
   Clock3,
   TrendingUp,
@@ -97,10 +97,10 @@ export default function PaymentsOverview() {
         <h3 className="text-lg font-semibold">Balance Financiero</h3>
         <Link
           href="/dashboard/metrics/payments"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-background/40 px-3 py-1.5 text-sm text-foreground shadow-sm transition-colors hover:bg-accent/40"
         >
-          Ver balance
-          <ArrowRight className="h-4 w-4" />
+          <BarChart3 className="h-4 w-4" />
+          Ver mas +
         </Link>
       </div>
 

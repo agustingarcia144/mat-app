@@ -22,6 +22,8 @@ import AssociateFamilyGroupDialog from '@/components/features/members/table/asso
 
 export type MemberTableRow = Member & {
   assignedPlanName: string
+  planBillingMode: 'calendar' | 'join_date'
+  planDueDayLabel: string
   planPaymentStatus: 'pago' | 'pendiente' | 'vencido' | 'none'
 }
 
@@ -188,46 +190,64 @@ const nameColumn: ColumnDef<MemberTableRow> = {
 }
 
 
-export const getColumns = (): ColumnDef<MemberTableRow>[] => [
-  nameColumn,
+export const getColumns = (
+  options: { showPlanDueDayColumn?: boolean } = {}
+): ColumnDef<MemberTableRow>[] => {
+  const columns: ColumnDef<MemberTableRow>[] = [
+    nameColumn,
 
-  {
-    accessorKey: 'email',
-    header: 'Email',
-  },
+    {
+      accessorKey: 'email',
+      header: 'Email',
+    },
 
-  {
-    accessorKey: 'assignedPlanName',
-    header: 'Plan',
-    cell: ({ row }) => (
-      <span className='font-medium'>{row.original.assignedPlanName}</span>
-    ),
-  },
+    {
+      accessorKey: 'assignedPlanName',
+      header: 'Plan',
+      cell: ({ row }) => (
+        <span className='font-medium'>{row.original.assignedPlanName}</span>
+      ),
+    },
+  ]
 
-  {
-    accessorKey: 'planPaymentStatus',
-    header: 'Estado del plan',
-    cell: ({ row }) => (
-      <PlanPaymentStatusBadge status={row.original.planPaymentStatus} />
-    ),
-  },
+  if (options.showPlanDueDayColumn) {
+    columns.push({
+      accessorKey: 'planDueDayLabel',
+      header: 'Vencimiento',
+      cell: ({ row }) => (
+        <span className='text-sm'>{row.original.planDueDayLabel}</span>
+      ),
+    })
+  }
 
-  {
-    accessorKey: 'status',
-    header: 'Estado',
-    cell: ({ row }) => (
-      <StatusBadge status={row.original.status?.toLowerCase() ?? 'inactive'} />
-    ),
-  },
+  columns.push(
+    {
+      accessorKey: 'planPaymentStatus',
+      header: 'Estado del plan',
+      cell: ({ row }) => (
+        <PlanPaymentStatusBadge status={row.original.planPaymentStatus} />
+      ),
+    },
 
-  {
-    accessorKey: 'createdAt',
-    header: 'Creado el',
-  },
+    {
+      accessorKey: 'status',
+      header: 'Estado',
+      cell: ({ row }) => (
+        <StatusBadge status={row.original.status?.toLowerCase() ?? 'inactive'} />
+      ),
+    },
 
-  {
-    id: 'actions',
-    header: () => <span className="sr-only">Acciones</span>,
-    cell: ({ row }) => <MemberActionsCell member={row.original} />,
-  },
-]
+    {
+      accessorKey: 'createdAt',
+      header: 'Creado el',
+    },
+
+    {
+      id: 'actions',
+      header: () => <span className="sr-only">Acciones</span>,
+      cell: ({ row }) => <MemberActionsCell member={row.original} />,
+    }
+  )
+
+  return columns
+}

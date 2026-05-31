@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
   getCurrentUserRecord,
@@ -83,6 +83,7 @@ export const getOrganizationMemberships = query({
           userId: membership.userId,
           role: membership.role,
           status: membership.status,
+          usesPlanification: membership.usesPlanification,
           createdAt: membership.createdAt,
           joinedAt: membership.joinedAt,
           updatedAt: membership.updatedAt,
@@ -292,6 +293,45 @@ export const removeMember = mutation({
   },
 });
 
+export const removeMemberFromOrganizationInternal = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const memberships = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization_user", (q) =>
+        q.eq("organizationId", args.organizationId).eq("userId", args.userId),
+      )
+      .collect();
+
+    for (const membership of memberships) {
+      await ctx.db.delete(membership._id);
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_externalId", (q) => q.eq("externalId", args.userId))
+      .first();
+
+    if (user?.activeOrganizationId === args.organizationId) {
+      const fallbackMembership = await ctx.db
+        .query("organizationMemberships")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .filter((q) => q.eq(q.field("status"), "active"))
+        .first();
+
+      await ctx.db.patch(user._id, {
+        activeOrganizationId: fallbackMembership?.organizationId,
+        updatedAt: Date.now(),
+      });
+    }
+
+    return { removed: memberships.length };
+  },
+});
+
 export const setActiveOrganization = mutation({
   args: {
     organizationId: v.id("organizations"),
@@ -422,6 +462,43 @@ export const setMemberActive = mutation({
 
     await ctx.db.patch(targetMembership._id, {
       status: "active",
+      updatedAt: Date.now(),
+    });
+
+    return { updated: true };
+  },
+});
+
+/**
+ * Configure whether a member should be included in planification tracking.
+ * Admin/trainer only. Missing values are treated as true by clients.
+ */
+export const setMemberUsesPlanification = mutation({
+  args: {
+    userId: v.string(),
+    usesPlanification: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const currentMembership = await requireCurrentOrganizationMembership(ctx);
+    const organizationId = currentMembership.organizationId;
+    await requireAdminOrTrainer(ctx, organizationId);
+
+    const targetMembership = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization_user", (q) =>
+        q.eq("organizationId", organizationId).eq("userId", args.userId),
+      )
+      .first();
+
+    if (!targetMembership) {
+      throw new Error("User is not a member of the current organization");
+    }
+    if (targetMembership.role !== "member") {
+      throw new Error("Only members can be configured for planification usage");
+    }
+
+    await ctx.db.patch(targetMembership._id, {
+      usesPlanification: args.usesPlanification,
       updatedAt: Date.now(),
     });
 

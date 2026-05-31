@@ -31,12 +31,29 @@ export async function clearPendingJoinToken(): Promise<void> {
  * Supports: https://domain/join/TOKEN, mat-app://join/TOKEN
  */
 export function parseJoinTokenFromUrl(url: string): string | null {
+  const decodeToken = (value: string) => {
+    try {
+      return decodeURIComponent(value).trim() || null;
+    } catch {
+      return value.trim() || null;
+    }
+  };
+
+  const extractFromPath = (path: string) => {
+    const match = /\/join\/([^/?#]+)/.exec(path);
+    if (!match) return null;
+    return decodeToken(match[1]);
+  };
+
   try {
     const parsed = new URL(url);
-    const path = parsed.pathname || parsed.href.split("?")[0];
-    const match = /\/join\/([^/?#]+)/.exec(path);
-    return match ? match[1].trim() : null;
+    if (parsed.protocol === "mat-app:" && parsed.hostname === "join") {
+      const token = parsed.pathname.replace(/^\/+/, "").split(/[/?#]/)[0];
+      return decodeToken(token);
+    }
+
+    return extractFromPath(parsed.pathname || parsed.href.split("?")[0]);
   } catch {
-    return null;
+    return extractFromPath(url);
   }
 }

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Mat Gestion",
     "slug": "mat-app",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "mat-app",
@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.agusstingarcia144.matapp",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSUserNotificationsUsageDescription": "Mat te enviara recordatorios y avisos importantes sobre tus clases reservadas."
+        "NSUserNotificationsUsageDescription": "Mat te enviara recordatorios y avisos importantes sobre tus clases reservadas.",
+        "NSCameraUsageDescription": "Mat necesita acceso a tu camara para escanear codigos QR de invitacion."
       },
       "icon": "./assets/app.icon",
       "associatedDomains": ["applinks:matgestion.app"]
@@ -40,7 +41,10 @@
           "category": ["BROWSABLE", "DEFAULT"]
         }
       ],
-      "permissions": ["android.permission.RECORD_AUDIO"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -69,6 +73,12 @@
         {
           "photosPermission": "Mat necesita acceso a tu galería para subir comprobantes de pago.",
           "cameraPermission": "Mat necesita acceso a tu cámara para tomar fotos de comprobantes de pago."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Mat necesita acceso a tu camara para escanear codigos QR de invitacion."
         }
       ],
       "@react-native-community/datetimepicker",

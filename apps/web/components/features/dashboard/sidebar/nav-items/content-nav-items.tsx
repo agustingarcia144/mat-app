@@ -10,6 +10,7 @@ import { DASHBOARD_NAV_ITEMS } from "@/lib/dashboard-nav";
 import { useUnsavedNavigationGuard } from "@/contexts/unsaved-changes-context";
 import { isOrgAdminRole } from "@/lib/security/roles";
 import { useOrgSettings } from "@/hooks/use-org-settings";
+import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 import { api } from "@/convex/_generated/api";
 
 export default function ContentNavItems() {
@@ -17,20 +18,23 @@ export default function ContentNavItems() {
   const router = useRouter();
   const membership = useQuery(api.organizationMemberships.getCurrentMembership);
   const settings = useOrgSettings();
+  const entitlement = useOrganizationEntitlement();
   const { requestNavigation } = useUnsavedNavigationGuard();
   const [optimisticPath, setOptimisticPath] = useOptimistic(pathname);
   const [, startTransition] = useTransition();
 
   const visibleNavItems = useMemo(() => {
     const isAdmin = isOrgAdminRole(membership?.role);
+    const allowedModules = new Set(entitlement?.modules ?? []);
     return DASHBOARD_NAV_ITEMS.filter((item) => {
       if (item.adminOnly && !isAdmin) return false;
+      if (entitlement && !allowedModules.has(item.billingModule)) return false;
       if (item.featureFlag && settings) {
         if (!settings[item.featureFlag]) return false;
       }
       return true;
     });
-  }, [membership?.role, settings]);
+  }, [entitlement, membership?.role, settings]);
 
   const handleNavigation = (url: string) => {
     const dashboardUrl = `/dashboard${url}`;

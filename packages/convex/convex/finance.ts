@@ -298,6 +298,7 @@ export const createTransaction = mutation({
 export const updateTransaction = mutation({
   args: {
     transactionId: v.id("financeTransactions"),
+    type: v.optional(transactionTypeV),
     title: v.optional(v.string()),
     category: v.optional(v.string()),
     amountArs: v.optional(v.number()),
@@ -320,7 +321,7 @@ export const updateTransaction = mutation({
     }
 
     const merged = {
-      type: transaction.type,
+      type: args.type ?? transaction.type,
       title: args.title ?? transaction.title,
       category: args.category ?? transaction.category,
       amountArs: args.amountArs ?? transaction.amountArs,
@@ -332,6 +333,7 @@ export const updateTransaction = mutation({
       updatedBy: identity.subject,
       updatedAt: Date.now(),
     };
+    if (args.type !== undefined) patch.type = args.type;
     if (args.title !== undefined) patch.title = args.title.trim();
     if (args.category !== undefined) patch.category = args.category.trim();
     if (args.amountArs !== undefined) patch.amountArs = args.amountArs;

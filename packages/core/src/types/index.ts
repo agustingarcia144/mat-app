@@ -2,6 +2,7 @@
 // Example: export type User = { id: string; name: string }
 
 export type InterestTierType = "percentage" | "fixed";
+export type BillingMode = "calendar" | "join_date";
 
 export type InterestTier = {
   daysAfterWindowEnd: number; // how many days after paymentWindowEndDay this tier activates (min 1)
@@ -19,6 +20,55 @@ export type InterestResult = {
   totalAmount: number; // base + totalArs
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function getZonedDateParts(timestamp: number, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const [monthStr, dayStr, yearStr] = formatter
+    .format(new Date(timestamp))
+    .replace(/[^\d/]/g, "")
+    .split("/");
+
+  return {
+    year: parseInt(yearStr!, 10),
+    month: parseInt(monthStr!, 10),
+    day: parseInt(dayStr!, 10),
+  };
+}
+
+function getDaysAfterPaymentWindow(
+  billingPeriod: string,
+  paymentWindowEndDay: number,
+  nowMs: number,
+  timeZone: string,
+  dueAt?: number,
+) {
+  const [yearStr, monthStr] = billingPeriod.split("-");
+  const billingYear = parseInt(yearStr!, 10);
+  const billingMonth = parseInt(monthStr!, 10);
+  const nowParts = getZonedDateParts(nowMs, timeZone);
+
+  const dueParts = dueAt ? getZonedDateParts(dueAt, timeZone) : null;
+  const windowEndDateMs = dueParts
+    ? Date.UTC(dueParts.year, dueParts.month - 1, dueParts.day)
+    : Date.UTC(billingYear, billingMonth - 1, paymentWindowEndDay);
+  const currentLocalDateMs = Date.UTC(
+    nowParts.year,
+    nowParts.month - 1,
+    nowParts.day,
+  );
+
+  return Math.max(
+    0,
+    Math.floor((currentLocalDateMs - windowEndDateMs) / DAY_MS),
+  );
+}
+
 /**
  * Calculate cumulative interest for a payment.
  * All tiers whose daysAfterWindowEnd <= daysElapsed are applied and stacked.
@@ -28,6 +78,8 @@ export type InterestResult = {
  * @param billingPeriod  "YYYY-MM"
  * @param paymentWindowEndDay  Day of month the payment window closes (1-28)
  * @param nowMs        Current timestamp in ms (defaults to Date.now())
+ * @param timeZone     IANA timezone used to compare local calendar days
+ * @param dueAt        Optional exact due timestamp for join-date billing
  */
 export function calculateInterest(
   baseAmount: number,
@@ -35,16 +87,15 @@ export function calculateInterest(
   billingPeriod: string,
   paymentWindowEndDay: number,
   nowMs: number = Date.now(),
+  timeZone: string = "America/Argentina/Buenos_Aires",
+  dueAt?: number,
 ): InterestResult {
-  const [yearStr, monthStr] = billingPeriod.split("-");
-  const year = parseInt(yearStr!, 10);
-  const month = parseInt(monthStr!, 10);
-
-  // Midnight UTC of the last day of the payment window
-  const windowEndMs = Date.UTC(year, month - 1, paymentWindowEndDay);
-  const daysElapsed = Math.max(
-    0,
-    Math.floor((nowMs - windowEndMs) / (1000 * 60 * 60 * 24)),
+  const daysElapsed = getDaysAfterPaymentWindow(
+    billingPeriod,
+    paymentWindowEndDay,
+    nowMs,
+    timeZone,
+    dueAt,
   );
 
   if (daysElapsed === 0 || tiers.length === 0) {
@@ -82,6 +133,7 @@ export type Member = {
   username?: string;
   role: string;
   status: string;
+  usesPlanification?: boolean;
   createdAt: Date | string | number;
   birthDate?: Date | string | number;
   joinedAt?: Date | string | number;
@@ -94,6 +146,7 @@ export type MembershipData = {
   userId: string;
   role: string;
   status: string;
+  usesPlanification?: boolean;
   createdAt: number;
   joinedAt: number;
   // User fields from users table

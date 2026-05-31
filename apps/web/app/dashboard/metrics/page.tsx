@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BarChart3, Dumbbell } from "lucide-react";
+import { ArrowRight, BarChart3, Dumbbell, UserMinus } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
@@ -22,14 +22,21 @@ const METRIC_CARDS = [
     href: "/dashboard/metrics/exercises",
     icon: Dumbbell,
   },
+  {
+    title: "Churn",
+    description:
+      "Retencion de alumnos, bajas del periodo, altas y crecimiento neto mensual.",
+    href: "/dashboard/metrics/churn",
+    icon: UserMinus,
+    adminOnly: true,
+  },
 ] as const;
 
 export default function MetricsIndexPage() {
   const membership = useQuery(api.organizationMemberships.getCurrentMembership);
   const visibleCards = METRIC_CARDS.filter(
     (card) =>
-      card.href !== "/dashboard/metrics/payments" ||
-      membership?.role === "admin",
+      !("adminOnly" in card && card.adminOnly) || membership?.role === "admin",
   );
 
   return (

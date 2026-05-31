@@ -57,6 +57,18 @@ function formatBillingPeriod(period: string) {
   }).format(date);
 }
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: "Efectivo",
+  bank_transfer: "Transferencia",
+  card: "Tarjeta",
+  other: "Otro",
+  bonification: "Bonificacion",
+};
+
+function formatPaymentMethod(method: string) {
+  return PAYMENT_METHOD_LABELS[method] ?? method.replaceAll("_", " ");
+}
+
 function formatDelta(
   value?: number | null,
   kind: "currency" | "percent" | "count" = "count",
@@ -463,8 +475,8 @@ export default function PaymentMetricsPage() {
               paymentMethods.map((method) => (
                 <div key={method.method} className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium capitalize">
-                      {method.method.replaceAll("_", " ")}
+                    <span className="font-medium">
+                      {formatPaymentMethod(method.method)}
                     </span>
                     <span className="text-muted-foreground">
                       {formatPercent(method.percentage)} · {method.count}

@@ -12,6 +12,7 @@ import PlanificationStatus from "@/components/features/dashboard/PlanificationSt
 import NextClassCard from "@/components/features/dashboard/NextClassCard";
 import PaymentsOverview from "@/components/features/dashboard/PaymentsOverview";
 import ScheduleDetailDialog from "@/components/features/classes/dialogs/schedule-detail-dialog";
+import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 
 export default function Page() {
   const [scheduleDetailOpen, setScheduleDetailOpen] = useState(false);
@@ -19,8 +20,15 @@ export default function Page() {
     Id<"classSchedules"> | undefined
   >();
   const membership = useQuery(api.organizationMemberships.getCurrentMembership);
+  const entitlement = useOrganizationEntitlement();
   const showPaymentsOverview =
-    membership !== undefined && membership?.role === "admin";
+    membership !== undefined &&
+    membership?.role === "admin" &&
+    entitlement?.dashboardCards.includes("payments");
+  const showClasses = entitlement?.dashboardCards.includes("classes");
+  const showMembers = entitlement?.dashboardCards.includes("members") ?? false;
+  const showPlanifications =
+    entitlement?.dashboardCards.includes("planifications") ?? false;
 
   const handleOpenScheduleDetail = (id: Id<"classSchedules">) => {
     setSelectedScheduleId(id);
@@ -51,20 +59,28 @@ export default function Page() {
       </div>
 
       <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.1fr)] xl:items-stretch xl:[&>*]:h-full">
-        <ActiveMembers />
-        {showPaymentsOverview ? <PaymentsOverview /> : <div aria-hidden="true" />}
+        {showMembers ? <ActiveMembers /> : <div aria-hidden="true" />}
+        {showPaymentsOverview ? (
+          <PaymentsOverview />
+        ) : (
+          <div aria-hidden="true" />
+        )}
       </div>
 
       <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.1fr)] xl:items-stretch xl:[&>*]:h-full">
-        <PlanificationStatus />
-        <NextClassCard
-          onOpenDetail={handleOpenScheduleDetail}
-          pageSize={2}
-          className="min-h-[460px] bg-background/60"
-        />
+        {showPlanifications ? <PlanificationStatus /> : <div aria-hidden="true" />}
+        {showClasses ? (
+          <NextClassCard
+            onOpenDetail={handleOpenScheduleDetail}
+            pageSize={2}
+            className="min-h-[460px] bg-background/60"
+          />
+        ) : (
+          <div aria-hidden="true" />
+        )}
       </div>
 
-      {selectedScheduleId && (
+      {showClasses && selectedScheduleId && (
         <ScheduleDetailDialog
           open={scheduleDetailOpen}
           onOpenChange={handleClose}

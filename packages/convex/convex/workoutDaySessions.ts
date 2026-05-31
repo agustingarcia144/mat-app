@@ -1,5 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import {
   requireActiveOrgContext,
   requireAuth,
@@ -12,6 +13,16 @@ const sessionStatus = v.union(
   v.literal("completed"),
   v.literal("skipped"),
 );
+
+export const getStatusForNotification = internalQuery({
+  args: {
+    id: v.id("workoutDaySessions"),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.id);
+    return session ? { status: session.status } : null;
+  },
+});
 
 /**
  * Start a workout day session (member only).
@@ -73,7 +84,7 @@ export const startSession = mutation({
     }
 
     const now = Date.now();
-    return await ctx.db.insert("workoutDaySessions", {
+    const sessionId = await ctx.db.insert("workoutDaySessions", {
       assignmentId: args.assignmentId,
       planificationId: assignment.planificationId,
       revisionId: assignment.revisionId,
@@ -85,6 +96,16 @@ export const startSession = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    await ctx.scheduler.runAfter(
+      2 * 60 * 60 * 1000,
+      internal.pushNotifications.sendWorkoutCompletionReminder,
+      {
+        sessionId,
+      },
+    );
+
+    return sessionId;
   },
 });
 

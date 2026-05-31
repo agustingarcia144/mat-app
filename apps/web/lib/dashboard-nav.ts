@@ -6,10 +6,9 @@ import {
   ListChecks,
   CalendarDays,
   BarChart3,
-  CreditCard,
   UserCog,
-  Wallet,
   Settings,
+  Landmark,
 } from "lucide-react";
 
 export type FeatureFlag =
@@ -17,10 +16,22 @@ export type FeatureFlag =
   | "classesEnabled"
   | "financeEnabled";
 
+export type BillingModule =
+  | "dashboard"
+  | "members"
+  | "planifications"
+  | "exercises"
+  | "classes"
+  | "finance"
+  | "metrics"
+  | "users"
+  | "settings";
+
 export type DashboardNavItem = {
   label: string;
   icon: LucideIcon;
   url: string;
+  billingModule: BillingModule;
   adminOnly?: boolean;
   featureFlag?: FeatureFlag;
 };
@@ -30,58 +41,53 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
     label: "Inicio",
     icon: HomeIcon,
     url: "/",
+    billingModule: "dashboard",
   },
   {
     label: "Miembros",
     icon: UsersIcon,
     url: "/members",
+    billingModule: "members",
   },
   {
     label: "Planificaciones",
     icon: Dumbbell,
     url: "/planifications",
+    billingModule: "planifications",
     featureFlag: "planificationsEnabled",
   },
   {
     label: "Ejercicios",
     icon: ListChecks,
     url: "/exercises",
+    billingModule: "exercises",
     featureFlag: "planificationsEnabled",
   },
   {
     label: "Clases",
     icon: CalendarDays,
     url: "/classes",
+    billingModule: "classes",
     featureFlag: "classesEnabled",
   },
   {
-    label: "Pagos",
-    icon: CreditCard,
-    url: "/payments",
+    label: "Finanzas",
+    icon: Landmark,
+    url: "/finance",
+    billingModule: "finance",
     adminOnly: true,
-  },
-  {
-    label: "Ingresos y egresos",
-    icon: Wallet,
-    url: "/income-expenses",
-    adminOnly: true,
-    featureFlag: "financeEnabled",
   },
   {
     label: "Metricas",
     icon: BarChart3,
     url: "/metrics",
+    billingModule: "metrics",
   },
   {
     label: "Usuarios",
     icon: UserCog,
     url: "/users",
-    adminOnly: true,
-  },
-  {
-    label: "Configuracion",
-    icon: Settings,
-    url: "/settings",
+    billingModule: "users",
     adminOnly: true,
   },
 ];
