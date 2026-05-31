@@ -41,6 +41,12 @@ const ALL_DASHBOARD_CARDS = [
   "payments",
   "classes",
 ];
+const manualBillingSourceV = v.optional(
+  v.union(v.literal("manual"), v.literal("legacy")),
+);
+const manualBillingPlanKeyV = v.optional(
+  v.union(v.literal("pro"), v.literal("lite")),
+);
 
 type BillingStatus = "active" | "inactive" | "grace_period" | "pending";
 
@@ -98,9 +104,7 @@ function getPublicMercadoPagoReturnBaseUrl() {
 
   const hostname = url.hostname.toLowerCase();
   const isLocalhost =
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname === "::1";
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
   if (url.protocol !== "https:" || isLocalhost) {
     throw new Error(
       "MERCADOPAGO_PUBLIC_APP_URL must be a public HTTPS URL. MercadoPago rejects localhost return URLs.",
@@ -226,7 +230,7 @@ export const getCurrentEntitlement = query({
     if (currentUser?.isSuperAdmin === true) {
       const plan = await ctx.db
         .query("appBillingPlans")
-        .withIndex("by_key", (q) => q.eq("key", "lite"))
+        .withIndex("by_key", (q: any) => q.eq("key", "lite"))
         .first();
       return {
         billingStatus: "active" as const,
@@ -538,68 +542,119 @@ export const activateOrganizationManually = mutation({
   args: {
     organizationId: v.id("organizations"),
     billingPlanId: v.optional(v.id("appBillingPlans")),
-    source: v.optional(v.union(v.literal("manual"), v.literal("legacy"))),
+    planKey: manualBillingPlanKeyV,
+    source: manualBillingSourceV,
   },
   handler: async (ctx, args) => {
     const identity = await requireSuperAdmin(ctx);
-    const organization = await ctx.db.get(args.organizationId);
-    if (!organization) {
-      throw new Error("Organization not found");
-    }
-
-    const plan = args.billingPlanId
-      ? await ctx.db.get(args.billingPlanId)
-      : await ctx.db
-          .query("appBillingPlans")
-          .withIndex("by_key", (q) => q.eq("key", "lite"))
-          .first();
-
-    if (!plan || !plan.isActive) {
-      throw new Error("Active billing plan not found");
-    }
-
-    const now = Date.now();
-    const source = args.source ?? "manual";
-    const existing = await ctx.db
-      .query("organizationBillingSubscriptions")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId),
-      )
-      .order("desc")
-      .first();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        billingPlanId: plan._id,
-        source,
-        status: "authorized",
-        entitlementStatus: "active",
-        lastPaymentStatus: "approved",
-        graceUntil: undefined,
-        updatedAt: now,
-      });
-      return { subscriptionId: existing._id, updated: true };
-    }
-
-    const subscriptionId = await ctx.db.insert(
-      "organizationBillingSubscriptions",
-      {
-        organizationId: args.organizationId,
-        billingPlanId: plan._id,
-        source,
-        externalReference: `${source}:${args.organizationId}:${now}`,
-        status: "authorized",
-        entitlementStatus: "active",
-        lastPaymentStatus: "approved",
-        createdBy: identity.subject,
-        createdAt: now,
-        updatedAt: now,
-      },
-    );
-
-    return { subscriptionId, updated: false };
+    return await activateOrganizationAccess(ctx, args, identity.subject);
   },
 });
+
+export const activateOrganizationManuallyInternal = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    billingPlanId: v.optional(v.id("appBillingPlans")),
+    planKey: manualBillingPlanKeyV,
+    litePriceArs: v.optional(v.number()),
+    proPriceArs: v.optional(v.number()),
+    source: manualBillingSourceV,
+  },
+  handler: async (ctx, args) => {
+    return await activateOrganizationAccess(ctx, args, "convex-dashboard");
+  },
+});
+
+async function activateOrganizationAccess(
+  ctx: any,
+  args: {
+    organizationId: any;
+    billingPlanId?: any;
+    planKey?: "pro" | "lite";
+    litePriceArs?: number;
+    proPriceArs?: number;
+    source?: "manual" | "legacy";
+  },
+  createdBy: string,
+) {
+  const organization = await ctx.db.get(args.organizationId);
+  if (!organization) {
+    throw new Error("Organization not found");
+  }
+
+  const source = args.source ?? "manual";
+  const planKey = args.planKey ?? "pro";
+  let plan = args.billingPlanId ? await ctx.db.get(args.billingPlanId) : null;
+
+  if (!plan && planKey === "pro") {
+    const planId = await ctx.runMutation(
+      unsafeInternal.appBillingPlans.ensureProPlanInternal,
+      { priceArs: args.proPriceArs },
+    );
+    plan = await ctx.db.get(planId);
+  }
+
+  if (!plan && planKey === "lite") {
+    plan = await ctx.db
+      .query("appBillingPlans")
+      .withIndex("by_key", (q: any) => q.eq("key", "lite"))
+      .first();
+
+    if ((!plan || !plan.isActive) && args.litePriceArs !== undefined) {
+      const planId = await ctx.runMutation(
+        unsafeInternal.appBillingPlans.ensureLitePlanInternal,
+        { priceArs: args.litePriceArs },
+      );
+      plan = await ctx.db.get(planId);
+    }
+  }
+
+  if (!plan || !plan.isActive) {
+    throw new Error(
+      "Active billing plan not found. Pass a valid billingPlanId or planKey.",
+    );
+  }
+
+  const now = Date.now();
+  const existing = await ctx.db
+    .query("organizationBillingSubscriptions")
+    .withIndex("by_organization", (q: any) =>
+      q.eq("organizationId", args.organizationId),
+    )
+    .order("desc")
+    .first();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      billingPlanId: plan._id,
+      source,
+      status: "authorized",
+      entitlementStatus: "active",
+      lastPaymentStatus: "approved",
+      graceUntil: undefined,
+      updatedAt: now,
+    });
+    return { subscriptionId: existing._id, updated: true };
+  }
+
+  const subscriptionId = await ctx.db.insert(
+    "organizationBillingSubscriptions",
+    {
+      organizationId: args.organizationId,
+      billingPlanId: plan._id,
+      source,
+      externalReference: `${source}:${args.organizationId}:${now}`,
+      status: "authorized",
+      entitlementStatus: "active",
+      lastPaymentStatus: "approved",
+      createdBy,
+      createdAt: now,
+      updatedAt: now,
+    },
+  );
+
+  return { subscriptionId, updated: false };
+}
 
 export const suspendOrganizationBillingManually = mutation({
   args: {
@@ -607,28 +662,41 @@ export const suspendOrganizationBillingManually = mutation({
   },
   handler: async (ctx, args) => {
     await requireSuperAdmin(ctx);
-    const subscription = await ctx.db
-      .query("organizationBillingSubscriptions")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", args.organizationId),
-      )
-      .order("desc")
-      .first();
-
-    if (!subscription) {
-      throw new Error("Organization has no billing subscription");
-    }
-
-    await ctx.db.patch(subscription._id, {
-      status: "cancelled",
-      entitlementStatus: "inactive",
-      graceUntil: undefined,
-      updatedAt: Date.now(),
-    });
-
-    return { subscriptionId: subscription._id };
+    return await suspendOrganizationAccess(ctx, args.organizationId);
   },
 });
+
+export const suspendOrganizationBillingManuallyInternal = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    return await suspendOrganizationAccess(ctx, args.organizationId);
+  },
+});
+
+async function suspendOrganizationAccess(ctx: any, organizationId: any) {
+  const subscription = await ctx.db
+    .query("organizationBillingSubscriptions")
+    .withIndex("by_organization", (q: any) =>
+      q.eq("organizationId", organizationId),
+    )
+    .order("desc")
+    .first();
+
+  if (!subscription) {
+    throw new Error("Organization has no billing subscription");
+  }
+
+  await ctx.db.patch(subscription._id, {
+    status: "cancelled",
+    entitlementStatus: "inactive",
+    graceUntil: undefined,
+    updatedAt: Date.now(),
+  });
+
+  return { subscriptionId: subscription._id };
+}
 
 export const markCheckoutCreatedInternal = internalMutation({
   args: {

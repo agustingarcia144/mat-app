@@ -1,10 +1,36 @@
 import { notFound } from "next/navigation";
 
+const DEFAULT_APP_STORE_URL =
+  "https://apps.apple.com/ar/app/mat-gestion/id6760161458";
+const DEFAULT_PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=com.agusstingarcia144.matapp";
+
+function storeUrl(envUrl: string | undefined, fallbackUrl: string): string {
+  const value = envUrl?.trim();
+  if (!value) return fallbackUrl;
+
+  try {
+    const url = new URL(value);
+    const isGenericAppleStore =
+      url.hostname === "apps.apple.com" &&
+      /^\/(?:[a-z]{2}\/)?app\/?$/.test(url.pathname);
+    const isGenericPlayStore =
+      url.hostname === "play.google.com" && url.pathname === "/store/apps";
+
+    if (isGenericAppleStore || isGenericPlayStore) {
+      return fallbackUrl;
+    }
+
+    return url.toString();
+  } catch {
+    return fallbackUrl;
+  }
+}
+
 const APP_STORE_URL =
-  process.env.NEXT_PUBLIC_APP_STORE_URL ?? "https://apps.apple.com/app";
+  storeUrl(process.env.NEXT_PUBLIC_APP_STORE_URL, DEFAULT_APP_STORE_URL);
 const PLAY_STORE_URL =
-  process.env.NEXT_PUBLIC_PLAY_STORE_URL ??
-  "https://play.google.com/store/apps";
+  storeUrl(process.env.NEXT_PUBLIC_PLAY_STORE_URL, DEFAULT_PLAY_STORE_URL);
 
 type JoinPreview = { name: string; logoUrl?: string };
 type JoinError = { error: string };
