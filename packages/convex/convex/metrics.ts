@@ -955,17 +955,6 @@ export const getChurnMetrics = query({
       )
       .collect();
 
-    const planIds = Array.from(
-      new Set(subscriptions.map((subscription) => String(subscription.planId))),
-    );
-    const plans = new Map<string, { name?: string }>();
-    await Promise.all(
-      planIds.map(async (planId) => {
-        const plan = await ctx.db.get(planId as any);
-        if (plan && "name" in plan) plans.set(planId, { name: plan.name });
-      }),
-    );
-
     const currentPeriod = getCurrentBillingPeriod();
     const availablePeriods = sortPeriodsDesc([
       currentPeriod,
@@ -1016,21 +1005,7 @@ export const getChurnMetrics = query({
       const suspendedAtEnd = activeAtEnd.filter(
         (subscription) => subscription.status === "suspended",
       );
-
-      const churnedByPlan = new Map<
-        string,
-        { planId: string; planName: string; churnedCount: number }
-      >();
-      for (const subscription of churned) {
-        const planId = String(subscription.planId);
-        const entry = churnedByPlan.get(planId) ?? {
-          planId,
-          planName: plans.get(planId)?.name ?? "Plan eliminado",
-          churnedCount: 0,
-        };
-        entry.churnedCount += 1;
-        churnedByPlan.set(planId, entry);
-      }
+      const churnBaseMembers = activeAtStart.length + newSubscriptions.length;
 
       return {
         period,
@@ -1038,9 +1013,10 @@ export const getChurnMetrics = query({
         endingMembers: activeAtEnd.length,
         newMembers: newSubscriptions.length,
         churnedMembers: churned.length,
+        churnBaseMembers,
         suspendedMembers: suspendedAtEnd.length,
         netGrowth: newSubscriptions.length - churned.length,
-        churnRatePct: roundPercentage(churned.length, activeAtStart.length),
+        churnRatePct: roundPercentage(churned.length, churnBaseMembers),
         retentionRatePct:
           activeAtStart.length > 0
             ? Math.max(
@@ -1052,9 +1028,6 @@ export const getChurnMetrics = query({
                 ) / 10,
               )
             : 100,
-        churnedByPlan: Array.from(churnedByPlan.values()).sort(
-          (a, b) => b.churnedCount - a.churnedCount,
-        ),
       };
     };
 
