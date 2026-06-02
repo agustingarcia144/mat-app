@@ -678,6 +678,8 @@ export const getOrganizationMetrics = query({
     }
 
     const familyGroupSizes = new Map<string, number>();
+    const countedPendingBillingSubscriptionIds = new Set<string>();
+
     for (const subscription of activeSubscriptions) {
       const billingKey = String(
         subscription.familyParentSubscriptionId ?? subscription._id,
@@ -771,9 +773,7 @@ export const getOrganizationMetrics = query({
         planEntry.expectedRevenueArs += effectivePlanPrice;
       }
 
-      if (!currentPayment) {
-        if (!isFullyBonified) missingCount += 1;
-      } else if (currentPayment.status === "approved") {
+      if (currentPayment?.status === "approved") {
         if (!isFullyBonified) {
           approvedCount += 1;
           planEntry.approvedMembers += 1;
@@ -781,12 +781,20 @@ export const getOrganizationMetrics = query({
           interestRevenueArs += interestAmountPerMember;
           planEntry.approvedRevenueArs += approvedAmountPerMember;
         }
-      } else if (currentPayment.status === "in_review") {
-        if (!isFullyBonified) inReviewCount += 1;
-      } else if (currentPayment.status === "pending") {
-        if (!isFullyBonified) pendingCount += 1;
-      } else if (currentPayment.status === "declined") {
-        if (!isFullyBonified) declinedCount += 1;
+      } else if (
+        !isFullyBonified &&
+        !countedPendingBillingSubscriptionIds.has(billingSubscriptionId)
+      ) {
+        countedPendingBillingSubscriptionIds.add(billingSubscriptionId);
+        if (!currentPayment) {
+          missingCount += 1;
+        } else if (currentPayment.status === "in_review") {
+          inReviewCount += 1;
+        } else if (currentPayment.status === "pending") {
+          pendingCount += 1;
+        } else if (currentPayment.status === "declined") {
+          declinedCount += 1;
+        }
       }
 
       planBreakdown.set(String(subscription.planId), planEntry);
