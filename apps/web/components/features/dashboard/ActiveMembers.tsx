@@ -18,8 +18,8 @@ function monthLabel(date: Date) {
   return new Intl.DateTimeFormat("es-AR", { month: "short" }).format(date);
 }
 
-function endOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+function startOfNextMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 1);
 }
 
 function startOfDateMonth(date: Date) {
@@ -31,54 +31,43 @@ function startOfMonth(timestamp: number) {
   return startOfDateMonth(date);
 }
 
+function isActiveAtPeriodEnd(subscription: any, periodEndAt: number) {
+  return (
+    typeof subscription.activatedAt === "number" &&
+    subscription.activatedAt < periodEndAt &&
+    (typeof subscription.cancelledAt !== "number" ||
+      subscription.cancelledAt >= periodEndAt)
+  );
+}
+
 export default function ActiveMembers() {
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
-  const memberships = useQuery(
-    api.organizationMemberships.getOrganizationMemberships,
-    canQueryCurrentOrganization ? { includeInactive: true } : "skip",
-  );
   const subscriptions = useQuery(
     api.memberPlanSubscriptions.getByOrganization,
     canQueryCurrentOrganization ? {} : "skip",
   );
 
-  const memberMemberships = useMemo(
-    () =>
-      (memberships ?? []).filter(
-        (member: any) => member.role?.toLowerCase() === "member",
-      ),
-    [memberships],
-  );
-
-  const assignedPlanUserIds = useMemo(
-    () =>
-      new Set(
-        (subscriptions ?? [])
-          .filter((subscription: any) => subscription.status !== "cancelled")
-          .map((subscription: any) => subscription.userId),
-      ),
-    [subscriptions],
-  );
-
   const monthlyMembers = useMemo(() => {
     const now = new Date();
     const currentMonth = startOfDateMonth(now);
-    const currentMonthKey = monthKey(currentMonth);
     const defaultStartMonth = new Date(
       now.getFullYear(),
       now.getMonth() - 5,
       1,
     );
-    const firstJoinedAt = memberMemberships.reduce<number | null>(
-      (earliest, member: any) => {
-        const joinedAt = member.joinedAt ?? member.createdAt;
-        if (typeof joinedAt !== "number") return earliest;
-        return earliest === null ? joinedAt : Math.min(earliest, joinedAt);
+    const firstActivatedAt = (subscriptions ?? []).reduce<number | null>(
+      (earliest, subscription: any) => {
+        if (typeof subscription.activatedAt !== "number") return earliest;
+        return earliest === null
+          ? subscription.activatedAt
+          : Math.min(earliest, subscription.activatedAt);
       },
       null,
     );
     const firstDataMonth =
-      firstJoinedAt === null ? defaultStartMonth : startOfMonth(firstJoinedAt);
+      firstActivatedAt === null
+        ? defaultStartMonth
+        : startOfMonth(firstActivatedAt);
     const startMonth =
       firstDataMonth > defaultStartMonth ? firstDataMonth : defaultStartMonth;
 
@@ -92,48 +81,34 @@ export default function ActiveMembers() {
         key: monthKey(date),
         label: monthLabel(date),
         startAt: date.getTime(),
-        endAt: endOfMonth(date).getTime(),
+        endAt: startOfNextMonth(date).getTime(),
       };
     });
 
     return months.map((month) => {
       const isFutureMonth = month.startAt > currentMonth.getTime();
-      const isCurrentMonth = month.key === currentMonthKey;
 
       return {
         ...month,
         count: isFutureMonth
           ? 0
-          : isCurrentMonth
-            ? memberMemberships.filter((member: any) =>
-                assignedPlanUserIds.has(member.userId),
-              ).length
-          : memberMemberships.filter((member: any) => {
-              const joinedAt = member.joinedAt ?? member.createdAt;
-              const status = member.status?.toLowerCase();
-              const inactiveSince =
-                status === "inactive" ? (member.updatedAt ?? null) : null;
-
-              return (
-                typeof joinedAt === "number" &&
-                joinedAt <= month.endAt &&
-                (typeof inactiveSince !== "number" ||
-                  inactiveSince >= month.startAt)
-              );
-            }).length,
+          : (subscriptions ?? []).filter((subscription: any) =>
+              isActiveAtPeriodEnd(subscription, month.endAt),
+            ).length,
       };
     });
-  }, [assignedPlanUserIds, memberMemberships]);
+  }, [subscriptions]);
 
-  const activeCount = memberMemberships.filter((member: any) =>
-    assignedPlanUserIds.has(member.userId),
+  const currentPeriodEndAt = startOfNextMonth(new Date()).getTime();
+  const activeCount = (subscriptions ?? []).filter((subscription: any) =>
+    isActiveAtPeriodEnd(subscription, currentPeriodEndAt),
   ).length;
   const maxMonthlyMembers = Math.max(
     ...monthlyMembers.map((month) => month.count),
     1,
   );
 
-  if (!memberships || !subscriptions) return null;
+  if (!subscriptions) return null;
 
   return (
     <Card className="flex min-h-[220px] w-full max-w-none flex-col rounded-2xl border bg-background/60 p-4 md:h-[220px] md:p-5">
