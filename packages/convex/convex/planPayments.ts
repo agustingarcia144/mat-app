@@ -632,9 +632,11 @@ export const getOrganizationMetrics = query({
       isChargeablePayment(payment, activeMemberUserIds),
     );
 
-    // Build a set of bonified subscription IDs for fast lookup
-    const bonifiedSubscriptionIds = new Set(
-      activeBonifications.map((b) => String(b.subscriptionId)),
+    const activeBonificationBySubscriptionId = new Map(
+      activeBonifications.map((bonification) => [
+        String(bonification.subscriptionId),
+        bonification,
+      ]),
     );
 
     const planIds = new Set<string>();
@@ -721,7 +723,17 @@ export const getOrganizationMetrics = query({
         subscription.familyParentSubscriptionId ?? subscription._id,
       );
       const currentPayment = paymentBySubscription.get(billingSubscriptionId);
-      const isBonified = bonifiedSubscriptionIds.has(billingSubscriptionId);
+      const activeBonification = activeBonificationBySubscriptionId.get(
+        billingSubscriptionId,
+      );
+      const effectivePlanPrice = activeBonification
+        ? computeBonificationAmount(
+            planPrice,
+            activeBonification.discountType,
+            activeBonification.discountValue,
+          )
+        : planPrice;
+      const isFullyBonified = activeBonification && effectivePlanPrice === 0;
       const familyGroupSize = familyGroupSizes.get(billingSubscriptionId) ?? 1;
       const approvedAmountPerMember = currentPayment
         ? Math.round(
@@ -747,27 +759,22 @@ export const getOrganizationMetrics = query({
 
       planEntry.members += 1;
 
-      if (isBonified) {
-        // Bonified subscriptions: excluded from expected revenue
+      if (activeBonification) {
         bonificationCount += 1;
         bonificationValueArs += planPrice;
         planEntry.bonifiedMembers += 1;
+        bonificationDiscountArs += planPrice - effectivePlanPrice;
+      }
 
-        if (currentPayment?.isBonification) {
-          const paidAmount =
-            currentPayment.totalAmountArs ?? currentPayment.amountArs;
-          bonificationDiscountArs += planPrice - paidAmount;
-        }
-      } else {
-        // Normal subscriptions: included in expected revenue
-        expectedRevenueArs += planPrice;
-        planEntry.expectedRevenueArs += planPrice;
+      if (!isFullyBonified) {
+        expectedRevenueArs += effectivePlanPrice;
+        planEntry.expectedRevenueArs += effectivePlanPrice;
       }
 
       if (!currentPayment) {
-        if (!isBonified) missingCount += 1;
+        if (!isFullyBonified) missingCount += 1;
       } else if (currentPayment.status === "approved") {
-        if (!currentPayment.isBonification) {
+        if (!isFullyBonified) {
           approvedCount += 1;
           planEntry.approvedMembers += 1;
           approvedRevenueArs += approvedAmountPerMember;
@@ -775,11 +782,11 @@ export const getOrganizationMetrics = query({
           planEntry.approvedRevenueArs += approvedAmountPerMember;
         }
       } else if (currentPayment.status === "in_review") {
-        inReviewCount += 1;
+        if (!isFullyBonified) inReviewCount += 1;
       } else if (currentPayment.status === "pending") {
-        pendingCount += 1;
+        if (!isFullyBonified) pendingCount += 1;
       } else if (currentPayment.status === "declined") {
-        declinedCount += 1;
+        if (!isFullyBonified) declinedCount += 1;
       }
 
       planBreakdown.set(String(subscription.planId), planEntry);
@@ -853,14 +860,15 @@ export const getOrganizationMetrics = query({
       const bonificationPayments = periodPayments.filter(
         (p) => p.isBonification,
       );
-      const expectedAmount = nonBonificationPayments.reduce(
+      const isCurrentPeriod = period === currentBillingPeriod;
+      const paymentRowsExpectedAmount = nonBonificationPayments.reduce(
         (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
         0,
       );
-      const approvedPayments = nonBonificationPayments.filter(
+      const approvedPaymentRows = nonBonificationPayments.filter(
         (payment) => payment.status === "approved",
       );
-      const approvedAmount = approvedPayments.reduce(
+      const paymentRowsApprovedAmount = approvedPaymentRows.reduce(
         (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
         0,
       );
@@ -877,27 +885,48 @@ export const getOrganizationMetrics = query({
       const expenseArs = periodFinanceTransactions
         .filter((transaction) => transaction.type === "expense")
         .reduce((sum, transaction) => sum + transaction.amountArs, 0);
+      const expectedAmount = isCurrentPeriod
+        ? expectedRevenueArs
+        : paymentRowsExpectedAmount;
+      const approvedAmount = isCurrentPeriod
+        ? approvedRevenueArs
+        : paymentRowsApprovedAmount;
+      const approvedPayments = isCurrentPeriod
+        ? approvedCount
+        : approvedPaymentRows.length;
+      const pendingPayments = isCurrentPeriod
+        ? pendingCount + missingCount
+        : nonBonificationPayments.filter(
+            (payment) => payment.status === "pending",
+          ).length;
+      const inReviewPayments = isCurrentPeriod
+        ? inReviewCount
+        : nonBonificationPayments.filter(
+            (payment) => payment.status === "in_review",
+          ).length;
+      const declinedPayments = isCurrentPeriod
+        ? declinedCount
+        : nonBonificationPayments.filter(
+            (payment) => payment.status === "declined",
+          ).length;
+      const interestAmountArs = isCurrentPeriod
+        ? interestRevenueArs
+        : approvedPaymentRows.reduce(
+            (sum, payment) => sum + (payment.interestTotalArs ?? 0),
+            0,
+          );
       const totalIncomeArs = approvedAmount + otherIncomeArs;
 
       return {
         billingPeriod: period,
         totalPayments: periodPayments.length,
-        approvedPayments: approvedPayments.length,
-        inReviewPayments: periodPayments.filter(
-          (payment) => payment.status === "in_review",
-        ).length,
-        declinedPayments: periodPayments.filter(
-          (payment) => payment.status === "declined",
-        ).length,
-        pendingPayments: periodPayments.filter(
-          (payment) => payment.status === "pending",
-        ).length,
+        approvedPayments,
+        inReviewPayments,
+        declinedPayments,
+        pendingPayments,
         bonificationPayments: bonificationPayments.length,
         bonificationAmountArs,
-        interestAmountArs: approvedPayments.reduce(
-          (sum, payment) => sum + (payment.interestTotalArs ?? 0),
-          0,
-        ),
+        interestAmountArs,
         expectedAmountArs: expectedAmount,
         approvedAmountArs: approvedAmount,
         otherIncomeArs,
@@ -946,8 +975,10 @@ export const getOrganizationMetrics = query({
             selectedOverview.approvedPayments -
             (previousOverview?.approvedPayments ?? 0),
           pendingPaymentsDelta:
-            selectedOverview.pendingPayments -
-            (previousOverview?.pendingPayments ?? 0),
+            selectedOverview.pendingPayments +
+            selectedOverview.inReviewPayments -
+            ((previousOverview?.pendingPayments ?? 0) +
+              (previousOverview?.inReviewPayments ?? 0)),
         }
       : null;
 

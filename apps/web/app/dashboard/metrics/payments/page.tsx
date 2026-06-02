@@ -450,7 +450,8 @@ export default function PaymentMetricsPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-2xl font-semibold">
-                {selectedOverview?.pendingPayments ?? 0}
+                {(selectedOverview?.pendingPayments ?? 0) +
+                  (selectedOverview?.inReviewPayments ?? 0)}
               </p>
               <DeltaPill
                 value={comparison?.pendingPaymentsDelta}
