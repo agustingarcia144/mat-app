@@ -225,7 +225,7 @@ export default function ChurnMetricsPage() {
           <MetricCard
             title="Churn"
             value={formatPercent(selected.churnRatePct)}
-            detail={`${selected.churnedMembers} bajas sobre ${selected.startingMembers} alumnos iniciales`}
+            detail={`${selected.churnedMembers} bajas sobre ${selected.churnBaseMembers} alumnos del periodo`}
             icon={Percent}
             tone={selected.churnRatePct > 0 ? "red" : "green"}
           />
@@ -298,63 +298,34 @@ export default function ChurnMetricsPage() {
           </CardContent>
         </Card>
 
-        <div className="grid gap-4">
-          <Card className="bg-card/70">
-            <CardHeader>
-              <CardTitle className="text-base">Comparacion mensual</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">
-                  Churn vs mes anterior
-                </span>
-                <DeltaPill
-                  value={data.comparison?.churnRateDeltaPct}
-                  suffix="%"
-                />
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">
-                  Bajas vs mes anterior
-                </span>
-                <DeltaPill value={data.comparison?.churnedMembersDelta} />
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm text-muted-foreground">
-                  Base final vs mes anterior
-                </span>
-                <DeltaPill value={data.comparison?.endingMembersDelta} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/70">
-            <CardHeader>
-              <CardTitle className="text-base">Bajas por plan</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {selected.churnedByPlan.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No hubo bajas en este periodo.
-                </p>
-              ) : (
-                selected.churnedByPlan.map((plan) => (
-                  <div
-                    key={plan.planId}
-                    className="flex items-center justify-between gap-3 text-sm"
-                  >
-                    <span className="min-w-0 truncate font-medium">
-                      {plan.planName}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {plan.churnedCount}
-                    </span>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="bg-card/70">
+          <CardHeader>
+            <CardTitle className="text-base">Comparacion mensual</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">
+                Churn vs mes anterior
+              </span>
+              <DeltaPill
+                value={data.comparison?.churnRateDeltaPct}
+                suffix="%"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">
+                Bajas vs mes anterior
+              </span>
+              <DeltaPill value={data.comparison?.churnedMembersDelta} />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">
+                Base final vs mes anterior
+              </span>
+              <DeltaPill value={data.comparison?.endingMembersDelta} />
+            </div>
+          </CardContent>
+        </Card>
       </section>
     </DashboardPageContainer>
   );

@@ -23,6 +23,53 @@ async function resolveLogoUrl(
   return logoUrl ?? null;
 }
 
+async function cancelMemberPlanSubscriptions(
+  ctx: any,
+  organizationId: any,
+  userId: string,
+  now: number,
+  revokedBy: string,
+) {
+  const subscriptions = await ctx.db
+    .query("memberPlanSubscriptions")
+    .withIndex("by_organization_user", (q: any) =>
+      q.eq("organizationId", organizationId).eq("userId", userId),
+    )
+    .collect();
+
+  const cancellableSubscriptions = subscriptions.filter(
+    (subscription: any) =>
+      subscription.status === "active" || subscription.status === "suspended",
+  );
+
+  for (const subscription of cancellableSubscriptions) {
+    await ctx.db.patch(subscription._id, {
+      status: "cancelled",
+      cancelledAt: now,
+      updatedAt: now,
+    });
+
+    const activeBonification = await ctx.db
+      .query("planBonifications")
+      .withIndex("by_subscription_status", (q: any) =>
+        q.eq("subscriptionId", subscription._id).eq("status", "active"),
+      )
+      .first();
+
+    if (activeBonification) {
+      await ctx.db.patch(activeBonification._id, {
+        status: "revoked",
+        revokedAt: now,
+        revokedBy,
+        revokeReason: "Miembro inactivado",
+        updatedAt: now,
+      });
+    }
+  }
+
+  return cancellableSubscriptions.length;
+}
+
 /**
  * Get all memberships for the current user's organization
  * Returns all members of the organization the current user belongs to
@@ -284,12 +331,21 @@ export const removeMember = mutation({
       );
     }
 
+    const now = Date.now();
+    const cancelledSubscriptions = await cancelMemberPlanSubscriptions(
+      ctx,
+      organizationId,
+      args.userId,
+      now,
+      identity.subject,
+    );
+
     await ctx.db.patch(targetMembership._id, {
       status: "inactive",
-      updatedAt: Date.now(),
+      updatedAt: now,
     });
 
-    return { updated: true };
+    return { updated: true, cancelledSubscriptions };
   },
 });
 
@@ -417,16 +473,27 @@ export const setMemberInactive = mutation({
     if (targetMembership.role !== "member") {
       throw new Error("Only members can be set as inactive");
     }
-    if (targetMembership.status === "inactive") {
-      return { updated: false };
+    const identity = await requireAuth(ctx);
+    const now = Date.now();
+    const cancelledSubscriptions = await cancelMemberPlanSubscriptions(
+      ctx,
+      organizationId,
+      args.userId,
+      now,
+      identity.subject,
+    );
+
+    if (targetMembership.status === "active") {
+      await ctx.db.patch(targetMembership._id, {
+        status: "inactive",
+        updatedAt: now,
+      });
     }
 
-    await ctx.db.patch(targetMembership._id, {
-      status: "inactive",
-      updatedAt: Date.now(),
-    });
-
-    return { updated: true };
+    return {
+      updated: targetMembership.status === "active",
+      cancelledSubscriptions,
+    };
   },
 });
 
