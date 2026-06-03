@@ -727,12 +727,21 @@ export const deleteUsersMissingInClerk = internalAction({
 export const cleanupStaleZeroAmountPlanPayments = internalMutation({
   args: {
     dryRun: v.optional(v.boolean()),
+    organizationId: v.optional(v.id("organizations")),
   },
   handler: async (ctx, args) => {
     const dryRun = args.dryRun ?? true;
-    const payments = await ctx.db.query("planPayments").collect();
+    const payments = args.organizationId
+      ? await ctx.db
+          .query("planPayments")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", args.organizationId!),
+          )
+          .collect()
+      : await ctx.db.query("planPayments").collect();
 
     const summary = {
+      organizationId: args.organizationId ? String(args.organizationId) : null,
       scanned: payments.length,
       eligible: 0,
       deleted: 0,
