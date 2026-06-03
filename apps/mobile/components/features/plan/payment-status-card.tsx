@@ -46,10 +46,12 @@ interface AppliedTier {
 interface PaymentStatusCardProps {
   payment:
     | {
-        _id: string;
+        _id?: string;
         billingPeriod: string;
         amountArs: number;
         totalAmountArs?: number;
+        payableAmountArs?: number;
+        coveredMemberCount?: number;
         interestApplied?: AppliedTier[];
         status: string;
         reviewNotes?: string;
@@ -58,11 +60,13 @@ interface PaymentStatusCardProps {
       }
     | null
     | undefined;
+  planPriceArs?: number;
   onUploadPress: () => void;
 }
 
 export default function PaymentStatusCard({
   payment,
+  planPriceArs,
   onUploadPress,
 }: PaymentStatusCardProps) {
   const colorScheme = useColorScheme();
@@ -74,6 +78,19 @@ export default function PaymentStatusCard({
   const isFullyBonified = payment.paymentMethod === "bonification";
   const hasDiscount = payment.isBonification || isFullyBonified;
   const statusInfo = PAYMENT_STATUS[payment.status] ?? PAYMENT_STATUS.pending;
+  const planPriceFallback =
+    !isFullyBonified && !payment.isBonification && payment.amountArs <= 0
+      ? planPriceArs != null
+        ? planPriceArs * (payment.coveredMemberCount ?? 1)
+        : undefined
+      : undefined;
+  const payableAmountArs =
+    payment.payableAmountArs ??
+    payment.totalAmountArs ??
+    planPriceFallback ??
+    payment.amountArs;
+  const baseAmountArs =
+    payment.amountArs > 0 ? payment.amountArs : payableAmountArs;
   const canUpload =
     !isFullyBonified &&
     (payment.status === "pending" || payment.status === "declined");
@@ -128,7 +145,7 @@ export default function PaymentStatusCard({
           <Text
             style={[styles.amountBase, { color: isDark ? "#aaa" : "#888" }]}
           >
-            Base: ${payment.amountArs.toLocaleString("es-AR")}
+            Base: ${baseAmountArs.toLocaleString("es-AR")}
           </Text>
           {payment.interestApplied.map((tier, i) => (
             <Text key={i} style={styles.amountInterest}>
@@ -142,15 +159,12 @@ export default function PaymentStatusCard({
           <Text
             style={[styles.amountTotal, { color: isDark ? "#fff" : "#000" }]}
           >
-            Total: $
-            {(payment.totalAmountArs ?? payment.amountArs).toLocaleString(
-              "es-AR",
-            )}
+            Total: ${payableAmountArs.toLocaleString("es-AR")}
           </Text>
         </View>
       ) : (
         <Text style={[styles.amount, { color: isDark ? "#ccc" : "#444" }]}>
-          Monto: ${payment.amountArs.toLocaleString("es-AR")}
+          Monto: ${payableAmountArs.toLocaleString("es-AR")}
         </Text>
       )}
 

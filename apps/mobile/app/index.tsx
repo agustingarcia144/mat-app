@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { OtpInput } from 'react-native-otp-entry'
-import { useSSO } from '@clerk/expo'
+import { useAuth, useSSO } from '@clerk/expo'
 import { useSignIn } from '@clerk/expo/legacy'
 import { useRouter } from 'expo-router'
 import {
@@ -54,6 +54,7 @@ type SecondFactorStrategy = 'email_code' | 'totp' | 'backup_code'
 
 function SignInForm() {
   const { signIn, setActive, isLoaded } = useSignIn()
+  const { isLoaded: isClerkLoaded, isSignedIn } = useAuth()
   const { startSSOFlow } = useSSO()
   const router = useRouter()
   const colorScheme = useColorScheme()
@@ -83,6 +84,7 @@ function SignInForm() {
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId })
+        router.replace('/')
         return
       }
 
@@ -150,6 +152,7 @@ function SignInForm() {
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId })
+        router.replace('/')
       } else {
         setError('Código inválido o vencido. Revisá e intentá de nuevo.')
       }
@@ -184,6 +187,7 @@ function SignInForm() {
 
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId })
+        router.replace('/')
       }
     } catch (err) {
       captureHandledError(err, {
@@ -206,6 +210,7 @@ function SignInForm() {
 
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId })
+        router.replace('/')
       }
     } catch (err) {
       captureHandledError(err, {
@@ -216,6 +221,10 @@ function SignInForm() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (isClerkLoaded && isSignedIn) {
+    return <LoadingScreen />
   }
 
   if (showOtpScreen && secondFactorStrategy) {
@@ -487,6 +496,7 @@ function SignInForm() {
  * Apple's review environment).
  */
 function AuthLoadingWithTimeout({ children }: { children: React.ReactNode }) {
+  const { isLoaded: isClerkLoaded, isSignedIn } = useAuth()
   const [timedOut, setTimedOut] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -501,6 +511,10 @@ function AuthLoadingWithTimeout({ children }: { children: React.ReactNode }) {
   }, [])
 
   if (timedOut) {
+    if (isClerkLoaded && isSignedIn) {
+      return <LoadingScreen />
+    }
+
     // Auth provider never resolved — show sign-in so the app isn't stuck.
     return <SignInForm />
   }

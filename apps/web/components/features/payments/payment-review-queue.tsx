@@ -59,12 +59,14 @@ export default function PaymentReviewQueue() {
   const handleReview = (
     payment: NonNullable<typeof pendingPayments>[number],
   ) => {
+    const amountArs =
+      payment.payableAmountArs ?? payment.totalAmountArs ?? payment.amountArs;
     setSelectedPayment({
       id: payment._id,
       memberName: payment.userFullName,
       planName: payment.planName,
       billingPeriod: payment.billingPeriod,
-      amountArs: payment.amountArs,
+      amountArs,
       coveredMembers: payment.coveredMemberNames,
     });
     setReviewOpen(true);
@@ -116,7 +118,14 @@ export default function PaymentReviewQueue() {
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   <span>{formatBillingPeriod(payment.billingPeriod)}</span>
                   <span>·</span>
-                  <span>${payment.amountArs.toLocaleString("es-AR")}</span>
+                  <span>
+                    $
+                    {(
+                      payment.payableAmountArs ??
+                      payment.totalAmountArs ??
+                      payment.amountArs
+                    ).toLocaleString("es-AR")}
+                  </span>
                 </div>
 
                 {payment.proofUploadedAt && (

@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
-import { useSSO } from "@clerk/expo";
+import { useAuth, useSSO } from "@clerk/expo";
 import { useSignUp } from "@clerk/expo/legacy";
 import { useRouter } from "expo-router";
 import {
@@ -52,6 +52,7 @@ function AuthenticatedRedirect() {
 
 function SignUpForm() {
   const { signUp, setActive, isLoaded } = useSignUp();
+  const { isLoaded: isClerkLoaded, isSignedIn } = useAuth();
   const { startSSOFlow } = useSSO();
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -82,6 +83,7 @@ function SignUpForm() {
 
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
+        router.replace("/");
         return;
       }
 
@@ -113,6 +115,7 @@ function SignUpForm() {
 
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
+        router.replace("/");
       }
     } catch (error) {
       captureHandledError(error, {
@@ -134,6 +137,7 @@ function SignUpForm() {
 
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId });
+        router.replace("/");
       }
     } catch (error) {
       captureHandledError(error, {
@@ -156,6 +160,7 @@ function SignUpForm() {
 
       if (createdSessionId) {
         await oauthSetActive!({ session: createdSessionId });
+        router.replace("/");
       }
     } catch (error) {
       captureHandledError(error, {
@@ -167,6 +172,10 @@ function SignUpForm() {
       setLoading(false);
     }
   };
+
+  if (isClerkLoaded && isSignedIn) {
+    return <LoadingScreen />;
+  }
 
   if (verifying) {
     return (
@@ -469,6 +478,7 @@ function AuthLoadingWithTimeout({
 }: {
   children: React.ReactNode;
 }) {
+  const { isLoaded: isClerkLoaded, isSignedIn } = useAuth();
   const [timedOut, setTimedOut] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -483,6 +493,10 @@ function AuthLoadingWithTimeout({
   }, []);
 
   if (timedOut) {
+    if (isClerkLoaded && isSignedIn) {
+      return <LoadingScreen />;
+    }
+
     return <SignUpForm />;
   }
 

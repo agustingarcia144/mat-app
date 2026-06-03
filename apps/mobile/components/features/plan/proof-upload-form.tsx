@@ -36,6 +36,7 @@ export default function ProofUploadForm() {
   const generateUploadUrl = useMutation(api.planPayments.generateUploadUrl);
   const uploadProof = useMutation(api.planPayments.uploadProof);
   const currentPayment = useQuery(api.planPayments.getMyCurrentPeriodPayment);
+  const subscription = useQuery(api.memberPlanSubscriptions.getMySubscription);
 
   const [selectedFile, setSelectedFile] = useState<{
     uri: string;
@@ -47,6 +48,7 @@ export default function ProofUploadForm() {
     typeof paymentId === "string" && paymentId.length > 0
       ? paymentId
       : currentPayment?._id;
+  const hasCurrentPayment = currentPayment != null;
 
   const showPicker = () => {
     const options = [
@@ -155,7 +157,7 @@ export default function ProofUploadForm() {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !resolvedPaymentId) return;
+    if (!selectedFile || !hasCurrentPayment) return;
 
     setUploading(true);
     try {
@@ -178,7 +180,7 @@ export default function ProofUploadForm() {
 
       // Link proof to payment
       await uploadProof({
-        paymentId: resolvedPaymentId as any,
+        ...(resolvedPaymentId ? { paymentId: resolvedPaymentId as any } : {}),
         storageId,
         fileName: selectedFile.name,
         contentType: selectedFile.type,
@@ -222,7 +224,7 @@ export default function ProofUploadForm() {
           el comprobante.
         </ThemedText>
 
-        {!resolvedPaymentId ? (
+        {currentPayment === null ? (
           <ThemedText style={styles.errorText}>
             No hay un pago pendiente disponible para subir comprobante.
           </ThemedText>
@@ -263,8 +265,20 @@ export default function ProofUploadForm() {
         {/* Interest preview */}
         {currentPayment?.planInterestTiers?.length
           ? (() => {
+              const payableAmountArs =
+                currentPayment.payableAmountArs ??
+                currentPayment.totalAmountArs ??
+                (!currentPayment.isBonification &&
+                currentPayment.paymentMethod !== "bonification" &&
+                currentPayment.amountArs <= 0
+                  ? subscription?.plan?.priceArs != null
+                    ? subscription.plan.priceArs *
+                      (currentPayment.coveredMemberCount ?? 1)
+                    : undefined
+                  : undefined) ??
+                currentPayment.amountArs;
               const interest = calculateInterest(
-                currentPayment.amountArs,
+                payableAmountArs,
                 currentPayment.planInterestTiers,
                 currentPayment.billingPeriod,
                 currentPayment.planPaymentWindowEndDay,
@@ -304,8 +318,7 @@ export default function ProofUploadForm() {
                           { color: isDark ? "#fcd34d" : "#92400e" },
                         ]}
                       >
-                        Base: $
-                        {currentPayment.amountArs.toLocaleString("es-AR")}
+                        Base: ${payableAmountArs.toLocaleString("es-AR")}
                       </Text>
                       {interest.applied.map((tier, i) => (
                         <Text
@@ -343,7 +356,7 @@ export default function ProofUploadForm() {
           type="secondary"
           style={styles.selectButton}
           onPress={showPicker}
-          disabled={uploading || !resolvedPaymentId}
+          disabled={uploading || !hasCurrentPayment}
         >
           <Text
             style={[styles.selectText, { color: isDark ? "#fff" : "#000" }]}
@@ -358,7 +371,7 @@ export default function ProofUploadForm() {
             type="primary"
             style={styles.uploadButton}
             onPress={handleUpload}
-            disabled={uploading || !resolvedPaymentId}
+            disabled={uploading || !hasCurrentPayment}
           >
             {uploading ? (
               <ActivityIndicator color="#fff" />

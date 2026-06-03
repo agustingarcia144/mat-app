@@ -42,6 +42,7 @@ export default function PaymentHistoryContent() {
   const isDark = colorScheme === "dark";
 
   const payments = useQuery(api.planPayments.getMyPayments);
+  const subscription = useQuery(api.memberPlanSubscriptions.getMySubscription);
 
   if (payments === undefined) {
     return (
@@ -78,6 +79,13 @@ export default function PaymentHistoryContent() {
           const statusInfo = isBonification
             ? STATUS_LABELS.bonification
             : (STATUS_LABELS[item.status] ?? STATUS_LABELS.pending);
+          const amountArs =
+            (item as any).payableAmountArs ??
+            (item as any).totalAmountArs ??
+            (!isBonification && item.amountArs <= 0
+              ? subscription?.plan?.priceArs
+              : undefined) ??
+            item.amountArs;
           return (
             <View
               style={[
@@ -94,7 +102,7 @@ export default function PaymentHistoryContent() {
                 <Text
                   style={[styles.amount, { color: isDark ? "#ccc" : "#444" }]}
                 >
-                  ${item.amountArs.toLocaleString("es-AR")}
+                  ${amountArs.toLocaleString("es-AR")}
                 </Text>
               </View>
               <View

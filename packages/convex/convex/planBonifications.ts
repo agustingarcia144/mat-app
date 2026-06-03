@@ -332,22 +332,6 @@ export const create = mutation({
           createdAt: now,
           updatedAt: now,
         });
-      } else {
-        // Partial bonification: create pending payment with discounted amount
-        await ctx.db.insert("planPayments", {
-          organizationId: membership.organizationId,
-          userId: subscription.userId,
-          subscriptionId: args.subscriptionId,
-          planId: subscription.planId,
-          billingPeriod: currentBillingPeriod,
-          amountArs: effectiveAmount,
-          totalAmountArs: effectiveAmount,
-          bonificationId,
-          isBonification: true,
-          status: "pending",
-          createdAt: now,
-          updatedAt: now,
-        });
       }
     }
 
@@ -586,22 +570,6 @@ export const generateBonificationPayments = internalMutation({
               status: "approved",
               reviewedBy: bonification.createdBy,
               reviewedAt: nowMs,
-              createdAt: nowMs,
-              updatedAt: nowMs,
-            });
-          } else {
-            // Partial bonification: create pending payment with discounted amount
-            await ctx.db.insert("planPayments", {
-              organizationId: org._id,
-              userId: bonification.userId,
-              subscriptionId: bonification.subscriptionId,
-              planId: bonification.planId,
-              billingPeriod,
-              amountArs: effectiveAmount,
-              totalAmountArs: effectiveAmount,
-              bonificationId: bonification._id,
-              isBonification: true,
-              status: "pending",
               createdAt: nowMs,
               updatedAt: nowMs,
             });

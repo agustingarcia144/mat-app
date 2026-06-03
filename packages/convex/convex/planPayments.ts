@@ -85,6 +85,16 @@ function addMonths(year: number, month: number, monthsToAdd: number) {
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
 }
 
+function getFirstJoinDateBillingDueAt(activatedAt: number, timezone: string) {
+  const activated = getZonedDateParts(activatedAt, timezone);
+  const firstDueMonth = addMonths(activated.year, activated.month, 1);
+  const firstDueDay = Math.min(
+    activated.day,
+    daysInMonth(firstDueMonth.year, firstDueMonth.month),
+  );
+  return Date.UTC(firstDueMonth.year, firstDueMonth.month - 1, firstDueDay);
+}
+
 function getBillingCycle(
   plan: { billingMode?: BillingMode; paymentWindowEndDay?: number },
   activatedAt: number,
@@ -256,6 +266,8 @@ async function computePaymentInterest(
     organizationId: Id<"organizations">;
     subscriptionId: Id<"memberPlanSubscriptions">;
     amountArs: number;
+    paymentMethod?: string;
+    isBonification?: boolean;
     billingPeriod: string;
     dueAt?: number;
   },
@@ -268,13 +280,24 @@ async function computePaymentInterest(
       : null,
     ctx.db.get(payment.organizationId),
   ]);
+  const coverage = subscription
+    ? await getPaymentCoverage(ctx, subscription)
+    : null;
+  const baseAmount =
+    !payment.isBonification &&
+    payment.paymentMethod !== "bonification" &&
+    payment.amountArs <= 0 &&
+    plan &&
+    (coverage?.coveredMemberCount ?? 1) > 0
+      ? plan.priceArs * (coverage?.coveredMemberCount ?? 1)
+      : payment.amountArs;
 
   if (!plan?.interestTiers?.length) {
-    return { applied: [], totalArs: 0, totalAmount: payment.amountArs };
+    return { applied: [], totalArs: 0, totalAmount: baseAmount };
   }
 
   return computeInterest(
-    payment.amountArs,
+    baseAmount,
     plan.interestTiers as InterestTier[],
     payment.billingPeriod,
     plan.paymentWindowEndDay,
@@ -344,14 +367,20 @@ export const getMyCurrentPeriodPayment = query({
     ]);
 
     const timezone = getPaymentTimezone(organization?.timezone);
+    const now = Date.now();
     const cycle = plan
-      ? getBillingCycle(
-          plan,
-          billingSubscription.activatedAt,
-          Date.now(),
-          timezone,
-        )
+      ? getBillingCycle(plan, billingSubscription.activatedAt, now, timezone)
       : null;
+    if (!plan || !cycle) return null;
+
+    if (
+      (plan.billingMode ?? "calendar") === "join_date" &&
+      now <
+        getFirstJoinDateBillingDueAt(billingSubscription.activatedAt, timezone)
+    ) {
+      return null;
+    }
+
     const billingPeriod =
       cycle?.billingPeriod ??
       (() => {
@@ -368,49 +397,56 @@ export const getMyCurrentPeriodPayment = query({
       )
       .first();
 
-    let payment = currentPeriodPayment;
+    let payment: any = currentPeriodPayment;
+    const activeBonification = await ctx.db
+      .query("planBonifications")
+      .withIndex("by_subscription_status", (q) =>
+        q.eq("subscriptionId", billingSubscription._id).eq("status", "active"),
+      )
+      .first();
+    const bonifiedAmountPerMember = activeBonification
+      ? computeBonificationAmount(
+          plan.priceArs,
+          activeBonification.discountType,
+          activeBonification.discountValue,
+        )
+      : null;
+
+    if (!payment && bonifiedAmountPerMember === 0) return null;
+
+    const virtualAmountArs =
+      (bonifiedAmountPerMember ?? plan.priceArs) * coveredMemberCount;
 
     if (!payment) {
-      const payments = await ctx.db
-        .query("planPayments")
-        .withIndex("by_organization_user", (q) =>
-          q
-            .eq("organizationId", membership.organizationId)
-            .eq("userId", billingSubscription.userId),
-        )
-        .filter((q) => q.eq(q.field("subscriptionId"), billingSubscription._id))
-        .collect();
-
-      const currentOrPastPayments = payments.filter(
-        (item) => item.billingPeriod <= billingPeriod,
-      );
-      const byMostRecentPeriod = (
-        a: (typeof payments)[number],
-        b: (typeof payments)[number],
-      ) =>
-        a.billingPeriod === b.billingPeriod
-          ? b.updatedAt - a.updatedAt
-          : a.billingPeriod < b.billingPeriod
-            ? 1
-            : -1;
-
-      payment =
-        currentOrPastPayments
-          .filter(
-            (item) =>
-              item.status === "pending" ||
-              item.status === "declined" ||
-              item.status === "in_review",
-          )
-          .sort(byMostRecentPeriod)[0] ??
-        currentOrPastPayments.sort(byMostRecentPeriod)[0] ??
-        null;
+      payment = {
+        organizationId: membership.organizationId,
+        userId: billingSubscription.userId,
+        subscriptionId: billingSubscription._id,
+        planId: billingSubscription.planId,
+        billingPeriod,
+        billingCycleStartAt: cycle.cycleStartAt,
+        billingCycleEndAt: cycle.cycleEndAt,
+        dueAt: cycle.dueAt,
+        amountArs: virtualAmountArs,
+        totalAmountArs: virtualAmountArs,
+        bonificationId: activeBonification?._id,
+        isBonification: Boolean(activeBonification),
+        status: "pending",
+        createdAt: now,
+        updatedAt: now,
+      };
     }
-
-    if (!payment) return null;
 
     return {
       ...payment,
+      payableAmountArs:
+        !payment.isBonification &&
+        payment.paymentMethod !== "bonification" &&
+        payment.amountArs <= 0 &&
+        plan &&
+        coveredMemberCount > 0
+          ? plan.priceArs * coveredMemberCount
+          : (payment.totalAmountArs ?? payment.amountArs),
       coveredMemberCount,
       coveredUserIds:
         coveredMemberCount > 1
@@ -436,6 +472,22 @@ export const getById = query({
     if (!payment || payment.organizationId !== membership.organizationId)
       return null;
 
+    const [subscription, plan] = await Promise.all([
+      ctx.db.get(payment.subscriptionId),
+      ctx.db.get(payment.planId as Id<"membershipPlans">),
+    ]);
+    const coverage = subscription
+      ? await getPaymentCoverage(ctx, subscription)
+      : null;
+    const payableAmountArs =
+      !payment.isBonification &&
+      payment.paymentMethod !== "bonification" &&
+      payment.amountArs <= 0 &&
+      plan &&
+      (coverage?.coveredMemberCount ?? 1) > 0
+        ? plan.priceArs * (coverage?.coveredMemberCount ?? 1)
+        : (payment.totalAmountArs ?? payment.amountArs);
+
     if (payment.status === "in_review" && payment.proofUploadedAt) {
       const interest = await computePaymentInterest(
         ctx,
@@ -444,11 +496,12 @@ export const getById = query({
       );
       return {
         ...payment,
+        payableAmountArs,
         ...getInterestFields(interest),
       };
     }
 
-    return payment;
+    return { ...payment, payableAmountArs };
   },
 });
 
@@ -475,7 +528,11 @@ export const getMyPayments = query({
 
     if (!subscription) return [];
 
-    const { billingSubscription } = await getPaymentCoverage(ctx, subscription);
+    const { billingSubscription, coveredMemberCount } =
+      await getPaymentCoverage(ctx, subscription);
+    const plan = await ctx.db.get(
+      billingSubscription.planId as Id<"membershipPlans">,
+    );
 
     const payments = await ctx.db
       .query("planPayments")
@@ -488,7 +545,19 @@ export const getMyPayments = query({
       .collect();
 
     // Sort newest first
-    return payments.sort((a, b) => b.createdAt - a.createdAt);
+    return payments
+      .map((payment) => ({
+        ...payment,
+        payableAmountArs:
+          !payment.isBonification &&
+          payment.paymentMethod !== "bonification" &&
+          payment.amountArs <= 0 &&
+          plan &&
+          coveredMemberCount > 0
+            ? plan.priceArs * coveredMemberCount
+            : (payment.totalAmountArs ?? payment.amountArs),
+      }))
+      .sort((a, b) => b.createdAt - a.createdAt);
   },
 });
 
@@ -1066,46 +1135,186 @@ export const generateUploadUrl = mutation({
  */
 export const uploadProof = mutation({
   args: {
-    paymentId: v.id("planPayments"),
+    paymentId: v.optional(v.id("planPayments")),
     storageId: v.id("_storage"),
     fileName: v.string(),
     contentType: v.string(),
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
 
-    const payment = await ctx.db.get(args.paymentId);
+    let payment = args.paymentId ? await ctx.db.get(args.paymentId) : null;
+
+    if (payment) {
+      if (payment.organizationId !== membership.organizationId) {
+        throw new Error("Pago no encontrado");
+      }
+      const paymentSubscription = await ctx.db.get(payment.subscriptionId);
+      if (!paymentSubscription) {
+        throw new Error("Suscripción no encontrada");
+      }
+      const { coveredSubscriptions } = await getPaymentCoverage(
+        ctx,
+        paymentSubscription,
+      );
+      if (
+        payment.userId !== identity.subject &&
+        !coveredSubscriptions.some((item) => item.userId === identity.subject)
+      ) {
+        throw new Error("No podés subir comprobante para otro usuario");
+      }
+      if (payment.status !== "pending" && payment.status !== "declined") {
+        throw new Error("No se puede subir comprobante en este estado");
+      }
+      const existingPayment = payment;
+      const activeBonification = await ctx.db
+        .query("planBonifications")
+        .withIndex("by_subscription_status", (q) =>
+          q
+            .eq("subscriptionId", existingPayment.subscriptionId)
+            .eq("status", "active"),
+        )
+        .first();
+      if (activeBonification) {
+        const bonifiedPlan = await ctx.db.get(activeBonification.planId);
+        const effectiveAmount = bonifiedPlan
+          ? computeBonificationAmount(
+              bonifiedPlan.priceArs,
+              activeBonification.discountType,
+              activeBonification.discountValue,
+            )
+          : 0;
+        if (effectiveAmount === 0) {
+          throw new Error(
+            "Tu plan tiene una bonificación activa. No necesitás subir comprobante.",
+          );
+        }
+      }
+    } else {
+      const subscription = await ctx.db
+        .query("memberPlanSubscriptions")
+        .withIndex("by_organization_user", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("userId", identity.subject),
+        )
+        .filter((q) => q.neq(q.field("status"), "cancelled"))
+        .first();
+
+      if (!subscription) {
+        throw new Error("No tenés un plan activo para pagar");
+      }
+
+      const { billingSubscription, coveredMemberCount, coveredSubscriptions } =
+        await getPaymentCoverage(ctx, subscription);
+      if (
+        !coveredSubscriptions.some((item) => item.userId === identity.subject)
+      ) {
+        throw new Error("No podés subir comprobante para otro usuario");
+      }
+
+      const [plan, organization] = await Promise.all([
+        ctx.db.get(billingSubscription.planId as Id<"membershipPlans">),
+        ctx.db.get(membership.organizationId),
+      ]);
+      if (!plan) {
+        throw new Error("Plan no encontrado");
+      }
+
+      const now = Date.now();
+      const timezone = getPaymentTimezone(organization?.timezone);
+      if (
+        (plan.billingMode ?? "calendar") === "join_date" &&
+        now <
+          getFirstJoinDateBillingDueAt(
+            billingSubscription.activatedAt,
+            timezone,
+          )
+      ) {
+        throw new Error("Todavía no hay un pago pendiente para este ciclo");
+      }
+
+      const cycle = getBillingCycle(
+        plan,
+        billingSubscription.activatedAt,
+        now,
+        timezone,
+      );
+
+      payment = await ctx.db
+        .query("planPayments")
+        .withIndex("by_subscription_period", (q) =>
+          q
+            .eq("subscriptionId", billingSubscription._id)
+            .eq("billingPeriod", cycle.billingPeriod),
+        )
+        .first();
+
+      if (payment) {
+        if (payment.status !== "pending" && payment.status !== "declined") {
+          throw new Error("No se puede subir comprobante en este estado");
+        }
+      } else {
+        const activeBonification = await ctx.db
+          .query("planBonifications")
+          .withIndex("by_subscription_status", (q) =>
+            q
+              .eq("subscriptionId", billingSubscription._id)
+              .eq("status", "active"),
+          )
+          .first();
+        const effectiveAmountPerMember = activeBonification
+          ? computeBonificationAmount(
+              plan.priceArs,
+              activeBonification.discountType,
+              activeBonification.discountValue,
+            )
+          : plan.priceArs;
+        if (effectiveAmountPerMember === 0) {
+          throw new Error(
+            "Tu plan tiene una bonificación activa. No necesitás subir comprobante.",
+          );
+        }
+
+        const amountArs = effectiveAmountPerMember * coveredMemberCount;
+        const interest = computeInterest(
+          amountArs,
+          (plan.interestTiers ?? []) as InterestTier[],
+          cycle.billingPeriod,
+          plan.paymentWindowEndDay,
+          now,
+          timezone,
+          cycle.dueAt,
+        );
+        await ctx.db.insert("planPayments", {
+          organizationId: membership.organizationId,
+          userId: billingSubscription.userId,
+          subscriptionId: billingSubscription._id,
+          planId: billingSubscription.planId,
+          billingPeriod: cycle.billingPeriod,
+          billingCycleStartAt: cycle.cycleStartAt,
+          billingCycleEndAt: cycle.cycleEndAt,
+          dueAt: cycle.dueAt,
+          amountArs,
+          paymentMethod: "proof_upload",
+          bonificationId: activeBonification?._id,
+          isBonification: Boolean(activeBonification),
+          proofStorageId: args.storageId,
+          proofFileName: args.fileName,
+          proofContentType: args.contentType,
+          proofUploadedAt: now,
+          status: "in_review",
+          ...getInterestFields(interest),
+          createdAt: now,
+          updatedAt: now,
+        });
+        return;
+      }
+    }
+
     if (!payment) {
       throw new Error("Pago no encontrado");
-    }
-    if (payment.userId !== identity.subject) {
-      throw new Error("No podés subir comprobante para otro usuario");
-    }
-    if (payment.status !== "pending" && payment.status !== "declined") {
-      throw new Error("No se puede subir comprobante en este estado");
-    }
-
-    // Block proof upload only for fully bonified subscriptions (100% discount)
-    const activeBonification = await ctx.db
-      .query("planBonifications")
-      .withIndex("by_subscription_status", (q) =>
-        q.eq("subscriptionId", payment.subscriptionId).eq("status", "active"),
-      )
-      .first();
-    if (activeBonification) {
-      const bonifiedPlan = await ctx.db.get(activeBonification.planId);
-      const effectiveAmount = bonifiedPlan
-        ? computeBonificationAmount(
-            bonifiedPlan.priceArs,
-            activeBonification.discountType,
-            activeBonification.discountValue,
-          )
-        : 0;
-      if (effectiveAmount === 0) {
-        throw new Error(
-          "Tu plan tiene una bonificación activa. No necesitás subir comprobante.",
-        );
-      }
     }
 
     // Delete old proof file if re-uploading
@@ -1120,12 +1329,13 @@ export const uploadProof = mutation({
     const now = Date.now();
     const interest = await computePaymentInterest(ctx, payment, now);
 
-    await ctx.db.patch(args.paymentId, {
+    await ctx.db.patch(payment._id, {
       proofStorageId: args.storageId,
       proofFileName: args.fileName,
       proofContentType: args.contentType,
       proofUploadedAt: now,
       status: "in_review",
+      paymentMethod: payment.paymentMethod ?? "proof_upload",
       ...getInterestFields(interest),
       // Clear previous review data on re-upload
       reviewedBy: undefined,
@@ -1421,6 +1631,14 @@ async function enrichPayments(ctx: { db: any }, payments: any[]) {
         userFullName: user?.fullName ?? user?.email ?? payment.userId,
         coveredMemberCount: coverage?.coveredMemberCount ?? 1,
         coveredMemberNames,
+        payableAmountArs:
+          !payment.isBonification &&
+          payment.paymentMethod !== "bonification" &&
+          payment.amountArs <= 0 &&
+          plan &&
+          (coverage?.coveredMemberCount ?? 1) > 0
+            ? plan.priceArs * (coverage?.coveredMemberCount ?? 1)
+            : (payment.totalAmountArs ?? payment.amountArs),
       };
     }),
   );
