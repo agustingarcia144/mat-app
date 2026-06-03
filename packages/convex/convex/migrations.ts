@@ -711,3 +711,89 @@ export const deleteUsersMissingInClerk = internalAction({
     };
   },
 });
+
+/**
+ * Migration: delete stale zero-amount payment placeholders created by the old
+ * eager current-cycle payment generation flow.
+ *
+ * Safe criteria:
+ * - amount and total are zero
+ * - not a bonification payment
+ * - unresolved pending/declined state
+ * - no uploaded proof attached
+ *
+ * Run first with dryRun: true, then with dryRun: false.
+ */
+export const cleanupStaleZeroAmountPlanPayments = internalMutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? true;
+    const payments = await ctx.db.query("planPayments").collect();
+
+    const summary = {
+      scanned: payments.length,
+      eligible: 0,
+      deleted: 0,
+      skippedBonification: 0,
+      skippedNonZero: 0,
+      skippedWithProof: 0,
+      skippedReviewedOrInReview: 0,
+      sampleDeletedIds: [] as string[],
+      sampleSkippedIds: [] as string[],
+    };
+
+    for (const payment of payments) {
+      const isZeroAmount =
+        payment.amountArs <= 0 && (payment.totalAmountArs ?? 0) <= 0;
+      if (!isZeroAmount) {
+        summary.skippedNonZero += 1;
+        continue;
+      }
+
+      const isBonification =
+        payment.isBonification ||
+        payment.paymentMethod === "bonification" ||
+        Boolean(payment.bonificationId);
+      if (isBonification) {
+        summary.skippedBonification += 1;
+        continue;
+      }
+
+      const hasProof = Boolean(
+        payment.proofStorageId || payment.proofUploadedAt,
+      );
+      if (hasProof) {
+        summary.skippedWithProof += 1;
+        if (summary.sampleSkippedIds.length < 50) {
+          summary.sampleSkippedIds.push(String(payment._id));
+        }
+        continue;
+      }
+
+      if (payment.status === "approved" || payment.status === "in_review") {
+        summary.skippedReviewedOrInReview += 1;
+        if (summary.sampleSkippedIds.length < 50) {
+          summary.sampleSkippedIds.push(String(payment._id));
+        }
+        continue;
+      }
+
+      summary.eligible += 1;
+      if (summary.sampleDeletedIds.length < 50) {
+        summary.sampleDeletedIds.push(String(payment._id));
+      }
+      if (!dryRun) {
+        await ctx.db.delete(payment._id);
+        summary.deleted += 1;
+      }
+    }
+
+    return {
+      success: true,
+      dryRun,
+      ...summary,
+    };
+  },
+});

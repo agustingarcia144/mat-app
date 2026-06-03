@@ -116,15 +116,19 @@ export default function PaymentHistoryList() {
 
   const buildSelected = (
     payment: NonNullable<typeof payments>[number],
-  ): SelectedPayment => ({
-    id: payment._id,
-    memberName: payment.userFullName,
-    planName: payment.planName,
-    billingPeriod: payment.billingPeriod,
-    amountArs: payment.amountArs,
-    status: payment.status,
-    coveredMembers: payment.coveredMemberNames,
-  });
+  ): SelectedPayment => {
+    const amountArs =
+      payment.payableAmountArs ?? payment.totalAmountArs ?? payment.amountArs;
+    return {
+      id: payment._id,
+      memberName: payment.userFullName,
+      planName: payment.planName,
+      billingPeriod: payment.billingPeriod,
+      amountArs,
+      status: payment.status,
+      coveredMembers: payment.coveredMemberNames,
+    };
+  };
 
   const handleView = (payment: NonNullable<typeof payments>[number]) => {
     setSelectedPayment(buildSelected(payment));
@@ -204,6 +208,10 @@ export default function PaymentHistoryList() {
               <tbody>
                 {payments.map((payment) => {
                   const statusInfo = STATUS_LABELS[payment.status];
+                  const amountArs =
+                    payment.payableAmountArs ??
+                    payment.totalAmountArs ??
+                    payment.amountArs;
                   return (
                     <tr
                       key={payment._id}
@@ -214,7 +222,8 @@ export default function PaymentHistoryList() {
                           <p>{payment.userFullName}</p>
                           {payment.coveredMemberCount > 1 ? (
                             <p className="text-xs text-muted-foreground">
-                              Asociados: {payment.coveredMemberNames.slice(1).join(", ")}
+                              Asociados:{" "}
+                              {payment.coveredMemberNames.slice(1).join(", ")}
                             </p>
                           ) : null}
                         </div>
@@ -224,7 +233,7 @@ export default function PaymentHistoryList() {
                         {formatBillingPeriod(payment.billingPeriod)}
                       </td>
                       <td className="p-3">
-                        ${payment.amountArs.toLocaleString("es-AR")}
+                        ${amountArs.toLocaleString("es-AR")}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center gap-1.5">

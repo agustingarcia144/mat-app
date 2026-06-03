@@ -27,7 +27,10 @@ export default function PlanContent() {
   const router = useRouter();
 
   const subscription = useQuery(api.memberPlanSubscriptions.getMySubscription);
-  const monthlyUsage = useQuery(api.classReservations.getMyMonthlyClassUsage, {});
+  const monthlyUsage = useQuery(
+    api.classReservations.getMyMonthlyClassUsage,
+    {},
+  );
   const currentPayment = useQuery(api.planPayments.getMyCurrentPeriodPayment);
   const bonification = useQuery(api.planBonifications.getMyActiveBonification);
   const cancelSubscription = useMutation(api.memberPlanSubscriptions.cancel);
@@ -142,6 +145,7 @@ export default function PlanContent() {
         {/* Current period payment */}
         <PaymentStatusCard
           payment={currentPayment}
+          planPriceArs={subscription.plan?.priceArs}
           onUploadPress={() =>
             router.push({
               pathname: "/(tabs)/plan/upload-proof",

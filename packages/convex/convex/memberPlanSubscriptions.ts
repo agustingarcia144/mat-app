@@ -11,7 +11,6 @@ import {
   requireAuth,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
-  requireActiveOrgContext,
   tryActiveOrgContext,
 } from "./permissions";
 import { computeBonificationAmount } from "./planBonifications";
@@ -222,6 +221,25 @@ export const getMySubscription = query({
 });
 
 /**
+ * Deprecated: pending payments are now virtual until proof upload.
+ */
+export const ensureMyCurrentPeriodPayment = mutation({
+  args: {},
+  handler: async () => null,
+});
+
+export const generateCurrentPeriodPaymentsForCurrentOrganization = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdminOrTrainer(ctx, membership.organizationId);
+
+    return { generatedCount: 0 };
+  },
+});
+
+/**
  * List all subscriptions in the org (admin/trainer only).
  * Enriched with user and plan details.
  */
@@ -380,7 +398,7 @@ export const getActiveFamilyGroups = query({
 });
 
 /**
- * Member activates a plan. Creates a subscription and a pending payment for the current period.
+ * Member activates a plan.
  */
 export const activate = mutation({
   args: {
@@ -444,7 +462,9 @@ export const activate = mutation({
       updatedAt: now,
     });
 
-    // Create payment records
+    // Advance payments still create explicit records because the member chose a
+    // multi-month payment upfront. Regular monthly cycles stay virtual pending
+    // until the member uploads proof.
     if (advanceMonths > 1) {
       const discountTier = plan.advancePaymentDiscounts!.find(
         (d) => d.months === advanceMonths,
@@ -457,14 +477,6 @@ export const activate = mutation({
         months: advanceMonths,
         discountPercentage: discountTier.discountPercentage,
       });
-    } else if ((plan.billingMode ?? "calendar") !== "join_date") {
-      // Single month — standard flow
-      await createPaymentForCurrentPeriod(ctx, {
-        organizationId: membership.organizationId,
-        userId: identity.subject,
-        subscriptionId,
-        plan,
-      });
     }
 
     return subscriptionId;
@@ -472,7 +484,7 @@ export const activate = mutation({
 });
 
 /**
- * Admin/trainer assigns a plan to a member. Creates subscription + pending payment.
+ * Admin/trainer assigns a plan to a member.
  */
 export const assignToMember = mutation({
   args: {
@@ -602,17 +614,6 @@ export const assignToMember = mutation({
           updatedAt: now,
         });
       }
-    }
-
-    // Create payment record for current billing period.
-    // Join-date plans start billing one full month after activation.
-    if ((plan.billingMode ?? "calendar") !== "join_date") {
-      await createPaymentForCurrentPeriod(ctx, {
-        organizationId: membership.organizationId,
-        userId: args.userId,
-        subscriptionId,
-        plan,
-      });
     }
 
     return subscriptionId;
@@ -867,17 +868,6 @@ export const changePlan = mutation({
       updatedAt: now,
     });
 
-    // Create payment for current period.
-    // Join-date plans start billing one full month after activation.
-    if ((newPlan.billingMode ?? "calendar") !== "join_date") {
-      await createPaymentForCurrentPeriod(ctx, {
-        organizationId: membership.organizationId,
-        userId: identity.subject,
-        subscriptionId,
-        plan: newPlan,
-      });
-    }
-
     return subscriptionId;
   },
 });
@@ -1075,78 +1065,11 @@ export const autoSuspendUnpaidForOrg = internalMutation({
 });
 
 /**
- * Internal mutation: ensure every billable subscription has a payment record
- * for its current cycle. Calendar plans wait until their payment window opens;
- * join-date plans open on each member's activation day.
+ * Deprecated: current-cycle pending payments are virtual until proof upload.
  */
 export const generateCurrentPeriodPayments = internalMutation({
   args: {},
-  handler: async (ctx) => {
-    const orgs = await ctx.db.query("organizations").collect();
-    let generatedCount = 0;
-
-    for (const org of orgs) {
-      const timezone =
-        org.timezone && org.timezone.trim() !== "" ? org.timezone : "UTC";
-      const now = Date.now();
-      const currentParts = getZonedDateParts(now, timezone);
-
-      const subscriptions = await ctx.db
-        .query("memberPlanSubscriptions")
-        .withIndex("by_organization", (q) => q.eq("organizationId", org._id))
-        .filter((q) => q.neq(q.field("status"), "cancelled"))
-        .collect();
-
-      for (const sub of subscriptions) {
-        if (sub.familyParentSubscriptionId) continue;
-        if (!(await isActiveMember(ctx, sub.organizationId, sub.userId))) {
-          continue;
-        }
-
-        const plan = await ctx.db.get(sub.planId);
-        if (!plan) continue;
-
-        if (
-          (plan.billingMode ?? "calendar") === "join_date" &&
-          now < getFirstJoinDateBillingDueAt(sub.activatedAt, timezone)
-        ) {
-          continue;
-        }
-
-        if (
-          (plan.billingMode ?? "calendar") === "calendar" &&
-          currentParts.day < plan.paymentWindowStartDay
-        ) {
-          continue;
-        }
-
-        const activeBonification = await ctx.db
-          .query("planBonifications")
-          .withIndex("by_subscription_status", (q) =>
-            q.eq("subscriptionId", sub._id).eq("status", "active"),
-          )
-          .first();
-        if (activeBonification) {
-          const effectiveAmount = computeBonificationAmount(
-            plan.priceArs,
-            activeBonification.discountType,
-            activeBonification.discountValue,
-          );
-          if (effectiveAmount === 0) continue;
-        }
-
-        const paymentId = await createPaymentForCurrentPeriod(ctx, {
-          organizationId: org._id,
-          userId: sub.userId,
-          subscriptionId: sub._id,
-          plan,
-        });
-        if (paymentId) generatedCount++;
-      }
-    }
-
-    return { generatedCount };
-  },
+  handler: async () => ({ generatedCount: 0 }),
 });
 
 /**
@@ -1223,64 +1146,4 @@ async function createAdvancePayments(
       });
     }
   }
-}
-
-/**
- * Helper: create a payment record for the current billing period.
- */
-async function createPaymentForCurrentPeriod(
-  ctx: MutationCtx,
-  params: {
-    organizationId: Id<"organizations">;
-    userId: string;
-    subscriptionId: Id<"memberPlanSubscriptions">;
-    plan: PlanBillingConfig;
-  },
-) {
-  const now = Date.now();
-  const organization = await ctx.db.get(params.organizationId);
-  const timezone =
-    organization?.timezone && organization.timezone.trim() !== ""
-      ? organization.timezone
-      : "UTC";
-  const subscription = await ctx.db.get(params.subscriptionId);
-  const cycle = getBillingCycle(
-    params.plan,
-    subscription?.activatedAt ?? now,
-    now,
-    timezone,
-  );
-  const { memberCount } = await getFamilyGroupSubscriptions(ctx, {
-    _id: params.subscriptionId,
-    organizationId: params.organizationId,
-    status: "active",
-  });
-
-  // Check if a payment already exists for this period and subscription
-  const existing = await ctx.db
-    .query("planPayments")
-    .withIndex("by_subscription_period", (q) =>
-      q
-        .eq("subscriptionId", params.subscriptionId)
-        .eq("billingPeriod", cycle.billingPeriod),
-    )
-    .first();
-
-  if (existing) return existing._id;
-
-  return await ctx.db.insert("planPayments", {
-    organizationId: params.organizationId,
-    userId: params.userId,
-    subscriptionId: params.subscriptionId,
-    planId: params.plan._id,
-    billingPeriod: cycle.billingPeriod,
-    billingCycleStartAt: cycle.cycleStartAt,
-    billingCycleEndAt: cycle.cycleEndAt,
-    dueAt: cycle.dueAt,
-    amountArs: params.plan.priceArs * memberCount,
-    totalAmountArs: params.plan.priceArs * memberCount,
-    status: "pending",
-    createdAt: now,
-    updatedAt: now,
-  });
 }
