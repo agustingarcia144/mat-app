@@ -507,6 +507,7 @@ export default defineSchema({
     sets: v.number(),
     reps: v.optional(v.string()),
     weight: v.optional(v.string()),
+    comment: v.optional(v.string()),
     // Comma-separated per-set seconds, e.g. "30, 30, 45"
     timeSeconds: v.optional(v.string()),
     order: v.number(),
