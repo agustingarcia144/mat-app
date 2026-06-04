@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
+  MessageSquareText,
   Search,
   SlidersHorizontal,
   TrendingDown,
@@ -57,6 +58,11 @@ type MetricPoint = {
   timeSeconds: number | null;
 };
 
+type ExerciseComment = {
+  performedOn: string;
+  comment: string;
+};
+
 type ExerciseMetric = {
   exerciseId: string;
   exerciseName: string;
@@ -68,6 +74,7 @@ type ExerciseMetric = {
   weightDelta: number | null;
   bestWeight: number | null;
   trend: Trend;
+  comments: ExerciseComment[];
   points: MetricPoint[];
 };
 
@@ -167,6 +174,13 @@ function getAverageReps(points: MetricPoint[]) {
   if (reps.length === 0) return null;
   const average = reps.reduce((sum, value) => sum + value, 0) / reps.length;
   return Number(average.toFixed(2));
+}
+
+function getCommentsForDate(
+  comments: ExerciseComment[] | undefined,
+  performedOn: string,
+) {
+  return (comments ?? []).filter((comment) => comment.performedOn === performedOn);
 }
 
 function formatDelta(value?: number | null) {
@@ -985,6 +999,9 @@ export default function ExerciseMetricsPage() {
                                         </p>
                                         <p className="text-xs text-muted-foreground">
                                           {exercise.entriesCount} registros
+                                          {exercise.comments?.length
+                                            ? ` · ${exercise.comments.length} comentarios`
+                                            : ""}
                                         </p>
                                       </div>
                                     </div>
@@ -1186,6 +1203,43 @@ export default function ExerciseMetricsPage() {
                                           />
                                         </div>
 
+                                        {exercise.comments?.length ? (
+                                          <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
+                                            <div className="flex items-center gap-2">
+                                              <MessageSquareText className="size-4 text-muted-foreground" />
+                                              <div>
+                                                <p className="font-medium">
+                                                  Comentarios del alumno
+                                                </p>
+                                                <p className="text-sm text-muted-foreground">
+                                                  Notas escritas para este
+                                                  ejercicio en cada fecha.
+                                                </p>
+                                              </div>
+                                            </div>
+
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                              {exercise.comments.map(
+                                                (comment, index) => (
+                                                  <div
+                                                    key={`${exercise.exerciseId}-${comment.performedOn}-${index}`}
+                                                    className="rounded-xl border bg-background/60 p-3"
+                                                  >
+                                                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                                      {formatDate(
+                                                        comment.performedOn,
+                                                      )}
+                                                    </p>
+                                                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                                                      {comment.comment}
+                                                    </p>
+                                                  </div>
+                                                ),
+                                              )}
+                                            </div>
+                                          </div>
+                                        ) : null}
+
                                         <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
                                           <div>
                                             <p className="font-medium">
@@ -1206,34 +1260,70 @@ export default function ExerciseMetricsPage() {
                                                   <TableHead>
                                                     Repeticiones
                                                   </TableHead>
+                                                  <TableHead>
+                                                    Comentario
+                                                  </TableHead>
                                                 </TableRow>
                                               </TableHeader>
                                               <TableBody>
                                                 {exercise.points
                                                   .slice()
                                                   .reverse()
-                                                  .map((point) => (
-                                                    <TableRow
-                                                      key={`${exercise.exerciseId}-${point.performedOn}`}
-                                                    >
-                                                      <TableCell>
-                                                        {formatDate(
-                                                          point.performedOn,
-                                                        )}
-                                                      </TableCell>
-                                                      <TableCell>
-                                                        {formatMetricValue(
-                                                          point.weight,
-                                                        )}
-                                                      </TableCell>
-                                                      <TableCell>
-                                                        {formatMetricValue(
-                                                          point.reps,
-                                                          "rep",
-                                                        )}
-                                                      </TableCell>
-                                                    </TableRow>
-                                                  ))}
+                                                  .map((point) => {
+                                                    const pointComments =
+                                                      getCommentsForDate(
+                                                        exercise.comments,
+                                                        point.performedOn,
+                                                      );
+
+                                                    return (
+                                                      <TableRow
+                                                        key={`${exercise.exerciseId}-${point.performedOn}`}
+                                                      >
+                                                        <TableCell>
+                                                          {formatDate(
+                                                            point.performedOn,
+                                                          )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                          {formatMetricValue(
+                                                            point.weight,
+                                                          )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                          {formatMetricValue(
+                                                            point.reps,
+                                                            "rep",
+                                                          )}
+                                                        </TableCell>
+                                                        <TableCell className="max-w-[360px]">
+                                                          {pointComments.length ? (
+                                                            <div className="space-y-2">
+                                                              {pointComments.map(
+                                                                (
+                                                                  comment,
+                                                                  index,
+                                                                ) => (
+                                                                  <p
+                                                                    key={`${comment.performedOn}-${index}`}
+                                                                    className="whitespace-pre-wrap text-sm leading-5"
+                                                                  >
+                                                                    {
+                                                                      comment.comment
+                                                                    }
+                                                                  </p>
+                                                                ),
+                                                              )}
+                                                            </div>
+                                                          ) : (
+                                                            <span className="text-muted-foreground">
+                                                              -
+                                                            </span>
+                                                          )}
+                                                        </TableCell>
+                                                      </TableRow>
+                                                    );
+                                                  })}
                                               </TableBody>
                                             </Table>
                                           </div>

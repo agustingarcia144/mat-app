@@ -717,7 +717,9 @@ function WorkoutContent() {
               isDark={isDark}
               onPressExercise={() =>
                 router.push(
-                  `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
+                  `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}${
+                    !isNewSession ? `&sessionId=${sessionId}` : ''
+                  }` as Href
                 )
               }
               onPressSet={(setIndex) => {
@@ -778,7 +780,9 @@ function WorkoutContent() {
                           isDark={isDark}
                           onPressExercise={() =>
                             router.push(
-                              `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
+                              `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}${
+                                !isNewSession ? `&sessionId=${sessionId}` : ''
+                              }` as Href
                             )
                           }
                           onPressSet={(setIndex) => {

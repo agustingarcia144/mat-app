@@ -13,6 +13,11 @@ type MetricPoint = {
   timeSeconds: number | null;
 };
 
+type ExerciseComment = {
+  performedOn: string;
+  comment: string;
+};
+
 type InternalMetricPoint = MetricPoint & {
   repsTotal: number;
   repsSamples: number;
@@ -54,6 +59,16 @@ function parseTimeSeconds(value?: string | null): number | null {
 
 function compareDatesDesc(a: string, b: string) {
   return a < b ? 1 : a > b ? -1 : 0;
+}
+
+function dedupeComments(comments: ExerciseComment[]) {
+  const seen = new Set<string>();
+  return comments.filter((comment) => {
+    const key = `${comment.performedOn}:${comment.comment}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function getCurrentBillingPeriod() {
@@ -359,6 +374,7 @@ export const getExerciseMetricsByMember = query({
         lastPerformedOn: string | null;
         planificationIds: Set<string>;
         pointsByDate: Map<string, InternalMetricPoint>;
+        comments: ExerciseComment[];
       }
     >();
     const planifications = new Map<
@@ -452,6 +468,7 @@ export const getExerciseMetricsByMember = query({
           lastPerformedOn: null,
           planificationIds: new Set<string>(),
           pointsByDate: new Map<string, InternalMetricPoint>(),
+          comments: [] as ExerciseComment[],
         };
 
         exerciseEntry.entriesCount += 1;
@@ -500,6 +517,14 @@ export const getExerciseMetricsByMember = query({
           volume: nextVolume > 0 ? nextVolume : null,
           timeSeconds: nextTimeSeconds > 0 ? nextTimeSeconds : null,
         });
+
+        const comment = log.comment?.trim();
+        if (comment) {
+          exerciseEntry.comments.push({
+            performedOn: session.performedOn,
+            comment,
+          });
+        }
 
         exercises.set(exerciseKey, exerciseEntry);
       }
@@ -556,6 +581,8 @@ export const getExerciseMetricsByMember = query({
           bestWeight,
           latestVolume,
           trend,
+          comments: dedupeComments(exercise.comments)
+            .sort((a, b) => compareDatesDesc(a.performedOn, b.performedOn)),
           points,
         };
       })
@@ -697,6 +724,7 @@ export const getExerciseMetricsByMembers = query({
             lastPerformedOn: string | null;
             planificationIds: Set<string>;
             pointsByDate: Map<string, InternalMetricPoint>;
+            comments: ExerciseComment[];
           }
         >;
       }
@@ -785,7 +813,8 @@ export const getExerciseMetricsByMembers = query({
           entriesCount: 0,
           lastPerformedOn: null,
           planificationIds: new Set<string>(),
-          pointsByDate: new Map<string, MetricPoint>(),
+          pointsByDate: new Map<string, InternalMetricPoint>(),
+          comments: [] as ExerciseComment[],
         };
 
         exerciseEntry.entriesCount += 1;
@@ -834,6 +863,14 @@ export const getExerciseMetricsByMembers = query({
           volume: nextVolume > 0 ? nextVolume : null,
           timeSeconds: nextTimeSeconds > 0 ? nextTimeSeconds : null,
         });
+
+        const comment = log.comment?.trim();
+        if (comment) {
+          exerciseEntry.comments.push({
+            performedOn: session.performedOn,
+            comment,
+          });
+        }
 
         memberEntry.exercises.set(exerciseKey, exerciseEntry);
       }
@@ -895,6 +932,8 @@ export const getExerciseMetricsByMembers = query({
               bestWeight,
               latestVolume,
               trend,
+              comments: dedupeComments(exercise.comments)
+                .sort((a, b) => compareDatesDesc(a.performedOn, b.performedOn)),
               points,
             };
           })
