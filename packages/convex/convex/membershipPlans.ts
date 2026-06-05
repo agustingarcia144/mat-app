@@ -28,11 +28,13 @@ export const getByOrganization = query({
     const isAdmin =
       membership.role === "admin" || membership.role === "trainer";
 
+    const visiblePlans = plans.filter((p) => p.deletedAt === undefined);
+
     if (!isAdmin || args.activeOnly) {
-      return plans.filter((p) => p.isActive);
+      return visiblePlans.filter((p) => p.isActive);
     }
 
-    return plans;
+    return visiblePlans;
   },
 });
 
@@ -47,7 +49,11 @@ export const getById = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
 
     const plan = await ctx.db.get(args.planId);
-    if (!plan || plan.organizationId !== membership.organizationId) {
+    if (
+      !plan ||
+      plan.organizationId !== membership.organizationId ||
+      plan.deletedAt !== undefined
+    ) {
       return null;
     }
 
@@ -139,7 +145,11 @@ export const update = mutation({
     await requireAdmin(ctx, membership.organizationId);
 
     const plan = await ctx.db.get(args.planId);
-    if (!plan || plan.organizationId !== membership.organizationId) {
+    if (
+      !plan ||
+      plan.organizationId !== membership.organizationId ||
+      plan.deletedAt !== undefined
+    ) {
       throw new Error("Plan no encontrado");
     }
 
@@ -196,7 +206,11 @@ export const toggleActive = mutation({
     await requireAdmin(ctx, membership.organizationId);
 
     const plan = await ctx.db.get(args.planId);
-    if (!plan || plan.organizationId !== membership.organizationId) {
+    if (
+      !plan ||
+      plan.organizationId !== membership.organizationId ||
+      plan.deletedAt !== undefined
+    ) {
       throw new Error("Plan no encontrado");
     }
 
@@ -204,6 +218,77 @@ export const toggleActive = mutation({
       isActive: !plan.isActive,
       updatedAt: Date.now(),
     });
+  },
+});
+
+/**
+ * Soft-delete a membership plan and unassign every member currently on it.
+ */
+export const softDelete = mutation({
+  args: {
+    planId: v.id("membershipPlans"),
+  },
+  handler: async (ctx, args) => {
+    const identity = await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdmin(ctx, membership.organizationId);
+
+    const plan = await ctx.db.get(args.planId);
+    if (
+      !plan ||
+      plan.organizationId !== membership.organizationId ||
+      plan.deletedAt !== undefined
+    ) {
+      throw new Error("Plan no encontrado");
+    }
+
+    const now = Date.now();
+    const subscriptions = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
+      )
+      .collect();
+
+    const activeSubscriptions = subscriptions.filter(
+      (subscription) =>
+        subscription.planId === args.planId &&
+        subscription.status !== "cancelled",
+    );
+
+    for (const subscription of activeSubscriptions) {
+      await ctx.db.patch(subscription._id, {
+        status: "cancelled",
+        cancelledAt: now,
+        updatedAt: now,
+      });
+
+      const activeBonification = await ctx.db
+        .query("planBonifications")
+        .withIndex("by_subscription_status", (q) =>
+          q.eq("subscriptionId", subscription._id).eq("status", "active"),
+        )
+        .first();
+
+      if (activeBonification) {
+        await ctx.db.patch(activeBonification._id, {
+          status: "revoked",
+          revokedAt: now,
+          revokedBy: identity.subject,
+          revokeReason: "Plan eliminado",
+          updatedAt: now,
+        });
+      }
+    }
+
+    await ctx.db.patch(args.planId, {
+      isActive: false,
+      deletedAt: now,
+      deletedBy: identity.subject,
+      updatedAt: now,
+    });
+
+    return { unassignedCount: activeSubscriptions.length };
   },
 });
 

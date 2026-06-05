@@ -801,6 +801,8 @@ export default defineSchema({
       ),
     ),
     isActive: v.boolean(),
+    deletedAt: v.optional(v.number()),
+    deletedBy: v.optional(v.string()),
     createdBy: v.string(), // Clerk user ID
     createdAt: v.number(),
     updatedAt: v.number(),

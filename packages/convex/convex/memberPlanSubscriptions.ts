@@ -414,7 +414,11 @@ export const activate = mutation({
     }
 
     const plan = await ctx.db.get(args.planId);
-    if (!plan || plan.organizationId !== membership.organizationId) {
+    if (
+      !plan ||
+      plan.organizationId !== membership.organizationId ||
+      plan.deletedAt !== undefined
+    ) {
       throw new Error("Plan no encontrado");
     }
     if (!plan.isActive) {
@@ -516,7 +520,11 @@ export const assignToMember = mutation({
     }
 
     const plan = await ctx.db.get(args.planId);
-    if (!plan || plan.organizationId !== membership.organizationId) {
+    if (
+      !plan ||
+      plan.organizationId !== membership.organizationId ||
+      plan.deletedAt !== undefined
+    ) {
       throw new Error("Plan no encontrado");
     }
     if (!plan.isActive) {
@@ -827,7 +835,11 @@ export const changePlan = mutation({
     }
 
     const newPlan = await ctx.db.get(args.newPlanId);
-    if (!newPlan || newPlan.organizationId !== membership.organizationId) {
+    if (
+      !newPlan ||
+      newPlan.organizationId !== membership.organizationId ||
+      newPlan.deletedAt !== undefined
+    ) {
       throw new Error("Plan no encontrado");
     }
     if (!newPlan.isActive) {

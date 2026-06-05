@@ -48,6 +48,7 @@ export interface ExerciseCardProps {
   values: { reps: string; weight: string }[];
   timeValues?: number[];
   supportsTime?: boolean;
+  comment?: string;
   hasLoggedData: boolean;
   saving: boolean;
   isExpanded: boolean;
@@ -59,6 +60,7 @@ export interface ExerciseCardProps {
   borderColor: string;
   isDark: boolean;
   onPressExercise: () => void;
+  onPressComment?: () => void;
   onPressSet: (setIndex: number) => void;
   onQuickCompleteSet: (setIndex: number) => void;
   isSetQuickCompleted?: (setIndex: number) => boolean;
@@ -69,6 +71,7 @@ export function ExerciseCard({
   values,
   timeValues,
   supportsTime = false,
+  comment,
   hasLoggedData,
   saving,
   isExpanded,
@@ -80,6 +83,7 @@ export function ExerciseCard({
   borderColor,
   isDark,
   onPressExercise,
+  onPressComment,
   onPressSet,
   onQuickCompleteSet,
   isSetQuickCompleted,
@@ -95,6 +99,7 @@ export function ExerciseCard({
     dayEx.timeSeconds,
   );
   const notesLabel = dayEx.notes?.trim();
+  const commentLabel = comment?.trim();
   const hasTime =
     supportsTime ||
     (timeValues?.some((value) => value != null && value > 0) ?? false);
@@ -372,6 +377,56 @@ export function ExerciseCard({
               })}
             </View>
           </View>
+          {onPressComment && (
+            <PressableScale
+              onPress={onPressComment}
+              style={[
+                styles.commentButton,
+                {
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.05)",
+                  borderColor: isDark
+                    ? "rgba(255,255,255,0.12)"
+                    : "rgba(0,0,0,0.08)",
+                },
+              ]}
+            >
+              <View style={styles.commentButtonIcon}>
+                <MaterialIcons
+                  name={commentLabel ? "mode-comment" : "add-comment"}
+                  size={18}
+                  color={isDark ? "#f4f4f5" : "#18181b"}
+                />
+              </View>
+              <View style={styles.commentButtonTextWrap}>
+                <Text
+                  style={[
+                    styles.commentButtonTitle,
+                    { color: isDark ? "#f4f4f5" : "#18181b" },
+                  ]}
+                >
+                  Comentario
+                </Text>
+                {commentLabel ? (
+                  <Text
+                    style={[
+                      styles.commentButtonPreview,
+                      { color: isDark ? "#a1a1aa" : "#71717a" },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {commentLabel}
+                  </Text>
+                ) : null}
+              </View>
+              <MaterialIcons
+                name="chevron-right"
+                size={22}
+                color={isDark ? "#71717a" : "#a1a1aa"}
+              />
+            </PressableScale>
+          )}
         </View>
       )}
     </View>
@@ -507,6 +562,32 @@ const styles = StyleSheet.create({
     height: 32,
     justifyContent: "center",
     alignItems: "center",
+  },
+  commentButton: {
+    minHeight: 48,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginTop: 14,
+  },
+  commentButtonIcon: {
+    width: 26,
+    alignItems: "flex-start",
+  },
+  commentButtonTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  commentButtonTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  commentButtonPreview: {
+    fontSize: 12,
+    marginTop: 2,
   },
   inputLabel: {
     fontSize: 12,

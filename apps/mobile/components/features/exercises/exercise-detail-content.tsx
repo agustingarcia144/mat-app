@@ -9,12 +9,10 @@ import {
   Dimensions,
   Text,
   Platform,
-  TextInput,
-  Alert,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useMutation, useQuery } from 'convex/react'
+import { useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import { getYoutubeVideoId, getVideoThumbnailUrl } from '@repo/core/utils'
 import { useColorScheme } from '@/hooks/use-color-scheme'
@@ -103,20 +101,16 @@ function formatLoad(weight?: string, prPercentage?: number) {
 }
 
 export default function ExerciseDetailContent() {
-  const { assignmentId, exerciseId, dayExerciseId, sessionId } =
-    useLocalSearchParams<{
+  const { assignmentId, exerciseId, dayExerciseId } = useLocalSearchParams<{
     assignmentId?: string
     exerciseId: string
     dayExerciseId?: string
-    sessionId?: string
   }>()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
   const [activeMetric, setActiveMetric] = useState<Metric>('weight')
-  const [comment, setComment] = useState('')
-  const [savingComment, setSavingComment] = useState(false)
 
   const exercise = useQuery(
     api.exercises.getById,
@@ -130,14 +124,6 @@ export default function ExerciseDetailContent() {
     api.sessionExerciseLogs.getProgressByExercise,
     exerciseId ? { exerciseId: exerciseId as any } : 'skip'
   )
-  const sessionLog = useQuery(
-    api.sessionExerciseLogs.getForSessionDayExercise,
-    sessionId && sessionId !== 'new' && dayExerciseId
-      ? { sessionId: sessionId as any, dayExerciseId: dayExerciseId as any }
-      : 'skip'
-  )
-  const setExerciseComment = useMutation(api.sessionExerciseLogs.setComment)
-
   const youtubeVideoId = useMemo(() => {
     if (!exercise?.videoUrl) return null
     return getYoutubeVideoId(exercise.videoUrl)
@@ -153,12 +139,6 @@ export default function ExerciseDetailContent() {
   const useEmbed = !!youtubeVideoId
 
   const { setVideoControls } = useExerciseVideo()
-
-  useEffect(() => {
-    if (sessionLog !== undefined) {
-      setComment(sessionLog?.comment ?? '')
-    }
-  }, [sessionLog])
 
   const openVideo = useCallback(() => {
     if (exercise?.videoUrl) Linking.openURL(exercise.videoUrl)
@@ -215,27 +195,6 @@ export default function ExerciseDetailContent() {
     }
     return parts
   }, [dayExercise])
-
-  const canComment = !!sessionId && sessionId !== 'new' && !!dayExerciseId
-
-  const saveComment = useCallback(async () => {
-    if (!sessionId || !dayExerciseId) return
-
-    setSavingComment(true)
-    try {
-      await setExerciseComment({
-        sessionId: sessionId as any,
-        dayExerciseId: dayExerciseId as any,
-        comment,
-      })
-      Alert.alert('Comentario guardado', 'Tu comentario quedo registrado.')
-    } catch (error) {
-      console.error(error)
-      Alert.alert('Error', 'No se pudo guardar el comentario.')
-    } finally {
-      setSavingComment(false)
-    }
-  }, [comment, dayExerciseId, sessionId, setExerciseComment])
 
   const hasVideo = !!exercise?.videoUrl
   const stickyFooterHeight = hasVideo ? 80 + insets.bottom : 0
@@ -479,59 +438,6 @@ export default function ExerciseDetailContent() {
               </View>
             )
           })()}
-
-        {canComment && (
-          <View
-            style={[
-              styles.section,
-              {
-                borderTopColor: isDark
-                  ? 'rgba(255,255,255,0.08)'
-                  : 'rgba(0,0,0,0.08)',
-              },
-            ]}
-          >
-            <ThemedText style={styles.sectionLabel}>Comentario</ThemedText>
-            <TextInput
-              style={[
-                styles.commentInput,
-                {
-                  color: isDark ? '#fafafa' : '#18181b',
-                  backgroundColor: isDark ? '#27272a' : '#f4f4f5',
-                  borderColor: isDark
-                    ? 'rgba(255,255,255,0.12)'
-                    : 'rgba(0,0,0,0.12)',
-                },
-              ]}
-              value={comment}
-              onChangeText={setComment}
-              placeholder="Escribi como te fue con este ejercicio..."
-              placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
-              multiline
-              textAlignVertical="top"
-              maxLength={800}
-            />
-            <Pressable
-              onPress={saveComment}
-              disabled={savingComment || sessionLog === undefined}
-              style={[
-                styles.commentButton,
-                {
-                  backgroundColor:
-                    savingComment || sessionLog === undefined
-                      ? isDark
-                        ? '#3f3f46'
-                        : '#d4d4d8'
-                      : '#3b82f6',
-                },
-              ]}
-            >
-              <Text style={styles.commentButtonText}>
-                {savingComment ? 'Guardando...' : 'Guardar comentario'}
-              </Text>
-            </Pressable>
-          </View>
-        )}
       </ParallaxScrollView>
     </ThemedView>
   )
@@ -631,27 +537,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chartWrap: {},
-  commentInput: {
-    minHeight: 110,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  commentButton: {
-    marginTop: 12,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  commentButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
-  },
   androidProgressList: {
     gap: 10,
   },
