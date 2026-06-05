@@ -8,6 +8,10 @@ import {
   Platform,
   Alert,
   Dimensions,
+  Modal,
+  TextInput,
+  Text,
+  Pressable,
 } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { PressableScale } from 'pressto'
@@ -78,6 +82,7 @@ function WorkoutContent() {
     : session?.assignmentId
 
   const setLog = useMutation(api.sessionExerciseLogs.setLog)
+  const setExerciseComment = useMutation(api.sessionExerciseLogs.setComment)
   const setSessionStatus = useMutation(api.workoutDaySessions.setStatus)
   const startSession = useMutation(api.workoutDaySessions.startSession)
 
@@ -128,6 +133,27 @@ function WorkoutContent() {
   const [expandedSetsByDayEx, setExpandedSetsByDayEx] = useState<
     Record<string, boolean>
   >({})
+  const [commentModalDayExId, setCommentModalDayExId] = useState<string | null>(
+    null
+  )
+  const [commentDraft, setCommentDraft] = useState('')
+  const [savingComment, setSavingComment] = useState(false)
+
+  const allDayExercises = useMemo(
+    () => [
+      ...unblockedExercises,
+      ...Array.from(exercisesByBlock.values()).flat(),
+    ],
+    [exercisesByBlock, unblockedExercises]
+  )
+
+  const commentModalDayEx = useMemo(
+    () =>
+      commentModalDayExId
+        ? allDayExercises.find((dayEx) => dayEx._id === commentModalDayExId)
+        : undefined,
+    [allDayExercises, commentModalDayExId]
+  )
 
   const toggleSetsExpanded = useCallback((dayExId: string) => {
     setExpandedSetsByDayEx((prev) => ({
@@ -152,6 +178,46 @@ function WorkoutContent() {
       setStarting(false)
     }
   }
+
+  const openCommentModal = useCallback(
+    (dayEx: NonNullable<typeof dayExercises>[number]) => {
+      if (isNewSession || !sessionId) return
+      setCommentModalDayExId(dayEx._id)
+      setCommentDraft(logsByDayExercise[dayEx._id]?.comment ?? '')
+    },
+    [isNewSession, logsByDayExercise, sessionId]
+  )
+
+  const closeCommentModal = useCallback(() => {
+    if (savingComment) return
+    setCommentModalDayExId(null)
+    setCommentDraft('')
+  }, [savingComment])
+
+  const saveComment = useCallback(async () => {
+    if (isNewSession || !sessionId || !commentModalDayEx) return
+    setSavingComment(true)
+    try {
+      await setExerciseComment({
+        sessionId: sessionId as any,
+        dayExerciseId: commentModalDayEx._id,
+        comment: commentDraft,
+      })
+      setCommentModalDayExId(null)
+      setCommentDraft('')
+    } catch (error) {
+      console.error(error)
+      Alert.alert('Error', 'No se pudo guardar el comentario.')
+    } finally {
+      setSavingComment(false)
+    }
+  }, [
+    commentDraft,
+    commentModalDayEx,
+    isNewSession,
+    sessionId,
+    setExerciseComment,
+  ])
 
   const getValuesFor = useCallback(
     (dayEx: NonNullable<typeof dayExercises>[number]) => {
@@ -431,8 +497,7 @@ function WorkoutContent() {
           reps: currentSetValues.reps || dayEx.reps || '0',
           weight: dayEx.weight ?? '',
           applyToAllSets: false,
-          timeSeconds:
-            currentTimeValues[setIndex] ?? dayEx.timeSeconds ?? 0,
+          timeSeconds: currentTimeValues[setIndex] ?? dayEx.timeSeconds ?? 0,
         })
         return
       }
@@ -705,6 +770,7 @@ function WorkoutContent() {
               values={getValuesFor(dayEx)}
               timeValues={getTimeValuesFor(dayEx)}
               supportsTime={(dayEx.timeSeconds ?? 0) > 0}
+              comment={logsByDayExercise[dayEx._id]?.comment}
               hasLoggedData={hasLoggedDataForExercise(dayEx._id)}
               saving={savingId === dayEx._id}
               isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
@@ -717,8 +783,13 @@ function WorkoutContent() {
               isDark={isDark}
               onPressExercise={() =>
                 router.push(
-                  `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
+                  `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}${
+                    !isNewSession ? `&sessionId=${sessionId}` : ''
+                  }` as Href
                 )
+              }
+              onPressComment={
+                isNewSession ? undefined : () => openCommentModal(dayEx)
               }
               onPressSet={(setIndex) => {
                 if (isNewSession) return
@@ -766,6 +837,7 @@ function WorkoutContent() {
                           values={getValuesFor(dayEx)}
                           timeValues={getTimeValuesFor(dayEx)}
                           supportsTime={(dayEx.timeSeconds ?? 0) > 0}
+                          comment={logsByDayExercise[dayEx._id]?.comment}
                           hasLoggedData={hasLoggedDataForExercise(dayEx._id)}
                           saving={savingId === dayEx._id}
                           isExpanded={expandedSetsByDayEx[dayEx._id] ?? true}
@@ -778,8 +850,15 @@ function WorkoutContent() {
                           isDark={isDark}
                           onPressExercise={() =>
                             router.push(
-                              `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}` as Href
+                              `/home/exercise/${dayEx.exerciseId}?dayExerciseId=${dayEx._id}${
+                                !isNewSession ? `&sessionId=${sessionId}` : ''
+                              }` as Href
                             )
+                          }
+                          onPressComment={
+                            isNewSession
+                              ? undefined
+                              : () => openCommentModal(dayEx)
                           }
                           onPressSet={(setIndex) => {
                             if (isNewSession) return
@@ -823,6 +902,147 @@ function WorkoutContent() {
           colorScheme={colorScheme ?? 'light'}
         />
       </KeyboardAvoidingView>
+      <Modal
+        visible={!!commentModalDayEx}
+        animationType="fade"
+        transparent
+        presentationStyle="overFullScreen"
+        statusBarTranslucent
+        accessibilityViewIsModal
+        onRequestClose={closeCommentModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalKeyboardWrap}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable
+            onPress={savingComment ? undefined : closeCommentModal}
+            style={[
+              styles.modalBackdrop,
+              {
+                paddingTop: insets.top + 24,
+                paddingBottom: insets.bottom + 24,
+              },
+            ]}
+          >
+            <Pressable
+              onPress={(event) => event.stopPropagation()}
+              style={[
+                styles.modalDialog,
+                {
+                  backgroundColor: isDark
+                    ? 'rgba(34,34,36,0.9)'
+                    : 'rgba(255,255,255,0.9)',
+                  borderColor: isDark
+                    ? 'rgba(255,255,255,0.24)'
+                    : 'rgba(255,255,255,0.72)',
+                },
+              ]}
+            >
+              <Pressable
+                onPress={closeCommentModal}
+                disabled={savingComment}
+                hitSlop={10}
+                style={[
+                  styles.modalCloseButton,
+                  {
+                    backgroundColor: isDark
+                      ? 'rgba(255,255,255,0.12)'
+                      : 'rgba(0,0,0,0.08)',
+                    borderColor: isDark
+                      ? 'rgba(255,255,255,0.18)'
+                      : 'rgba(255,255,255,0.48)',
+                  },
+                ]}
+              >
+                <IconSymbol
+                  name="xmark"
+                  size={15}
+                  color={
+                    savingComment
+                      ? '#71717a'
+                      : isDark
+                        ? '#fafafa'
+                        : '#18181b'
+                  }
+                />
+              </Pressable>
+              <View style={styles.modalTitleWrap}>
+                <Text
+                  style={[
+                    styles.modalTitle,
+                    { color: isDark ? '#fafafa' : '#18181b' },
+                  ]}
+                  numberOfLines={1}
+                >
+                  Comentario
+                </Text>
+                <Text
+                  style={[
+                    styles.modalSubtitle,
+                    { color: isDark ? '#d4d4d8' : '#71717a' },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {commentModalDayEx?.exercise?.name ?? 'Ejercicio'}
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.modalFieldLabel,
+                  { color: isDark ? '#d4d4d8' : '#71717a' },
+                ]}
+              >
+                Nota del ejercicio
+              </Text>
+              <TextInput
+                value={commentDraft}
+                onChangeText={setCommentDraft}
+                placeholder="Escribi como te fue con este ejercicio..."
+                placeholderTextColor={isDark ? '#71717a' : '#a1a1aa'}
+                multiline
+                textAlignVertical="top"
+                maxLength={800}
+                autoFocus
+                style={[
+                  styles.modalCommentInput,
+                  {
+                    color: isDark ? '#fafafa' : '#18181b',
+                    backgroundColor: isDark
+                      ? 'rgba(18,18,20,0.82)'
+                      : 'rgba(255,255,255,0.86)',
+                    borderColor: isDark
+                      ? 'rgba(255,255,255,0.2)'
+                      : 'rgba(0,0,0,0.08)',
+                  },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.modalHelpText,
+                  { color: isDark ? '#a1a1aa' : '#8e8e93' },
+                ]}
+              >
+                {commentDraft.length}/800
+              </Text>
+              <Pressable
+                onPress={saveComment}
+                disabled={savingComment || !commentModalDayEx}
+                style={[
+                  styles.modalSaveButton,
+                  {
+                    opacity: savingComment || !commentModalDayEx ? 0.55 : 1,
+                  },
+                ]}
+              >
+                <Text style={styles.modalSaveText}>
+                  {savingComment ? 'Guardando' : 'Guardar'}
+                </Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
     </ThemedView>
   )
 }
@@ -883,5 +1103,98 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modalKeyboardWrap: {
+    flex: 1,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+  },
+  modalDialog: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    paddingTop: 28,
+    paddingBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.38,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 16,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    zIndex: 1,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalTitleWrap: {
+    minWidth: 0,
+    alignItems: 'center',
+    paddingHorizontal: 54,
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    marginTop: 4,
+  },
+  modalFieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginHorizontal: 20,
+    textTransform: 'uppercase',
+  },
+  modalCommentInput: {
+    minHeight: 150,
+    maxHeight: 230,
+    marginHorizontal: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  modalHelpText: {
+    fontSize: 12,
+    marginTop: 8,
+    marginRight: 20,
+    textAlign: 'right',
+  },
+  modalSaveButton: {
+    height: 52,
+    marginTop: 18,
+    marginHorizontal: 20,
+    borderRadius: 26,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  modalSaveText: {
+    color: '#050505',
+    fontSize: 16,
+    fontWeight: '700',
   },
 })

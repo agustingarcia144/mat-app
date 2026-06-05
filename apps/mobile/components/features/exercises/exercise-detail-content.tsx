@@ -124,7 +124,6 @@ export default function ExerciseDetailContent() {
     api.sessionExerciseLogs.getProgressByExercise,
     exerciseId ? { exerciseId: exerciseId as any } : 'skip'
   )
-
   const youtubeVideoId = useMemo(() => {
     if (!exercise?.videoUrl) return null
     return getYoutubeVideoId(exercise.videoUrl)

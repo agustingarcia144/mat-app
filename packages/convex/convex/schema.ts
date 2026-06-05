@@ -507,6 +507,7 @@ export default defineSchema({
     sets: v.number(),
     reps: v.optional(v.string()),
     weight: v.optional(v.string()),
+    comment: v.optional(v.string()),
     // Comma-separated per-set seconds, e.g. "30, 30, 45"
     timeSeconds: v.optional(v.string()),
     order: v.number(),
@@ -800,6 +801,8 @@ export default defineSchema({
       ),
     ),
     isActive: v.boolean(),
+    deletedAt: v.optional(v.number()),
+    deletedBy: v.optional(v.string()),
     createdBy: v.string(), // Clerk user ID
     createdAt: v.number(),
     updatedAt: v.number(),

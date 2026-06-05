@@ -153,6 +153,40 @@ export default function ExerciseMetricsScreen() {
                       isDark={isDark}
                     />
                   </View>
+                  {ex.comments?.length ? (
+                    <View
+                      style={[
+                        styles.commentsBox,
+                        {
+                          borderColor: isDark
+                            ? Colors.dark.border
+                            : Colors.light.border,
+                          backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                        },
+                      ]}
+                    >
+                      <ThemedText
+                        style={[
+                          styles.commentsTitle,
+                          {
+                            color: isDark
+                              ? Colors.dark.subtle
+                              : Colors.light.subtle,
+                          },
+                        ]}
+                      >
+                        Comentarios
+                      </ThemedText>
+                      {ex.comments.slice(0, 3).map((comment: any, index: number) => (
+                        <ThemedText
+                          key={`${comment.performedOn}-${index}`}
+                          style={styles.commentText}
+                        >
+                          {comment.performedOn}: {comment.comment}
+                        </ThemedText>
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
               )}
               ListEmptyComponent={
@@ -319,4 +353,20 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   exStats: { flexDirection: "row", gap: 4 },
+  commentsBox: {
+    borderWidth: 1,
+    borderRadius: 10,
+    marginTop: 12,
+    padding: 10,
+    gap: 6,
+  },
+  commentsTitle: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  commentText: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
 });

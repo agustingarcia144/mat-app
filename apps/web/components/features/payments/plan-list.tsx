@@ -6,6 +6,13 @@ import { api } from "@/convex/_generated/api";
 import { type Id } from "@/convex/_generated/dataModel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -17,7 +24,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Edit, Plus, ToggleLeft, ToggleRight } from "lucide-react";
+import {
+  AlertTriangle,
+  Edit,
+  MoreHorizontal,
+  Plus,
+  ToggleLeft,
+  ToggleRight,
+  Trash2,
+} from "lucide-react";
 import PlanFormDialog from "./dialogs/plan-form-dialog";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
@@ -28,6 +43,7 @@ export default function PlanList() {
     canQuery ? { activeOnly: false } : "skip",
   );
   const toggleActive = useMutation(api.membershipPlans.toggleActive);
+  const deletePlan = useMutation(api.membershipPlans.softDelete);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<
@@ -43,6 +59,11 @@ export default function PlanList() {
   } | null>(null);
   const [isSubmittingDeactivation, setIsSubmittingDeactivation] =
     useState(false);
+  const [planPendingDeletion, setPlanPendingDeletion] = useState<{
+    id: Id<"membershipPlans">;
+    name: string;
+  } | null>(null);
+  const [isSubmittingDeletion, setIsSubmittingDeletion] = useState(false);
 
   const handleToggle = async (planId: Id<"membershipPlans">) => {
     try {
@@ -92,6 +113,26 @@ export default function PlanList() {
     setEditingPlanId(planPendingEdit.id);
     setFormOpen(true);
     setPlanPendingEdit(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!planPendingDeletion) return;
+
+    setIsSubmittingDeletion(true);
+    try {
+      const result = await deletePlan({ planId: planPendingDeletion.id });
+      const unassignedCount = result?.unassignedCount ?? 0;
+      toast.success(
+        unassignedCount > 0
+          ? `Plan eliminado. Se desasignaron ${unassignedCount} miembros.`
+          : "Plan eliminado correctamente",
+      );
+      setPlanPendingDeletion(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al eliminar");
+    } finally {
+      setIsSubmittingDeletion(false);
+    }
   };
 
   return (
@@ -167,30 +208,50 @@ export default function PlanList() {
                       </Badge>
                     </td>
                     <td className="p-3">
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEdit(plan._id, plan.name)}
-                          title="Editar"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() =>
-                            handleToggleClick(plan._id, plan.isActive, plan.name)
-                          }
-                          title={plan.isActive ? "Desactivar" : "Activar"}
-                        >
-                          {plan.isActive ? (
-                            <ToggleRight className="h-4 w-4" />
-                          ) : (
-                            <ToggleLeft className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="ghost" title="Acciones">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleEdit(plan._id, plan.name)}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleToggleClick(
+                                plan._id,
+                                plan.isActive,
+                                plan.name,
+                              )
+                            }
+                          >
+                            {plan.isActive ? (
+                              <ToggleRight className="mr-2 h-4 w-4" />
+                            ) : (
+                              <ToggleLeft className="mr-2 h-4 w-4" />
+                            )}
+                            {plan.isActive ? "Desactivar" : "Activar"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() =>
+                              setPlanPendingDeletion({
+                                id: plan._id,
+                                name: plan.name,
+                              })
+                            }
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </td>
                   </tr>
                 ))}
@@ -260,6 +321,38 @@ export default function PlanList() {
               })}
             >
               {isSubmittingDeactivation ? "Desactivando..." : "Desactivar plan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={planPendingDeletion !== null}
+        onOpenChange={(open) => {
+          if (!open && !isSubmittingDeletion) {
+            setPlanPendingDeletion(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar plan</AlertDialogTitle>
+            <AlertDialogDescription>
+              El plan {planPendingDeletion?.name} se eliminará de la lista de
+              planes y quedará guardado para auditoría. Los miembros que
+              todavía tengan este plan serán desasignados automáticamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmittingDeletion}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              disabled={isSubmittingDeletion}
+              className={buttonVariants({ variant: "destructive" })}
+            >
+              {isSubmittingDeletion ? "Eliminando..." : "Eliminar plan"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

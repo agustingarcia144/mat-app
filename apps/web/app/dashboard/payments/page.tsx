@@ -14,14 +14,15 @@ import { Gift, MoreVertical, Plus, UserPlus } from "lucide-react";
 import PaymentReviewQueue from "@/components/features/payments/payment-review-queue";
 import PlanList from "@/components/features/payments/plan-list";
 import PaymentHistoryList from "@/components/features/payments/payment-history-list";
+import BonificationList from "@/components/features/payments/bonification-list";
 import RecordPaymentDialog from "@/components/features/payments/dialogs/record-payment-dialog";
 import AssignPlanDialog from "@/components/features/payments/dialogs/assign-plan-dialog";
 import BonificationDialog from "@/components/features/payments/dialogs/bonification-dialog";
 
 export default function PagosPage() {
-  const [tab, setTab] = useState<"pendientes" | "planes" | "historial">(
-    "pendientes",
-  );
+  const [tab, setTab] = useState<
+    "pendientes" | "planes" | "bonificaciones" | "historial"
+  >("pendientes");
   const [recordOpen, setRecordOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [bonificationOpen, setBonificationOpen] = useState(false);
@@ -73,12 +74,15 @@ export default function PagosPage() {
       <Tabs
         value={tab}
         onValueChange={(v) =>
-          setTab(v as "pendientes" | "planes" | "historial")
+          setTab(
+            v as "pendientes" | "planes" | "bonificaciones" | "historial",
+          )
         }
       >
-        <TabsList>
+        <TabsList className="h-auto max-w-full flex-wrap justify-start">
           <TabsTrigger value="pendientes">Pendientes</TabsTrigger>
           <TabsTrigger value="planes">Planes</TabsTrigger>
+          <TabsTrigger value="bonificaciones">Bonificaciones</TabsTrigger>
           <TabsTrigger value="historial">Historial</TabsTrigger>
         </TabsList>
 
@@ -88,6 +92,10 @@ export default function PagosPage() {
 
         <TabsContent value="planes" className="mt-4">
           <PlanList />
+        </TabsContent>
+
+        <TabsContent value="bonificaciones" className="mt-4">
+          <BonificationList />
         </TabsContent>
 
         <TabsContent value="historial" className="mt-4">
