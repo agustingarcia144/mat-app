@@ -1039,17 +1039,17 @@ export const getChurnMetrics = query({
 
       // Members active at start who are no longer active at end
       const churnedMembers = new Set<string>(
-        [...activeAtStart].filter((id) => !activeAtEnd.has(id)),
+        Array.from(activeAtStart).filter((id) => !activeAtEnd.has(id)),
       );
 
       // Members active at end who were not active at start
       const newMembers = new Set<string>(
-        [...activeAtEnd].filter((id) => !activeAtStart.has(id)),
+        Array.from(activeAtEnd).filter((id) => !activeAtStart.has(id)),
       );
 
       // Members whose active-at-end subs are all suspended
       const suspendedAtEnd = new Set<string>();
-      for (const userId of activeAtEnd) {
+      for (const userId of Array.from(activeAtEnd)) {
         const activeSubs = subscriptions.filter(
           (sub) =>
             sub.userId === userId &&
