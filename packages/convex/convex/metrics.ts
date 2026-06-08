@@ -1019,50 +1019,67 @@ export const getChurnMetrics = query({
 
     const buildPeriodOverview = (period: string) => {
       const { start, end } = getPeriodRange(period);
-      const activeAtStart = subscriptions.filter(
-        (subscription) =>
-          subscription.activatedAt < start &&
-          (typeof subscription.cancelledAt !== "number" ||
-            subscription.cancelledAt >= start),
+
+      const getMemberIdsActiveAt = (timestamp: number) => {
+        const ids = new Set<string>();
+        for (const sub of subscriptions) {
+          if (
+            sub.activatedAt < timestamp &&
+            (typeof sub.cancelledAt !== "number" ||
+              sub.cancelledAt >= timestamp)
+          ) {
+            ids.add(sub.userId);
+          }
+        }
+        return ids;
+      };
+
+      const activeAtStart = getMemberIdsActiveAt(start);
+      const activeAtEnd = getMemberIdsActiveAt(end);
+
+      // Members active at start who are no longer active at end
+      const churnedMembers = new Set<string>(
+        [...activeAtStart].filter((id) => !activeAtEnd.has(id)),
       );
-      const activeAtEnd = subscriptions.filter(
-        (subscription) =>
-          subscription.activatedAt < end &&
-          (typeof subscription.cancelledAt !== "number" ||
-            subscription.cancelledAt >= end),
+
+      // Members active at end who were not active at start
+      const newMembers = new Set<string>(
+        [...activeAtEnd].filter((id) => !activeAtStart.has(id)),
       );
-      const churned = subscriptions.filter(
-        (subscription) =>
-          typeof subscription.cancelledAt === "number" &&
-          subscription.cancelledAt >= start &&
-          subscription.cancelledAt < end,
-      );
-      const newSubscriptions = subscriptions.filter(
-        (subscription) =>
-          subscription.activatedAt >= start && subscription.activatedAt < end,
-      );
-      const suspendedAtEnd = activeAtEnd.filter(
-        (subscription) => subscription.status === "suspended",
-      );
-      const churnBaseMembers = activeAtStart.length + newSubscriptions.length;
+
+      // Members whose active-at-end subs are all suspended
+      const suspendedAtEnd = new Set<string>();
+      for (const userId of activeAtEnd) {
+        const activeSubs = subscriptions.filter(
+          (sub) =>
+            sub.userId === userId &&
+            sub.activatedAt < end &&
+            (typeof sub.cancelledAt !== "number" || sub.cancelledAt >= end),
+        );
+        if (activeSubs.every((sub) => sub.status === "suspended")) {
+          suspendedAtEnd.add(userId);
+        }
+      }
+
+      const churnBaseCount = activeAtStart.size + newMembers.size;
 
       return {
         period,
-        startingMembers: activeAtStart.length,
-        endingMembers: activeAtEnd.length,
-        newMembers: newSubscriptions.length,
-        churnedMembers: churned.length,
-        churnBaseMembers,
-        suspendedMembers: suspendedAtEnd.length,
-        netGrowth: newSubscriptions.length - churned.length,
-        churnRatePct: roundPercentage(churned.length, churnBaseMembers),
+        startingMembers: activeAtStart.size,
+        endingMembers: activeAtEnd.size,
+        newMembers: newMembers.size,
+        churnedMembers: churnedMembers.size,
+        churnBaseMembers: churnBaseCount,
+        suspendedMembers: suspendedAtEnd.size,
+        netGrowth: newMembers.size - churnedMembers.size,
+        churnRatePct: roundPercentage(churnedMembers.size, churnBaseCount),
         retentionRatePct:
-          activeAtStart.length > 0
+          activeAtStart.size > 0
             ? Math.max(
                 0,
                 Math.round(
-                  ((activeAtStart.length - churned.length) /
-                    activeAtStart.length) *
+                  ((activeAtStart.size - churnedMembers.size) /
+                    activeAtStart.size) *
                     1000,
                 ) / 10,
               )

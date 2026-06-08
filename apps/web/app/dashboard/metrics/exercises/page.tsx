@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
-  MessageSquareText,
   Search,
   SlidersHorizontal,
   TrendingDown,
@@ -147,7 +146,7 @@ function formatDate(value?: string | null) {
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("es-AR", {
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
   }).format(date);
 }
@@ -384,9 +383,9 @@ function MetricLineChart({
     .join(" ");
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-xl border bg-background/60 p-3">
-        <svg viewBox={`0 0 ${width} ${height}`} className="h-44 w-full">
+    <div className="space-y-2">
+      <div className="rounded-xl border bg-background/60 p-2">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-52 w-full">
           {axisTicks.map((ratio) => {
             const y =
               paddingTop + (height - paddingTop - paddingBottom) * ratio;
@@ -466,22 +465,6 @@ function MetricLineChart({
         </svg>
       </div>
 
-      <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-4">
-        {coordinates.map((point) => (
-          <div
-            key={`${point.performedOn}-${point.label ?? point.performedOn}-legend`}
-            className="rounded-lg border bg-background/50 px-3 py-2 text-xs"
-          >
-            <p className="font-medium text-foreground">
-              {point.label ?? formatDate(point.performedOn)}
-            </p>
-            <p className="text-muted-foreground">
-              {metric === "weight" ? "Peso" : "Reps"}:{" "}
-              {formatChartValue(point[metric], metric)}
-            </p>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -758,9 +741,6 @@ export default function ExerciseMetricsPage() {
                       </Avatar>
                       <div className="min-w-0 space-y-1">
                         <p className="truncate font-medium">{member.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {member.email ?? "Sin email"}
-                        </p>
                         <p className="text-xs text-muted-foreground">
                           {member.totalSessions} sesiones
                         </p>
@@ -1063,45 +1043,45 @@ export default function ExerciseMetricsPage() {
                                       colSpan={1 + visibleColumns.length}
                                       className="bg-background/40 p-0"
                                     >
-                                      <div className="space-y-5 px-4 py-5">
-                                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                                          <div className="rounded-xl border bg-background/60 p-4">
-                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                      <div className="space-y-3 px-4 py-4">
+                                        <div className="grid grid-cols-5 gap-2">
+                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
+                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                                               Primer peso
                                             </p>
-                                            <p className="mt-2 text-lg font-semibold">
+                                            <p className="mt-1 text-sm font-semibold">
                                               {formatMetricValue(
                                                 exercise.firstWeight,
                                               )}
                                             </p>
                                           </div>
-                                          <div className="rounded-xl border bg-background/60 p-4">
-                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
+                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                                               Ultimo peso
                                             </p>
-                                            <p className="mt-2 text-lg font-semibold">
+                                            <p className="mt-1 text-sm font-semibold">
                                               {formatMetricValue(
                                                 exercise.latestWeight,
                                               )}
                                             </p>
                                           </div>
-                                          <div className="rounded-xl border bg-background/60 p-4">
-                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
+                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                                               Mejor peso
                                             </p>
-                                            <p className="mt-2 text-lg font-semibold">
+                                            <p className="mt-1 text-sm font-semibold">
                                               {formatMetricValue(
                                                 exercise.bestWeight,
                                               )}
                                             </p>
                                           </div>
-                                          <div className="rounded-xl border bg-background/60 p-4">
-                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
+                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                                               Evolucion
                                             </p>
                                             <p
                                               className={cn(
-                                                "mt-2 text-lg font-semibold",
+                                                "mt-1 text-sm font-semibold",
                                                 exercise.weightDelta !== null &&
                                                   exercise.weightDelta > 0 &&
                                                   "text-emerald-600",
@@ -1117,11 +1097,11 @@ export default function ExerciseMetricsPage() {
                                               )}
                                             </p>
                                           </div>
-                                          <div className="rounded-xl border bg-background/60 p-4">
-                                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
+                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                                               Ultimas reps
                                             </p>
-                                            <p className="mt-2 text-lg font-semibold">
+                                            <p className="mt-1 text-sm font-semibold">
                                               {formatMetricValue(
                                                 latestReps,
                                                 "rep",
@@ -1130,20 +1110,13 @@ export default function ExerciseMetricsPage() {
                                           </div>
                                         </div>
 
-                                        <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
-                                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                            <div>
-                                              <p className="font-medium">
-                                                Evolucion por ejercicio
-                                              </p>
-                                              <p className="text-sm text-muted-foreground">
-                                                El grafico resume pesos o
-                                                repeticiones segun la vista
-                                                elegida.
-                                              </p>
-                                            </div>
+                                        <div className="space-y-2 rounded-xl border bg-card/40 p-3">
+                                          <div className="flex items-center justify-between gap-3">
+                                            <p className="text-sm font-medium">
+                                              Evolucion por ejercicio
+                                            </p>
 
-                                            <div className="grid w-full gap-2 md:w-auto md:grid-cols-2">
+                                            <div className="flex gap-2">
                                               <Select
                                                 value={chartMetric}
                                                 onValueChange={(value) =>
@@ -1203,57 +1176,14 @@ export default function ExerciseMetricsPage() {
                                           />
                                         </div>
 
-                                        {exercise.comments?.length ? (
-                                          <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
-                                            <div className="flex items-center gap-2">
-                                              <MessageSquareText className="size-4 text-muted-foreground" />
-                                              <div>
-                                                <p className="font-medium">
-                                                  Comentarios del alumno
-                                                </p>
-                                                <p className="text-sm text-muted-foreground">
-                                                  Notas escritas para este
-                                                  ejercicio en cada fecha.
-                                                </p>
-                                              </div>
-                                            </div>
+<div className="space-y-2 rounded-xl border bg-card/40 p-3">
+                                          <p className="text-sm font-medium">
+                                            Historial
+                                          </p>
 
-                                            <div className="grid gap-3 md:grid-cols-2">
-                                              {exercise.comments.map(
-                                                (comment, index) => (
-                                                  <div
-                                                    key={`${exercise.exerciseId}-${comment.performedOn}-${index}`}
-                                                    className="rounded-xl border bg-background/60 p-3"
-                                                  >
-                                                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                                      {formatDate(
-                                                        comment.performedOn,
-                                                      )}
-                                                    </p>
-                                                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
-                                                      {comment.comment}
-                                                    </p>
-                                                  </div>
-                                                ),
-                                              )}
-                                            </div>
-                                          </div>
-                                        ) : null}
-
-                                        <div className="space-y-3 rounded-2xl border bg-card/40 p-4">
-                                          <div>
-                                            <p className="font-medium">
-                                              Historial
-                                            </p>
-                                            <p className="text-sm text-muted-foreground">
-                                              Fechas, pesos y repeticiones de
-                                              cada registro.
-                                            </p>
-                                          </div>
-
-                                          <div className="overflow-hidden rounded-xl border">
+                                          <div className="max-h-52 overflow-y-auto rounded-xl border">
                                             <Table>
-                                              <TableHeader>
+                                              <TableHeader className="sticky top-0 z-10 bg-card">
                                                 <TableRow>
                                                   <TableHead>Fecha</TableHead>
                                                   <TableHead>Peso</TableHead>
@@ -1298,7 +1228,7 @@ export default function ExerciseMetricsPage() {
                                                         </TableCell>
                                                         <TableCell className="max-w-[360px]">
                                                           {pointComments.length ? (
-                                                            <div className="space-y-2">
+                                                            <div className="space-y-1">
                                                               {pointComments.map(
                                                                 (
                                                                   comment,
@@ -1306,7 +1236,7 @@ export default function ExerciseMetricsPage() {
                                                                 ) => (
                                                                   <p
                                                                     key={`${comment.performedOn}-${index}`}
-                                                                    className="whitespace-pre-wrap text-sm leading-5"
+                                                                    className="whitespace-pre-wrap text-xs leading-4"
                                                                   >
                                                                     {
                                                                       comment.comment
