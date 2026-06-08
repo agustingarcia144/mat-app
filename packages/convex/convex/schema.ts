@@ -148,6 +148,7 @@ export default defineSchema({
     consumedAt: v.optional(v.number()),
     consumedByUserId: v.optional(v.string()),
     consumedOrganizationId: v.optional(v.id("organizations")),
+    billingAccess: v.optional(v.union(v.literal("legacy"), v.literal("lite"))),
     createdBy: v.optional(v.string()),
     metadata: v.optional(
       v.object({

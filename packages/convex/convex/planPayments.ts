@@ -419,8 +419,13 @@ export const getMyCurrentPeriodPayment = query({
       };
     }
 
+    const canUploadProof =
+      payment.paymentMethod !== "bonification" &&
+      (payment.status === "pending" || payment.status === "declined");
+
     return {
       ...payment,
+      canUploadProof,
       payableAmountArs:
         !payment.isBonification &&
         payment.paymentMethod !== "bonification" &&

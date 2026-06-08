@@ -50,11 +50,12 @@ export default function ProofUploadForm() {
       : currentPayment?._id;
   const hasActiveSubscription = subscription?.status === "active";
   const hasUploadableCurrentPayment =
-    currentPayment?.status === "pending" ||
-    currentPayment?.status === "declined";
+    currentPayment?.canUploadProof ??
+    (currentPayment?.status === "pending" ||
+      currentPayment?.status === "declined");
   const canUploadProof =
-    hasActiveSubscription &&
-    (currentPayment === null || hasUploadableCurrentPayment);
+    hasUploadableCurrentPayment ||
+    (hasActiveSubscription && currentPayment === null);
 
   const showPicker = () => {
     const options = [
@@ -230,7 +231,9 @@ export default function ProofUploadForm() {
           el comprobante.
         </ThemedText>
 
-        {currentPayment === null && !hasActiveSubscription ? (
+        {currentPayment === null &&
+        subscription !== undefined &&
+        !canUploadProof ? (
           <ThemedText style={styles.errorText}>
             No hay un pago pendiente disponible para subir comprobante.
           </ThemedText>
