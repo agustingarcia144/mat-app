@@ -9,6 +9,11 @@ import type { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 
 type CodeValidationReason = "invalid" | "expired" | "revoked" | "consumed";
+type OrgCreationBillingAccess = "legacy" | "lite";
+
+const billingAccessV = v.optional(
+  v.union(v.literal("legacy"), v.literal("lite")),
+);
 
 function normalizeInviteCode(value: string): string {
   return value
@@ -231,6 +236,22 @@ export const redeemCodeAndCreateOrganizationInternal = internalMutation({
       updatedAt: now,
     });
 
+    const billingAccess = (
+      code as Doc<"organizationCreationInviteCodes"> & {
+        billingAccess?: OrgCreationBillingAccess;
+      }
+    ).billingAccess;
+    if (billingAccess) {
+      await ctx.runMutation(
+        internal.organizationBilling.activateOrganizationManuallyInternal,
+        {
+          organizationId,
+          planKey: billingAccess === "lite" ? "lite" : "pro",
+          source: billingAccess === "legacy" ? "legacy" : "manual",
+        },
+      );
+    }
+
     return {
       organizationId,
       organizationSlug: slug,
@@ -300,6 +321,7 @@ export const createOrgCreationCodeInternal = internalMutation({
     codeHash: v.string(),
     maxUses: v.number(),
     expiresAt: v.optional(v.number()),
+    billingAccess: billingAccessV,
     createdBy: v.optional(v.string()),
     metadata: v.optional(
       v.object({
@@ -317,6 +339,7 @@ export const createOrgCreationCodeInternal = internalMutation({
       maxUses: Math.max(1, args.maxUses),
       usedCount: 0,
       createdBy: args.createdBy,
+      billingAccess: args.billingAccess,
       metadata: args.metadata,
       createdAt: now,
       updatedAt: now,
@@ -339,6 +362,7 @@ export const createOrgCreationCodeFromPlainCodeInternal: ReturnType<
     code: v.string(),
     maxUses: v.optional(v.number()),
     expiresAt: v.optional(v.number()),
+    billingAccess: billingAccessV,
     createdBy: v.optional(v.string()),
     metadata: v.optional(
       v.object({
@@ -364,6 +388,7 @@ export const createOrgCreationCodeFromPlainCodeInternal: ReturnType<
         codeHash,
         maxUses: Math.max(1, args.maxUses ?? 1),
         expiresAt: args.expiresAt,
+        billingAccess: args.billingAccess,
         createdBy: args.createdBy,
         metadata: args.metadata,
       },
@@ -371,6 +396,7 @@ export const createOrgCreationCodeFromPlainCodeInternal: ReturnType<
     return {
       codeId,
       code: normalizedCode,
+      billingAccess: args.billingAccess ?? null,
     };
   },
 });

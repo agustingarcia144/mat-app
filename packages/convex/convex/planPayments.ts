@@ -85,16 +85,6 @@ function addMonths(year: number, month: number, monthsToAdd: number) {
   return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
 }
 
-function getFirstJoinDateBillingDueAt(activatedAt: number, timezone: string) {
-  const activated = getZonedDateParts(activatedAt, timezone);
-  const firstDueMonth = addMonths(activated.year, activated.month, 1);
-  const firstDueDay = Math.min(
-    activated.day,
-    daysInMonth(firstDueMonth.year, firstDueMonth.month),
-  );
-  return Date.UTC(firstDueMonth.year, firstDueMonth.month - 1, firstDueDay);
-}
-
 function getBillingCycle(
   plan: { billingMode?: BillingMode; paymentWindowEndDay?: number },
   activatedAt: number,
@@ -373,14 +363,6 @@ export const getMyCurrentPeriodPayment = query({
       : null;
     if (!plan || !cycle) return null;
 
-    if (
-      (plan.billingMode ?? "calendar") === "join_date" &&
-      now <
-        getFirstJoinDateBillingDueAt(billingSubscription.activatedAt, timezone)
-    ) {
-      return null;
-    }
-
     const billingPeriod =
       cycle?.billingPeriod ??
       (() => {
@@ -437,8 +419,13 @@ export const getMyCurrentPeriodPayment = query({
       };
     }
 
+    const canUploadProof =
+      payment.paymentMethod !== "bonification" &&
+      (payment.status === "pending" || payment.status === "declined");
+
     return {
       ...payment,
+      canUploadProof,
       payableAmountArs:
         !payment.isBonification &&
         payment.paymentMethod !== "bonification" &&
@@ -1263,17 +1250,6 @@ export const uploadProof = mutation({
 
       const now = Date.now();
       const timezone = getPaymentTimezone(organization?.timezone);
-      if (
-        (plan.billingMode ?? "calendar") === "join_date" &&
-        now <
-          getFirstJoinDateBillingDueAt(
-            billingSubscription.activatedAt,
-            timezone,
-          )
-      ) {
-        throw new Error("Todavía no hay un pago pendiente para este ciclo");
-      }
-
       const cycle = getBillingCycle(
         plan,
         billingSubscription.activatedAt,

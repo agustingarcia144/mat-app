@@ -48,7 +48,14 @@ export default function ProofUploadForm() {
     typeof paymentId === "string" && paymentId.length > 0
       ? paymentId
       : currentPayment?._id;
-  const hasCurrentPayment = currentPayment != null;
+  const hasActiveSubscription = subscription?.status === "active";
+  const hasUploadableCurrentPayment =
+    currentPayment?.canUploadProof ??
+    (currentPayment?.status === "pending" ||
+      currentPayment?.status === "declined");
+  const canUploadProof =
+    hasUploadableCurrentPayment ||
+    (hasActiveSubscription && currentPayment === null);
 
   const showPicker = () => {
     const options = [
@@ -157,7 +164,7 @@ export default function ProofUploadForm() {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !hasCurrentPayment) return;
+    if (!selectedFile || !canUploadProof) return;
 
     setUploading(true);
     try {
@@ -224,7 +231,9 @@ export default function ProofUploadForm() {
           el comprobante.
         </ThemedText>
 
-        {currentPayment === null ? (
+        {currentPayment === null &&
+        subscription !== undefined &&
+        !canUploadProof ? (
           <ThemedText style={styles.errorText}>
             No hay un pago pendiente disponible para subir comprobante.
           </ThemedText>
@@ -356,7 +365,7 @@ export default function ProofUploadForm() {
           type="secondary"
           style={styles.selectButton}
           onPress={showPicker}
-          disabled={uploading || !hasCurrentPayment}
+          disabled={uploading || !canUploadProof}
         >
           <Text
             style={[styles.selectText, { color: isDark ? "#fff" : "#000" }]}
@@ -371,7 +380,7 @@ export default function ProofUploadForm() {
             type="primary"
             style={styles.uploadButton}
             onPress={handleUpload}
-            disabled={uploading || !hasCurrentPayment}
+            disabled={uploading || !canUploadProof}
           >
             {uploading ? (
               <ActivityIndicator color="#fff" />
