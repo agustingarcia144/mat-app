@@ -60,9 +60,15 @@ function getDaysAfterPaymentWindow(
   const billingMonth = parseInt(monthStr!, 10);
   const nowParts = getZonedDateParts(nowMs, timezone);
 
-  const dueParts = dueAt ? getZonedDateParts(dueAt, timezone) : null;
-  const windowEndDateMs = dueParts
-    ? Date.UTC(dueParts.year, dueParts.month - 1, dueParts.day)
+  // dueAt is stored as Date.UTC(year, month-1, day) so use UTC components directly.
+  // Using timezone-converted parts would shift the day in negative-offset timezones (e.g. ART UTC-3),
+  // making midnight UTC resolve to the previous local day and shortening the payment window by one day.
+  const windowEndDateMs = dueAt !== undefined
+    ? Date.UTC(
+        new Date(dueAt).getUTCFullYear(),
+        new Date(dueAt).getUTCMonth(),
+        new Date(dueAt).getUTCDate(),
+      )
     : Date.UTC(billingYear, billingMonth - 1, paymentWindowEndDay);
   const currentLocalDateMs = Date.UTC(
     nowParts.year,
@@ -238,7 +244,7 @@ function computeInterest(
   return { applied, totalArs, totalAmount: baseAmount + totalArs };
 }
 
-function getInterestFields(interest: {
+export function getInterestFields(interest: {
   applied: AppliedTier[];
   totalArs: number;
   totalAmount: number;
@@ -250,7 +256,7 @@ function getInterestFields(interest: {
   };
 }
 
-async function computePaymentInterest(
+export async function computePaymentInterest(
   ctx: { db: any },
   payment: {
     organizationId: Id<"organizations">;

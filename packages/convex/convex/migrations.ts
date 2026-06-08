@@ -2,6 +2,10 @@ import { internalAction, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
+import {
+  computePaymentInterest,
+  getInterestFields,
+} from "./planPayments";
 
 /**
  * Migration: Wrap existing workout days in "Semana 1"
@@ -708,6 +712,105 @@ export const deleteUsersMissingInClerk = internalAction({
       missingInClerk: missingExternalIds.length,
       deletedUsers: deleted,
       sampleMissingExternalIds: missingExternalIds.slice(0, 50),
+    };
+  },
+});
+
+/**
+ * Migration: recompute interest on in-review plan payments.
+ *
+ * Fixes payments whose interest was computed with the old timezone-shifted
+ * payment-window logic (which charged interest one day early in negative-offset
+ * timezones, e.g. day 8 of a "1 al 8" window). Recomputes using the same logic
+ * the approve flow uses (`computePaymentInterest` anchored on `proofUploadedAt`)
+ * and patches `interestApplied` / `interestTotalArs` / `totalAmountArs`.
+ *
+ * Scope with `organizationId` to validate on one gym first, then run org-wide.
+ * Run with `dryRun: true` first, then `dryRun: false`.
+ */
+export const recomputeInReviewPaymentInterest = internalMutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+    organizationId: v.optional(v.id("organizations")),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? true;
+    const now = Date.now();
+
+    const payments = args.organizationId
+      ? await ctx.db
+          .query("planPayments")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", args.organizationId!),
+          )
+          .collect()
+      : await ctx.db.query("planPayments").collect();
+
+    const summary = {
+      organizationId: args.organizationId ? String(args.organizationId) : null,
+      scanned: payments.length,
+      inReview: 0,
+      changed: 0,
+      unchanged: 0,
+      patched: 0,
+      samples: [] as Array<{
+        paymentId: string;
+        beforeTotalArs: number;
+        afterTotalArs: number;
+        beforeInterestArs: number;
+        afterInterestArs: number;
+      }>,
+    };
+
+    for (const payment of payments) {
+      if (payment.status !== "in_review") continue;
+      summary.inReview += 1;
+
+      const interest = await computePaymentInterest(
+        ctx,
+        payment,
+        payment.proofUploadedAt ?? now,
+      );
+      const fields = getInterestFields(interest);
+
+      const beforeInterestArs = payment.interestTotalArs ?? 0;
+      const afterInterestArs = fields.interestTotalArs ?? 0;
+      const beforeTotalArs = payment.totalAmountArs ?? payment.amountArs;
+      const afterTotalArs = fields.totalAmountArs;
+
+      const isChanged =
+        beforeInterestArs !== afterInterestArs ||
+        beforeTotalArs !== afterTotalArs;
+
+      if (!isChanged) {
+        summary.unchanged += 1;
+        continue;
+      }
+
+      summary.changed += 1;
+      if (summary.samples.length < 50) {
+        summary.samples.push({
+          paymentId: String(payment._id),
+          beforeTotalArs,
+          afterTotalArs,
+          beforeInterestArs,
+          afterInterestArs,
+        });
+      }
+
+      if (!dryRun) {
+        await ctx.db.patch(payment._id, {
+          ...fields,
+          updatedAt: now,
+        });
+        summary.patched += 1;
+      }
+    }
+
+    return {
+      success: true,
+      dryRun,
+      ...summary,
     };
   },
 });
