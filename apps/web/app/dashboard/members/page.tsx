@@ -6,6 +6,7 @@ import { api } from '@/convex/_generated/api'
 import { DataTable } from '@/components/ui/data-table'
 import {
   getColumns,
+  isBirthdayToday,
   type MemberTableRow,
 } from '@/components/features/members/table/columns'
 import { mapMembershipsToMembers } from '@repo/core/utils'
@@ -223,19 +224,27 @@ export default function MembersPage() {
       )
     })
 
+    const birthdayFirst = (a: FilterableMemberTableRow, b: FilterableMemberTableRow) => {
+      const aB = isBirthdayToday(a.birthday) ? 0 : 1
+      const bB = isBirthdayToday(b.birthday) ? 0 : 1
+      return aB - bB
+    }
+
     if (nameOrder === 'asc') {
       return [...filtered].sort((a, b) =>
+        birthdayFirst(a, b) ||
         a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
       )
     }
 
     if (nameOrder === 'desc') {
       return [...filtered].sort((a, b) =>
+        birthdayFirst(a, b) ||
         b.name.localeCompare(a.name, 'es', { sensitivity: 'base' })
       )
     }
 
-    return filtered
+    return [...filtered].sort(birthdayFirst)
   }, [
     createdFrom,
     createdTo,
