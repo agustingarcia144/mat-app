@@ -2,10 +2,7 @@ import { internalAction, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
-import {
-  computePaymentInterest,
-  getInterestFields,
-} from "./planPayments";
+import { computePaymentInterest, getInterestFields } from "./planPayments";
 
 /**
  * Migration: Wrap existing workout days in "Semana 1"
@@ -236,6 +233,388 @@ export const backfillPlanificationRevisions = internalMutation({
 });
 
 const BATCH_SIZE = 500;
+
+type DeleteOldOrganizationsSummary = {
+  organizationsRequested: number;
+  organizationsFound: number;
+  organizationsDeleted: number;
+  usersActiveOrganizationCleared: number;
+  creationInviteCodesCleared: number;
+  storageObjectsDeleted: number;
+  storageDeleteFailures: number;
+  deleted: Record<string, number>;
+};
+
+function incrementDeleted(
+  summary: DeleteOldOrganizationsSummary,
+  table: string,
+  count = 1,
+) {
+  summary.deleted[table] = (summary.deleted[table] ?? 0) + count;
+}
+
+/**
+ * Maintenance: hard-delete old organizations that are no longer in use.
+ *
+ * This removes the organization row and all known Convex-owned data attached to
+ * it. Run with dryRun first to inspect counts, then dryRun false.
+ */
+export const deleteOldUnusedOrganizations = internalMutation({
+  args: {
+    organizationIds: v.array(v.id("organizations")),
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? true;
+    const summary: DeleteOldOrganizationsSummary = {
+      organizationsRequested: args.organizationIds.length,
+      organizationsFound: 0,
+      organizationsDeleted: 0,
+      usersActiveOrganizationCleared: 0,
+      creationInviteCodesCleared: 0,
+      storageObjectsDeleted: 0,
+      storageDeleteFailures: 0,
+      deleted: {},
+    };
+
+    for (const organizationId of args.organizationIds) {
+      const organization = await ctx.db.get(organizationId);
+      if (!organization) continue;
+      summary.organizationsFound += 1;
+
+      const planifications = await ctx.db
+        .query("planifications")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+      const workoutWeeks = [];
+      const workoutDays = [];
+      const planificationRevisions = [];
+      for (const planification of planifications) {
+        workoutWeeks.push(
+          ...(await ctx.db
+            .query("workoutWeeks")
+            .withIndex("by_planification", (q) =>
+              q.eq("planificationId", planification._id),
+            )
+            .collect()),
+        );
+        workoutDays.push(
+          ...(await ctx.db
+            .query("workoutDays")
+            .withIndex("by_planification", (q) =>
+              q.eq("planificationId", planification._id),
+            )
+            .collect()),
+        );
+        planificationRevisions.push(
+          ...(await ctx.db
+            .query("planificationRevisions")
+            .withIndex("by_planification", (q) =>
+              q.eq("planificationId", planification._id),
+            )
+            .collect()),
+        );
+      }
+
+      const exerciseBlocks = [];
+      const dayExercises = [];
+      for (const workoutDay of workoutDays) {
+        exerciseBlocks.push(
+          ...(await ctx.db
+            .query("exerciseBlocks")
+            .withIndex("by_workout_day", (q) =>
+              q.eq("workoutDayId", workoutDay._id),
+            )
+            .collect()),
+        );
+        dayExercises.push(
+          ...(await ctx.db
+            .query("dayExercises")
+            .withIndex("by_workout_day", (q) =>
+              q.eq("workoutDayId", workoutDay._id),
+            )
+            .collect()),
+        );
+      }
+
+      const assignments = await ctx.db
+        .query("planificationAssignments")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+      const workoutSessions = await ctx.db
+        .query("workoutDaySessions")
+        .withIndex("by_organization_performedOn", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+      const workoutSessionIds = new Set(workoutSessions.map((row) => row._id));
+
+      const sessionExerciseLogs = [];
+      for (const workoutSession of workoutSessions) {
+        sessionExerciseLogs.push(
+          ...(await ctx.db
+            .query("sessionExerciseLogs")
+            .withIndex("by_session", (q) =>
+              q.eq("sessionId", workoutSession._id),
+            )
+            .collect()),
+        );
+      }
+
+      const classes = await ctx.db
+        .query("classes")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+      const scheduleBatches = await ctx.db
+        .query("scheduleBatches")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const classSchedules = await ctx.db
+        .query("classSchedules")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+      const classScheduleIds = new Set(classSchedules.map((row) => row._id));
+
+      const classReservations = await ctx.db
+        .query("classReservations")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const fixedClassSlots = await ctx.db
+        .query("fixedClassSlots")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const modelWeekSlots = await ctx.db
+        .query("modelWeekSlots")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const classAlerts = await ctx.db
+        .query("classAlerts")
+        .filter((q) => q.eq(q.field("organizationId"), organizationId))
+        .collect();
+
+      const organizationBillingSubscriptions = await ctx.db
+        .query("organizationBillingSubscriptions")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const membershipPlans = await ctx.db
+        .query("membershipPlans")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const memberPlanSubscriptions = await ctx.db
+        .query("memberPlanSubscriptions")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const planPayments = await ctx.db
+        .query("planPayments")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+      const planPaymentIds = new Set(planPayments.map((row) => row._id));
+
+      const financeRecurringRules = await ctx.db
+        .query("financeRecurringRules")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const financeTransactions = await ctx.db
+        .query("financeTransactions")
+        .filter((q) => q.eq(q.field("organizationId"), organizationId))
+        .collect();
+
+      const planBonifications = await ctx.db
+        .query("planBonifications")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const directOrgTables = {
+        organizationMemberships: await ctx.db
+          .query("organizationMemberships")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", organizationId),
+          )
+          .collect(),
+        organizationJoinRequests: await ctx.db
+          .query("organizationJoinRequests")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", organizationId),
+          )
+          .collect(),
+        organizationSettings: await ctx.db
+          .query("organizationSettings")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", organizationId),
+          )
+          .collect(),
+        organizationInvitations: await ctx.db
+          .query("organizationInvitations")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", organizationId),
+          )
+          .collect(),
+        organizationMemberInviteCodes: await ctx.db
+          .query("organizationMemberInviteCodes")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", organizationId),
+          )
+          .collect(),
+        exercises: await ctx.db
+          .query("exercises")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", organizationId),
+          )
+          .collect(),
+        folders: await ctx.db
+          .query("folders")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", organizationId),
+          )
+          .collect(),
+      };
+
+      const allNotificationEvents = await ctx.db
+        .query("notificationEvents")
+        .collect();
+      const notificationEvents = allNotificationEvents.filter(
+        (event) =>
+          (event.scheduleId && classScheduleIds.has(event.scheduleId)) ||
+          (event.workoutSessionId &&
+            workoutSessionIds.has(event.workoutSessionId)) ||
+          (event.paymentId && planPaymentIds.has(event.paymentId)),
+      );
+
+      const usersWithActiveOrganization = await ctx.db
+        .query("users")
+        .filter((q) => q.eq(q.field("activeOrganizationId"), organizationId))
+        .collect();
+
+      const creationInviteCodes = await ctx.db
+        .query("organizationCreationInviteCodes")
+        .filter((q) => q.eq(q.field("consumedOrganizationId"), organizationId))
+        .collect();
+
+      const deleteRows = async (
+        table: string,
+        rows: Array<{ _id: Id<any> }>,
+      ) => {
+        incrementDeleted(summary, table, rows.length);
+        if (dryRun) return;
+        for (const row of rows) {
+          await ctx.db.delete(row._id);
+        }
+      };
+
+      const proofStorageIds = planPayments
+        .map((payment) => payment.proofStorageId)
+        .filter((storageId): storageId is Id<"_storage"> => Boolean(storageId));
+
+      await deleteRows("notificationEvents", notificationEvents);
+      await deleteRows("sessionExerciseLogs", sessionExerciseLogs);
+      await deleteRows("workoutDaySessions", workoutSessions);
+      await deleteRows("planificationAssignments", assignments);
+      await deleteRows("dayExercises", dayExercises);
+      await deleteRows("exerciseBlocks", exerciseBlocks);
+      await deleteRows("workoutDays", workoutDays);
+      await deleteRows("workoutWeeks", workoutWeeks);
+      await deleteRows("planificationRevisions", planificationRevisions);
+      await deleteRows("planifications", planifications);
+      await deleteRows("classAlerts", classAlerts);
+      await deleteRows("classReservations", classReservations);
+      await deleteRows("classSchedules", classSchedules);
+      await deleteRows("fixedClassSlots", fixedClassSlots);
+      await deleteRows("modelWeekSlots", modelWeekSlots);
+      await deleteRows("scheduleBatches", scheduleBatches);
+      await deleteRows("classes", classes);
+      await deleteRows(
+        "organizationBillingSubscriptions",
+        organizationBillingSubscriptions,
+      );
+      await deleteRows("planPayments", planPayments);
+      await deleteRows("planBonifications", planBonifications);
+      await deleteRows("memberPlanSubscriptions", memberPlanSubscriptions);
+      await deleteRows("membershipPlans", membershipPlans);
+      await deleteRows("financeTransactions", financeTransactions);
+      await deleteRows("financeRecurringRules", financeRecurringRules);
+
+      for (const [table, rows] of Object.entries(directOrgTables)) {
+        await deleteRows(table, rows);
+      }
+
+      summary.usersActiveOrganizationCleared +=
+        usersWithActiveOrganization.length;
+      summary.creationInviteCodesCleared += creationInviteCodes.length;
+
+      if (!dryRun) {
+        for (const user of usersWithActiveOrganization) {
+          await ctx.db.patch(user._id, {
+            activeOrganizationId: undefined,
+            updatedAt: Date.now(),
+          });
+        }
+        for (const code of creationInviteCodes) {
+          await ctx.db.patch(code._id, {
+            consumedOrganizationId: undefined,
+            updatedAt: Date.now(),
+          });
+        }
+        for (const storageId of [
+          ...proofStorageIds,
+          ...(organization.logoStorageId ? [organization.logoStorageId] : []),
+        ]) {
+          try {
+            await ctx.storage.delete(storageId);
+            summary.storageObjectsDeleted += 1;
+          } catch {
+            summary.storageDeleteFailures += 1;
+          }
+        }
+        await ctx.db.delete(organizationId);
+        summary.organizationsDeleted += 1;
+      }
+
+      incrementDeleted(summary, "organizations");
+    }
+
+    return {
+      success: true,
+      dryRun,
+      ...summary,
+    };
+  },
+});
 
 /**
  * Migration: Delete every class and all related records (classSchedules, classReservations).

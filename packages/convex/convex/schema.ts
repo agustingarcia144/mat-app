@@ -71,7 +71,6 @@ export default defineSchema({
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
-    inactivatedAt: v.optional(v.number()),
   })
     .index("by_organization", ["organizationId"])
     .index("by_user", ["userId"])
