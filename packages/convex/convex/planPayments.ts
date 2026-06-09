@@ -60,9 +60,15 @@ function getDaysAfterPaymentWindow(
   const billingMonth = parseInt(monthStr!, 10);
   const nowParts = getZonedDateParts(nowMs, timezone);
 
-  const dueParts = dueAt ? getZonedDateParts(dueAt, timezone) : null;
-  const windowEndDateMs = dueParts
-    ? Date.UTC(dueParts.year, dueParts.month - 1, dueParts.day)
+  // dueAt is stored as Date.UTC(year, month-1, day) so use UTC components directly.
+  // Using timezone-converted parts would shift the day in negative-offset timezones (e.g. ART UTC-3),
+  // making midnight UTC resolve to the previous local day and shortening the payment window by one day.
+  const windowEndDateMs = dueAt !== undefined
+    ? Date.UTC(
+        new Date(dueAt).getUTCFullYear(),
+        new Date(dueAt).getUTCMonth(),
+        new Date(dueAt).getUTCDate(),
+      )
     : Date.UTC(billingYear, billingMonth - 1, paymentWindowEndDay);
   const currentLocalDateMs = Date.UTC(
     nowParts.year,
@@ -238,7 +244,7 @@ function computeInterest(
   return { applied, totalArs, totalAmount: baseAmount + totalArs };
 }
 
-function getInterestFields(interest: {
+export function getInterestFields(interest: {
   applied: AppliedTier[];
   totalArs: number;
   totalAmount: number;
@@ -250,7 +256,7 @@ function getInterestFields(interest: {
   };
 }
 
-async function computePaymentInterest(
+export async function computePaymentInterest(
   ctx: { db: any },
   payment: {
     organizationId: Id<"organizations">;
@@ -1101,6 +1107,37 @@ export const getOrganizationMetrics = query({
             ? Math.round((selectedNetResultArs / selectedIncomeArs) * 1000) / 10
             : null,
         hasExpenseData,
+        incomeDeltaArs: comparison?.totalIncomeDeltaArs ?? null,
+        expenseDeltaArs: comparison?.expenseDeltaArs ?? null,
+        netResultDeltaArs: comparison?.netResultDeltaArs ?? null,
+        incomeTrend: (() => {
+          const otherPeriods = monthlyOverview
+            .filter((m) => m.billingPeriod !== selectedPeriod)
+            .slice(0, 6);
+          if (otherPeriods.length === 0) return null;
+          const avg =
+            otherPeriods.reduce((sum, m) => sum + m.totalIncomeArs, 0) /
+            otherPeriods.length;
+          if (avg === 0) return null;
+          return {
+            avgIncomeArs: Math.round(avg),
+            periodCount: otherPeriods.length,
+            trendPct:
+              Math.round(((selectedIncomeArs - avg) / avg) * 1000) / 10,
+          };
+        })(),
+        expenseByCategory: Object.entries(
+          selectedExpenseTransactions.reduce<Record<string, number>>(
+            (acc, t) => {
+              const key = t.category.trim() || "Sin categoría";
+              acc[key] = (acc[key] ?? 0) + t.amountArs;
+              return acc;
+            },
+            {},
+          ),
+        )
+          .map(([category, amountArs]) => ({ category, amountArs }))
+          .sort((a, b) => b.amountArs - a.amountArs),
       },
       paymentMethods,
       planBreakdown: Array.from(planBreakdown.values())

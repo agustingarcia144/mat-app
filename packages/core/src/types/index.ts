@@ -135,7 +135,8 @@ export type Member = {
   status: string;
   usesPlanification?: boolean;
   createdAt: Date | string | number;
-  birthDate?: Date | string | number;
+  birthday?: string;
+  phone?: string;
   joinedAt?: Date | string | number;
 };
 
@@ -156,7 +157,8 @@ export type MembershipData = {
   email?: string;
   imageUrl?: string;
   username?: string;
-  birthDate?: number | string | Date;
+  birthday?: string;
+  phone?: string;
 };
 
 /**

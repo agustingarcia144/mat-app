@@ -4,16 +4,22 @@ import Link from "next/link";
 import { useState, type ComponentType } from "react";
 import { useQuery } from "convex/react";
 import {
-  AlertCircle,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
-  CheckCircle2,
-  Clock3,
   Landmark,
-  Percent,
-  ShieldAlert,
 } from "lucide-react";
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,9 +128,11 @@ function MetricCard({
 function DeltaPill({
   value,
   kind,
+  invert = false,
 }: {
   value?: number | null;
   kind?: "currency" | "percent" | "count";
+  invert?: boolean;
 }) {
   if (value === null || value === undefined) {
     return (
@@ -136,23 +144,152 @@ function DeltaPill({
 
   const isPositive = value > 0;
   const isNegative = value < 0;
+  const isGood = invert ? isNegative : isPositive;
+  const isBad = invert ? isPositive : isNegative;
 
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs",
-        isPositive &&
-          "border-emerald-500/30 bg-emerald-500/10 text-emerald-600",
-        isNegative && "border-red-500/30 bg-red-500/10 text-red-600",
-        !isPositive &&
-          !isNegative &&
-          "border-blue-500/30 bg-blue-500/10 text-blue-600",
+        isGood && "border-emerald-500/30 bg-emerald-500/10 text-emerald-600",
+        isBad && !invert && "border-red-500/30 bg-red-500/10 text-red-600",
+        isBad && invert && "border-orange-500/30 bg-orange-500/10 text-orange-600",
+        !isPositive && !isNegative && "border-blue-500/30 bg-blue-500/10 text-blue-600",
       )}
     >
       {isPositive ? <ArrowUp className="size-3" /> : null}
       {isNegative ? <ArrowDown className="size-3" /> : null}
       {formatDelta(value, kind)}
     </span>
+  );
+}
+
+type MonthlyOverviewItem = {
+  billingPeriod: string;
+  totalIncomeArs: number;
+  expenseArs: number;
+  netResultArs: number;
+  collectionRatePct: number;
+};
+
+function MonthlyFinanceChart({
+  monthlyOverview,
+}: {
+  monthlyOverview: MonthlyOverviewItem[];
+}) {
+  const chartData = [...monthlyOverview]
+    .reverse()
+    .map((item) => ({
+      period: formatBillingPeriod(item.billingPeriod),
+      rawPeriod: item.billingPeriod,
+      Ingresos: item.totalIncomeArs,
+      Egresos: item.expenseArs > 0 ? item.expenseArs : null,
+      rentabilidad:
+        item.totalIncomeArs > 0 && item.expenseArs > 0
+          ? Math.round(
+              ((item.totalIncomeArs - item.expenseArs) /
+                item.totalIncomeArs) *
+                1000,
+            ) / 10
+          : null,
+    }));
+
+  const hasAnyExpense = chartData.some((d) => d.Egresos !== null);
+
+  return (
+    <Card className="bg-card/70">
+      <CardHeader>
+        <CardTitle>Ingresos, egresos y rentabilidad mensual</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Comparacion mensual de ingresos vs egresos con porcentaje de
+          rentabilidad.{" "}
+          {!hasAnyExpense && (
+            <span className="text-amber-600">
+              · Sin egresos registrados en ningún periodo mostrado.
+            </span>
+          )}
+        </p>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={320}>
+          <ComposedChart
+            data={chartData}
+            margin={{ top: 8, right: 24, left: 0, bottom: 8 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+            <XAxis
+              dataKey="period"
+              tick={{ fontSize: 11 }}
+              tickFormatter={(v: string) => {
+                const parts = v.split(" ");
+                return parts[0]
+                  ? parts[0].charAt(0).toUpperCase() + parts[0].slice(0, 3)
+                  : v;
+              }}
+            />
+            <YAxis
+              yAxisId="money"
+              tickFormatter={(v: number) =>
+                v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`
+              }
+              tick={{ fontSize: 11 }}
+              width={56}
+            />
+            <YAxis
+              yAxisId="pct"
+              orientation="right"
+              tickFormatter={(v: number) => `${v}%`}
+              tick={{ fontSize: 11 }}
+              domain={[-100, 100]}
+              width={44}
+            />
+            <Tooltip
+              formatter={(value, name) => {
+                const v = Number(value);
+                if (name === "rentabilidad")
+                  return [`${v}%`, "Rentabilidad"];
+return [
+                  `$${Math.round(v).toLocaleString("es-AR")}`,
+                  String(name),
+                ];
+              }}
+              contentStyle={{
+                fontSize: 12,
+                borderRadius: 8,
+              }}
+            />
+            <Legend
+              formatter={(value: string) =>
+                value === "rentabilidad" ? "Rentabilidad %" : value
+              }
+            />
+            <Bar
+              yAxisId="money"
+              dataKey="Ingresos"
+              fill="#10b981"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={40}
+            />
+            <Bar
+              yAxisId="money"
+              dataKey="Egresos"
+              fill="#ef4444"
+              radius={[3, 3, 0, 0]}
+              maxBarSize={40}
+            />
+<Line
+              yAxisId="pct"
+              type="monotone"
+              dataKey="rentabilidad"
+              stroke="#6366f1"
+              strokeWidth={2}
+              dot={{ r: 4, fill: "#6366f1" }}
+              connectNulls={false}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -207,7 +344,6 @@ export default function PaymentMetricsPage() {
   }
 
   const {
-    overview,
     paymentMethods,
     planBreakdown,
     monthlyOverview,
@@ -236,6 +372,7 @@ export default function PaymentMetricsPage() {
         </div>
       </div>
 
+      {/* 1. Balance del periodo */}
       <section className="space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -247,7 +384,6 @@ export default function PaymentMetricsPage() {
                 : ""}
             </p>
           </div>
-
           <div className="w-full md:w-72">
             <Select
               value={data.selectedPeriod}
@@ -267,121 +403,225 @@ export default function PaymentMetricsPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
           <Card className="bg-card/80">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Landmark className="size-4 text-emerald-600" />
+            <CardHeader className="pb-2 pt-4">
+              <CardTitle className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
+                <Landmark className="size-3.5 text-emerald-600" />
                 Resumen principal
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border bg-emerald-500/5 p-5">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Dinero que ingreso
+            <CardContent className="space-y-3 pb-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border bg-emerald-500/5 px-4 py-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Ingresos totales
                   </p>
-                  <p className="mt-3 text-4xl font-semibold text-emerald-600">
-                    {formatCurrency(financialBalance.incomeArs)}
-                  </p>
-                  <div className="mt-3">
+                  <div className="mt-1.5 flex items-baseline gap-3">
+                    <p className="text-3xl font-semibold text-emerald-600">
+                      {formatCurrency(financialBalance.incomeArs)}
+                    </p>
                     <DeltaPill
-                      value={comparison?.totalIncomeDeltaArs}
+                      value={financialBalance.incomeDeltaArs}
                       kind="currency"
                     />
                   </div>
                 </div>
 
-                <div className="rounded-2xl border bg-background/60 p-5">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Rentabilidad del gimnasio
+                <div className="rounded-xl border bg-red-500/5 px-4 py-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Egresos totales
                   </p>
-                  <p className="mt-3 text-4xl font-semibold">
-                    {formatPercent(financialBalance.profitabilityPct)}
+                  <div className="mt-1.5 flex items-baseline gap-3">
+                    <p className="text-3xl font-semibold text-red-600">
+                      {formatCurrency(financialBalance.expenseArs)}
+                    </p>
+                    <DeltaPill
+                      value={financialBalance.expenseDeltaArs}
+                      kind="currency"
+                      invert
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border bg-background/60 px-4 py-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Resultado neto
                   </p>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {financialBalance.hasExpenseData
-                      ? "Calculada sobre ingresos y egresos reales."
-                      : "Sin egresos registrados para este periodo."}
-                  </p>
+                  <div className="mt-1.5 flex items-baseline gap-3">
+                    <p className={cn(
+                      "text-3xl font-semibold",
+                      financialBalance.netResultArs >= 0 ? "text-emerald-600" : "text-red-600"
+                    )}>
+                      {formatCurrency(financialBalance.netResultArs)}
+                    </p>
+                    <DeltaPill
+                      value={financialBalance.netResultDeltaArs}
+                      kind="currency"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                <div className="rounded-xl border bg-background/50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Membresias
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-emerald-600">
+
+              <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+                <div className="rounded-lg border bg-background/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Membresias</p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-600">
                     {formatCurrency(financialBalance.membershipIncomeArs)}
                   </p>
                 </div>
 
-                <div className="rounded-xl border bg-background/50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Otros ingresos
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-emerald-600">
+                <div className="rounded-lg border bg-background/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Otros ingresos</p>
+                  <p className="mt-1 text-lg font-semibold text-emerald-600">
                     {formatCurrency(financialBalance.otherIncomeArs)}
                   </p>
                 </div>
 
-                <div className="rounded-xl border bg-background/50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Ingresos por interes
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-blue-600">
+                <div className="rounded-lg border bg-background/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Interes</p>
+                  <p className="mt-1 text-lg font-semibold text-blue-600">
                     {formatCurrency(financialBalance.interestIncomeArs)}
                   </p>
                 </div>
 
-                <div className="rounded-xl border bg-background/50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Egresos
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold text-amber-600">
-                    {formatCurrency(financialBalance.expenseArs)}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border bg-background/50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Resultado neto
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold">
-                    {formatCurrency(financialBalance.netResultArs)}
+                <div className="rounded-lg border bg-background/50 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">Rentabilidad</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {financialBalance.hasExpenseData
+                      ? formatPercent(financialBalance.profitabilityPct)
+                      : "-"}
                   </p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid gap-4">
-            <MetricCard
-              title="Cobranza del periodo"
-              value={formatPercent(selectedOverview?.collectionRatePct ?? 0)}
-              detail={`${formatCurrency(selectedOverview?.approvedAmountArs)} cobrados sobre ${formatCurrency(selectedOverview?.expectedAmountArs)}`}
-              icon={Percent}
-              tone="green"
-            />
-            <MetricCard
-              title="Pagos aprobados"
-              value={`${selectedOverview?.approvedPayments ?? 0}`}
-              detail="Cantidad de pagos aprobados en el periodo"
-              icon={CheckCircle2}
-              tone="green"
-            />
-            <MetricCard
-              title="Pendientes y revision"
-              value={`${(selectedOverview?.pendingPayments ?? 0) + (selectedOverview?.inReviewPayments ?? 0)}`}
-              detail="Pagos todavia no cerrados del periodo"
-              icon={Clock3}
-              tone="amber"
-            />
-          </div>
+          {/* Desglose de egresos por categoria */}
+          <Card className="bg-card/80">
+            <CardHeader className="pb-2 pt-4">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Egresos por categoría
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pb-4">
+              {(financialBalance.expenseByCategory ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Sin egresos registrados para este periodo.
+                </p>
+              ) : (
+                <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+                  {(financialBalance.expenseByCategory ?? []).map((item) => (
+                    <div key={item.category} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium truncate pr-2">{item.category}</span>
+                        <span className="text-red-600 font-medium shrink-0">
+                          {formatCurrency(item.amountArs)}
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted">
+                        <div
+                          className="h-1.5 rounded-full bg-red-500/70 transition-all"
+                          style={{
+                            width: `${financialBalance.expenseArs > 0 ? Math.min((item.amountArs / financialBalance.expenseArs) * 100, 100) : 0}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </section>
 
+      {/* 2. Grafico mensual */}
+      <section>
+        <MonthlyFinanceChart monthlyOverview={monthlyOverview} />
+      </section>
+
+      {/* 3. Metodos de pago + Rendimiento por plan */}
+      <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="bg-card/70">
+          <CardHeader>
+            <CardTitle>Metodos de pago</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {paymentMethods.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Todavia no hay metodos de pago registrados en la base.
+              </p>
+            ) : (
+              paymentMethods.map((method) => (
+                <div key={method.method} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">
+                      {formatPaymentMethod(method.method)}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {formatPercent(method.percentage)} · {method.count}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted">
+                    <div
+                      className="h-2 rounded-full bg-primary transition-all"
+                      style={{ width: `${Math.min(method.percentage, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/70 flex flex-col">
+          <CardHeader>
+            <CardTitle>Rendimiento por plan</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 flex-1">
+            <div className="max-h-64 overflow-y-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-card z-10">
+                  <TableRow>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Miembros</TableHead>
+                    <TableHead>Cobrado</TableHead>
+                    <TableHead>% de cobro</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {planBreakdown.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-muted-foreground px-4">
+                        No hay planes activos para resumir.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    planBreakdown.map((plan) => (
+                      <TableRow key={plan.planId}>
+                        <TableCell className="font-medium">
+                          {plan.planName}
+                        </TableCell>
+                        <TableCell>{plan.members}</TableCell>
+                        <TableCell>
+                          {formatCurrency(plan.approvedRevenueArs)}
+                        </TableCell>
+                        <TableCell>
+                          {formatPercent(plan.collectionRatePct)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* 4. Comparacion con el mes anterior */}
       <section className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold">Comparacion mensual</h2>
@@ -390,24 +630,7 @@ export default function PaymentMetricsPage() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="bg-card/70">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Ingresos vs mes anterior
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-2xl font-semibold">
-                {formatCurrency(selectedOverview?.totalIncomeArs)}
-              </p>
-              <DeltaPill
-                value={comparison?.totalIncomeDeltaArs}
-                kind="currency"
-              />
-            </CardContent>
-          </Card>
-
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Card className="bg-card/70">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -462,82 +685,7 @@ export default function PaymentMetricsPage() {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card className="bg-card/70">
-          <CardHeader>
-            <CardTitle>Metodos de pago</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {paymentMethods.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Todavia no hay metodos de pago registrados en la base.
-              </p>
-            ) : (
-              paymentMethods.map((method) => (
-                <div key={method.method} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">
-                      {formatPaymentMethod(method.method)}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {formatPercent(method.percentage)} · {method.count}
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted">
-                    <div
-                      className="h-2 rounded-full bg-primary transition-all"
-                      style={{ width: `${Math.min(method.percentage, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/70">
-          <CardHeader>
-            <CardTitle>Rendimiento por plan</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Miembros</TableHead>
-                  <TableHead>Cobrado</TableHead>
-                  <TableHead>% de cobro</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {planBreakdown.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-muted-foreground">
-                      No hay planes activos para resumir.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  planBreakdown.map((plan) => (
-                    <TableRow key={plan.planId}>
-                      <TableCell className="font-medium">
-                        {plan.planName}
-                      </TableCell>
-                      <TableCell>{plan.members}</TableCell>
-                      <TableCell>
-                        {formatCurrency(plan.approvedRevenueArs)}
-                      </TableCell>
-                      <TableCell>
-                        {formatPercent(plan.collectionRatePct)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </section>
-
+      {/* 5. Tabla historica */}
       <section>
         <Card className="bg-card/70">
           <CardHeader>
@@ -550,10 +698,7 @@ export default function PaymentMetricsPage() {
                   <TableHead>Periodo</TableHead>
                   <TableHead>Pagos</TableHead>
                   <TableHead>Aprobados</TableHead>
-                  <TableHead>Revision</TableHead>
-                  <TableHead>Ingresos</TableHead>
-                  <TableHead>Egresos</TableHead>
-                  <TableHead>Neto</TableHead>
+                  <TableHead>En revision</TableHead>
                   <TableHead>% de cobro</TableHead>
                 </TableRow>
               </TableHeader>
@@ -573,11 +718,6 @@ export default function PaymentMetricsPage() {
                     <TableCell>{period.approvedPayments}</TableCell>
                     <TableCell>{period.inReviewPayments}</TableCell>
                     <TableCell>
-                      {formatCurrency(period.totalIncomeArs)}
-                    </TableCell>
-                    <TableCell>{formatCurrency(period.expenseArs)}</TableCell>
-                    <TableCell>{formatCurrency(period.netResultArs)}</TableCell>
-                    <TableCell>
                       {formatPercent(period.collectionRatePct)}
                     </TableCell>
                   </TableRow>
@@ -586,37 +726,6 @@ export default function PaymentMetricsPage() {
             </Table>
           </CardContent>
         </Card>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Cobranza actual"
-          value={formatPercent(overview.collectionRatePct)}
-          detail={`${formatCurrency(overview.approvedRevenueArs)} cobrados sobre ${formatCurrency(overview.expectedRevenueArs)}`}
-          icon={Percent}
-          tone="green"
-        />
-        <MetricCard
-          title="Pagos aprobados"
-          value={formatPercent(overview.approvalRatePct)}
-          detail={`${overview.approvedCount} de ${overview.trackedMembers} miembros al dia`}
-          icon={CheckCircle2}
-          tone="green"
-        />
-        <MetricCard
-          title="Impagos"
-          value={formatPercent(overview.unpaidRatePct)}
-          detail={`${overview.unpaidCount} miembros con pago faltante, pendiente o rechazado`}
-          icon={AlertCircle}
-          tone="red"
-        />
-        <MetricCard
-          title="Suspendidos"
-          value={formatPercent(overview.suspendedRatePct)}
-          detail={`${overview.suspendedCount} suscripciones suspendidas`}
-          icon={ShieldAlert}
-          tone="red"
-        />
       </section>
     </DashboardPageContainer>
   );

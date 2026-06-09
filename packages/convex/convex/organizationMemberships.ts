@@ -142,6 +142,8 @@ export const getOrganizationMemberships = query({
           email: user?.email,
           imageUrl: user?.imageUrl,
           username: user?.username,
+          birthday: user?.birthday,
+          phone: user?.phone,
         };
       }),
     );

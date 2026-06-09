@@ -331,7 +331,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
   };
 
-  const birthDate = safeDate(member.birthDate);
+  const birthDate = safeDate(member.birthday);
 
   const age = (() => {
     if (!birthDate) return null;
@@ -429,6 +429,11 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                     ? `${format(birthDate, "dd/MM/yyyy")} (${age} años)`
                     : "-"}
                 </p>
+              </div>
+
+              <div>
+                <p className="text-muted-foreground">Teléfono</p>
+                <p>{member.phone ?? "-"}</p>
               </div>
 
               <div>
