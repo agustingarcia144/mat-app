@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BarChart3, Dumbbell, UserMinus } from "lucide-react";
+import { ArrowRight, BarChart3, CalendarDays, Dumbbell, UserMinus } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
@@ -21,6 +21,14 @@ const METRIC_CARDS = [
       "Seguimiento por alumno para revisar actividad, pesos y progreso por planificacion.",
     href: "/dashboard/metrics/exercises",
     icon: Dumbbell,
+  },
+  {
+    title: "Métricas de Clases",
+    description:
+      "Porcentaje de asistencia, tasa de no-shows, horas más ocupadas y clases más populares.",
+    href: "/dashboard/metrics/classes",
+    icon: CalendarDays,
+    adminOnly: true,
   },
   {
     title: "Churn",
