@@ -27,6 +27,14 @@ export type MemberTableRow = Member & {
   planPaymentStatus: 'pago' | 'pendiente' | 'vencido' | 'none'
 }
 
+export function isBirthdayToday(birthday?: string): boolean {
+  if (!birthday) return false
+  const today = new Date()
+  const [year, month, day] = birthday.split('-').map(Number)
+  if (!year || !month || !day) return false
+  return today.getMonth() + 1 === month && today.getDate() === day
+}
+
 function MemberNameCell({ member }: { member: MemberTableRow }) {
   const initials =
     member.fullName
@@ -38,13 +46,27 @@ function MemberNameCell({ member }: { member: MemberTableRow }) {
     member.email?.[0]?.toUpperCase() ||
     '?'
 
+  const isToday = isBirthdayToday(member.birthday)
+
   return (
     <div className="flex items-center gap-3">
-      <Avatar className="h-8 w-8">
-        {member.imageUrl && <AvatarImage src={member.imageUrl} />}
-        <AvatarFallback>{initials}</AvatarFallback>
-      </Avatar>
-      <span className="font-medium">{member.name}</span>
+      <div className="relative shrink-0">
+        <Avatar className="h-8 w-8">
+          {member.imageUrl && <AvatarImage src={member.imageUrl} />}
+          <AvatarFallback>{initials}</AvatarFallback>
+        </Avatar>
+        {isToday && (
+          <span className="absolute -top-1 -right-1 text-sm leading-none animate-bounce">🎂</span>
+        )}
+      </div>
+      <div className="flex flex-col min-w-0">
+        <span className="font-medium leading-tight">{member.name}</span>
+        {isToday && (
+          <span className="text-[10px] font-semibold tracking-wide text-pink-400 leading-tight">
+            ¡Feliz cumpleaños!
+          </span>
+        )}
+      </div>
     </div>
   )
 }

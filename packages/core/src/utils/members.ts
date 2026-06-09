@@ -27,7 +27,8 @@ export function mapMembershipToMember(membership: MembershipData): Member {
     status: membership.status,
     usesPlanification: membership.usesPlanification ?? true,
     createdAt: new Date(membership.createdAt).toLocaleDateString(),
-    birthDate: new Date(membership.birthDate as number).toLocaleDateString(),
+    birthday: membership.birthday,
+    phone: membership.phone,
     joinedAt: new Date(membership.joinedAt as number).toLocaleDateString(),
   };
 }
