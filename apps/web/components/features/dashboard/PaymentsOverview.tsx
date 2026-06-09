@@ -154,55 +154,52 @@ export default function PaymentsOverview() {
         </div>
 
         <div className="flex h-full min-h-[112px] flex-col rounded-2xl border bg-background/40 p-3 xl:max-w-[220px]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">Evolucion del balance</p>
-              <p className="text-[11px] text-muted-foreground">
-                Ultimos {chartData.length} periodos
-              </p>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-              {formatPercent(data.overview.collectionRatePct)} actual
-            </div>
-          </div>
-
-          {chartData.length === 0 ? (
-            <div className="flex h-[120px] items-center justify-center text-sm text-muted-foreground">
-              Todavia no hay periodos suficientes para graficar.
-            </div>
+          <p className="text-xs text-muted-foreground">Rentabilidad</p>
+          {data.financialBalance.profitabilityPct != null ? (
+            <p className={cn(
+              "mt-1 text-4xl font-semibold",
+              data.financialBalance.profitabilityPct >= 0 ? "text-emerald-600" : "text-red-600",
+            )}>
+              {data.financialBalance.profitabilityPct > 0 ? "+" : ""}
+              {data.financialBalance.profitabilityPct}%
+            </p>
           ) : (
-            <div className="mt-auto flex h-[58px] items-end gap-1 pt-2">
-              {chartData.map((period) => (
-                <div
-                  key={period.billingPeriod}
-                  className="flex flex-1 flex-col items-center gap-1"
-                >
-                  <div className="flex h-full w-full items-end">
-                    <div
-                      className={cn(
-                        "w-full rounded-t-xl bg-gradient-to-t transition-all",
-                        period.netResultArs < 0
-                          ? "from-red-500 to-red-300"
-                          : "from-emerald-500 to-emerald-300",
-                        period.billingPeriod === data.selectedPeriod &&
-                          "from-primary to-primary/70",
-                      )}
-                      style={{ height: `${period.heightPct}%` }}
-                    />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-[10px] font-medium">
-                      {formatShortPeriod(period.billingPeriod)}
-                    </p>
-                    <p className="text-[9px] text-muted-foreground">
-                      {formatCompactCurrency(period.netResultArs)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="mt-1 text-2xl font-semibold text-muted-foreground">-</p>
           )}
+
+          {chartData.length > 0 && (() => {
+            const profData = chartData.map((p) => ({
+              label: formatShortPeriod(p.billingPeriod),
+              pct: p.totalIncomeArs > 0 && p.expenseArs > 0
+                ? Math.round(((p.totalIncomeArs - p.expenseArs) / p.totalIncomeArs) * 1000) / 10
+                : null,
+              isCurrent: p.billingPeriod === data.selectedPeriod,
+            }));
+            const maxAbs = Math.max(...profData.map((d) => Math.abs(d.pct ?? 0)), 1);
+            return (
+              <div className="mt-auto flex items-end gap-1 pt-2">
+                {profData.map((d, i) => {
+                  const heightPct = d.pct != null ? Math.max((Math.abs(d.pct) / maxAbs) * 40, 4) : 4;
+                  const isPos = (d.pct ?? 0) >= 0;
+                  return (
+                    <div key={i} className="flex flex-1 flex-col items-center gap-0.5">
+                      <div className="flex h-[40px] w-full items-end justify-center">
+                        <div
+                          className={cn(
+                            "w-full max-w-[18px] rounded-t-sm transition-all",
+                            d.pct == null ? "bg-muted" : isPos ? "bg-emerald-500/70" : "bg-red-500/70",
+                            d.isCurrent ? "opacity-100" : "opacity-40",
+                          )}
+                          style={{ height: `${heightPct}px` }}
+                        />
+                      </div>
+                      <p className="text-[9px] text-muted-foreground">{d.label}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </Card>

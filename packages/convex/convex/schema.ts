@@ -67,6 +67,7 @@ export default defineSchema({
     usesPlanification: v.optional(v.boolean()),
     joinedAt: v.number(),
     lastActiveAt: v.optional(v.number()),
+    inactivatedAt: v.optional(v.number()),
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),

@@ -1107,6 +1107,37 @@ export const getOrganizationMetrics = query({
             ? Math.round((selectedNetResultArs / selectedIncomeArs) * 1000) / 10
             : null,
         hasExpenseData,
+        incomeDeltaArs: comparison?.totalIncomeDeltaArs ?? null,
+        expenseDeltaArs: comparison?.expenseDeltaArs ?? null,
+        netResultDeltaArs: comparison?.netResultDeltaArs ?? null,
+        incomeTrend: (() => {
+          const otherPeriods = monthlyOverview
+            .filter((m) => m.billingPeriod !== selectedPeriod)
+            .slice(0, 6);
+          if (otherPeriods.length === 0) return null;
+          const avg =
+            otherPeriods.reduce((sum, m) => sum + m.totalIncomeArs, 0) /
+            otherPeriods.length;
+          if (avg === 0) return null;
+          return {
+            avgIncomeArs: Math.round(avg),
+            periodCount: otherPeriods.length,
+            trendPct:
+              Math.round(((selectedIncomeArs - avg) / avg) * 1000) / 10,
+          };
+        })(),
+        expenseByCategory: Object.entries(
+          selectedExpenseTransactions.reduce<Record<string, number>>(
+            (acc, t) => {
+              const key = t.category.trim() || "Sin categoría";
+              acc[key] = (acc[key] ?? 0) + t.amountArs;
+              return acc;
+            },
+            {},
+          ),
+        )
+          .map(([category, amountArs]) => ({ category, amountArs }))
+          .sort((a, b) => b.amountArs - a.amountArs),
       },
       paymentMethods,
       planBreakdown: Array.from(planBreakdown.values())
