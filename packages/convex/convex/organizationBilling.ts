@@ -54,6 +54,28 @@ function isMercadoPagoCheckoutEnabled() {
   return process.env.MERCADOPAGO_CHECKOUT_ENABLED === "true";
 }
 
+function isMercadoPagoSandbox() {
+  return process.env.MERCADOPAGO_ENV === "sandbox";
+}
+
+function getMercadoPagoPayerEmail(checkoutPayerEmail: string) {
+  if (!isMercadoPagoSandbox()) {
+    return checkoutPayerEmail;
+  }
+
+  const sandboxPayer = (
+    process.env.MERCADOPAGO_SANDBOX_PAYER_EMAIL ??
+    process.env.MERCADOPAGO_SANDBOX_PAYER_USERNAME
+  )?.trim();
+  if (!sandboxPayer) {
+    return checkoutPayerEmail;
+  }
+
+  return sandboxPayer.includes("@")
+    ? sandboxPayer
+    : `${sandboxPayer}@testuser.com`;
+}
+
 async function requireSuperAdmin(ctx: any) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
@@ -342,7 +364,7 @@ export const createCheckout = action({
       body: JSON.stringify({
         reason: `MAT - ${checkout.plan.name}`,
         external_reference: checkout.externalReference,
-        payer_email: checkout.payerEmail,
+        payer_email: getMercadoPagoPayerEmail(checkout.payerEmail),
         auto_recurring: {
           frequency: checkout.plan.frequency,
           frequency_type: checkout.plan.frequencyType,
@@ -364,7 +386,7 @@ export const createCheckout = action({
 
     const preapprovalId = payload?.id;
     const initPoint =
-      process.env.MERCADOPAGO_ENV === "sandbox"
+      isMercadoPagoSandbox()
         ? payload?.sandbox_init_point || payload?.init_point
         : payload?.init_point || payload?.sandbox_init_point;
 

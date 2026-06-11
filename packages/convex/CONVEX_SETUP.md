@@ -29,6 +29,16 @@ pnpm --filter @repo/convex dev
   - `INVITATION_APP_URL` (example: `https://app.tu-dominio.com`)
   - `INVITATION_TTL_HOURS` (optional, default: `72`)
   - `RESEND_REPLY_TO` (optional)
+- Convex (Mercado Pago checkout):
+  - `MERCADOPAGO_CHECKOUT_ENABLED`
+  - `MERCADOPAGO_ACCESS_TOKEN`
+  - `MERCADOPAGO_ENV` (`sandbox` or `production`)
+  - `MERCADOPAGO_LITE_PRICE_ARS`
+  - `MERCADOPAGO_PUBLIC_APP_URL`
+  - `MERCADOPAGO_WEBHOOK_URL`
+  - `MERCADOPAGO_WEBHOOK_SECRET`
+  - `MERCADOPAGO_SANDBOX_PAYER_USERNAME` (optional, sandbox only; use the Mercado Pago test buyer username shown in the test accounts table)
+  - `MERCADOPAGO_SANDBOX_PAYER_EMAIL` (optional, sandbox only; overrides the payer email directly if Mercado Pago exposes one)
 
 ## Data model ownership
 
