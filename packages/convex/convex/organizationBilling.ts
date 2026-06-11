@@ -385,10 +385,9 @@ export const createCheckout = action({
     }
 
     const preapprovalId = payload?.id;
-    const initPoint =
-      isMercadoPagoSandbox()
-        ? payload?.sandbox_init_point || payload?.init_point
-        : payload?.init_point || payload?.sandbox_init_point;
+    const initPoint = isMercadoPagoSandbox()
+      ? payload?.sandbox_init_point || payload?.init_point
+      : payload?.init_point || payload?.sandbox_init_point;
 
     if (!preapprovalId || !initPoint) {
       throw new Error("MercadoPago checkout response missing init point");
