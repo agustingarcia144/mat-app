@@ -29,9 +29,12 @@ export type MemberTableRow = Member & {
 
 export function isBirthdayToday(birthday?: string): boolean {
   if (!birthday) return false
+  const parts = birthday.split('-')
+  if (parts.length < 3) return false
+  const month = Number(parts[1])
+  const day = Number(parts[2])
+  if (!month || !day) return false
   const today = new Date()
-  const [year, month, day] = birthday.split('-').map(Number)
-  if (!year || !month || !day) return false
   return today.getMonth() + 1 === month && today.getDate() === day
 }
 
