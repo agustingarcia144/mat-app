@@ -29,7 +29,6 @@ export default function ProfileLayout() {
             headerShadowVisible: false,
             headerStyle: { backgroundColor: indexHeaderBg },
             headerTintColor,
-            headerRight: () => <HeaderCloseButton />,
             headerLeft: () => null,
           }}
         />

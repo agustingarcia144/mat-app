@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   Platform,
   useWindowDimensions,
   ActivityIndicator,
@@ -19,7 +18,6 @@ import { useSubscriptionGate } from "@/hooks/use-subscription-gate";
 import { useOrgSettings } from "@/hooks/use-org-settings";
 import { ThemedView } from "@/components/ui/themed-view";
 import { ThemedText } from "@/components/ui/themed-text";
-import { ThemedPressable } from "@/components/ui/themed-pressable";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { CalendarWeekView } from "@/components/features/home/calendar-week-view";
 import { NoActivePlanAlert } from "@/components/features/home/no-active-plan-alert";
@@ -237,32 +235,6 @@ export default function DashboardContent() {
               user?.emailAddresses[0]?.emailAddress}
             !
           </ThemedText>
-          <ThemedPressable
-            type="secondary"
-            onPress={() => router.push("/profile" as Href)}
-            style={styles.avatarButton}
-            accessibilityLabel="Abrir perfil"
-          >
-            {user?.imageUrl ? (
-              <Image
-                source={{ uri: user.imageUrl }}
-                style={styles.avatarImage}
-              />
-            ) : (
-              <Text
-                style={[
-                  styles.avatarPlaceholder,
-                  { color: isDark ? "#a1a1aa" : "#52525b" },
-                ]}
-              >
-                {(
-                  user?.firstName?.[0] ||
-                  user?.emailAddresses?.[0]?.emailAddress?.[0] ||
-                  "?"
-                ).toUpperCase()}
-              </Text>
-            )}
-          </ThemedPressable>
         </View>
 
         <View
@@ -403,23 +375,6 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 8,
     marginBottom: 0,
-  },
-  avatarButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  avatarImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  avatarPlaceholder: {
-    fontSize: 18,
-    fontWeight: "600",
   },
   todaySection: {
     flex: 1,

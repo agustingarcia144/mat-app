@@ -30,7 +30,6 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
 import LoadingScreen from "@/components/shared/screens/loading-screen";
-import { useAppReset } from "@/components/providers/providers";
 import { Picker } from "@react-native-picker/picker";
 import { ProfileNativeList } from "@/components/features/profile/profile-native-list";
 import { captureHandledError } from "@/lib/sentry";
@@ -853,7 +852,6 @@ function ProfileContent() {
   const setActiveOrganization = useMutation(
     api.organizationMemberships.setActiveOrganization,
   );
-  const { resetApp } = useAppReset();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const [switchingOrgId, setSwitchingOrgId] = React.useState<string | null>(
@@ -904,8 +902,7 @@ function ProfileContent() {
       setSwitchingOrgId(selectedOrgId);
       try {
         await setActiveOrganization({ organizationId: selectedOrgId as never });
-        resetApp();
-        router.replace("/");
+        router.replace("/(tabs)/home");
       } catch (error) {
         console.error("Failed to switch organization", error);
         captureHandledError(error, {
@@ -922,7 +919,7 @@ function ProfileContent() {
         setSwitchingOrgId(null);
       }
     },
-    [activeOrgId, resetApp, router, setActiveOrganization],
+    [activeOrgId, router, setActiveOrganization],
   );
 
   const handleOpenPlanifications = React.useCallback(() => {
