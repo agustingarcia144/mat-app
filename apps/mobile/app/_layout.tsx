@@ -9,7 +9,7 @@ import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
 import * as WebBrowser from "expo-web-browser";
 import "react-native-reanimated";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/expo";
 import { api } from "@repo/convex";
@@ -51,6 +51,25 @@ const sentryTracingIntegration = Sentry.reactNativeTracingIntegration({
   }),
 });
 
+const rootStackScreenOptions = { headerShown: false };
+const profileScreenOptions = {
+  presentation: "modal" as const,
+  headerShown: false,
+  gestureEnabled: true,
+};
+
+function getPathnameForHref(href: Href): string {
+  if (typeof href !== "string") {
+    return "/";
+  }
+
+  if (href.startsWith("/(tabs)/")) {
+    return href.replace("/(tabs)", "");
+  }
+
+  return href;
+}
+
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   integrations: [sentryTracingIntegration],
@@ -84,6 +103,7 @@ function RootLayoutNav() {
     isAuthenticated ? {} : "skip",
   );
   const segments = useSegments();
+  const segmentKey = useMemo(() => segments.join("/"), [segments]);
   const pathname = usePathname();
   const router = useRouter();
   const upsertPushToken = useMutation(
@@ -225,19 +245,26 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === "(tabs)";
-    const topSegment = segments[0] as string | undefined;
+    const [topSegment] = segmentKey.split("/");
+    const inAuthGroup = topSegment === "(tabs)";
     const inSettings = topSegment === "profile";
     const inOnboarding =
-      segments[0] === "onboarding-notifications" ||
-      segments[0] === "onboarding" ||
-      segments[0] === "onboarding-2";
-    const inOrgSelection = segments[0] === "select-organization";
-    const inJoinConfirm = segments[0] === "join-gym-confirm";
+      topSegment === "onboarding-notifications" ||
+      topSegment === "onboarding" ||
+      topSegment === "onboarding-2";
+    const inOrgSelection = topSegment === "select-organization";
+    const inJoinConfirm = topSegment === "join-gym-confirm";
     const inAuthPage =
-      segments[0] === undefined ||
-      segments[0] === "sign-in" ||
-      segments[0] === "sign-up";
+      topSegment === undefined ||
+      topSegment === "" ||
+      topSegment === "sign-in" ||
+      topSegment === "sign-up";
+
+    const replaceIfNeeded = (href: Href) => {
+      if (pathname !== getPathnameForHref(href)) {
+        router.replace(href);
+      }
+    };
 
     if (!isAuthenticated) {
       if (
@@ -247,14 +274,14 @@ function RootLayoutNav() {
         inOrgSelection ||
         inJoinConfirm
       ) {
-        router.replace("/");
+        replaceIfNeeded("/");
       }
       return;
     }
 
     // Deferred deep link: show join confirmation when we have a pending token
     if (!pendingLoading && pendingToken && !inJoinConfirm && !inAuthPage) {
-      router.replace("/join-gym-confirm");
+      replaceIfNeeded("/join-gym-confirm");
       return;
     }
 
@@ -268,7 +295,7 @@ function RootLayoutNav() {
     if (!hasActiveOrganization) {
       if (!orgRedirectReady) return; // Wait for debounce before redirecting
       if (!inOrgSelection && !inJoinConfirm) {
-        router.replace("/select-organization");
+        replaceIfNeeded("/select-organization");
       }
       return;
     }
@@ -278,9 +305,9 @@ function RootLayoutNav() {
 
     if (inOrgSelection) {
       if (needsOnboarding) {
-        router.replace("/onboarding-notifications");
+        replaceIfNeeded("/onboarding-notifications");
       } else {
-        router.replace("/(tabs)/home");
+        replaceIfNeeded("/(tabs)/home");
       }
       return;
     }
@@ -288,7 +315,7 @@ function RootLayoutNav() {
     if (needsOnboarding) {
       if (!inOnboarding) {
         const step1Done = convexUser?.onboardingStep1Completed === true;
-        router.replace(
+        replaceIfNeeded(
           step1Done ? "/onboarding-2" : "/onboarding-notifications",
         );
       }
@@ -296,12 +323,15 @@ function RootLayoutNav() {
     }
 
     if (inOnboarding || inAuthPage) {
-      router.replace("/(tabs)/home");
+      replaceIfNeeded("/(tabs)/home");
       return;
     }
 
-    if (!inAuthGroup && !inSettings) {
-      router.replace("/(tabs)/home");
+    // join-gym-confirm is a valid standalone destination; excluding it here
+    // prevents an infinite redirect loop with the deferred deep-link rule above
+    // (pending token -> /join-gym-confirm -> fallthrough back to /home -> ...).
+    if (!inAuthGroup && !inSettings && !inJoinConfirm) {
+      replaceIfNeeded("/(tabs)/home");
     }
   }, [
     isAuthenticated,
@@ -311,7 +341,8 @@ function RootLayoutNav() {
     convexUser,
     currentMembership,
     orgRedirectReady,
-    segments,
+    segmentKey,
+    pathname,
     router,
   ]);
 
@@ -368,7 +399,7 @@ function RootLayoutNav() {
 
   return (
     <>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={rootStackScreenOptions}>
         <Stack.Screen name="index" />
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
@@ -379,14 +410,7 @@ function RootLayoutNav() {
         <Stack.Screen name="select-organization" />
         <Stack.Screen name="join-gym-confirm" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="profile"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-            gestureEnabled: true,
-          }}
-        />
+        <Stack.Screen name="profile" options={profileScreenOptions} />
       </Stack>
       <StatusBar style="auto" />
     </>

@@ -25,7 +25,6 @@ import { useRouter } from "expo-router";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
-import { useAppReset } from "@/components/providers/providers";
 import { usePendingJoin } from "@/contexts/pending-join-context";
 import { parseJoinTokenFromUrl } from "@/lib/pending-join";
 import { captureHandledError } from "@/lib/sentry";
@@ -59,7 +58,6 @@ export default function SelectOrganizationScreen() {
   );
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { resetApp } = useAppReset();
   const { signOut } = useClerk();
 
   const [loading, setLoading] = useState(false);
@@ -104,8 +102,7 @@ export default function SelectOrganizationScreen() {
         await setActiveOrganization({
           organizationId: organizationId as never,
         });
-        resetApp();
-        router.replace("/");
+        router.replace("/(tabs)/home");
       } catch (err) {
         console.error("Error setting active organization:", err);
         captureHandledError(err, {
@@ -122,7 +119,7 @@ export default function SelectOrganizationScreen() {
         setLoading(false);
       }
     },
-    [resetApp, router, setActiveOrganization],
+    [router, setActiveOrganization],
   );
 
   const handleQrData = useCallback(

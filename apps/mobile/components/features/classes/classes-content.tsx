@@ -949,7 +949,7 @@ export default function ClassesContent() {
               onDateSelect={setSelectedDate}
               onWeekChange={handleWeekChange}
               weekSessions={[]}
-              workoutDays={[]}
+              daysWithWorkouts={[]}
               daysWithClasses={daysWithScheduledClasses}
               daysWithAttendedClasses={daysWithAttendedClasses}
             />
