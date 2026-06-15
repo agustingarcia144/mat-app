@@ -52,11 +52,6 @@ const sentryTracingIntegration = Sentry.reactNativeTracingIntegration({
 });
 
 const rootStackScreenOptions = { headerShown: false };
-const profileScreenOptions = {
-  presentation: "modal" as const,
-  headerShown: false,
-  gestureEnabled: true,
-};
 
 function getPathnameForHref(href: Href): string {
   if (typeof href !== "string") {
@@ -247,7 +242,6 @@ function RootLayoutNav() {
 
     const [topSegment] = segmentKey.split("/");
     const inAuthGroup = topSegment === "(tabs)";
-    const inSettings = topSegment === "profile";
     const inOnboarding =
       topSegment === "onboarding-notifications" ||
       topSegment === "onboarding" ||
@@ -269,7 +263,6 @@ function RootLayoutNav() {
     if (!isAuthenticated) {
       if (
         inAuthGroup ||
-        inSettings ||
         inOnboarding ||
         inOrgSelection ||
         inJoinConfirm
@@ -330,7 +323,7 @@ function RootLayoutNav() {
     // join-gym-confirm is a valid standalone destination; excluding it here
     // prevents an infinite redirect loop with the deferred deep-link rule above
     // (pending token -> /join-gym-confirm -> fallthrough back to /home -> ...).
-    if (!inAuthGroup && !inSettings && !inJoinConfirm) {
+    if (!inAuthGroup && !inJoinConfirm) {
       replaceIfNeeded("/(tabs)/home");
     }
   }, [
@@ -410,7 +403,6 @@ function RootLayoutNav() {
         <Stack.Screen name="select-organization" />
         <Stack.Screen name="join-gym-confirm" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="profile" options={profileScreenOptions} />
       </Stack>
       <StatusBar style="auto" />
     </>

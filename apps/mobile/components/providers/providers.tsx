@@ -11,6 +11,7 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ConvexReactClient } from "convex/react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { PendingJoinProvider } from "@/contexts/pending-join-context";
+import { AvatarIconProvider } from "@/contexts/avatar-icon-context";
 
 function Providers({ children }: { children: React.ReactNode }) {
   const colorScheme = useColorScheme();
@@ -34,7 +35,7 @@ function Providers({ children }: { children: React.ReactNode }) {
             <ThemeProvider
               value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
             >
-              {children}
+              <AvatarIconProvider>{children}</AvatarIconProvider>
             </ThemeProvider>
           </PendingJoinProvider>
         </ConvexProviderWithClerk>

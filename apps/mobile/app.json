@@ -92,7 +92,6 @@
           "organization": "mat-app"
         }
       ],
-      "@sentry/react-native",
       "expo-image"
     ],
     "experiments": {
