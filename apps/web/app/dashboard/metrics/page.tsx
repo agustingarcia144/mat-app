@@ -1,20 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BarChart3, CalendarDays, Dumbbell, UserMinus } from "lucide-react";
+import { ArrowRight, CalendarDays, Dumbbell, UserMinus } from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const METRIC_CARDS = [
-  {
-    title: "Balance Financiero",
-    description:
-      "Estado general de pagos, cobrado aprobado, pendientes y evolucion mensual con graficos.",
-    href: "/dashboard/metrics/payments",
-    icon: BarChart3,
-  },
   {
     title: "Metricas de Ejercicios",
     description:

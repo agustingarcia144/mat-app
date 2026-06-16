@@ -65,12 +65,19 @@ type Props = {
 function safeDate(value: any): Date | null {
   if (!value) return null;
 
+  // Parse "yyyy-MM-dd" as local date to avoid UTC offset shifting the day
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    const d = new Date(year, month - 1, day);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
   if (typeof value === "string" && value.includes("/")) {
     const parts = value.split("/");
     if (parts.length === 3) {
       const [day, month, year] = parts;
-      const parsed = new Date(`${year}-${month}-${day}`);
-      return isNaN(parsed.getTime()) ? null : parsed;
+      const d = new Date(Number(year), Number(month) - 1, Number(day));
+      return isNaN(d.getTime()) ? null : d;
     }
   }
 

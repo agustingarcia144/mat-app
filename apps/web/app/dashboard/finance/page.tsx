@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CreditCard, Wallet } from "lucide-react";
+import { ArrowRight, CreditCard, TrendingUp, Wallet } from "lucide-react";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrgSettings } from "@/hooks/use-org-settings";
@@ -21,6 +21,13 @@ const FINANCE_CARDS = [
     href: "/dashboard/income-expenses",
     icon: Wallet,
     featureFlag: "financeEnabled",
+  },
+  {
+    title: "Balance financiero",
+    description:
+      "Resumen mensual de ingresos, egresos, rentabilidad y métodos de pago por período.",
+    href: "/dashboard/metrics/payments",
+    icon: TrendingUp,
   },
 ] as const;
 
