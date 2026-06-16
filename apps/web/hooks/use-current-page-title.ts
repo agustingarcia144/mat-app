@@ -5,14 +5,8 @@ import { DASHBOARD_NAV_ITEMS } from "@/lib/dashboard-nav";
 
 const DASHBOARD_PREFIX = "/dashboard";
 
-const CUSTOM_TITLES: Record<string, string> = {
-  "/dashboard/metrics/payments": "Finanzas",
-};
-
 export function useCurrentPageTitle(): string {
   const pathname = usePathname();
-
-  if (CUSTOM_TITLES[pathname]) return CUSTOM_TITLES[pathname];
 
   // Sort by url length descending so nested routes match the most specific nav item
   // e.g. /dashboard/planifications/123 matches "Planificaciones" not "Inicio"
