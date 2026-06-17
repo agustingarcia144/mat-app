@@ -14,20 +14,45 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useClerk, useUser } from "@clerk/nextjs";
 import Image from "next/image";
-import { ChevronsUpDown, LogOut, User } from "lucide-react";
+import Link from "next/link";
+import { ChevronsUpDown, LogOut, Sparkles, User } from "lucide-react";
 import EditProfileDialog from "./edit-profile-dialog";
+import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 
 export default function FooterNavItems() {
   const { signOut } = useClerk();
   const { user, isLoaded } = useUser();
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const entitlement = useOrganizationEntitlement();
 
   if (!isLoaded) {
     return <SidebarMenuSkeleton />;
   }
 
+  // Show during the trial, or whenever the org lacks a Pro-only module
+  // (Lite or expired). Super-admins get full modules, so they never see it.
+  const showUpgrade =
+    !!entitlement &&
+    (entitlement.billingStatus === "trial" ||
+      !entitlement.modules.includes("payments"));
+
   return (
     <>
+      {showUpgrade ? (
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              className="bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+            >
+              <Link href="/dashboard/billing">
+                <Sparkles className="size-4" />
+                <span>Actualizar a Pro</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      ) : null}
       <SidebarMenu>
         <SidebarMenuItem>
           <DropdownMenu>

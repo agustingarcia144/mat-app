@@ -1,18 +1,15 @@
-"use client";
+'use client'
 
-import * as React from "react";
-import Image from "next/image";
-import Link from "next/link";
-import Script from "next/script";
-import { useRouter } from "next/navigation";
+import * as React from 'react'
+import Image from 'next/image'
+import Link from 'next/link'
+import Script from 'next/script'
+import { useRouter } from 'next/navigation'
 import {
   ArrowRight,
   BarChart3,
-  ChevronsUpDown,
   CalendarDays,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
+  Check,
   CreditCard,
   Dumbbell,
   Loader2,
@@ -20,210 +17,193 @@ import {
   MessageCircle,
   ShieldCheck,
   Sparkles,
-  Users,
-} from "lucide-react";
-import { useTheme } from "next-themes";
+  Users
+} from 'lucide-react'
 import {
   Authenticated,
   Unauthenticated,
   useAction,
   useMutation,
-} from "convex/react";
-import { useClerk, useUser } from "@clerk/nextjs";
-import { toast } from "sonner";
-import { api } from "@/convex/_generated/api";
-import { Button } from "@/components/ui/button";
+  useQuery
+} from 'convex/react'
+import { useClerk, useUser } from '@clerk/nextjs'
+import { toast } from 'sonner'
+import { api } from '@/convex/_generated/api'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Logo } from "@/components/features/landing/logo";
-import { SignInDialog } from "@/components/features/auth/sign-in-dialog";
-import { TextEffect } from "@/components/ui/text-effect";
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Logo } from '@/components/features/landing/logo'
+import { SignInDialog } from '@/components/features/auth/sign-in-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { motion } from "motion/react";
-import screenshot from "@/assets/screenshot.png";
-import screenshotApp from "@/assets/screenshot_app.png";
-import screenshotWeb from "@/assets/screenshot_web.png";
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
+import { motion } from 'motion/react'
+import appMockup from '@/assets/app-mockup.png'
+import screenshotWeb from '@/assets/screenshot_web.png'
+import wolf from '@/assets/mat-wolf.png'
 
 declare global {
   interface Window {
-    fbq?: (...args: unknown[]) => void;
+    fbq?: (...args: unknown[]) => void
   }
 }
 
-type PendingLiteCheckout = {
-  organizationName: string;
-  organizationAddress?: string;
-  organizationPhone?: string;
-  organizationEmail?: string;
-  adminPhone?: string;
-};
+type OrgCheckoutDetails = {
+  organizationName: string
+  organizationAddress?: string
+  organizationPhone?: string
+  organizationEmail?: string
+  adminPhone?: string
+}
 
-const PENDING_LITE_CHECKOUT_KEY = "mat.pendingLiteCheckout";
+type DialogMode = 'trial' | 'lite'
+
+const PENDING_LITE_CHECKOUT_KEY = 'mat.pendingLiteCheckout'
+const PENDING_PRO_TRIAL_KEY = 'mat.pendingProTrial'
 const mercadoPagoCheckoutEnabled =
-  process.env.NEXT_PUBLIC_MERCADOPAGO_CHECKOUT_ENABLED === "true";
+  process.env.NEXT_PUBLIC_MERCADOPAGO_CHECKOUT_ENABLED === 'true'
 
-function getPendingLiteCheckout() {
-  if (typeof window === "undefined") return null;
+const ACCENT = '#FF5C24'
+
+const arsCurrency = new Intl.NumberFormat('es-AR', {
+  style: 'currency',
+  currency: 'ARS',
+  maximumFractionDigits: 0
+})
+
+function readPending(key: string): OrgCheckoutDetails | null {
+  if (typeof window === 'undefined') return null
 
   try {
-    const rawValue = window.sessionStorage.getItem(PENDING_LITE_CHECKOUT_KEY);
-    if (!rawValue) return null;
-    const parsed = JSON.parse(rawValue) as Partial<PendingLiteCheckout>;
-    if (!parsed.organizationName?.trim()) return null;
+    const rawValue = window.sessionStorage.getItem(key)
+    if (!rawValue) return null
+    const parsed = JSON.parse(rawValue) as Partial<OrgCheckoutDetails>
+    if (!parsed.organizationName?.trim()) return null
 
     return {
       organizationName: parsed.organizationName.trim(),
       organizationAddress: parsed.organizationAddress?.trim() || undefined,
       organizationPhone: parsed.organizationPhone?.trim() || undefined,
       organizationEmail: parsed.organizationEmail?.trim() || undefined,
-      adminPhone: parsed.adminPhone?.trim() || undefined,
-    };
+      adminPhone: parsed.adminPhone?.trim() || undefined
+    }
   } catch {
-    return null;
+    return null
   }
 }
 
-function setPendingLiteCheckout(value: PendingLiteCheckout) {
-  window.sessionStorage.setItem(
-    PENDING_LITE_CHECKOUT_KEY,
-    JSON.stringify(value),
-  );
+function writePending(key: string, value: OrgCheckoutDetails) {
+  window.sessionStorage.setItem(key, JSON.stringify(value))
 }
 
-function clearPendingLiteCheckout() {
-  if (typeof window === "undefined") return;
-  window.sessionStorage.removeItem(PENDING_LITE_CHECKOUT_KEY);
+function clearPending(key: string) {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.removeItem(key)
 }
 
 const productHighlights = [
   {
     icon: CalendarDays,
-    title: "Clases y agenda",
+    title: 'Clases y agenda',
     description:
-      "Organiza horarios, cupos y reservas para que todo el staff trabaje con una sola agenda.",
+      'Organizá horarios, cupos y reservas para que todo el staff trabaje con una sola agenda.'
   },
   {
     icon: Dumbbell,
-    title: "Planificaciones",
+    title: 'Planificaciones',
     description:
-      "Crea rutinas, semanas de trabajo y ejercicios con una estructura clara y facil de seguir.",
+      'Creá rutinas, semanas de trabajo y ejercicios con una estructura clara y fácil de seguir.'
   },
   {
     icon: Users,
-    title: "Socios y equipo",
+    title: 'Socios y equipo',
     description:
-      "Centraliza miembros, invitaciones y seguimiento del gimnasio sin usar planillas sueltas.",
+      'Centralizá miembros, invitaciones y seguimiento del gimnasio sin planillas sueltas.'
   },
   {
     icon: CreditCard,
-    title: "Pagos y planes",
+    title: 'Pagos y planes',
     description:
-      "Gestiona membresias, estados de pago, comprobantes y revisiones desde un solo lugar.",
+      'Gestioná membresías, estados de pago, comprobantes y revisiones desde un solo lugar.'
   },
   {
     icon: BarChart3,
-    title: "Metricas",
+    title: 'Métricas',
     description:
-      "Mira ingresos, uso del sistema y datos clave para tomar decisiones con mas contexto.",
+      'Mirá ingresos, uso del sistema y datos clave para decidir con más contexto.'
   },
   {
     icon: ShieldCheck,
-    title: "Orden operativo",
+    title: 'Orden operativo',
     description:
-      "Roles, permisos y procesos mas simples para que la gestion diaria no dependa de memoria.",
-  },
-];
+      'Roles, permisos y procesos simples para que la gestión diaria no dependa de la memoria.'
+  }
+]
 
-const differentiators = [
-  "Pensado para gimnasios y boxes que necesitan orden sin sumar complejidad.",
-  "Interfaz clara para administrar clases, rutinas, pagos y miembros.",
-  "Flujo web para el staff y experiencia movil para acompanar el dia a dia.",
-];
+const heroStats = [
+  { value: 'Web + móvil', label: 'una sola operación' },
+  { value: '7 días', label: 'de Pro, sin tarjeta' },
+  { value: 'Setup rápido', label: 'empezás hoy mismo' }
+]
 
-const quickStats = [
-  { value: "Clases", label: "agenda y cupos" },
-  { value: "Rutinas", label: "planificacion estructurada" },
-  { value: "Pagos", label: "seguimiento mas simple" },
-];
+const proFeatures = [
+  'Clases, agenda y cupos',
+  'Planificaciones y ejercicios',
+  'Socios, equipo y roles',
+  'Pagos, finanzas y métricas',
+  'App móvil para tus socios',
+  'Configuración personalizada'
+]
 
-const litePlanIncludes = [
-  "Miembros",
-  "Ejercicios",
-  "Planificaciones",
-  "Dashboard Lite",
-];
-
-const productGallery = [
-  {
-    image: screenshotWeb,
-    alt: "Vista web de MAT con dashboard y gestion del gimnasio",
-    eyebrow: "Vista web",
-    title: "Panel para administrar el gimnasio",
-  },
-  {
-    image: screenshot,
-    alt: "Vista general de MAT con planificaciones y experiencia movil",
-    eyebrow: "Operacion centralizada",
-    title: "Todo conectado en una sola experiencia",
-  },
-  {
-    image: screenshotApp,
-    alt: "Vista movil de MAT para seguir clases y rutinas",
-    eyebrow: "Vista movil",
-    title: "Seguimiento simple desde el celular",
-  },
-];
-
-const blackButtonClassName =
-  "rounded-full border border-black bg-black px-5 text-white hover:bg-[#222222] hover:text-white dark:border-white/14 dark:bg-black dark:hover:bg-[#171717]";
-
-const compactBlackButtonClassName =
-  "rounded-full border border-black bg-black px-4 py-2 text-sm text-white hover:bg-[#222222] hover:text-white dark:border-white/14 dark:bg-black dark:hover:bg-[#171717]";
+const liteFeatures = [
+  'Socios y miembros',
+  'Ejercicios',
+  'Planificaciones',
+  'Dashboard Lite'
+]
 
 const orangeButtonClassName =
-  "rounded-full border border-[#ff6a2a] bg-[#ff6a2a] px-5 text-white hover:border-[#e85e21] hover:bg-[#e85e21] hover:text-white dark:border-[#ff6a2a] dark:bg-[#ff6a2a] dark:hover:bg-[#e85e21]";
+  'rounded-full border border-transparent bg-[#FF5C24] px-5 text-white transition-colors hover:bg-[#F04E0E] shadow-[0_12px_34px_-10px_rgba(255,92,36,0.7)]'
+
+const subtleButtonClassName =
+  'rounded-full border border-white/14 bg-white/[0.04] px-5 text-white transition-colors hover:bg-white/[0.09] hover:text-white'
+
+const compactSubtleButtonClassName =
+  'rounded-full border border-white/14 bg-white/[0.04] px-4 py-2 text-sm text-white transition-colors hover:bg-white/[0.09] hover:text-white'
 
 const navLinkClassName =
-  "text-sm font-medium text-black/72 transition-colors hover:text-black dark:text-white/72 dark:hover:text-white";
+  'font-medium text-white/64 transition-colors hover:text-white'
 
 const revealVariants = {
-  hidden: {
-    opacity: 0,
-    filter: "blur(12px)",
-    y: 20,
-  },
+  hidden: { opacity: 0, filter: 'blur(10px)', y: 18 },
   visible: {
     opacity: 1,
-    filter: "blur(0px)",
+    filter: 'blur(0px)',
     y: 0,
-    transition: {
-      duration: 1,
-    },
-  },
-};
+    transition: { duration: 0.8 }
+  }
+}
 
 function Reveal({
   children,
   className,
   amount = 0.2,
-  once = false,
+  once = false
 }: {
-  children: React.ReactNode;
-  className?: string;
-  amount?: number;
-  once?: boolean;
+  children: React.ReactNode
+  className?: string
+  amount?: number
+  once?: boolean
 }) {
   return (
     <motion.div
@@ -235,7 +215,7 @@ function Reveal({
     >
       {children}
     </motion.div>
-  );
+  )
 }
 
 function RevealGroup({
@@ -243,13 +223,13 @@ function RevealGroup({
   className,
   amount = 0.18,
   stagger = 0.08,
-  once = false,
+  once = false
 }: {
-  children: React.ReactNode;
-  className?: string;
-  amount?: number;
-  stagger?: number;
-  once?: boolean;
+  children: React.ReactNode
+  className?: string
+  amount?: number
+  stagger?: number
+  once?: boolean
 }) {
   return (
     <motion.div
@@ -259,11 +239,8 @@ function RevealGroup({
       variants={{
         hidden: {},
         visible: {
-          transition: {
-            staggerChildren: stagger,
-            delayChildren: 0.04,
-          },
-        },
+          transition: { staggerChildren: stagger, delayChildren: 0.04 }
+        }
       }}
       className={className}
     >
@@ -273,19 +250,28 @@ function RevealGroup({
         </motion.div>
       ))}
     </motion.div>
-  );
+  )
+}
+
+function SectionEyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.24em] text-white/50">
+      <span className="size-1.5 rounded-full bg-[#FF5C24]" />
+      {children}
+    </span>
+  )
 }
 
 function trackWhatsAppClick(source: string) {
-  window.fbq?.("trackCustom", "WhatsAppContactClick", {
+  window.fbq?.('trackCustom', 'WhatsAppContactClick', {
     source,
-    channel: "whatsapp",
-  });
+    channel: 'whatsapp'
+  })
 }
 
 function WhatsAppFloatingButton() {
   const whatsappHref =
-    "https://wa.me/5491138846078?text=Hola%2C%20quiero%20conocer%20MAT";
+    'https://wa.me/5491138846078?text=Hola%2C%20quiero%20conocer%20MAT'
 
   return (
     <a
@@ -293,204 +279,253 @@ function WhatsAppFloatingButton() {
       target="_blank"
       rel="noreferrer"
       aria-label="Contactar por WhatsApp"
-      onClick={() => trackWhatsAppClick("floating_button")}
-      className="fixed bottom-4 right-4 z-50 inline-flex items-center gap-3 rounded-full border border-emerald-400/60 bg-[#111111] px-3 py-3 text-sm font-medium text-white shadow-[0_18px_45px_rgba(0,0,0,0.25)] transition-transform duration-200 hover:-translate-y-0.5 dark:border-emerald-400/50 dark:bg-black sm:bottom-5 sm:right-5 sm:px-4"
+      onClick={() => trackWhatsAppClick('floating_button')}
+      className="fixed bottom-4 right-4 z-50 inline-flex items-center gap-3 rounded-full border border-white/12 bg-[#121214]/90 px-3 py-3 text-sm font-medium text-white shadow-[0_18px_45px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-transform duration-200 hover:-translate-y-0.5 sm:bottom-5 sm:right-5 sm:px-4"
     >
-      <span className="flex size-10 items-center justify-center rounded-full bg-emerald-500 text-white">
+      <span className="flex size-9 items-center justify-center rounded-full bg-[#FF5C24] text-white">
         <MessageCircle className="size-5" />
       </span>
-      <span className="hidden sm:block">Contactanos por WhatsApp</span>
+      <span className="hidden sm:block">Hablar con nosotros</span>
     </a>
-  );
+  )
 }
 
 export default function HeroSection() {
-  const router = useRouter();
-  const { resolvedTheme } = useTheme();
-  const { signOut } = useClerk();
-  const { isLoaded: isUserLoaded, isSignedIn, user } = useUser();
+  const router = useRouter()
+  const { signOut } = useClerk()
+  const { isLoaded: isUserLoaded, isSignedIn, user } = useUser()
   const createLiteOrganization = useMutation(
-    api.organizations.createLiteOrganization,
-  );
-  const createCheckout = useAction(api.organizationBilling.createCheckout);
-  const [mounted, setMounted] = React.useState(false);
-  const [isScrolled, setIsScrolled] = React.useState(false);
-  const [signInOpen, setSignInOpen] = React.useState(false);
-  const [activeSlide, setActiveSlide] = React.useState(0);
-  const [liteDialogOpen, setLiteDialogOpen] = React.useState(false);
-  const [liteOrganizationName, setLiteOrganizationName] = React.useState("");
-  const [liteOrganizationAddress, setLiteOrganizationAddress] =
-    React.useState("");
-  const [liteOrganizationPhone, setLiteOrganizationPhone] = React.useState("");
-  const [liteOrganizationEmail, setLiteOrganizationEmail] = React.useState("");
-  const [liteAdminPhone, setLiteAdminPhone] = React.useState("");
-  const [isStartingLiteCheckout, setIsStartingLiteCheckout] =
-    React.useState(false);
-  const autoStartedLiteCheckoutRef = React.useRef(false);
+    api.organizations.createLiteOrganization
+  )
+  const createCheckout = useAction(api.organizationBilling.createCheckout)
+  const proPlan = useQuery(api.appBillingPlans.getPro)
+  const litePlan = useQuery(api.appBillingPlans.getLite)
+  const proPriceLabel =
+    typeof proPlan?.priceArs === 'number'
+      ? arsCurrency.format(proPlan.priceArs)
+      : null
+  const litePriceLabel =
+    typeof litePlan?.priceArs === 'number'
+      ? arsCurrency.format(litePlan.priceArs)
+      : null
+  const [isScrolled, setIsScrolled] = React.useState(false)
+  const [signInOpen, setSignInOpen] = React.useState(false)
+  const [dialogMode, setDialogMode] = React.useState<DialogMode | null>(null)
+  const [organizationName, setOrganizationName] = React.useState('')
+  const [organizationAddress, setOrganizationAddress] = React.useState('')
+  const [organizationPhone, setOrganizationPhone] = React.useState('')
+  const [organizationEmail, setOrganizationEmail] = React.useState('')
+  const [adminPhone, setAdminPhone] = React.useState('')
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const autoStartedLiteRef = React.useRef(false)
+  const autoStartedTrialRef = React.useRef(false)
   const whatsappHref =
-    "https://wa.me/5491138846078?text=Hola%2C%20quiero%20conocer%20MAT";
-  const isDark = mounted && resolvedTheme === "dark";
+    'https://wa.me/5491138846078?text=Hola%2C%20quiero%20conocer%20MAT'
 
   React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  React.useEffect(() => {
-    const primaryEmail = user?.primaryEmailAddress?.emailAddress;
-    if (primaryEmail && !liteOrganizationEmail) {
-      setLiteOrganizationEmail(primaryEmail);
+    const primaryEmail = user?.primaryEmailAddress?.emailAddress
+    if (primaryEmail && !organizationEmail) {
+      setOrganizationEmail(primaryEmail)
     }
-  }, [liteOrganizationEmail, user?.primaryEmailAddress?.emailAddress]);
+  }, [organizationEmail, user?.primaryEmailAddress?.emailAddress])
 
   React.useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 50)
+    handleScroll()
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
-    handleScroll();
-    window.addEventListener("scroll", handleScroll);
-
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  React.useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setActiveSlide((current) =>
-        current === productGallery.length - 1 ? 0 : current + 1,
-      );
-    }, 3500);
-
-    return () => window.clearInterval(intervalId);
-  }, []);
-
-  const goToPrevSlide = React.useCallback(() => {
-    setActiveSlide((current) =>
-      current === 0 ? productGallery.length - 1 : current - 1,
-    );
-  }, []);
-
-  const goToNextSlide = React.useCallback(() => {
-    setActiveSlide((current) =>
-      current === productGallery.length - 1 ? 0 : current + 1,
-    );
-  }, []);
-
-  const buildLiteDetails = React.useCallback(
-    (): PendingLiteCheckout => ({
-      organizationName: liteOrganizationName.trim(),
-      organizationAddress: liteOrganizationAddress.trim() || undefined,
-      organizationPhone: liteOrganizationPhone.trim() || undefined,
-      organizationEmail: liteOrganizationEmail.trim() || undefined,
-      adminPhone: liteAdminPhone.trim() || undefined,
+  const buildDetails = React.useCallback(
+    (): OrgCheckoutDetails => ({
+      organizationName: organizationName.trim(),
+      organizationAddress: organizationAddress.trim() || undefined,
+      organizationPhone: organizationPhone.trim() || undefined,
+      organizationEmail: organizationEmail.trim() || undefined,
+      adminPhone: adminPhone.trim() || undefined
     }),
     [
-      liteAdminPhone,
-      liteOrganizationAddress,
-      liteOrganizationEmail,
-      liteOrganizationName,
-      liteOrganizationPhone,
-    ],
-  );
+      adminPhone,
+      organizationAddress,
+      organizationEmail,
+      organizationName,
+      organizationPhone
+    ]
+  )
 
-  const startLiteCheckout = React.useCallback(
-    async (details: PendingLiteCheckout) => {
-      if (!mercadoPagoCheckoutEnabled) {
-        toast.error("El checkout de Mercado Pago no esta disponible");
-        return;
-      }
+  const applyDetails = React.useCallback((details: OrgCheckoutDetails) => {
+    setOrganizationName(details.organizationName)
+    setOrganizationAddress(details.organizationAddress ?? '')
+    setOrganizationPhone(details.organizationPhone ?? '')
+    setOrganizationEmail(details.organizationEmail ?? '')
+    setAdminPhone(details.adminPhone ?? '')
+  }, [])
 
+  const createOrganization = React.useCallback(
+    (details: OrgCheckoutDetails) =>
+      createLiteOrganization({
+        name: details.organizationName.trim(),
+        address: details.organizationAddress,
+        phone: details.organizationPhone,
+        email: details.organizationEmail,
+        adminPhone: details.adminPhone,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }),
+    [createLiteOrganization]
+  )
+
+  const startProTrial = React.useCallback(
+    async (details: OrgCheckoutDetails) => {
       if (!details.organizationName.trim()) {
-        toast.error("Completa el nombre de la organizacion");
-        return;
+        toast.error('Completá el nombre de la organización')
+        return
       }
 
-      setIsStartingLiteCheckout(true);
+      setIsSubmitting(true)
       try {
-        await createLiteOrganization({
-          name: details.organizationName.trim(),
-          address: details.organizationAddress,
-          phone: details.organizationPhone,
-          email: details.organizationEmail,
-          adminPhone: details.adminPhone,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        });
-        clearPendingLiteCheckout();
-        const result = await createCheckout({});
-        window.location.href = result.initPoint;
+        await createOrganization(details)
+        clearPending(PENDING_PRO_TRIAL_KEY)
+        toast.success('¡Listo! Tu prueba Pro de 7 días está activa.')
+        router.push('/dashboard')
       } catch (error) {
         toast.error(
           error instanceof Error
             ? error.message
-            : "No se pudo iniciar la suscripcion Lite",
-        );
-        setIsStartingLiteCheckout(false);
+            : 'No se pudo iniciar la prueba Pro'
+        )
+        setIsSubmitting(false)
       }
     },
-    [createCheckout, createLiteOrganization],
-  );
+    [createOrganization, router]
+  )
 
+  const startLiteCheckout = React.useCallback(
+    async (details: OrgCheckoutDetails) => {
+      if (!mercadoPagoCheckoutEnabled) {
+        toast.error('El checkout de Mercado Pago no está disponible')
+        return
+      }
+      if (!details.organizationName.trim()) {
+        toast.error('Completá el nombre de la organización')
+        return
+      }
+
+      setIsSubmitting(true)
+      try {
+        await createOrganization(details)
+        clearPending(PENDING_LITE_CHECKOUT_KEY)
+        const result = await createCheckout({})
+        window.location.href = result.initPoint
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'No se pudo iniciar la suscripción Lite'
+        )
+        setIsSubmitting(false)
+      }
+    },
+    [createCheckout, createOrganization]
+  )
+
+  // Resume a Lite checkout started before signing in.
   React.useEffect(() => {
     if (
-      autoStartedLiteCheckoutRef.current ||
+      autoStartedLiteRef.current ||
       !isUserLoaded ||
       !isSignedIn ||
-      typeof window === "undefined"
+      typeof window === 'undefined' ||
+      !mercadoPagoCheckoutEnabled
     ) {
-      return;
+      return
     }
 
-    if (!mercadoPagoCheckoutEnabled) return;
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('lite_checkout') !== '1') return
 
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("lite_checkout") !== "1") return;
-
-    const pending = getPendingLiteCheckout();
+    const pending = readPending(PENDING_LITE_CHECKOUT_KEY)
     if (!pending) {
-      setLiteDialogOpen(true);
-      return;
+      setDialogMode('lite')
+      return
     }
 
-    autoStartedLiteCheckoutRef.current = true;
-    setLiteOrganizationName(pending.organizationName);
-    setLiteOrganizationAddress(pending.organizationAddress ?? "");
-    setLiteOrganizationPhone(pending.organizationPhone ?? "");
-    setLiteOrganizationEmail(pending.organizationEmail ?? "");
-    setLiteAdminPhone(pending.adminPhone ?? "");
-    void startLiteCheckout(pending);
-  }, [isSignedIn, isUserLoaded, startLiteCheckout]);
+    autoStartedLiteRef.current = true
+    applyDetails(pending)
+    void startLiteCheckout(pending)
+  }, [applyDetails, isSignedIn, isUserLoaded, startLiteCheckout])
 
-  const handleLiteSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const details = buildLiteDetails();
+  // Resume a Pro trial started before signing in.
+  React.useEffect(() => {
+    if (
+      autoStartedTrialRef.current ||
+      !isUserLoaded ||
+      !isSignedIn ||
+      typeof window === 'undefined'
+    ) {
+      return
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('start_trial') !== '1') return
+
+    const pending = readPending(PENDING_PRO_TRIAL_KEY)
+    if (!pending) {
+      setDialogMode('trial')
+      return
+    }
+
+    autoStartedTrialRef.current = true
+    applyDetails(pending)
+    void startProTrial(pending)
+  }, [applyDetails, isSignedIn, isUserLoaded, startProTrial])
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const details = buildDetails()
     if (!details.organizationName) {
-      toast.error("Completa el nombre de la organizacion");
-      return;
+      toast.error('Completá el nombre de la organización')
+      return
     }
+    if (!isUserLoaded) return
 
-    if (!isUserLoaded) return;
+    const isTrial = dialogMode === 'trial'
+    const pendingKey = isTrial
+      ? PENDING_PRO_TRIAL_KEY
+      : PENDING_LITE_CHECKOUT_KEY
+    const resumeParam = isTrial ? 'start_trial=1' : 'lite_checkout=1'
 
     if (!isSignedIn) {
-      setPendingLiteCheckout(details);
+      writePending(pendingKey, details)
       router.push(
-        `/sign-up?lite_checkout=1&redirect_url=${encodeURIComponent(
-          "/?lite_checkout=1",
-        )}`,
-      );
-      return;
+        `/sign-up?${resumeParam}&redirect_url=${encodeURIComponent(
+          `/?${resumeParam}`
+        )}`
+      )
+      return
     }
 
-    await startLiteCheckout(details);
-  };
-
-  const storeLiteDetailsForSignIn = () => {
-    const details = buildLiteDetails();
-    if (details.organizationName) {
-      setPendingLiteCheckout(details);
+    if (isTrial) {
+      await startProTrial(details)
+    } else {
+      await startLiteCheckout(details)
     }
-  };
+  }
+
+  const storeDetailsForSignIn = () => {
+    const details = buildDetails()
+    if (!details.organizationName) return
+    writePending(
+      dialogMode === 'trial'
+        ? PENDING_PRO_TRIAL_KEY
+        : PENDING_LITE_CHECKOUT_KEY,
+      details
+    )
+  }
+
+  const isTrialDialog = dialogMode === 'trial'
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#f6f5f2] text-[#111111] transition-colors dark:bg-[#0f0f10] dark:text-white">
+    <main className="relative min-h-screen overflow-x-hidden bg-[#08080A] text-white antialiased">
       <Script id="meta-pixel-base" strategy="afterInteractive">
         {`!function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -508,87 +543,102 @@ fbq('track', 'PageView');`}
         <img
           height="1"
           width="1"
-          style={{ display: "none" }}
+          style={{ display: 'none' }}
           src="https://www.facebook.com/tr?id=1304928111588479&ev=PageView&noscript=1"
           alt=""
         />
       </noscript>
 
-      <Dialog open={liteDialogOpen} onOpenChange={setLiteDialogOpen}>
-        <DialogContent className="sm:max-w-xl">
+      {/* Ambient background */}
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_42%_at_50%_-8%,rgba(255,92,36,0.16),transparent_60%),radial-gradient(40%_30%_at_85%_8%,rgba(255,92,36,0.07),transparent_70%)]" />
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[820px] opacity-[0.16]"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+          maskImage:
+            'radial-gradient(70% 60% at 50% 0%, black, transparent 75%)',
+          WebkitMaskImage:
+            'radial-gradient(70% 60% at 50% 0%, black, transparent 75%)'
+        }}
+      />
+
+      <Dialog
+        open={dialogMode !== null}
+        onOpenChange={(open) => {
+          if (!open) setDialogMode(null)
+        }}
+      >
+        <DialogContent className="border-white/10 bg-[#0E0E11] text-white sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Activar MAT Lite</DialogTitle>
-            <DialogDescription>
-              Crea la organizacion, registra tu usuario administrador y continua
-              el pago recurrente en Mercado Pago.
+            <DialogTitle>
+              {isTrialDialog
+                ? 'Empezá tu prueba Pro de 7 días'
+                : 'Activar MAT Lite'}
+            </DialogTitle>
+            <DialogDescription className="text-white/60">
+              {isTrialDialog
+                ? 'Creá tu organización y entrá al panel completo. Tenés 7 días de Pro, sin tarjeta.'
+                : 'Creá la organización, registrá tu usuario administrador y continuá el pago recurrente en Mercado Pago.'}
             </DialogDescription>
           </DialogHeader>
 
-          <form className="space-y-4" onSubmit={handleLiteSubmit}>
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="lite-organization-name">
-                Nombre de la organizacion
+              <Label htmlFor="organization-name">
+                Nombre de la organización
               </Label>
               <Input
-                id="lite-organization-name"
-                value={liteOrganizationName}
-                onChange={(event) =>
-                  setLiteOrganizationName(event.target.value)
-                }
-                disabled={isStartingLiteCheckout}
+                id="organization-name"
+                value={organizationName}
+                onChange={(event) => setOrganizationName(event.target.value)}
+                disabled={isSubmitting}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="lite-organization-address">Direccion</Label>
+              <Label htmlFor="organization-address">Dirección</Label>
               <Input
-                id="lite-organization-address"
-                value={liteOrganizationAddress}
-                onChange={(event) =>
-                  setLiteOrganizationAddress(event.target.value)
-                }
-                disabled={isStartingLiteCheckout}
+                id="organization-address"
+                value={organizationAddress}
+                onChange={(event) => setOrganizationAddress(event.target.value)}
+                disabled={isSubmitting}
               />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="lite-organization-phone">
-                  Telefono del gimnasio
+                <Label htmlFor="organization-phone">
+                  Teléfono del gimnasio
                 </Label>
                 <Input
-                  id="lite-organization-phone"
-                  value={liteOrganizationPhone}
-                  onChange={(event) =>
-                    setLiteOrganizationPhone(event.target.value)
-                  }
-                  disabled={isStartingLiteCheckout}
+                  id="organization-phone"
+                  value={organizationPhone}
+                  onChange={(event) => setOrganizationPhone(event.target.value)}
+                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lite-organization-email">
-                  Email del gimnasio
-                </Label>
+                <Label htmlFor="organization-email">Email del gimnasio</Label>
                 <Input
-                  id="lite-organization-email"
+                  id="organization-email"
                   type="email"
-                  value={liteOrganizationEmail}
-                  onChange={(event) =>
-                    setLiteOrganizationEmail(event.target.value)
-                  }
-                  disabled={isStartingLiteCheckout}
+                  value={organizationEmail}
+                  onChange={(event) => setOrganizationEmail(event.target.value)}
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="lite-admin-phone">Tu telefono</Label>
+              <Label htmlFor="admin-phone">Tu teléfono</Label>
               <Input
-                id="lite-admin-phone"
-                value={liteAdminPhone}
-                onChange={(event) => setLiteAdminPhone(event.target.value)}
-                disabled={isStartingLiteCheckout}
+                id="admin-phone"
+                value={adminPhone}
+                onChange={(event) => setAdminPhone(event.target.value)}
+                disabled={isSubmitting}
               />
             </div>
 
@@ -596,26 +646,34 @@ fbq('track', 'PageView');`}
               <Button
                 type="submit"
                 className={orangeButtonClassName}
-                disabled={isStartingLiteCheckout || !isUserLoaded}
+                disabled={isSubmitting || !isUserLoaded}
               >
-                {isStartingLiteCheckout ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 size-4 animate-spin" />
-                    Preparando pago...
+                    {isTrialDialog ? 'Creando…' : 'Preparando pago…'}
                   </>
                 ) : isSignedIn ? (
-                  "Crear organizacion y pagar"
+                  isTrialDialog ? (
+                    'Activar prueba Pro'
+                  ) : (
+                    'Crear organización y pagar'
+                  )
                 ) : (
-                  "Continuar con registro"
+                  'Continuar con registro'
                 )}
               </Button>
               {!isSignedIn ? (
-                <Button asChild variant="outline" className="rounded-full">
+                <Button
+                  asChild
+                  variant="outline"
+                  className="rounded-full border-white/14 bg-transparent text-white hover:bg-white/[0.06] hover:text-white"
+                >
                   <Link
                     href={`/sign-in?redirect_url=${encodeURIComponent(
-                      "/?lite_checkout=1",
+                      isTrialDialog ? '/?start_trial=1' : '/?lite_checkout=1'
                     )}`}
-                    onClick={storeLiteDetailsForSignIn}
+                    onClick={storeDetailsForSignIn}
                   >
                     Ya tengo cuenta
                   </Link>
@@ -628,13 +686,12 @@ fbq('track', 'PageView');`}
 
       <WhatsAppFloatingButton />
 
-      <div className="absolute inset-x-0 top-0 -z-0 h-[560px] bg-[radial-gradient(circle_at_top,rgba(43,200,183,0.18),transparent_40%),radial-gradient(circle_at_20%_20%,rgba(155,153,254,0.16),transparent_30%),linear-gradient(180deg,#f2f0eb_0%,#f6f5f2_55%,#f6f5f2_100%)] dark:bg-[radial-gradient(circle_at_top,rgba(43,200,183,0.16),transparent_35%),radial-gradient(circle_at_20%_20%,rgba(155,153,254,0.12),transparent_28%),linear-gradient(180deg,#101112_0%,#0f0f10_60%,#0f0f10_100%)]" />
-
+      {/* ===== Navbar (style preserved, dark-only) ===== */}
       <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-5 sm:pt-5">
         <Reveal amount={0} once>
           <div
-            className={`mx-auto rounded-[1.6rem] border border-black/8 bg-[#f6f5f2]/78 px-4 py-3 shadow-[0_12px_36px_rgba(17,17,17,0.08)] backdrop-blur-xl transition-all duration-300 dark:border-white/10 dark:bg-[#0f0f10]/78 dark:shadow-[0_14px_36px_rgba(0,0,0,0.28)] ${
-              isScrolled ? "max-w-5xl px-3 py-2.5 sm:px-4" : "max-w-7xl"
+            className={`mx-auto rounded-[1.6rem] border border-white/10 bg-[#0B0B0D]/72 px-4 py-3 shadow-[0_14px_36px_rgba(0,0,0,0.4)] backdrop-blur-xl transition-all duration-300 ${
+              isScrolled ? 'max-w-5xl px-3 py-2.5 sm:px-4' : 'max-w-7xl'
             }`}
           >
             <div className="relative flex items-center justify-between gap-3">
@@ -642,53 +699,37 @@ fbq('track', 'PageView');`}
                 href="/"
                 aria-label="Ir al inicio"
                 className={`shrink-0 rounded-full px-3 transition-all duration-300 ${
-                  isScrolled ? "py-1.5" : "py-2"
+                  isScrolled ? 'py-1.5' : 'py-2'
                 }`}
               >
-                <Logo className="h-6 w-auto" />
+                <Logo className="h-7 w-auto" />
               </Link>
 
               <nav
-                className={`absolute left-1/2 hidden -translate-x-1/2 items-center rounded-full border border-black/8 bg-white/50 shadow-sm transition-all duration-300 dark:border-white/10 dark:bg-white/5 md:flex ${
-                  isScrolled ? "gap-1 px-2.5 py-1.5" : "gap-2 px-3 py-2"
+                className={`absolute left-1/2 hidden -translate-x-1/2 items-center rounded-full border border-white/10 bg-white/[0.04] shadow-sm transition-all duration-300 md:flex ${
+                  isScrolled ? 'gap-1 px-2.5 py-1.5' : 'gap-2 px-3 py-2'
                 }`}
               >
-                <a
-                  href="#funciones"
-                  className={`${navLinkClassName} transition-all duration-300 ${
-                    isScrolled ? "px-2 text-xs" : "px-3"
-                  }`}
-                >
-                  Funciones
-                </a>
-                <a
-                  href="#producto"
-                  className={`${navLinkClassName} transition-all duration-300 ${
-                    isScrolled ? "px-2 text-xs" : "px-3"
-                  }`}
-                >
-                  Producto
-                </a>
-                <a
-                  href="#precio"
-                  className={`${navLinkClassName} transition-all duration-300 ${
-                    isScrolled ? "px-2 text-xs" : "px-3"
-                  }`}
-                >
-                  Precio
-                </a>
-                <a
-                  href="#contacto"
-                  className={`${navLinkClassName} transition-all duration-300 ${
-                    isScrolled ? "px-2 text-xs" : "px-3"
-                  }`}
-                >
-                  Contacto
-                </a>
+                {[
+                  { href: '#funciones', label: 'Funciones' },
+                  { href: '#producto', label: 'Producto' },
+                  { href: '#precio', label: 'Precio' },
+                  { href: '#contacto', label: 'Contacto' }
+                ].map((item) => (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className={`${navLinkClassName} transition-all duration-300 ${
+                      isScrolled ? 'px-2 text-xs' : 'px-3 text-sm'
+                    }`}
+                  >
+                    {item.label}
+                  </a>
+                ))}
                 <Link
                   href="/invite-code"
                   className={`${navLinkClassName} transition-all duration-300 ${
-                    isScrolled ? "px-2 text-xs" : "px-3"
+                    isScrolled ? 'px-2 text-xs' : 'px-3 text-sm'
                   }`}
                 >
                   Tengo invitación
@@ -698,20 +739,21 @@ fbq('track', 'PageView');`}
               <div className="flex items-center gap-2 sm:gap-3">
                 <Unauthenticated>
                   <Button
-                    asChild
-                    className={`md:hidden ${compactBlackButtonClassName}`}
-                  >
-                    <Link href="/dashboard">Iniciar Sesión</Link>
-                  </Button>
-                  <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setSignInOpen(true)}
-                    className={`hidden rounded-full border border-black/8 bg-[#f6f5f2]/82 px-5 text-sm font-medium text-black shadow-[0_12px_30px_rgba(17,17,17,0.08)] backdrop-blur-xl transition-all duration-300 hover:bg-[#ece9e2] hover:text-black dark:border-white/10 dark:bg-[#0f0f10]/80 dark:text-white dark:hover:bg-[#171719] md:inline-flex ${
-                      isScrolled ? "px-4 py-2 text-xs" : ""
+                    className={`hidden md:inline-flex ${compactSubtleButtonClassName} ${
+                      isScrolled ? 'text-xs' : ''
                     }`}
                   >
-                    Iniciar sesion
+                    Iniciar sesión
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => setDialogMode('trial')}
+                    className={`${orangeButtonClassName} px-4 py-2 text-sm`}
+                  >
+                    Empezar gratis
                   </Button>
                   <SignInDialog
                     open={signInOpen}
@@ -722,15 +764,15 @@ fbq('track', 'PageView');`}
                 <Authenticated>
                   <Button
                     asChild
-                    className={`md:hidden ${compactBlackButtonClassName}`}
+                    className={`md:hidden ${compactSubtleButtonClassName}`}
                   >
                     <Link href="/dashboard">Dashboard</Link>
                   </Button>
 
                   <Button
                     asChild
-                    className={`hidden rounded-full border border-black/8 bg-[#f6f5f2]/82 px-5 text-sm font-medium text-black shadow-[0_12px_30px_rgba(17,17,17,0.08)] backdrop-blur-xl transition-all duration-300 hover:bg-[#ece9e2] hover:text-black dark:border-white/10 dark:bg-[#0f0f10]/80 dark:text-white dark:hover:bg-[#171719] md:inline-flex ${
-                      isScrolled ? "px-4 py-2 text-xs" : ""
+                    className={`hidden md:inline-flex ${compactSubtleButtonClassName} ${
+                      isScrolled ? 'text-xs' : ''
                     }`}
                   >
                     <Link href="/dashboard">Dashboard</Link>
@@ -738,23 +780,34 @@ fbq('track', 'PageView');`}
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="hidden md:flex items-center gap-2 rounded-full border border-black/8 bg-[#f6f5f2]/82 px-3 py-2 text-xs font-medium text-black shadow-[0_12px_30px_rgba(17,17,17,0.08)] backdrop-blur-xl transition-all duration-300 hover:bg-[#ece9e2] dark:border-white/10 dark:bg-[#0f0f10]/80 dark:text-white dark:hover:bg-[#171719]">
-                        <span className="flex size-6 items-center justify-center rounded-full bg-black/8 text-[10px] font-semibold dark:bg-white/10">
-                          {user?.fullName?.charAt(0).toUpperCase() ||
-                            user?.emailAddresses?.[0]?.emailAddress
-                              ?.charAt(0)
-                              .toUpperCase() ||
-                            "U"}
-                        </span>
-                        <ChevronsUpDown className="size-3" />
+                      <button
+                        aria-label="Abrir menú de cuenta"
+                        className="hidden size-9 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-xl transition-all duration-300 hover:bg-white/[0.09] md:flex"
+                      >
+                        {user?.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={user.imageUrl}
+                            alt="Perfil"
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          <span className="flex size-full items-center justify-center bg-white/10 text-[11px] font-semibold text-white">
+                            {user?.fullName?.charAt(0).toUpperCase() ||
+                              user?.emailAddresses?.[0]?.emailAddress
+                                ?.charAt(0)
+                                .toUpperCase() ||
+                              'U'}
+                          </span>
+                        )}
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-40">
                       <DropdownMenuItem
-                        onClick={() => signOut({ redirectUrl: "/" })}
+                        onClick={() => signOut({ redirectUrl: '/' })}
                       >
                         <LogOut className="mr-2 size-4" />
-                        Cerrar sesion
+                        Cerrar sesión
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -765,436 +818,451 @@ fbq('track', 'PageView');`}
         </Reveal>
       </header>
 
+      {/* ===== Hero ===== */}
       <section className="relative">
-        <div className="mx-auto max-w-7xl px-4 pb-12 pt-28 sm:px-6 sm:pb-16 sm:pt-32 lg:pt-36">
-          <div className="relative z-10 max-w-6xl">
-            <Reveal amount={0} once>
-              <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-black/10 bg-white/80 px-3 py-1 text-xs text-black/70 shadow-sm dark:border-white/12 dark:bg-white/6 dark:text-white/78 sm:text-sm">
-                <Sparkles className="size-4 text-[#2bc8b7]" />
-                <span className="truncate">
-                  Gestion clara para gimnasios y centros de entrenamiento
+        <div className="mx-auto max-w-6xl px-4 pb-10 pt-28 text-center sm:px-6 sm:pt-36 lg:pt-40">
+          <Reveal amount={0} once>
+            <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-xs text-white/70 backdrop-blur-xl sm:text-sm">
+              <Sparkles className="size-4 text-[#FF5C24]" />
+              <span>
+                Gestión clara para gimnasios y centros de entrenamiento
+              </span>
+            </div>
+          </Reveal>
+
+          <Reveal amount={0.35} className="mt-6">
+            <h1 className="mx-auto max-w-4xl text-balance text-4xl font-semibold leading-[1.03] tracking-[-0.04em] sm:text-6xl lg:text-[4.25rem]">
+              Control, orden y seguimiento
+              <br className="hidden sm:block" /> real para tu{' '}
+              <span className="text-[#FF5C24]">gimnasio</span>.
+            </h1>
+          </Reveal>
+
+          <Reveal amount={0.2} className="mt-6">
+            <p className="mx-auto max-w-2xl text-pretty text-base leading-7 text-white/64 sm:text-lg">
+              Clases, planificaciones, socios y pagos en una sola plataforma —
+              con web para el staff y app móvil para el día a día.
+            </p>
+          </Reveal>
+
+          <RevealGroup
+            className="mt-9 flex flex-col items-center gap-3"
+            amount={0.1}
+            once
+          >
+            <div className="flex flex-col items-center gap-3 sm:flex-row">
+              <Button
+                size="lg"
+                onClick={() => setDialogMode('trial')}
+                className={orangeButtonClassName}
+              >
+                Empezá gratis 7 días
+                <ArrowRight className="ml-2 size-4" />
+              </Button>
+              <Button asChild size="lg" className={subtleButtonClassName}>
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => trackWhatsAppClick('hero_secondary')}
+                >
+                  Ver una demo
+                  <MessageCircle className="ml-2 size-4" />
+                </a>
+              </Button>
+            </div>
+            <p className="text-xs text-white/45">
+              Sin tarjeta de crédito · 7 días de Pro completo
+            </p>
+          </RevealGroup>
+        </div>
+
+        {/* Hero product visual */}
+        <Reveal
+          amount={0.1}
+          className="relative mx-auto max-w-6xl px-4 sm:px-6"
+        >
+          <div className="pointer-events-none absolute inset-x-8 -top-6 bottom-10 -z-10 rounded-[2rem] bg-[radial-gradient(60%_60%_at_50%_0%,rgba(255,92,36,0.22),transparent_70%)] blur-2xl" />
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0C0C0E] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)] sm:rounded-[1.75rem]">
+            <div className="flex items-center gap-2 border-b border-white/8 px-4 py-3">
+              <span className="size-2.5 rounded-full bg-white/15" />
+              <span className="size-2.5 rounded-full bg-white/15" />
+              <span className="size-2.5 rounded-full bg-white/15" />
+              <div className="ml-3 hidden h-6 flex-1 items-center rounded-md bg-white/[0.04] px-3 text-xs text-white/35 sm:flex">
+                matgestion.app/dashboard
+              </div>
+            </div>
+            <Image
+              src={screenshotWeb}
+              alt="Panel web de MAT con planificaciones y gestión del gimnasio"
+              priority
+              sizes="(max-width: 768px) 100vw, 1152px"
+              className="h-auto w-full"
+            />
+          </div>
+        </Reveal>
+      </section>
+
+      {/* ===== Stats strip ===== */}
+      <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
+        <RevealGroup className="grid gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] sm:grid-cols-3">
+          {heroStats.map((stat) => (
+            <div key={stat.value} className="bg-[#0A0A0C] p-6 text-center">
+              <p className="text-2xl font-semibold tracking-[-0.03em] text-white">
+                {stat.value}
+              </p>
+              <p className="mt-1 text-sm text-white/55">{stat.label}</p>
+            </div>
+          ))}
+        </RevealGroup>
+      </div>
+
+      {/* ===== Features ===== */}
+      <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
+        <section id="funciones" className="scroll-mt-28 sm:scroll-mt-32">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionEyebrow>Funcionalidades</SectionEyebrow>
+            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Todo el gimnasio, conectado en un solo lugar.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-white/60">
+              Funciones reales de MAT, pensadas para que el valor se entienda
+              rápido y sin ruido visual.
+            </p>
+          </Reveal>
+
+          <RevealGroup className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {productHighlights.map((item) => {
+              const Icon = item.icon
+              return (
+                <article
+                  key={item.title}
+                  className="group rounded-2xl border border-white/10 bg-white/[0.025] p-6 transition-colors hover:border-white/20 hover:bg-white/[0.04]"
+                >
+                  <div className="flex size-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[#FF5C24] transition-colors group-hover:border-[#FF5C24]/40">
+                    <Icon className="size-5" />
+                  </div>
+                  <h3 className="mt-5 text-lg font-semibold tracking-[-0.01em]">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-white/60">
+                    {item.description}
+                  </p>
+                </article>
+              )
+            })}
+          </RevealGroup>
+        </section>
+      </div>
+
+      {/* ===== Product showcase ===== */}
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
+        <section id="producto" className="scroll-mt-28 sm:scroll-mt-32">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionEyebrow>Producto</SectionEyebrow>
+            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Una experiencia para el staff y otra para tus socios.
+            </h2>
+          </Reveal>
+
+          <div className="mt-12 grid gap-4 lg:grid-cols-[1.55fr_1fr]">
+            {/* Web panel */}
+            <Reveal className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#0C0C0E] p-6 sm:p-8">
+              <p className="text-xs font-medium uppercase tracking-[0.24em] text-white/45">
+                Vista web
+              </p>
+              <h3 className="mt-2 text-xl font-semibold tracking-[-0.02em] sm:text-2xl">
+                Panel para administrar todo el gimnasio
+              </h3>
+              <p className="mt-2 max-w-md text-sm leading-6 text-white/60">
+                Planificaciones, miembros, clases y pagos con una navegación
+                clara para que el equipo trabaje ordenado.
+              </p>
+              <div className="relative mt-6">
+                <div className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl bg-[radial-gradient(50%_50%_at_50%_30%,rgba(255,92,36,0.12),transparent_70%)] blur-xl" />
+                <div className="overflow-hidden rounded-xl border border-white/10 shadow-[0_24px_70px_-30px_rgba(0,0,0,0.9)]">
+                  <Image
+                    src={screenshotWeb}
+                    alt="Vista web de MAT con dashboard de planificaciones"
+                    sizes="(max-width: 1024px) 100vw, 700px"
+                    className="h-auto w-full"
+                  />
+                </div>
+              </div>
+            </Reveal>
+
+            {/* Mobile panel */}
+            <Reveal className="relative flex flex-col overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#0C0C0E] p-6 sm:p-8">
+              <p className="text-xs font-medium uppercase tracking-[0.24em] text-white/45">
+                App móvil
+              </p>
+              <h3 className="mt-2 text-xl font-semibold tracking-[-0.02em] sm:text-2xl">
+                Seguimiento simple desde el celular
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-white/60">
+                Tus socios ven sus clases y rutinas del día en una app rápida y
+                clara.
+              </p>
+              <div className="relative mt-6 flex flex-1 items-end justify-center">
+                <div className="pointer-events-none absolute inset-x-6 bottom-0 top-4 -z-10 rounded-[2rem] bg-[radial-gradient(50%_60%_at_50%_100%,rgba(255,92,36,0.14),transparent_70%)] blur-xl" />
+                <Image
+                  src={appMockup}
+                  alt="App móvil de MAT mostrando la rutina del día"
+                  sizes="(max-width: 1024px) 60vw, 280px"
+                  className="h-auto w-[200px] drop-shadow-[0_30px_60px_rgba(0,0,0,0.6)] sm:w-[230px]"
+                />
+              </div>
+            </Reveal>
+          </div>
+
+          {/* Before / After */}
+          <Reveal className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8">
+              <p className="text-sm font-medium text-white/45">Antes de MAT</p>
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-white/55">
+                {[
+                  'Horarios repartidos en chats y notas.',
+                  'Pagos sin seguimiento centralizado.',
+                  'Rutinas y clases sin una vista clara.'
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-3">
+                    <span className="mt-2 size-1.5 shrink-0 rounded-full bg-white/25" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-[1.5rem] border border-[#FF5C24]/25 bg-[linear-gradient(180deg,rgba(255,92,36,0.08),rgba(255,92,36,0.02))] p-6 sm:p-8">
+              <p className="text-sm font-medium text-[#FF8A5C]">Con MAT</p>
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-white/80">
+                {[
+                  'Gestión centralizada con menos fricción diaria.',
+                  'Más claridad para el equipo y mejor seguimiento.',
+                  'Una base ordenada para crecer con proceso.'
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-3">
+                    <Check className="mt-0.5 size-4 shrink-0 text-[#FF5C24]" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Reveal>
+        </section>
+      </div>
+
+      {/* ===== Pricing ===== */}
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
+        <section id="precio" className="scroll-mt-28 sm:scroll-mt-32">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <SectionEyebrow>Planes</SectionEyebrow>
+            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+              Probá Pro gratis. Elegí lo que acompaña tu operación.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-white/60">
+              Empezá con 7 días de Pro completo, sin tarjeta. Si necesitás lo
+              esencial, Lite te deja arrancar por menos.
+            </p>
+          </Reveal>
+
+          <div className="mx-auto mt-12 grid max-w-4xl gap-4 md:grid-cols-2 md:items-stretch">
+            {/* PRO (featured) */}
+            <Reveal className="relative flex flex-col overflow-hidden rounded-[1.6rem] border border-[#FF5C24]/40 bg-[linear-gradient(180deg,rgba(255,92,36,0.10),rgba(255,92,36,0.015))] p-7 shadow-[0_30px_80px_-40px_rgba(255,92,36,0.6)] sm:p-8">
+              <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#FF5C24]/20 blur-3xl" />
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white">
+                  MAT Pro
+                </p>
+                <span className="rounded-full bg-[#FF5C24] px-3 py-1 text-xs font-semibold text-white">
+                  7 días gratis
                 </span>
               </div>
-            </Reveal>
-
-            <Reveal amount={0.35} className="mt-5">
-              <h1 className="max-w-none text-3xl leading-[1.02] font-semibold tracking-[-0.04em] sm:mt-6 sm:text-[2.7rem] md:max-w-[20ch] md:text-[2.85rem] lg:max-w-[24ch] lg:text-[2.95rem] xl:max-w-[26ch]">
-                Control, orden y seguimiento real para tu gimnasio.
-              </h1>
-            </Reveal>
-
-            <RevealGroup className="mt-8 sm:mt-10" amount={0.12} once>
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <Button asChild size="lg" className={orangeButtonClassName}>
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => trackWhatsAppClick("hero_primary")}
-                  >
-                    Quiero una demo
-                    <ArrowRight className="ml-2 size-4" />
-                  </a>
-                </Button>
-
-                <Button asChild size="lg" className={blackButtonClassName}>
-                  <a href="#funciones">
-                    Ver funcionalidades
-                    <ChevronRight className="ml-2 size-4" />
-                  </a>
-                </Button>
+              <div className="mt-5 flex items-end gap-2">
+                <span className="text-4xl font-semibold tracking-[-0.04em]">
+                  Gratis
+                </span>
+                <span className="pb-1 text-sm text-white/55">por 7 días</span>
               </div>
+              <p className="mt-2 text-sm text-white/60">
+                {proPriceLabel ? (
+                  <>
+                    Luego{' '}
+                    <span className="font-medium text-white">
+                      {proPriceLabel}
+                    </span>{' '}
+                    / mes. Cancelás cuando quieras.
+                  </>
+                ) : (
+                  'Acceso completo desde el primer día. Luego coordinamos el plan a la medida de tu gimnasio.'
+                )}
+              </p>
 
-              <div className="mt-8 grid gap-3 sm:mt-10 sm:grid-cols-3">
-                {quickStats.map((stat) => (
-                  <div
-                    key={stat.value}
-                    className="rounded-3xl border border-black/8 bg-white/82 p-4 shadow-[0_10px_30px_rgba(17,17,17,0.04)] dark:border-white/12 dark:bg-[#18181a] dark:shadow-[0_12px_30px_rgba(0,0,0,0.22)]"
-                  >
-                    <p className="text-lg font-semibold text-black dark:text-white">
-                      {stat.value}
-                    </p>
-                    <p className="mt-1 text-sm text-black/62 dark:text-white/70">
-                      {stat.label}
-                    </p>
+              <div className="mt-6 grid gap-3">
+                {proFeatures.map((item) => (
+                  <div key={item} className="flex items-center gap-3 text-sm">
+                    <Check className="size-4 shrink-0 text-[#FF5C24]" />
+                    <span className="text-white/85">{item}</span>
                   </div>
                 ))}
               </div>
-            </RevealGroup>
-          </div>
-        </div>
-      </section>
 
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12">
-        <RevealGroup>
-          <section id="funciones" className="scroll-mt-28 sm:scroll-mt-32">
-            <div className="max-w-xl">
-              <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#2bc8b7]">
-                Funcionalidades
+              <div className="mt-7 flex flex-col gap-2">
+                <Button
+                  size="lg"
+                  onClick={() => setDialogMode('trial')}
+                  className={orangeButtonClassName}
+                >
+                  Empezá gratis 7 días
+                  <ArrowRight className="ml-2 size-4" />
+                </Button>
+                <p className="text-center text-xs text-white/45">
+                  Sin tarjeta de crédito
+                </p>
+              </div>
+            </Reveal>
+
+            {/* LITE */}
+            <Reveal className="flex flex-col rounded-[1.6rem] border border-white/10 bg-white/[0.025] p-7 sm:p-8">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">
+                  MAT Lite
+                </p>
+                <span className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/60">
+                  Lo esencial
+                </span>
+              </div>
+              <div className="mt-5 flex items-end gap-2">
+                <span className="text-4xl font-semibold tracking-[-0.04em]">
+                  {litePriceLabel ?? 'Consultar'}
+                </span>
+                {litePriceLabel ? (
+                  <span className="pb-1 text-sm text-white/55">/ mes</span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-sm text-white/60">
+                {mercadoPagoCheckoutEnabled
+                  ? 'Se cobra en pesos argentinos vía Mercado Pago.'
+                  : 'Activación asistida mientras habilitamos el checkout automático.'}
               </p>
-              <h2 className="mt-3 text-lg font-semibold tracking-[-0.03em] sm:text-xl md:text-2xl">
-                Todo lo importante del gimnasio, conectado en un solo lugar.
-              </h2>
-              <p className="mt-3 max-w-lg text-sm leading-6 text-black/68 dark:text-white/72">
-                La landing refleja funciones reales de MAT para que el valor del
-                producto se entienda rapido y sin ruido visual.
-              </p>
-            </div>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {productHighlights.map((item) => {
-                const Icon = item.icon;
+              <div className="mt-6 grid gap-3">
+                {liteFeatures.map((item) => (
+                  <div key={item} className="flex items-center gap-3 text-sm">
+                    <Check className="size-4 shrink-0 text-white/40" />
+                    <span className="text-white/75">{item}</span>
+                  </div>
+                ))}
+              </div>
 
-                return (
-                  <article
-                    key={item.title}
-                    className="rounded-[1.35rem] border border-black/8 bg-white/78 p-5 shadow-[0_16px_40px_rgba(17,17,17,0.05)] dark:border-white/10 dark:bg-[#151517] dark:shadow-[0_20px_45px_rgba(0,0,0,0.24)]"
+              <div className="mt-7 flex flex-1 flex-col justify-end gap-2">
+                {mercadoPagoCheckoutEnabled ? (
+                  <Button
+                    size="lg"
+                    onClick={() => setDialogMode('lite')}
+                    className={subtleButtonClassName}
                   >
-                    <div className="flex size-11 items-center justify-center rounded-xl bg-[linear-gradient(135deg,rgba(155,153,254,0.18),rgba(43,200,183,0.2))] text-[#111111]">
-                      <Icon className="size-4" />
-                    </div>
-                    <h3 className="mt-4 text-lg font-semibold">{item.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-black/64 dark:text-white/72">
-                      {item.description}
-                    </p>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        </RevealGroup>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6">
-        <RevealGroup>
-          <section id="producto" className="scroll-mt-28 sm:scroll-mt-32">
-            <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
-              <div className="rounded-[1.35rem] border border-black/8 bg-[#111111] p-5 text-white shadow-[0_24px_70px_rgba(17,17,17,0.16)] dark:border-white/10 sm:rounded-[1.5rem] sm:p-6">
-                <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#2bc8b7]">
-                  Por que MAT
-                </p>
-                <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em] sm:text-xl">
-                  Simple y clara
-                </h2>
-                <div className="mt-4 space-y-3">
-                  {differentiators.map((item) => (
-                    <div key={item} className="flex items-start gap-3">
-                      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#2bc8b7]" />
-                      <p className="text-sm leading-6 text-white/82">{item}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-[1.35rem] border border-black/8 bg-white/78 p-5 dark:border-white/10 dark:bg-[#151517] sm:rounded-[1.5rem] sm:p-6">
-                <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#9b99fe]">
-                  Que resuelve
-                </p>
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div className="rounded-[1.15rem] bg-[#f3f1eb] p-4 dark:bg-[#1b1b1d]">
-                    <p className="text-sm font-medium text-black/60 dark:text-white/60">
-                      Antes de MAT
-                    </p>
-                    <ul className="mt-3 space-y-2 text-sm leading-6 text-black/70 dark:text-white/72">
-                      <li>Horarios repartidos en chats y notas.</li>
-                      <li>Pagos sin seguimiento centralizado.</li>
-                      <li>Rutinas y clases sin una vista clara.</li>
-                    </ul>
-                  </div>
-                  <div className="rounded-[1.15rem] bg-[linear-gradient(180deg,rgba(155,153,254,0.12),rgba(43,200,183,0.12))] p-4 dark:bg-[linear-gradient(180deg,rgba(155,153,254,0.16),rgba(43,200,183,0.14))]">
-                    <p className="text-sm font-medium text-black/60 dark:text-white/68">
-                      Con MAT
-                    </p>
-                    <ul className="mt-3 space-y-2 text-sm leading-6 text-black/75 dark:text-white/78">
-                      <li>Gestion centralizada con menos friccion diaria.</li>
-                      <li>Mas claridad para el equipo y mejor seguimiento.</li>
-                      <li>Una base ordenada para crecer con proceso.</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-[1.1rem] border border-black/8 bg-white/78 p-3 shadow-[0_20px_55px_rgba(17,17,17,0.06)] dark:border-white/10 dark:bg-[#151517] dark:shadow-[0_20px_55px_rgba(0,0,0,0.24)] sm:rounded-[1.3rem] sm:p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#2bc8b7]">
-                    Producto
-                  </p>
-                  <h3 className="mt-2 text-lg font-semibold tracking-[-0.03em] sm:text-xl">
-                    Recorre MAT en imagenes
-                  </h3>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={goToPrevSlide}
-                    aria-label="Imagen anterior"
-                    className="inline-flex size-10 items-center justify-center rounded-full border border-black/10 bg-white text-black transition-colors hover:bg-black hover:text-white dark:border-white/12 dark:bg-[#1c1c1f] dark:text-white dark:hover:bg-white dark:hover:text-black"
-                  >
-                    <ChevronLeft className="size-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goToNextSlide}
-                    aria-label="Imagen siguiente"
-                    className="inline-flex size-10 items-center justify-center rounded-full border border-black/10 bg-white text-black transition-colors hover:bg-black hover:text-white dark:border-white/12 dark:bg-[#1c1c1f] dark:text-white dark:hover:bg-white dark:hover:text-black"
-                  >
-                    <ChevronRight className="size-5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <div className="relative mx-auto max-w-xl overflow-hidden rounded-[0.95rem] border border-black/8 bg-[#0f0f10] p-1.5 dark:border-white/10 sm:rounded-[1.1rem]">
-                  <div className="relative h-[180px] w-full sm:h-[220px] lg:h-[250px]">
-                    <Image
-                      src={productGallery[activeSlide].image}
-                      alt={productGallery[activeSlide].alt}
-                      priority
-                      fill
-                      className="rounded-[0.8rem] object-contain sm:rounded-[1rem]"
-                    />
-                  </div>
-                </div>
-
-                <div className="mx-auto mt-2 flex max-w-xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#9b99fe]">
-                      {productGallery[activeSlide].eyebrow}
-                    </p>
-                    <p className="mt-2 text-base font-medium text-black dark:text-white sm:text-lg">
-                      {productGallery[activeSlide].title}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {productGallery.map((item, index) => (
-                      <button
-                        key={item.title}
-                        type="button"
-                        aria-label={`Ir a la imagen ${index + 1}`}
-                        onClick={() => setActiveSlide(index)}
-                        className={`h-2.5 rounded-full transition-all ${
-                          index === activeSlide
-                            ? "w-8 bg-black dark:bg-white"
-                            : "w-2.5 bg-black/20 dark:bg-white/25"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </RevealGroup>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
-        <RevealGroup>
-          <section id="precio" className="scroll-mt-28 sm:scroll-mt-32">
-            <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr] lg:items-stretch">
-              <div className="rounded-[1.6rem] border border-black/8 bg-white/78 p-6 shadow-[0_20px_55px_rgba(17,17,17,0.06)] dark:border-white/10 dark:bg-[#151517] dark:shadow-[0_20px_55px_rgba(0,0,0,0.24)] sm:p-8">
-                <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#2bc8b7]">
-                  Planes
-                </p>
-                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
-                  Elegi el acceso que acompana tu operacion.
-                </h2>
-                <p className="mt-4 max-w-xl text-sm leading-7 text-black/68 dark:text-white/72 sm:text-base">
-                  Lite permite empezar con lo esencial. Pro queda disponible
-                  para gimnasios que necesitan una configuracion completa y
-                  acompanada.
-                </p>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <article className="rounded-[1.6rem] border border-black/8 bg-[#111111] p-6 text-white shadow-[0_24px_70px_rgba(17,17,17,0.16)] dark:border-white/10 sm:p-8">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#9b99fe]">
-                        MAT Lite
-                      </p>
-                      <div className="mt-4 flex items-end gap-2">
-                        <span className="text-4xl font-semibold tracking-[-0.04em]">
-                          USD 10
-                        </span>
-                        <span className="pb-1 text-sm text-white/62">
-                          / mes
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm text-white/62">
-                        {mercadoPagoCheckoutEnabled
-                          ? "Se cobra en pesos argentinos mediante MercadoPago."
-                          : "Activacion asistida mientras habilitamos el checkout automatico."}
-                      </p>
-                    </div>
-                    <div className="rounded-full border border-[#2bc8b7]/40 bg-[#2bc8b7]/12 px-3 py-1 text-xs font-medium text-[#9ff4ea]">
-                      {mercadoPagoCheckoutEnabled
-                        ? "Cobro recurrente"
-                        : "Disponible"}
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid gap-3">
-                    {litePlanIncludes.map((item) => (
-                      <div
-                        key={item}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <CheckCircle2 className="size-4 shrink-0 text-[#2bc8b7]" />
-                        <span className="text-white/86">{item}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-7 flex flex-col gap-3">
-                    {mercadoPagoCheckoutEnabled ? (
-                      <Button
-                        type="button"
-                        size="lg"
-                        className={orangeButtonClassName}
-                        onClick={() => setLiteDialogOpen(true)}
-                      >
-                        Activar Lite
-                        <ArrowRight className="ml-2 size-4" />
-                      </Button>
-                    ) : null}
-                    <Button
-                      asChild
-                      size="lg"
-                      className={
-                        mercadoPagoCheckoutEnabled
-                          ? blackButtonClassName
-                          : orangeButtonClassName
-                      }
-                    >
-                      <a
-                        href={whatsappHref}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => trackWhatsAppClick("pricing_card_lite")}
-                      >
-                        {mercadoPagoCheckoutEnabled
-                          ? "Consultar"
-                          : "Consultar activacion"}
-                        <MessageCircle className="ml-2 size-4" />
-                      </a>
-                    </Button>
-                  </div>
-                </article>
-
-                <article className="rounded-[1.6rem] border border-black/8 bg-white/88 p-6 shadow-[0_20px_55px_rgba(17,17,17,0.06)] dark:border-white/10 dark:bg-[#151517] dark:shadow-[0_20px_55px_rgba(0,0,0,0.24)] sm:p-8">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#2bc8b7]">
-                        MAT Pro
-                      </p>
-                      <div className="mt-4">
-                        <span className="text-3xl font-semibold tracking-[-0.03em] text-black dark:text-white">
-                          Contactanos
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm text-black/62 dark:text-white/62">
-                        Para gimnasios que necesitan acceso completo y puesta en
-                        marcha acompanada.
-                      </p>
-                    </div>
-                    <div className="rounded-full border border-black/10 bg-black/5 px-3 py-1 text-xs font-medium text-black/70 dark:border-white/12 dark:bg-white/8 dark:text-white/72">
-                      Venta asistida
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid gap-3">
-                    {[
-                      "Todo lo incluido en Lite",
-                      "Clases y agenda",
-                      "Pagos, finanzas y metricas",
-                      "Configuracion personalizada",
-                    ].map((item) => (
-                      <div
-                        key={item}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <CheckCircle2 className="size-4 shrink-0 text-[#2bc8b7]" />
-                        <span className="text-black/76 dark:text-white/82">
-                          {item}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-7">
-                    <Button asChild size="lg" className={orangeButtonClassName}>
-                      <a
-                        href={whatsappHref}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => trackWhatsAppClick("pricing_card_pro")}
-                      >
-                        Contactar para comprar
-                        <MessageCircle className="ml-2 size-4" />
-                      </a>
-                    </Button>
-                  </div>
-                </article>
-              </div>
-            </div>
-          </section>
-        </RevealGroup>
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
-        <RevealGroup>
-          <section id="contacto" className="scroll-mt-28 sm:scroll-mt-32">
-            <div className="rounded-[1.6rem] border border-black/8 bg-[linear-gradient(135deg,#111111_0%,#1d1d1d_60%,#222222_100%)] px-6 py-8 text-white sm:rounded-[2.25rem] sm:px-8 sm:py-10 md:px-12 md:py-14 dark:border-white/10">
-              <p className="text-sm font-medium uppercase tracking-[0.22em] text-[#2bc8b7]">
-                Contacto
-              </p>
-              <div className="mt-4 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-                <div className="max-w-2xl">
-                  <h2 className="text-2xl font-semibold tracking-[-0.03em] sm:text-3xl md:text-4xl">
-                    Si queres ver como se adapta MAT a tu gimnasio, hablanos por
-                    WhatsApp.
-                  </h2>
-                  <p className="mt-4 text-sm leading-7 text-white/78 sm:text-base md:text-lg">
-                    Te mostramos el flujo, las funciones disponibles y como
-                    ordenar la operacion sin sumar herramientas innecesarias.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <Button asChild size="lg" className={orangeButtonClassName}>
+                    Suscribirme a Lite
+                    <ArrowRight className="ml-2 size-4" />
+                  </Button>
+                ) : (
+                  <Button asChild size="lg" className={subtleButtonClassName}>
                     <a
                       href={whatsappHref}
                       target="_blank"
                       rel="noreferrer"
-                      onClick={() => trackWhatsAppClick("footer_cta")}
+                      onClick={() => trackWhatsAppClick('pricing_card_lite')}
                     >
-                      Escribir al +54 9 11 3884-6078
+                      Consultar activación
                       <MessageCircle className="ml-2 size-4" />
                     </a>
                   </Button>
-                  <Button asChild size="lg" className={blackButtonClassName}>
-                    <Link href="/invite-code">Ya tengo invitacion</Link>
-                  </Button>
-                </div>
+                )}
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </div>
+
+      {/* ===== Final CTA ===== */}
+      <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
+        <Reveal>
+          <section
+            id="contacto"
+            className="relative scroll-mt-28 overflow-hidden rounded-[2rem] border border-white/10 bg-[#0C0C0E] px-6 py-12 sm:scroll-mt-32 sm:px-10 sm:py-16"
+          >
+            <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(50%_80%_at_50%_0%,rgba(255,92,36,0.16),transparent_70%)]" />
+            <div className="mx-auto max-w-2xl text-center">
+              <SectionEyebrow>Empezá hoy</SectionEyebrow>
+              <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+                Ordená la operación de tu gimnasio esta semana.
+              </h2>
+              <p className="mt-4 text-base leading-7 text-white/65">
+                Activá tu prueba Pro de 7 días o escribinos por WhatsApp y te
+                mostramos cómo se adapta MAT a tu día a día.
+              </p>
+              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Button
+                  size="lg"
+                  onClick={() => setDialogMode('trial')}
+                  className={orangeButtonClassName}
+                >
+                  Empezá gratis 7 días
+                  <ArrowRight className="ml-2 size-4" />
+                </Button>
+                <Button asChild size="lg" className={subtleButtonClassName}>
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => trackWhatsAppClick('footer_cta')}
+                  >
+                    Escribir por WhatsApp
+                    <MessageCircle className="ml-2 size-4" />
+                  </a>
+                </Button>
               </div>
             </div>
           </section>
-        </RevealGroup>
+        </Reveal>
       </div>
 
-      <div className="border-t border-black/6 px-4 py-8 pb-28 dark:border-white/10 sm:px-6 sm:pb-8">
-        <RevealGroup>
-          <footer>
-            <div className="mx-auto max-w-7xl text-center text-sm text-black/56 dark:text-white/56">
-              <p>&copy; 2026 Mat. Todos los derechos reservados.</p>
+      {/* ===== Footer ===== */}
+      <footer className="border-t border-white/8 px-4 py-10 pb-28 sm:px-6 sm:pb-12">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 text-center sm:flex-row sm:justify-between sm:text-left">
+          <div className="flex items-center gap-3">
+            <Image
+              src={wolf}
+              alt="Mascota de MAT"
+              width={44}
+              height={44}
+              sizes="44px"
+              className="size-11 rounded-full bg-white/[0.04] object-cover opacity-90 grayscale"
+            />
+            <div>
+              <Logo className="h-6 w-auto" />
+              <p className="mt-1 text-xs text-white/45">
+                Control y orden para tu gimnasio.
+              </p>
             </div>
-          </footer>
-        </RevealGroup>
-      </div>
+          </div>
+          <div className="flex flex-col items-center gap-1 text-sm text-white/45 sm:items-end">
+            <div className="flex items-center gap-4">
+              <a href="#funciones" className={navLinkClassName}>
+                Funciones
+              </a>
+              <a href="#precio" className={navLinkClassName}>
+                Precio
+              </a>
+              <Link href="/invite-code" className={navLinkClassName}>
+                Invitación
+              </Link>
+            </div>
+            <p className="mt-2">
+              &copy; 2026 MAT. Todos los derechos reservados.
+            </p>
+          </div>
+        </div>
+      </footer>
     </main>
-  );
+  )
 }

@@ -222,9 +222,8 @@ function MonthlyFinanceChart({
               tick={{ fontSize: 11 }}
               tickFormatter={(v: string) => {
                 const parts = v.split(" ");
-                return parts[0]
-                  ? parts[0].charAt(0).toUpperCase() + parts[0].slice(0, 3)
-                  : v;
+                const word = parts[0] ?? v;
+                return word.charAt(0).toUpperCase() + word.slice(1, 3);
               }}
             />
             <YAxis
@@ -357,11 +356,11 @@ export default function PaymentMetricsPage() {
     <DashboardPageContainer className="space-y-6 py-6 md:py-10">
       <div className="space-y-3">
         <Link
-          href="/dashboard/metrics"
+          href="/dashboard/finance"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-4" />
-          Volver a metricas
+          Volver a finanzas
         </Link>
         <div className="space-y-2">
           <h1 className="text-2xl font-bold md:text-3xl">Balance Financiero</h1>

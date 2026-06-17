@@ -882,7 +882,8 @@ export const getOrganizationMetrics = query({
       Boolean(payment.paymentMethod),
     );
     for (const payment of paymentsWithMethod) {
-      const method = payment.paymentMethod ?? "Sin metodo";
+      const raw = payment.paymentMethod ?? "Sin metodo";
+      const method = raw === "proof_upload" ? "bank_transfer" : raw;
       methodCounts.set(method, (methodCounts.get(method) ?? 0) + 1);
     }
 

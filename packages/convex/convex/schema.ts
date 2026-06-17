@@ -234,6 +234,7 @@ export default defineSchema({
         v.literal("mercadopago"),
         v.literal("manual"),
         v.literal("legacy"),
+        v.literal("trial"),
       ),
     ),
     mercadoPagoPreapprovalId: v.optional(v.string()),
@@ -251,7 +252,9 @@ export default defineSchema({
       v.literal("active"),
       v.literal("inactive"),
       v.literal("grace_period"),
+      v.literal("trial"),
     ),
+    trialEndsAt: v.optional(v.number()),
     currentPeriodStart: v.optional(v.number()),
     currentPeriodEnd: v.optional(v.number()),
     lastPaymentStatus: v.optional(
@@ -482,6 +485,18 @@ export default defineSchema({
       v.literal("completed"),
       v.literal("skipped"),
     ),
+    // Post-workout self-report (set on completion)
+    effortRating: v.optional(v.number()), // 1–10 perceived effort (RPE)
+    mood: v.optional(
+      v.union(
+        v.literal("great"),
+        v.literal("good"),
+        v.literal("ok"),
+        v.literal("tired"),
+        v.literal("exhausted"),
+      ),
+    ),
+    memberNote: v.optional(v.string()), // free-text feedback for the trainer
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),

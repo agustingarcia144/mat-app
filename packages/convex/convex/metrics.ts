@@ -388,6 +388,18 @@ export const getExerciseMetricsByMember = query({
 
     let logsCount = 0;
     let lastPerformedOn: string | null = null;
+    const effortSessions: {
+      performedOn: string;
+      effortRating: number | null;
+      mood:
+        | "great"
+        | "good"
+        | "ok"
+        | "tired"
+        | "exhausted"
+        | null;
+      note: string | null;
+    }[] = [];
 
     for (const assignment of assignments) {
       let planification = planificationCache.get(
@@ -436,6 +448,19 @@ export const getExerciseMetricsByMember = query({
 
       if (!lastPerformedOn || session.performedOn > lastPerformedOn) {
         lastPerformedOn = session.performedOn;
+      }
+
+      if (
+        session.effortRating != null ||
+        session.mood != null ||
+        (session.memberNote && session.memberNote.trim().length > 0)
+      ) {
+        effortSessions.push({
+          performedOn: session.performedOn,
+          effortRating: session.effortRating ?? null,
+          mood: session.mood ?? null,
+          note: session.memberNote?.trim() ? session.memberNote.trim() : null,
+        });
       }
 
       const logs = await ctx.db
@@ -590,6 +615,22 @@ export const getExerciseMetricsByMember = query({
         compareDatesDesc(a.lastPerformedOn ?? "", b.lastPerformedOn ?? ""),
       );
 
+    const sortedEffortSessions = effortSessions.sort((a, b) =>
+      a.performedOn.localeCompare(b.performedOn),
+    );
+    const effortValues = sortedEffortSessions
+      .map((entry) => entry.effortRating)
+      .filter((value): value is number => value != null);
+    const averageEffort =
+      effortValues.length > 0
+        ? Number(
+            (
+              effortValues.reduce((sum, value) => sum + value, 0) /
+              effortValues.length
+            ).toFixed(1),
+          )
+        : null;
+
     return {
       summary: {
         exercisesTracked: serializedExercises.length,
@@ -603,6 +644,8 @@ export const getExerciseMetricsByMember = query({
         imageUrl: user?.imageUrl ?? null,
         totalSessions: sessions.length,
         lastPerformedOn,
+        averageEffort,
+        effortSessions: sortedEffortSessions,
         planifications: Array.from(planifications.values()).sort((a, b) => {
           if (a.status !== b.status) return a.status === "active" ? -1 : 1;
           return a.planificationName.localeCompare(b.planificationName);

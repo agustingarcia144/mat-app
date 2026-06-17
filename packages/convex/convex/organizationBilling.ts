@@ -48,7 +48,12 @@ const manualBillingPlanKeyV = v.optional(
   v.union(v.literal("pro"), v.literal("lite")),
 );
 
-type BillingStatus = "active" | "inactive" | "grace_period" | "pending";
+type BillingStatus =
+  | "active"
+  | "inactive"
+  | "grace_period"
+  | "pending"
+  | "trial";
 
 function isMercadoPagoCheckoutEnabled() {
   return process.env.MERCADOPAGO_CHECKOUT_ENABLED === "true";
@@ -105,6 +110,15 @@ function getLitePriceArsFromEnv() {
   return Math.round(price);
 }
 
+function getProPriceArsFromEnv() {
+  const raw = process.env.MERCADOPAGO_PRO_PRICE_ARS;
+  const price = raw ? Number(raw) : NaN;
+  if (!Number.isFinite(price) || price < 1) {
+    throw new Error("Missing or invalid MERCADOPAGO_PRO_PRICE_ARS");
+  }
+  return Math.round(price);
+}
+
 function getGraceMs() {
   const raw = process.env.MERCADOPAGO_BILLING_GRACE_DAYS;
   const days = raw ? Number(raw) : DEFAULT_GRACE_DAYS;
@@ -144,9 +158,18 @@ function nowWithinGrace(subscription: any, now = Date.now()) {
   );
 }
 
+function nowWithinTrial(subscription: any, now = Date.now()) {
+  return (
+    subscription?.entitlementStatus === "trial" &&
+    typeof subscription.trialEndsAt === "number" &&
+    subscription.trialEndsAt > now
+  );
+}
+
 function toBillingStatus(subscription: any | null): BillingStatus {
   if (!subscription) return "inactive";
   if (subscription.entitlementStatus === "active") return "active";
+  if (nowWithinTrial(subscription)) return "trial";
   if (nowWithinGrace(subscription)) return "grace_period";
   if (subscription.status === "pending") return "pending";
   return "inactive";
@@ -239,6 +262,7 @@ export const getCurrentEntitlement = query({
         modules: [],
         dashboardCards: [],
         graceUntil: undefined,
+        trialEndsAt: undefined,
       };
     }
 
@@ -262,6 +286,7 @@ export const getCurrentEntitlement = query({
         modules: ALL_MODULES,
         dashboardCards: ALL_DASHBOARD_CARDS,
         graceUntil: undefined,
+        trialEndsAt: undefined,
       };
     }
 
@@ -280,22 +305,26 @@ export const getCurrentEntitlement = query({
           .withIndex("by_key", (q) => q.eq("key", "lite"))
           .first();
 
+    const status = toBillingStatus(subscription);
+    const grantsPlanModules = status === "active" || status === "grace_period";
+
     return {
-      billingStatus: toBillingStatus(subscription),
+      billingStatus: status,
       planKey: plan?.key ?? null,
       referencePriceUsd: plan?.referencePriceUsd ?? 10,
       priceArs: plan?.priceArs ?? null,
-      modules:
-        toBillingStatus(subscription) === "active" ||
-        toBillingStatus(subscription) === "grace_period"
-          ? (plan?.entitlements.modules ?? [])
+      modules: grantsPlanModules
+        ? (plan?.entitlements.modules ?? [])
+        : status === "trial"
+          ? ALL_MODULES
           : [],
-      dashboardCards:
-        toBillingStatus(subscription) === "active" ||
-        toBillingStatus(subscription) === "grace_period"
-          ? (plan?.entitlements.dashboardCards ?? [])
+      dashboardCards: grantsPlanModules
+        ? (plan?.entitlements.dashboardCards ?? [])
+        : status === "trial"
+          ? ALL_DASHBOARD_CARDS
           : [],
       graceUntil: subscription?.graceUntil,
+      trialEndsAt: subscription?.trialEndsAt,
     };
   },
 });
@@ -327,8 +356,10 @@ export const getCurrentBilling = query({
 });
 
 export const createCheckout = action({
-  args: {},
-  handler: async (ctx): Promise<{ initPoint: string }> => {
+  args: {
+    planKey: v.optional(v.union(v.literal("lite"), v.literal("pro"))),
+  },
+  handler: async (ctx, args): Promise<{ initPoint: string }> => {
     if (!isMercadoPagoCheckoutEnabled()) {
       throw new Error("MercadoPago checkout is not enabled");
     }
@@ -345,10 +376,17 @@ export const createCheckout = action({
       throw new Error("Missing MERCADOPAGO_WEBHOOK_URL");
     }
 
-    const planId = await ctx.runMutation(
-      unsafeInternal.appBillingPlans.ensureLitePlanInternal,
-      { priceArs: getLitePriceArsFromEnv() },
-    );
+    const planKey = args.planKey ?? "lite";
+    const planId =
+      planKey === "pro"
+        ? await ctx.runMutation(
+            unsafeInternal.appBillingPlans.ensureProPlanInternal,
+            { priceArs: getProPriceArsFromEnv() },
+          )
+        : await ctx.runMutation(
+            unsafeInternal.appBillingPlans.ensureLitePlanInternal,
+            { priceArs: getLitePriceArsFromEnv() },
+          );
 
     const checkout = await ctx.runMutation(
       unsafeInternal.organizationBilling.prepareCheckoutInternal,
@@ -523,7 +561,14 @@ export const prepareCheckoutInternal = internalMutation({
       throw new Error("Organization already has active billing");
     }
 
-    if (existing?.status === "pending") {
+    // Reuse an in-flight MercadoPago checkout as-is to avoid duplicate preapprovals.
+    if (existing && existing.source === "mercadopago" && existing.status === "pending") {
+      if (existing.billingPlanId !== args.billingPlanId) {
+        await ctx.db.patch(existing._id, {
+          billingPlanId: args.billingPlanId,
+          updatedAt: now,
+        });
+      }
       return {
         subscriptionId: existing._id,
         externalReference: existing.externalReference,
@@ -533,6 +578,28 @@ export const prepareCheckoutInternal = internalMutation({
     }
 
     const externalReference = `org:${membership.organizationId}:billing:${now}`;
+
+    // Convert an existing row (e.g. a trial) into a pending MercadoPago checkout,
+    // preserving trial access (entitlementStatus + trialEndsAt) until the webhook
+    // authorizes the payment.
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        billingPlanId: args.billingPlanId,
+        source: "mercadopago",
+        mercadoPagoPayerEmail: payerEmail,
+        externalReference,
+        status: "pending",
+        lastPaymentStatus: "pending",
+        updatedAt: now,
+      });
+      return {
+        subscriptionId: existing._id,
+        externalReference,
+        payerEmail,
+        plan,
+      };
+    }
+
     const subscriptionId = await ctx.db.insert(
       "organizationBillingSubscriptions",
       {

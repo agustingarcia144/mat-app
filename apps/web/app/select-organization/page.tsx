@@ -13,6 +13,21 @@ import {
   isWebStaffGuardEnabled,
 } from "@/lib/security/roles";
 
+const PENDING_LITE_CHECKOUT_KEY = "mat.pendingLiteCheckout";
+
+function hasPendingLiteCheckout() {
+  if (typeof window === "undefined") return false;
+
+  try {
+    const rawValue = window.sessionStorage.getItem(PENDING_LITE_CHECKOUT_KEY);
+    if (!rawValue) return false;
+    const parsed = JSON.parse(rawValue) as { organizationName?: string };
+    return Boolean(parsed.organizationName?.trim());
+  } catch {
+    return false;
+  }
+}
+
 export default function SelectOrganizationPage() {
   const router = useRouter();
   const organizations = useQuery(
@@ -25,13 +40,23 @@ export default function SelectOrganizationPage() {
     api.organizationMemberships.setActiveOrganization,
   );
   const [loadingOrgId, setLoadingOrgId] = useState<string | null>(null);
+  const [isContinuingLiteCheckout, setIsContinuingLiteCheckout] =
+    useState(false);
 
   const memberships = useMemo(() => organizations ?? [], [organizations]);
   const isLoaded =
     organizations !== undefined && currentMembership !== undefined;
 
   useEffect(() => {
+    if (!hasPendingLiteCheckout()) return;
+
+    setIsContinuingLiteCheckout(true);
+    router.replace("/?lite_checkout=1");
+  }, [router]);
+
+  useEffect(() => {
     if (!isLoaded) return;
+    if (isContinuingLiteCheckout) return;
 
     if (!isWebStaffGuardEnabled()) {
       router.replace("/dashboard");
@@ -41,7 +66,7 @@ export default function SelectOrganizationPage() {
     if (isOrgStaffRole(currentMembership?.role)) {
       router.replace("/dashboard");
     }
-  }, [currentMembership?.role, isLoaded, router]);
+  }, [currentMembership?.role, isContinuingLiteCheckout, isLoaded, router]);
 
   const activateOrganization = useCallback(
     async (organizationId: string) => {
@@ -68,6 +93,7 @@ export default function SelectOrganizationPage() {
 
   useEffect(() => {
     if (!isLoaded) return;
+    if (isContinuingLiteCheckout) return;
     if (memberships.length === 1 && !currentMembership?.organization?._id) {
       const onlyOrganizationId = memberships[0].organizationId;
       if (onlyOrganizationId) {
@@ -77,15 +103,18 @@ export default function SelectOrganizationPage() {
   }, [
     activateOrganization,
     currentMembership?.organization?._id,
+    isContinuingLiteCheckout,
     isLoaded,
     memberships,
   ]);
 
-  if (!isLoaded) {
+  if (!isLoaded || isContinuingLiteCheckout) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <p className="text-sm text-muted-foreground">
-          Cargando organizaciones...
+          {isContinuingLiteCheckout
+            ? "Continuando con Mercado Pago..."
+            : "Cargando organizaciones..."}
         </p>
       </div>
     );
