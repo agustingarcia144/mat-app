@@ -93,8 +93,27 @@ type MemberMetricSummary = {
   planifications: PlanificationOption[];
 };
 
+type MoodValue = "great" | "good" | "ok" | "tired" | "exhausted";
+
+type EffortSession = {
+  performedOn: string;
+  effortRating: number | null;
+  mood: MoodValue | null;
+  note: string | null;
+};
+
 type MemberMetric = MemberMetricSummary & {
   exercises: ExerciseMetric[];
+  averageEffort: number | null;
+  effortSessions: EffortSession[];
+};
+
+const MOOD_DISPLAY: Record<MoodValue, { emoji: string; label: string }> = {
+  great: { emoji: "🤩", label: "Genial" },
+  good: { emoji: "🙂", label: "Bien" },
+  ok: { emoji: "😐", label: "Normal" },
+  tired: { emoji: "😮‍💨", label: "Cansado" },
+  exhausted: { emoji: "🥵", label: "Agotado" },
 };
 
 type MemberListData = {
@@ -892,6 +911,108 @@ export default function ExerciseMetricsPage() {
                     </div>
                   </div>
                 </div>
+
+                {selectedMember.effortSessions.length > 0 ? (
+                  <div className="rounded-2xl border bg-card/70 p-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                      <div className="flex flex-col items-center justify-center rounded-xl border bg-background px-6 py-4 lg:min-w-[140px]">
+                        <p className="text-sm text-muted-foreground">
+                          Esfuerzo prom.
+                        </p>
+                        <p className="text-4xl font-semibold">
+                          {selectedMember.averageEffort ?? "—"}
+                          <span className="text-lg text-muted-foreground">
+                            /10
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="flex-1 space-y-3">
+                        <p className="text-sm font-medium">
+                          Esfuerzo por sesión
+                        </p>
+                        <div className="flex items-end gap-1.5">
+                          {selectedMember.effortSessions
+                            .slice(-16)
+                            .map((session, index) => {
+                              const rating = session.effortRating ?? 0;
+                              const heightPct = Math.max(
+                                8,
+                                (rating / 10) * 100,
+                              );
+                              const mood = session.mood
+                                ? MOOD_DISPLAY[session.mood]
+                                : null;
+                              return (
+                                <div
+                                  key={`${session.performedOn}-${index}`}
+                                  className="flex flex-1 flex-col items-center gap-1"
+                                  title={`${formatDate(session.performedOn)} · Esfuerzo ${
+                                    session.effortRating ?? "—"
+                                  }${mood ? ` · ${mood.label}` : ""}${
+                                    session.note ? ` · ${session.note}` : ""
+                                  }`}
+                                >
+                                  <span className="text-xs">
+                                    {session.effortRating ?? ""}
+                                  </span>
+                                  <div className="flex h-16 w-full items-end">
+                                    <div
+                                      className={cn(
+                                        "w-full rounded-t",
+                                        rating >= 8
+                                          ? "bg-red-500/70"
+                                          : rating >= 5
+                                            ? "bg-amber-500/70"
+                                            : "bg-emerald-500/70",
+                                      )}
+                                      style={{ height: `${heightPct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-base leading-none">
+                                    {mood?.emoji ?? ""}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedMember.effortSessions.some(
+                      (session) => session.note,
+                    ) ? (
+                      <div className="mt-4 space-y-2 border-t pt-4">
+                        <p className="text-sm font-medium">Notas del alumno</p>
+                        <div className="space-y-2">
+                          {[...selectedMember.effortSessions]
+                            .reverse()
+                            .filter((session) => session.note)
+                            .slice(0, 5)
+                            .map((session, index) => (
+                              <div
+                                key={`${session.performedOn}-note-${index}`}
+                                className="flex items-start gap-2 text-sm"
+                              >
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 font-normal"
+                                >
+                                  {formatDate(session.performedOn)}
+                                </Badge>
+                                {session.mood ? (
+                                  <span>{MOOD_DISPLAY[session.mood].emoji}</span>
+                                ) : null}
+                                <p className="text-muted-foreground">
+                                  {session.note}
+                                </p>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 <div className="rounded-2xl border bg-card/70">
                   <div className="border-b px-4 py-3 text-sm text-muted-foreground">

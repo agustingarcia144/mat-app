@@ -14,6 +14,14 @@ const sessionStatus = v.union(
   v.literal("skipped"),
 );
 
+const sessionMood = v.union(
+  v.literal("great"),
+  v.literal("good"),
+  v.literal("ok"),
+  v.literal("tired"),
+  v.literal("exhausted"),
+);
+
 export const getStatusForNotification = internalQuery({
   args: {
     id: v.id("workoutDaySessions"),
@@ -135,6 +143,119 @@ export const setStatus = mutation({
       status: args.status,
       updatedAt: Date.now(),
     });
+  },
+});
+
+/**
+ * Save the post-workout self-report (member only; only own sessions).
+ * Captures perceived effort (1–10), mood, and an optional note for the trainer.
+ */
+export const rateSession = mutation({
+  args: {
+    id: v.id("workoutDaySessions"),
+    effortRating: v.optional(v.number()),
+    mood: v.optional(sessionMood),
+    memberNote: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { identity, organizationId } = await requireActiveOrgContext(ctx);
+
+    const session = await ctx.db.get(args.id);
+    if (!session) throw new Error("Session not found");
+    if (session.userId !== identity.subject) {
+      throw new Error("Unauthorized: not your session");
+    }
+    if (session.organizationId !== organizationId) {
+      throw new Error(
+        "Access denied: session is outside the active organization",
+      );
+    }
+
+    if (args.effortRating !== undefined) {
+      if (
+        !Number.isInteger(args.effortRating) ||
+        args.effortRating < 1 ||
+        args.effortRating > 10
+      ) {
+        throw new Error("effortRating must be an integer between 1 and 10");
+      }
+    }
+
+    const note = args.memberNote?.trim();
+
+    await ctx.db.patch(args.id, {
+      effortRating: args.effortRating,
+      mood: args.mood,
+      memberNote: note ? note : undefined,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Lightweight completion stats for the current user (for the celebration screen):
+ * total completed sessions and the current consecutive-day streak.
+ */
+export const getMyCompletionStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgCtx = await tryActiveOrgContext(ctx);
+    if (!orgCtx) {
+      return { totalCompleted: 0, currentStreak: 0 };
+    }
+    const { identity, organizationId } = orgCtx;
+
+    const completed = (
+      await ctx.db
+        .query("workoutDaySessions")
+        .withIndex("by_user_performedOn", (q) =>
+          q.eq("userId", identity.subject),
+        )
+        .collect()
+    ).filter(
+      (session) =>
+        session.organizationId === organizationId &&
+        session.status === "completed",
+    );
+
+    // Unique performed days, most recent first.
+    const days = Array.from(
+      new Set(completed.map((session) => session.performedOn)),
+    ).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+
+    let currentStreak = 0;
+    if (days.length > 0) {
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const toUtc = (day: string) => {
+        const [y, m, d] = day.split("-").map(Number);
+        return Date.UTC(y, m - 1, d);
+      };
+
+      const today = new Date();
+      const todayUtc = Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth(),
+        today.getUTCDate(),
+      );
+
+      const mostRecent = toUtc(days[0]);
+      // Streak counts only if the latest workout was today or yesterday.
+      if (todayUtc - mostRecent <= oneDayMs) {
+        currentStreak = 1;
+        for (let i = 1; i < days.length; i++) {
+          if (toUtc(days[i - 1]) - toUtc(days[i]) === oneDayMs) {
+            currentStreak += 1;
+          } else {
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      totalCompleted: completed.length,
+      currentStreak,
+    };
   },
 });
 

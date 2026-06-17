@@ -410,6 +410,7 @@ export default function InviteOnlySignUp() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <AuthenticateWithRedirectCallback
+          signInFallbackRedirectUrl={postSignUpRedirect}
           signUpFallbackRedirectUrl={postSignUpRedirect}
         />
       </div>

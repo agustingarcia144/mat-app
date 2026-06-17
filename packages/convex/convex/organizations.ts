@@ -218,6 +218,30 @@ export const createLiteOrganization = mutation({
       updatedAt: now,
     });
 
+    // Seed a 7-day Pro (full-access) trial so the org has immediate access.
+    const proPriceArsRaw = Number(process.env.MERCADOPAGO_PRO_PRICE_ARS);
+    const proPriceArs =
+      Number.isFinite(proPriceArsRaw) && proPriceArsRaw >= 1
+        ? Math.round(proPriceArsRaw)
+        : undefined;
+    const proPlanId = await ctx.runMutation(
+      internal.appBillingPlans.ensureProPlanInternal,
+      proPriceArs !== undefined ? { priceArs: proPriceArs } : {},
+    );
+    const TRIAL_MS = 7 * 24 * 60 * 60 * 1000;
+    await ctx.db.insert("organizationBillingSubscriptions", {
+      organizationId,
+      billingPlanId: proPlanId,
+      source: "trial",
+      externalReference: `trial:${organizationId}:${now}`,
+      status: "authorized",
+      entitlementStatus: "trial",
+      trialEndsAt: now + TRIAL_MS,
+      createdBy: identity.subject,
+      createdAt: now,
+      updatedAt: now,
+    });
+
     const existingUser = await ctx.db
       .query("users")
       .withIndex("by_externalId", (q) => q.eq("externalId", identity.subject))

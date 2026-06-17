@@ -8,6 +8,7 @@ const renderHeaderCloseButton = () => <HeaderCloseButton />;
 const renderEmptyHeaderLeft = () => null;
 
 const homeStackScreenOptions = { headerShown: false };
+const completeScreenOptions = { headerShown: false, gestureEnabled: false };
 const logSetSheetDetents = [0.85];
 const exerciseVideoSheetDetents = [0.7];
 const transparentContentStyle = { backgroundColor: "transparent" };
@@ -54,6 +55,10 @@ export default function InicioLayout() {
       <Stack.Screen
         name="workout/[sessionId]"
         options={transparentHeaderOptions}
+      />
+      <Stack.Screen
+        name="workout/complete"
+        options={completeScreenOptions}
       />
       <Stack.Screen
         name="workout/log-set"

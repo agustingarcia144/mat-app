@@ -625,10 +625,25 @@ function WorkoutContent() {
     if (isNewSession || !sessionId) return
     setCompleting(true)
     try {
+      let exercisesCompleted = 0
+      let totalSets = 0
+      let totalVolume = 0
+
       for (const dayEx of dayExercises ?? []) {
         const values = getValuesFor(dayEx)
         const allSetsFilled = values.every((set) => set.reps.trim().length > 0)
         if (!allSetsFilled) continue
+
+        exercisesCompleted += 1
+        totalSets += dayEx.sets
+        for (const set of values) {
+          const reps = parseFloat(set.reps.replace(',', '.'))
+          const weight = parseFloat(set.weight.replace(',', '.'))
+          if (Number.isFinite(reps) && Number.isFinite(weight)) {
+            totalVolume += reps * weight
+          }
+        }
+
         const existingLog = logsByDayExercise[dayEx._id]
         const timeValues = getTimeValuesFor(dayEx)
         const hasTimeInPlan = (dayEx.timeSeconds ?? 0) > 0
@@ -650,7 +665,20 @@ function WorkoutContent() {
         id: sessionId as any,
         status: 'completed',
       })
-      router.back()
+
+      const durationSeconds =
+        session?.createdAt != null
+          ? Math.max(0, Math.round((Date.now() - session.createdAt) / 1000))
+          : 0
+
+      const completeQuery = new URLSearchParams({
+        sessionId: sessionId as string,
+        exercises: String(exercisesCompleted),
+        sets: String(totalSets),
+        volume: String(Math.round(totalVolume)),
+        durationSeconds: String(durationSeconds),
+      }).toString()
+      router.replace(`/home/workout/complete?${completeQuery}` as Href)
     } catch (e) {
       console.error(e)
     } finally {
