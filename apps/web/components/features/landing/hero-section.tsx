@@ -726,14 +726,6 @@ fbq('track', 'PageView');`}
                     {item.label}
                   </a>
                 ))}
-                <Link
-                  href="/invite-code"
-                  className={`${navLinkClassName} transition-all duration-300 ${
-                    isScrolled ? 'px-2 text-xs' : 'px-3 text-sm'
-                  }`}
-                >
-                  Tengo invitación
-                </Link>
               </nav>
 
               <div className="flex items-center gap-2 sm:gap-3">
