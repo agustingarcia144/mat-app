@@ -30,6 +30,7 @@ import {
 
 const STAFF_REDIRECT = "/select-organization";
 const PENDING_LITE_CHECKOUT_KEY = "mat.pendingLiteCheckout";
+const PENDING_PRO_TRIAL_KEY = "mat.pendingProTrial";
 
 function getSafeRedirectUrl(value: string | null, fallback: string) {
   if (!value) return fallback;
@@ -201,7 +202,7 @@ function CustomSignUpForm({
   };
 
   return (
-    <Card className="w-full max-w-[400px]">
+    <Card className="w-full max-w-100">
       <CardHeader>
         <CardTitle>Crear cuenta en MAT App</CardTitle>
         <CardDescription>
@@ -316,17 +317,25 @@ export default function InviteOnlySignUp() {
   const hasPendingLiteCheckout =
     typeof window !== "undefined" &&
     Boolean(window.sessionStorage.getItem(PENDING_LITE_CHECKOUT_KEY));
+  const hasPendingProTrial =
+    typeof window !== "undefined" &&
+    Boolean(window.sessionStorage.getItem(PENDING_PRO_TRIAL_KEY));
   const liteCheckout =
     searchParams.get("lite_checkout") === "1" ||
     (isSignUpSsoCallback && hasPendingLiteCheckout);
+  const startTrial =
+    searchParams.get("start_trial") === "1" ||
+    (isSignUpSsoCallback && hasPendingProTrial);
   const redirectUrl = searchParams.get("redirect_url");
   const fallbackRedirect = inviteToken
     ? `/invitations/accept?token=${encodeURIComponent(inviteToken)}`
     : inviteCode
       ? `/invite-code?code=${encodeURIComponent(inviteCode)}&continue=1`
-      : liteCheckout
-        ? "/?lite_checkout=1"
-        : STAFF_REDIRECT;
+      : startTrial
+        ? "/?start_trial=1"
+        : liteCheckout
+          ? "/?lite_checkout=1"
+          : STAFF_REDIRECT;
   const postSignUpRedirect = getSafeRedirectUrl(redirectUrl, fallbackRedirect);
   const attemptedRef = useRef(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -417,7 +426,7 @@ export default function InviteOnlySignUp() {
     );
   }
 
-  if (!ticket && !inviteToken && !inviteCode && !liteCheckout) {
+  if (!ticket && !inviteToken && !inviteCode && !liteCheckout && !startTrial) {
     return (
       <InvitationStatusCard
         title="Acceso solo por invitación"
