@@ -54,17 +54,38 @@ async function verifyMercadoPagoSignature(request: Request, dataId: string | nul
   const requestId = request.headers.get("x-request-id");
   const { ts, v1 } = parseSignatureHeader(request.headers.get("x-signature"));
   if (!requestId || !ts || !v1 || !dataId) {
+    console.error("MercadoPago webhook rejected: missing signature inputs", {
+      hasRequestId: Boolean(requestId),
+      hasTs: Boolean(ts),
+      hasV1: Boolean(v1),
+      hasDataId: Boolean(dataId),
+    });
     return false;
   }
 
   const timestamp = Number(ts);
   if (!Number.isFinite(timestamp)) return false;
   const timestampMs = timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
-  if (Math.abs(Date.now() - timestampMs) > MAX_WEBHOOK_AGE_MS) return false;
+  if (Math.abs(Date.now() - timestampMs) > MAX_WEBHOOK_AGE_MS) {
+    console.error("MercadoPago webhook rejected: timestamp outside tolerance", {
+      timestampMs,
+      now: Date.now(),
+    });
+    return false;
+  }
 
-  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  // MercadoPago lowercases alphanumeric resource ids when building the signed
+  // manifest (preapproval ids are alphanumeric), so match on the lowercased id.
+  const manifest = `id:${dataId.toLowerCase()};request-id:${requestId};ts:${ts};`;
   const expected = await hmacSha256Hex(secret, manifest);
-  return safeEqual(expected, v1);
+  const matches = safeEqual(expected, v1);
+  if (!matches) {
+    console.error(
+      "MercadoPago webhook rejected: signature mismatch (check MERCADOPAGO_WEBHOOK_SECRET matches the production webhook secret)",
+      { dataId },
+    );
+  }
+  return matches;
 }
 
 function getResourceType(payload: any, url: URL) {
@@ -129,6 +150,12 @@ export const mercadoPagoWebhook = httpAction(async (ctx, request) => {
   const payload = rawPayload ? JSON.parse(rawPayload) : {};
   const dataId = url.searchParams.get("data.id") ?? payload?.data?.id ?? null;
 
+  console.log("MercadoPago webhook received", {
+    type: payload?.type ?? payload?.topic ?? url.searchParams.get("topic"),
+    action: payload?.action,
+    dataId,
+  });
+
   const valid = await verifyMercadoPagoSignature(request, dataId);
   if (!valid) {
     return new Response("Invalid MercadoPago signature", { status: 400 });
@@ -181,7 +208,7 @@ export const mercadoPagoWebhook = httpAction(async (ctx, request) => {
     );
     const result = await ctx.runMutation(
       unsafeInternal.organizationBilling.syncFromMercadoPagoInternal,
-      { resource },
+      { resource, resourceType: String(resourceType) },
     );
 
     await ctx.runMutation(

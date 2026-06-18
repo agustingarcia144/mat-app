@@ -254,6 +254,73 @@ function mapMercadoPagoStatus(resource: any, existing: any | null) {
   };
 }
 
+// Payment resources (`/v1/payments/:id`) report a different status vocabulary
+// than preapprovals — e.g. an authorized subscription charge is `approved`, not
+// `authorized`. Map those so an approved subscription payment activates access.
+function mapMercadoPagoPaymentStatus(resource: any, existing: any | null) {
+  const status = String(resource?.status ?? "").toLowerCase();
+  const now = Date.now();
+
+  if (status === "approved") {
+    return {
+      status: "authorized" as const,
+      entitlementStatus: "active" as const,
+      lastPaymentStatus: "approved" as const,
+      graceUntil: undefined,
+    };
+  }
+
+  if (status === "pending" || status === "in_process" || status === "authorized") {
+    return {
+      status: "pending" as const,
+      // Don't revoke access an active subscription already has while a renewal
+      // charge is still being processed.
+      entitlementStatus:
+        existing?.entitlementStatus === "active"
+          ? ("active" as const)
+          : ("inactive" as const),
+      lastPaymentStatus: "pending" as const,
+      graceUntil: undefined,
+    };
+  }
+
+  if (
+    status === "rejected" ||
+    status === "cancelled" ||
+    status === "refunded" ||
+    status === "charged_back"
+  ) {
+    const hadAccess =
+      existing?.entitlementStatus === "active" || nowWithinGrace(existing, now);
+    return {
+      status: "payment_failed" as const,
+      entitlementStatus: hadAccess
+        ? ("grace_period" as const)
+        : ("inactive" as const),
+      lastPaymentStatus: "rejected" as const,
+      graceUntil: hadAccess ? now + getGraceMs() : undefined,
+    };
+  }
+
+  // Unknown payment status: leave the subscription as-is rather than downgrade.
+  return {
+    status: (existing?.status ?? "pending") as
+      | "pending"
+      | "authorized"
+      | "paused"
+      | "cancelled"
+      | "expired"
+      | "payment_failed",
+    entitlementStatus: (existing?.entitlementStatus ?? "inactive") as
+      | "active"
+      | "inactive"
+      | "grace_period"
+      | "trial",
+    lastPaymentStatus: "unknown" as const,
+    graceUntil: existing?.graceUntil,
+  };
+}
+
 export const getCurrentEntitlement = query({
   args: {},
   handler: async (ctx) => {
@@ -527,6 +594,52 @@ export const getCurrentSubscriptionForCancelInternal = internalQuery({
       )
       .order("desc")
       .first();
+  },
+});
+
+// Force a re-pull of the current org's preapproval from MercadoPago and sync it.
+// Recovers a paid subscription whose activating webhook was missed or deduped
+// (the preapproval is the authoritative source for `authorized` → active).
+export const resyncCurrentSubscription = action({
+  args: {},
+  handler: async (ctx): Promise<{ synced: boolean }> => {
+    if (!isMercadoPagoCheckoutEnabled()) {
+      throw new Error("MercadoPago checkout is not enabled");
+    }
+
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    if (!accessToken) {
+      throw new Error("Missing MERCADOPAGO_ACCESS_TOKEN");
+    }
+
+    const subscription = await ctx.runQuery(
+      unsafeInternal.organizationBilling
+        .getCurrentSubscriptionForCancelInternal,
+      {},
+    );
+    if (!subscription?.mercadoPagoPreapprovalId) {
+      throw new Error("No hay una suscripción de MercadoPago para sincronizar");
+    }
+
+    const response = await fetch(
+      `${MP_API_BASE}/preapproval/${encodeURIComponent(
+        subscription.mercadoPagoPreapprovalId,
+      )}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const resource = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(
+        `MercadoPago resync failed: ${response.status} ${JSON.stringify(resource)}`,
+      );
+    }
+
+    const result = await ctx.runMutation(
+      unsafeInternal.organizationBilling.syncFromMercadoPagoInternal,
+      { resource, resourceType: "preapproval" },
+    );
+
+    return { synced: Boolean(result?.synced) };
   },
 });
 
@@ -900,11 +1013,20 @@ export const markWebhookFailedInternal = internalMutation({
 export const syncFromMercadoPagoInternal = internalMutation({
   args: {
     resource: v.any(),
+    resourceType: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const resource = args.resource;
-    const preapprovalId =
-      resource?.id ?? resource?.preapproval_id ?? resource?.preapproval?.id;
+    const isPayment =
+      args.resourceType === "payment" ||
+      resource?.operation_type === "recurring_payment";
+
+    // For a preapproval, `resource.id` is the preapproval id. For a payment,
+    // `resource.id` is the PAYMENT id — the preapproval is only referenced
+    // indirectly, so never treat a payment id as a preapproval id.
+    const preapprovalId = isPayment
+      ? (resource?.metadata?.preapproval_id ?? resource?.preapproval_id)
+      : (resource?.id ?? resource?.preapproval_id ?? resource?.preapproval?.id);
     const externalReference =
       resource?.external_reference ?? resource?.metadata?.external_reference;
 
@@ -931,24 +1053,32 @@ export const syncFromMercadoPagoInternal = internalMutation({
       return { synced: false };
     }
 
-    const mapped = mapMercadoPagoStatus(resource, subscription);
+    const mapped = isPayment
+      ? mapMercadoPagoPaymentStatus(resource, subscription)
+      : mapMercadoPagoStatus(resource, subscription);
     await ctx.db.patch(subscription._id, {
       source: subscription.source ?? "mercadopago",
-      mercadoPagoPreapprovalId: preapprovalId
-        ? String(preapprovalId)
-        : subscription.mercadoPagoPreapprovalId,
+      // Only a preapproval resource can set the preapproval id.
+      mercadoPagoPreapprovalId:
+        !isPayment && preapprovalId
+          ? String(preapprovalId)
+          : subscription.mercadoPagoPreapprovalId,
       status: mapped.status,
       entitlementStatus: mapped.entitlementStatus,
       currentPeriodStart:
         parseDateMs(resource?.summarized?.last_charged_date) ??
         parseDateMs(resource?.last_charged_date) ??
+        parseDateMs(resource?.date_approved) ??
         subscription.currentPeriodStart,
       currentPeriodEnd:
         parseDateMs(resource?.next_payment_date) ??
         subscription.currentPeriodEnd,
       lastPaymentStatus: mapped.lastPaymentStatus,
-      lastPaymentId:
-        resource?.last_payment_id != null
+      lastPaymentId: isPayment
+        ? resource?.id != null
+          ? String(resource.id)
+          : subscription.lastPaymentId
+        : resource?.last_payment_id != null
           ? String(resource.last_payment_id)
           : subscription.lastPaymentId,
       lastWebhookAt: Date.now(),

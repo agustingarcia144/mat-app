@@ -73,6 +73,10 @@ export default function BillingPage() {
   const cancelCurrentSubscription = useAction(
     api.organizationBilling.cancelCurrentSubscription,
   );
+  const resyncCurrentSubscription = useAction(
+    api.organizationBilling.resyncCurrentSubscription,
+  );
+  const [isResyncing, setIsResyncing] = useState(false);
 
   const isMercadoPagoSubscription =
     billing?.subscription?.source === "mercadopago" ||
@@ -93,6 +97,24 @@ export default function BillingPage() {
         error instanceof Error ? error.message : "No se pudo iniciar MercadoPago",
       );
       setStartingPlan(null);
+    }
+  };
+
+  const handleResync = async () => {
+    setIsResyncing(true);
+    try {
+      const result = await resyncCurrentSubscription({});
+      if (result.synced) {
+        toast.success("Pago verificado. Actualizamos tu suscripción.");
+      } else {
+        toast.info("Todavía no hay un pago aprobado en MercadoPago.");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo verificar el pago",
+      );
+    } finally {
+      setIsResyncing(false);
     }
   };
 
@@ -187,6 +209,15 @@ export default function BillingPage() {
               notificación verificada del pago.
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              onClick={handleResync}
+              disabled={isResyncing}
+            >
+              {isResyncing ? "Verificando..." : "Volver a verificar el pago"}
+            </Button>
+          </CardContent>
         </Card>
       ) : null}
 
