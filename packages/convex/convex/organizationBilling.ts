@@ -72,8 +72,13 @@ function getMercadoPagoPayerEmail(checkoutPayerEmail: string) {
     process.env.MERCADOPAGO_SANDBOX_PAYER_EMAIL ??
     process.env.MERCADOPAGO_SANDBOX_PAYER_USERNAME
   )?.trim();
+  // In sandbox the TEST access token only accepts a MercadoPago test-user email.
+  // Falling back to the real signed-in email here makes /preapproval respond with
+  // an opaque `500 Internal server error`, so fail loudly with an actionable message.
   if (!sandboxPayer) {
-    return checkoutPayerEmail;
+    throw new Error(
+      "MercadoPago sandbox requires MERCADOPAGO_SANDBOX_PAYER_EMAIL (a test-user email such as test_user_123@testuser.com). Configure it, or set MERCADOPAGO_ENV to production to charge real customers.",
+    );
   }
 
   return sandboxPayer.includes("@")
@@ -417,8 +422,22 @@ export const createCheckout = action({
 
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
+      // Log full context server-side (no secrets) so opaque MercadoPago 5xx
+      // responses can be diagnosed from the Convex logs.
+      console.error("MercadoPago createCheckout failed", {
+        status: response.status,
+        response: payload,
+        planKey,
+        sandbox: isMercadoPagoSandbox(),
+        payerEmail: getMercadoPagoPayerEmail(checkout.payerEmail),
+        externalReference: checkout.externalReference,
+      });
+      const hint =
+        response.status >= 500
+          ? " MercadoPago rejected the request — verify the access token matches MERCADOPAGO_ENV (TEST token ⇄ sandbox) and that the payer email is not the seller's own MercadoPago account."
+          : "";
       throw new Error(
-        `MercadoPago checkout failed: ${response.status} ${JSON.stringify(payload)}`,
+        `MercadoPago checkout failed: ${response.status} ${JSON.stringify(payload)}.${hint}`,
       );
     }
 
