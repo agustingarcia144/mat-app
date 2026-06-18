@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, ExternalLink, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 const currency = new Intl.NumberFormat("es-AR", {
@@ -34,6 +34,9 @@ const PRO_FEATURES = [
   "Pagos y finanzas",
   "Métricas y usuarios",
 ];
+
+const accentButtonClassName =
+  "w-full gap-2 border-transparent bg-[#FF5C24] text-white shadow-[0_12px_34px_-12px_rgba(255,92,36,0.7)] transition-colors hover:bg-[#F04E0E] hover:text-white";
 
 function statusLabel(status: string | undefined) {
   switch (status) {
@@ -141,6 +144,13 @@ export default function BillingPage() {
         </p>
       );
     }
+    if (isActivePaid && !isMercadoPagoSubscription) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          Para cambiar de plan, contactá a MAT.
+        </p>
+      );
+    }
     if (!mercadoPagoCheckoutEnabled) {
       return (
         <p className="text-sm text-muted-foreground">
@@ -152,29 +162,34 @@ export default function BillingPage() {
       <Button
         onClick={() => handleStartCheckout(plan)}
         disabled={startingPlan !== null}
-        className="w-full gap-2"
+        className={plan === "pro" ? accentButtonClassName : "w-full gap-2"}
         variant={plan === "pro" ? "default" : "outline"}
       >
         {startingPlan === plan ? "Abriendo..." : "Pagar con MercadoPago"}
-        <ExternalLink className="size-4" />
+        <ArrowRight className="size-4" />
       </Button>
     );
   }
 
   return (
     <DashboardPageContainer className="space-y-4 py-4 md:space-y-6 md:py-6">
-      <div>
-        <h1 className="text-2xl font-bold md:text-3xl">Suscripción</h1>
-        <p className="mt-1 text-sm text-muted-foreground md:text-base">
-          Gestiona el acceso de esta organización a MAT.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold md:text-3xl">Suscripción</h1>
+          <p className="mt-1 text-sm text-muted-foreground md:text-base">
+            Gestiona el acceso de esta organización a MAT.
+          </p>
+        </div>
+        <Badge variant={statusVariant(billingStatus)} className="mt-1">
+          Estado: {statusLabel(billingStatus)}
+        </Badge>
       </div>
 
       {billingStatus === "trial" ? (
-        <Card className="border-primary/40 bg-primary/5">
+        <Card className="overflow-hidden border-[#FF5C24]/40 bg-[linear-gradient(180deg,rgba(255,92,36,0.10),transparent)]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="size-4 text-primary" />
+              <Sparkles className="size-4 text-[#FF5C24]" />
               Prueba Pro activa
             </CardTitle>
             <CardDescription>
@@ -221,37 +236,34 @@ export default function BillingPage() {
         </Card>
       ) : null}
 
-      <div className="grid items-center gap-3">
-        <Badge variant={statusVariant(billingStatus)} className="w-fit">
-          Estado: {statusLabel(billingStatus)}
-        </Badge>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+        {/* LITE */}
+        <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle>Plan LITE</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>Plan LITE</CardTitle>
+              <Badge variant="secondary">Lo esencial</Badge>
+            </div>
             <CardDescription>
               Acceso a miembros, ejercicios y planificaciones.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="flex flex-1 flex-col gap-5">
             <div>
-              <p className="text-3xl font-semibold">
+              <p className="text-4xl font-semibold tracking-tight">
                 {litePlan?.priceArs
                   ? currency.format(litePlan.priceArs)
                   : "ARS sin configurar"}
               </p>
-              <p className="text-sm text-muted-foreground">
-                por mes, equivalente comercial de USD{" "}
-                {litePlan?.referencePriceUsd ?? 10}
+              <p className="mt-1 text-sm text-muted-foreground">
+                por mes
               </p>
             </div>
             <Separator />
-            <div className="grid gap-3">
+            <div className="grid flex-1 gap-3">
               {LITE_FEATURES.map((item) => (
-                <div key={item} className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="size-4 text-emerald-600" />
+                <div key={item} className="flex items-center gap-3 text-sm">
+                  <Check className="size-4 shrink-0 text-muted-foreground" />
                   <span>{item}</span>
                 </div>
               ))}
@@ -260,30 +272,34 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-primary/40">
+        {/* PRO (featured) */}
+        <Card className="relative flex flex-col overflow-hidden border-[#FF5C24]/40 bg-[linear-gradient(180deg,rgba(255,92,36,0.08),transparent_55%)] shadow-[0_30px_80px_-50px_rgba(255,92,36,0.7)]">
+          <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#FF5C24]/20 blur-3xl" />
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle>Plan PRO</CardTitle>
-              <Badge>Recomendado</Badge>
+              <Badge className="border-transparent bg-[#FF5C24] text-white hover:bg-[#FF5C24]">
+                Recomendado
+              </Badge>
             </div>
             <CardDescription>
               Acceso completo a todos los módulos de MAT.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="flex flex-1 flex-col gap-5">
             <div>
-              <p className="text-3xl font-semibold">
+              <p className="text-4xl font-semibold tracking-tight">
                 {proPlan?.priceArs
                   ? currency.format(proPlan.priceArs)
                   : "ARS sin configurar"}
               </p>
-              <p className="text-sm text-muted-foreground">por mes</p>
+              <p className="mt-1 text-sm text-muted-foreground">por mes</p>
             </div>
-            <Separator />
-            <div className="grid gap-3">
+            <Separator className="bg-[#FF5C24]/20" />
+            <div className="grid flex-1 gap-3">
               {PRO_FEATURES.map((item) => (
-                <div key={item} className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="size-4 text-emerald-600" />
+                <div key={item} className="flex items-center gap-3 text-sm">
+                  <Check className="size-4 shrink-0 text-[#FF5C24]" />
                   <span>{item}</span>
                 </div>
               ))}
