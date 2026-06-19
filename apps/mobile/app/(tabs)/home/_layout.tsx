@@ -27,9 +27,16 @@ const transparentHeaderOptions = {
 
 // Presented as a full-screen modal so it covers the native tab bar, giving the
 // workout session the full screen height (footer button sits at the bottom).
+// iOS hides the native header and renders its own (WorkoutHeader) so the
+// trailing controls can be separate Liquid Glass buttons; Android keeps the
+// native header with a left-aligned title. `headerShown` is set statically here
+// (not via per-render screen options) because toggling it through setOptions on
+// every render re-renders the screen body and causes an update loop.
 const workoutSessionOptions = {
   ...transparentHeaderOptions,
   presentation: "fullScreenModal" as const,
+  headerShown: Platform.OS !== "ios",
+  headerTitleAlign: "left" as const,
 };
 
 const logSetOptions = {

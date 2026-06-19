@@ -30,6 +30,7 @@ import LoadingScreen from '@/components/shared/screens/loading-screen'
 import {
   ExerciseCard,
   WorkoutFooter,
+  WorkoutHeader,
   type DayExerciseForCard,
 } from '@/components/features/workout'
 
@@ -128,8 +129,6 @@ function WorkoutContent() {
     Record<string, Record<number, true>>
   >({})
   const [savingId, setSavingId] = useState<string | null>(null)
-  const [completing, setCompleting] = useState(false)
-  const [starting, setStarting] = useState(false)
   const [expandedSetsByDayEx, setExpandedSetsByDayEx] = useState<
     Record<string, boolean>
   >({})
@@ -164,7 +163,6 @@ function WorkoutContent() {
 
   const handleStartWorkout = async () => {
     if (!paramAssignmentId || !paramWorkoutDayId || !paramPerformedOn) return
-    setStarting(true)
     try {
       const newSessionId = await startSession({
         assignmentId: paramAssignmentId as any,
@@ -174,8 +172,6 @@ function WorkoutContent() {
       router.replace(`/home/workout/${newSessionId}` as Href)
     } catch (e) {
       console.error(e)
-    } finally {
-      setStarting(false)
     }
   }
 
@@ -594,36 +590,41 @@ function WorkoutContent() {
     })
   }, [dayExercises, getValuesFor, quickCompletedSetsByDayEx])
 
-  const handleComplete = async () => {
-    if (isNewSession || !sessionId || session?.status === 'completed') return
-
-    // Show warning if exercises aren't all filled
-    if (!allExercisesFilled) {
-      Alert.alert(
-        'Ejercicios incompletos',
-        'Aún quedan ejercicios por completar, ¿estás seguro que quieres guardar?',
-        [
-          {
-            text: 'Cancelar',
-            style: 'cancel',
-          },
-          {
-            text: 'Guardar',
-            onPress: async () => {
-              await completeWorkout()
-            },
-          },
-        ]
-      )
-      return
+  const handleComplete = (): Promise<void> => {
+    if (isNewSession || !sessionId || session?.status === 'completed') {
+      return Promise.resolve()
     }
 
-    await completeWorkout()
+    // Show warning if exercises aren't all filled. Resolve once the user decides
+    // so the button's pending state tracks the actual completion.
+    if (!allExercisesFilled) {
+      return new Promise<void>((resolve) => {
+        Alert.alert(
+          'Ejercicios incompletos',
+          'Aún quedan ejercicios por completar, ¿estás seguro que quieres guardar?',
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+              onPress: () => resolve(),
+            },
+            {
+              text: 'Guardar',
+              onPress: async () => {
+                await completeWorkout()
+                resolve()
+              },
+            },
+          ]
+        )
+      })
+    }
+
+    return completeWorkout()
   }
 
   const completeWorkout = async () => {
     if (isNewSession || !sessionId) return
-    setCompleting(true)
     try {
       let exercisesCompleted = 0
       let totalSets = 0
@@ -681,8 +682,6 @@ function WorkoutContent() {
       router.replace(`/home/workout/complete?${completeQuery}` as Href)
     } catch (e) {
       console.error(e)
-    } finally {
-      setCompleting(false)
     }
   }
 
@@ -728,6 +727,12 @@ function WorkoutContent() {
   }
 
   const isCompleted = !isNewSession && session?.status === 'completed'
+  // iOS uses a custom header (WorkoutHeader) so the trailing controls render as
+  // separate Liquid Glass buttons and the start/complete CTA lives up there
+  // instead of the floating footer. Android keeps the native header + footer.
+  const useCustomHeader = Platform.OS === 'ios'
+  const ctaLabel = isNewSession ? 'Empezar' : 'Completar'
+  const onCtaPress = isNewSession ? handleStartWorkout : handleComplete
   const hasLoggedDataForExercise = (dayExId: string) => {
     const hasPersistedLog = !!logsByDayExercise[dayExId]
     const hasQuickCompletedSets =
@@ -775,6 +780,21 @@ function WorkoutContent() {
             : undefined,
         }}
       />
+      {useCustomHeader ? (
+        <WorkoutHeader
+          title={workoutDay?.name ?? ''}
+          isDark={isDark}
+          insetsTop={insets.top}
+          onBackPress={() => router.back()}
+          showCalendar={!!resolvedAssignmentId}
+          onCalendarPress={() =>
+            router.push(`/home/planification/${resolvedAssignmentId}` as Href)
+          }
+          showCta={!isCompleted}
+          ctaLabel={ctaLabel}
+          onCtaPress={onCtaPress}
+        />
+      ) : null}
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -786,7 +806,7 @@ function WorkoutContent() {
             styles.scrollContent,
             {
               paddingTop: insets.top + 60,
-              paddingBottom: insets.bottom + 96,
+              paddingBottom: insets.bottom + (Platform.OS === 'ios' ? 24 : 96),
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -918,21 +938,21 @@ function WorkoutContent() {
             })}
         </ScrollView>
 
-        <View style={styles.footerOverlay} pointerEvents="box-none">
-          <WorkoutFooter
-            isNewSession={isNewSession}
-            isCompleted={isCompleted}
-            starting={starting}
-            completing={completing}
-            onStartWorkout={handleStartWorkout}
-            onComplete={handleComplete}
-            paddingBottom={
-              insets.bottom - 48 + (Platform.OS === 'android' ? 32 : 0)
-            }
-            isDark={isDark}
-            colorScheme={colorScheme ?? 'light'}
-          />
-        </View>
+        {Platform.OS !== 'ios' && (
+          <View style={styles.footerOverlay} pointerEvents="box-none">
+            <WorkoutFooter
+              isNewSession={isNewSession}
+              isCompleted={isCompleted}
+              onStartWorkout={handleStartWorkout}
+              onComplete={handleComplete}
+              paddingBottom={
+                insets.bottom - 48 + (Platform.OS === 'android' ? 32 : 0)
+              }
+              isDark={isDark}
+              colorScheme={colorScheme ?? 'light'}
+            />
+          </View>
+        )}
       </KeyboardAvoidingView>
       <Modal
         visible={!!commentModalDayEx}
