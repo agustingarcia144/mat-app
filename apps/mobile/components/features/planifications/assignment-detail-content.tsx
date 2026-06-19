@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUser } from "@clerk/expo";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import { useQuery } from "convex/react";
 import { api } from "@repo/convex";
 import { format } from "date-fns";
@@ -22,7 +22,16 @@ import {
 import { assignmentDetailStyles as styles } from "./assignment-detail-styles";
 import type { DayExerciseWithDetails, ExerciseBlock } from "./types";
 
-export function AssignmentDetailContent() {
+export function AssignmentDetailContent({
+  getExerciseHref,
+}: {
+  /**
+   * Builds the destination when an exercise is tapped. Defaults to the profile
+   * planification subtree. The workout (home) entry point passes a builder that
+   * keeps navigation inside the home stack so back returns to the session.
+   */
+  getExerciseHref?: (ex: { exerciseId: string; _id: string }) => Href;
+} = {}) {
   const { assignmentId } = useLocalSearchParams<{ assignmentId: string }>();
   const router = useRouter();
   const { user } = useUser();
@@ -161,7 +170,8 @@ export function AssignmentDetailContent() {
 
   const handleExercisePress = (ex: { exerciseId: string; _id: string }) => {
     router.push(
-      `/profile/planifications/${assignmentId}/${ex.exerciseId}?dayExerciseId=${ex._id}`,
+      getExerciseHref?.(ex) ??
+        (`/profile/planifications/${assignmentId}/${ex.exerciseId}?dayExerciseId=${ex._id}` as Href),
     );
   };
 

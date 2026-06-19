@@ -20,6 +20,48 @@ export interface ScheduledWorkoutCardProps {
   onPress: () => void;
 }
 
+type StatusVisuals = {
+  accent: string;
+  tint: string;
+  icon:
+    | "checkmark"
+    | "bolt.fill"
+    | "figure.strengthtraining.traditional"
+    | "xmark";
+};
+
+function getStatusVisuals(
+  variant: StatusBadgeVariant,
+  isDark: boolean,
+): StatusVisuals {
+  switch (variant) {
+    case "completed":
+      return {
+        accent: isDark ? "#4ade80" : "#16a34a",
+        tint: "rgba(34,197,94,0.16)",
+        icon: "checkmark",
+      };
+    case "inProgress":
+      return {
+        accent: isDark ? "#60a5fa" : "#2563eb",
+        tint: "rgba(59,130,246,0.16)",
+        icon: "bolt.fill",
+      };
+    case "notStarted":
+      return {
+        accent: isDark ? "#fb923c" : "#ea580c",
+        tint: "rgba(249,115,22,0.16)",
+        icon: "figure.strengthtraining.traditional",
+      };
+    case "skipped":
+      return {
+        accent: isDark ? "#a1a1aa" : "#71717a",
+        tint: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)",
+        icon: "xmark",
+      };
+  }
+}
+
 export function ScheduledWorkoutCard({
   name,
   isDark,
@@ -29,122 +71,107 @@ export function ScheduledWorkoutCard({
   exerciseCount,
   onPress,
 }: ScheduledWorkoutCardProps) {
+  const status = getStatusVisuals(statusBadgeVariant, isDark);
+
   return (
     <PressableScale
-      style={[styles.workoutCard, isDark && styles.workoutCardDark]}
+      style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}
       onPress={onPress}
     >
-      <View style={styles.workoutCardContent}>
-        <ThemedText style={styles.workoutCardTitle}>{name}</ThemedText>
-        <View style={styles.workoutCardStatusRow}>
-          <View
-            style={[
-              styles.statusBadge,
-              {
-                backgroundColor:
-                  statusBadgeVariant === "completed"
-                    ? isDark
-                      ? "#16a34a"
-                      : "#22c55e"
-                    : statusBadgeVariant === "inProgress"
-                      ? isDark
-                        ? "#2563eb"
-                        : "#3b82f6"
-                      : statusBadgeVariant === "notStarted"
-                        ? isDark
-                          ? "#ea580c"
-                          : "#f97316"
-                        : isDark
-                          ? "rgba(255,255,255,0.12)"
-                          : "rgba(0,0,0,0.08)",
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusBadgeText,
-                (statusBadgeVariant === "completed" ||
-                  statusBadgeVariant === "inProgress" ||
-                  statusBadgeVariant === "notStarted") && {
-                  color: "#fff",
-                },
-                statusBadgeVariant === "skipped" && {
-                  color: isDark ? "#a1a1aa" : "#52525b",
-                },
-              ]}
-            >
+      <View style={[styles.iconTile, { backgroundColor: status.tint }]}>
+        <IconSymbol name={status.icon} size={24} color={status.accent} />
+      </View>
+
+      <View style={styles.content}>
+        <ThemedText style={styles.title} numberOfLines={1}>
+          {name}
+        </ThemedText>
+
+        <View style={styles.metaRow}>
+          <View style={[styles.statusPill, { backgroundColor: status.tint }]}>
+            <View style={[styles.statusDot, { backgroundColor: status.accent }]} />
+            <Text style={[styles.statusPillText, { color: status.accent }]}>
               {statusBadgeLabel}
             </Text>
           </View>
-        </View>
-        <View style={styles.workoutCardMeta}>
-          <ThemedText style={styles.workoutCardMetaText}>
-            {blockCount} {blockCount === 1 ? "bloque" : "bloques"}
-          </ThemedText>
-          <ThemedText style={styles.workoutCardMetaDot}>·</ThemedText>
-          <ThemedText style={styles.workoutCardMetaText}>
+
+          <ThemedText style={styles.metaText}>
+            {blockCount} {blockCount === 1 ? "bloque" : "bloques"} ·{" "}
             {exerciseCount} {exerciseCount === 1 ? "ejercicio" : "ejercicios"}
           </ThemedText>
         </View>
       </View>
+
       <IconSymbol
         name="chevron.right"
         size={20}
-        color={isDark ? "#a1a1aa" : "#71717a"}
+        color={isDark ? "#52525b" : "#a1a1aa"}
       />
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  workoutCard: {
+  card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.04)",
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 14,
     marginBottom: 16,
     borderWidth: StyleSheet.hairlineWidth,
+  },
+  cardLight: {
+    backgroundColor: "rgba(0,0,0,0.04)",
     borderColor: "rgba(0,0,0,0.08)",
   },
-  workoutCardContent: {
-    flex: 1,
-  },
-  workoutCardDark: {
+  cardDark: {
     backgroundColor: "rgba(255,255,255,0.06)",
     borderColor: "rgba(255,255,255,0.1)",
   },
-  workoutCardTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 8,
+  iconTile: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  workoutCardStatusRow: {
+  content: {
+    flex: 1,
+    marginLeft: 14,
+    marginRight: 8,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    flexWrap: "wrap",
+    gap: 8,
   },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    alignSelf: "flex-start",
-  },
-  statusBadgeText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  workoutCardMeta: {
+  statusPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    paddingLeft: 8,
+    paddingRight: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
-  workoutCardMetaText: {
-    fontSize: 13,
-    opacity: 0.75,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  workoutCardMetaDot: {
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  metaText: {
     fontSize: 13,
-    opacity: 0.5,
+    opacity: 0.65,
   },
 });

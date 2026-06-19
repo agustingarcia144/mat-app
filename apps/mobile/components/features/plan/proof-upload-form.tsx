@@ -22,6 +22,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ThemedView } from "@/components/ui/themed-view";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { calculateInterest } from "@repo/core/types";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -242,10 +243,7 @@ export default function ProofUploadForm() {
         {/* Preview */}
         {selectedFile ? (
           <View
-            style={[
-              styles.preview,
-              { backgroundColor: isDark ? "#1c1c1e" : "#f5f5f5" },
-            ]}
+            style={[styles.preview, isDark ? styles.previewDark : styles.previewLight]}
           >
             {selectedFile.type.startsWith("image/") ? (
               <Image
@@ -362,11 +360,18 @@ export default function ProofUploadForm() {
 
         {/* Select file */}
         <ThemedPressable
-          type="secondary"
-          style={styles.selectButton}
+          style={[
+            styles.selectButton,
+            isDark ? styles.selectButtonDark : styles.selectButtonLight,
+          ]}
           onPress={showPicker}
           disabled={uploading || !canUploadProof}
         >
+          <IconSymbol
+            name="paperplane.fill"
+            size={18}
+            color={isDark ? "#fff" : "#000"}
+          />
           <Text
             style={[styles.selectText, { color: isDark ? "#fff" : "#000" }]}
           >
@@ -400,8 +405,8 @@ export default function ProofUploadForm() {
 
 const interestStyles = StyleSheet.create({
   box: {
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
     gap: 4,
   },
   title: {
@@ -442,10 +447,19 @@ const styles = StyleSheet.create({
     color: "#ef4444",
   },
   preview: {
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     alignItems: "center",
     gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  previewLight: {
+    backgroundColor: "rgba(0,0,0,0.04)",
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  previewDark: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.1)",
   },
   previewImage: {
     width: "100%",
@@ -469,9 +483,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   selectButton: {
+    flexDirection: "row",
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  selectButtonLight: {
+    backgroundColor: "rgba(0,0,0,0.04)",
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  selectButtonDark: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.1)",
   },
   selectText: {
     fontSize: 16,

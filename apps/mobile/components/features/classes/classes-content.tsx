@@ -7,7 +7,6 @@ import {
   View,
   Text,
   type LayoutChangeEvent,
-  useWindowDimensions,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -22,7 +21,13 @@ import { ScrollView } from "react-native-gesture-handler";
 import { useAuth } from "@clerk/expo";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/convex";
-import { format, startOfWeek, endOfWeek } from "date-fns";
+import {
+  format,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+} from "date-fns";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useSubscriptionGate } from "@/hooks/use-subscription-gate";
@@ -164,7 +169,6 @@ export default function ClassesContent() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-  const { width: windowWidth } = useWindowDimensions();
   const { userId } = useAuth();
   const { canAccess: hasActiveSubscription } = useSubscriptionGate();
 
@@ -197,30 +201,32 @@ export default function ClassesContent() {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [error, setError] = useState("");
 
-  // ── Week range for calendar queries ──────────────────────────
-  const { calendarMonday, calendarSunday } = useMemo(
+  // ── Month grid range for calendar queries ────────────────────
+  // Full month grid (leading/trailing days included) so the expanded
+  // calendar shows dots for every visible day, not just the selected week.
+  const { gridStart, gridEnd } = useMemo(
     () => ({
-      calendarMonday: startOfWeek(selectedDate, WEEK_STARTS_MONDAY),
-      calendarSunday: endOfWeek(selectedDate, WEEK_STARTS_MONDAY),
+      gridStart: startOfWeek(startOfMonth(selectedDate), WEEK_STARTS_MONDAY),
+      gridEnd: endOfWeek(endOfMonth(selectedDate), WEEK_STARTS_MONDAY),
     }),
     [selectedDate],
   );
 
-  /** All schedules in the visible calendar week (no item-limit) */
+  /** All schedules in the visible calendar month grid (no item-limit) */
   const weekSchedules = useQuery(
     api.classSchedules.getByOrganizationAndDateRange,
     {
-      startDate: calendarMonday.getTime(),
-      endDate: calendarSunday.getTime(),
+      startDate: gridStart.getTime(),
+      endDate: gridEnd.getTime(),
     },
   );
 
-  /** User's non-cancelled reservations in the visible calendar week */
+  /** User's non-cancelled reservations in the visible calendar month grid */
   const weekReservations = useQuery(
     api.classReservations.getByUserForDateRange,
     {
-      startOfRange: calendarMonday.getTime(),
-      endOfRange: calendarSunday.getTime(),
+      startOfRange: gridStart.getTime(),
+      endOfRange: gridEnd.getTime(),
     },
   );
 
@@ -781,17 +787,28 @@ export default function ClassesContent() {
   const listHeader = useMemo(
     () => (
       <View>
-        <ClassesListHeader
-          insetsTop={insets.top}
-          error={error}
-          isDark={isDark}
-          headerRight={viewToggleButton}
-        />
-        <AnimatedClassesTabs
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          isDark={isDark}
-        />
+        <View
+          style={[
+            styles.headerCard,
+            {
+              backgroundColor: isDark
+                ? "rgba(255, 255, 255, 0.05)"
+                : "rgba(0, 0, 0, 0.03)",
+            },
+          ]}
+        >
+          <ClassesListHeader
+            insetsTop={insets.top}
+            error={error}
+            isDark={isDark}
+            headerRight={viewToggleButton}
+          />
+          <AnimatedClassesTabs
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            isDark={isDark}
+          />
+        </View>
         {activeTab === "upcoming" && (
           <ClassesNextUpcomingCard
             nextUpcoming={nextUpcoming}
@@ -931,19 +948,23 @@ export default function ClassesContent() {
             paddingBottom: insets.bottom + 40,
           }}
         >
-          <ClassesListHeader
-            insetsTop={insets.top}
-            error={error}
-            isDark={isDark}
-            headerRight={viewToggleButton}
-          />
-
           <View
             style={[
-              styles.calendarFullWidth,
-              { width: windowWidth, marginLeft: -12 },
+              styles.headerCard,
+              {
+                backgroundColor: isDark
+                  ? "rgba(255, 255, 255, 0.05)"
+                  : "rgba(0, 0, 0, 0.03)",
+              },
             ]}
           >
+            <ClassesListHeader
+              insetsTop={insets.top}
+              error={error}
+              isDark={isDark}
+              headerRight={viewToggleButton}
+            />
+
             <CalendarWeekView
               selectedDate={selectedDate}
               onDateSelect={setSelectedDate}
@@ -952,6 +973,7 @@ export default function ClassesContent() {
               daysWithWorkouts={[]}
               daysWithClasses={daysWithScheduledClasses}
               daysWithAttendedClasses={daysWithAttendedClasses}
+              transparentBackground
             />
           </View>
 
@@ -1016,7 +1038,7 @@ const styles = StyleSheet.create({
   },
   tabs: {
     marginHorizontal: 12,
-    marginBottom: 16,
+    marginBottom: 4,
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     padding: TAB_PADDING,
@@ -1055,8 +1077,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 8,
   },
-  calendarFullWidth: {
-    marginBottom: 4,
+  headerCard: {
+    marginHorizontal: -12,
+    paddingHorizontal: 12,
+    paddingBottom: 6,
+    marginBottom: 16,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
   calendarDayLoadingContainer: {
     minHeight: 160,

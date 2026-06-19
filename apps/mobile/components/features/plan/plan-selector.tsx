@@ -16,6 +16,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ThemedView } from "@/components/ui/themed-view";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 
 type AdvanceDiscount = { months: number; discountPercentage: number };
 
@@ -84,287 +85,386 @@ export default function PlanSelector() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 },
+          { paddingBottom: insets.bottom + 16 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <ThemedText type="title" style={styles.title}>
-          Elegí tu plan
-        </ThemedText>
-        <ThemedText style={styles.subtitle}>
-          Seleccioná un plan de membresía para acceder a las clases.
-        </ThemedText>
+        {/* Header */}
+        <View
+          style={[
+            styles.headerCard,
+            {
+              paddingTop: insets.top + 20,
+              backgroundColor: isDark
+                ? "rgba(255, 255, 255, 0.05)"
+                : "rgba(0, 0, 0, 0.03)",
+            },
+          ]}
+        >
+          <ThemedText type="title" style={styles.title}>
+            Elegí tu plan
+          </ThemedText>
+          <ThemedText style={styles.subtitle}>
+            Seleccioná una membresía para acceder a las clases.
+          </ThemedText>
+        </View>
 
-        {plans === undefined ? (
-          <ActivityIndicator
-            size="large"
-            color={isDark ? "#fff" : "#000"}
-            style={styles.loader}
-          />
-        ) : plans.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <ThemedText style={styles.emptyText}>
-              No hay planes disponibles en este momento. Contactá al gimnasio
-              para más información.
-            </ThemedText>
-          </View>
-        ) : (
-          <View style={styles.plansList}>
-            {plans.filter((plan) => !plan.isFamilyPlan).sort((a, b) => a.priceArs - b.priceArs).map((plan) => {
-              const discounts = (plan.advancePaymentDiscounts ??
-                []) as AdvanceDiscount[];
-              const hasDiscounts = discounts.length > 0;
-              const chosenMonths = selectedMonths[plan._id] ?? 1;
-              const chosenDiscount = discounts.find(
-                (d) => d.months === chosenMonths,
-              );
+        <View style={styles.body}>
+          {plans === undefined ? (
+            <ActivityIndicator
+              size="large"
+              color={isDark ? "#fff" : "#000"}
+              style={styles.loader}
+            />
+          ) : plans.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <View
+                style={[
+                  styles.emptyIcon,
+                  {
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.06)"
+                      : "rgba(0,0,0,0.05)",
+                  },
+                ]}
+              >
+                <IconSymbol
+                  name="bolt.fill"
+                  size={28}
+                  color={isDark ? "#52525b" : "#a1a1aa"}
+                />
+              </View>
+              <ThemedText style={styles.emptyText}>
+                No hay planes disponibles en este momento. Contactá al gimnasio
+                para más información.
+              </ThemedText>
+            </View>
+          ) : (
+            <View style={styles.plansList}>
+              {plans
+                .filter((plan) => !plan.isFamilyPlan)
+                .sort((a, b) => a.priceArs - b.priceArs)
+                .map((plan) => {
+                  const discounts = (plan.advancePaymentDiscounts ??
+                    []) as AdvanceDiscount[];
+                  const hasDiscounts = discounts.length > 0;
+                  const chosenMonths = selectedMonths[plan._id] ?? 1;
+                  const chosenDiscount = discounts.find(
+                    (d) => d.months === chosenMonths,
+                  );
 
-              return (
-                <View
-                  key={plan._id}
-                  style={[
-                    styles.planCard,
-                    { backgroundColor: isDark ? "#1c1c1e" : "#f5f5f5" },
-                  ]}
-                >
-                  <View style={styles.planHeader}>
-                    <Text
+                  return (
+                    <View
+                      key={plan._id}
                       style={[
-                        styles.planName,
-                        { color: isDark ? "#fff" : "#000" },
+                        styles.planCard,
+                        isDark ? styles.planCardDark : styles.planCardLight,
                       ]}
                     >
-                      {plan.name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.planPrice,
-                        { color: isDark ? "#fff" : "#000" },
-                      ]}
-                    >
-                      ${plan.priceArs.toLocaleString("es-AR")}
-                      <Text style={styles.planPriceSuffix}>/mes</Text>
-                    </Text>
-                  </View>
-
-                  {plan.description ? (
-                    <Text
-                      style={[
-                        styles.planDescription,
-                        { color: isDark ? "#aaa" : "#666" },
-                      ]}
-                    >
-                      {plan.description}
-                    </Text>
-                  ) : null}
-
-                  <View style={styles.planDetails}>
-                    <Text
-                      style={[
-                        styles.planDetail,
-                        { color: isDark ? "#ccc" : "#444" },
-                      ]}
-                    >
-                      {plan.weeklyClassLimit >= 9999
-                        ? "Sin límite"
-                        : `${plan.weeklyClassLimit} clases por semana`}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.planDetail,
-                        { color: isDark ? "#ccc" : "#444" },
-                      ]}
-                    >
-                      {(plan.billingMode ?? "calendar") === "join_date"
-                        ? "Pago mensual según fecha de ingreso"
-                        : `Pago del ${plan.paymentWindowStartDay} al ${plan.paymentWindowEndDay} de cada mes`}
-                    </Text>
-                  </View>
-
-                  {/* Advance payment options */}
-                  {hasDiscounts && (
-                    <View style={styles.discountSection}>
-                      <Text
-                        style={[
-                          styles.discountLabel,
-                          { color: isDark ? "#ccc" : "#444" },
-                        ]}
-                      >
-                        Pagá por adelantado y ahorrá:
-                      </Text>
-                      <View style={styles.discountOptions}>
-                        {/* Monthly (no discount) option */}
-                        <Pressable
+                      <View style={styles.planHeader}>
+                        <View
                           style={[
-                            styles.discountChip,
+                            styles.planIconTile,
                             {
-                              backgroundColor:
-                                chosenMonths === 1
-                                  ? isDark
-                                    ? "#fff"
-                                    : "#000"
-                                  : isDark
-                                    ? "#333"
-                                    : "#e5e5e5",
+                              backgroundColor: isDark
+                                ? "rgba(255,255,255,0.08)"
+                                : "rgba(0,0,0,0.05)",
                             },
                           ]}
-                          onPress={() =>
-                            setSelectedMonths((prev) => ({
-                              ...prev,
-                              [plan._id]: 1,
-                            }))
-                          }
                         >
+                          <IconSymbol
+                            name="bolt.fill"
+                            size={22}
+                            color={isDark ? "#fff" : "#000"}
+                          />
+                        </View>
+                        <View style={styles.planHeaderText}>
                           <Text
                             style={[
-                              styles.discountChipText,
-                              {
-                                color:
-                                  chosenMonths === 1
-                                    ? isDark
-                                      ? "#000"
-                                      : "#fff"
-                                    : isDark
-                                      ? "#ccc"
-                                      : "#444",
-                              },
+                              styles.planName,
+                              { color: isDark ? "#fff" : "#000" },
                             ]}
                           >
-                            1 mes
+                            {plan.name}
                           </Text>
-                        </Pressable>
+                          <Text
+                            style={[
+                              styles.planPrice,
+                              { color: isDark ? "#fff" : "#000" },
+                            ]}
+                          >
+                            ${plan.priceArs.toLocaleString("es-AR")}
+                            <Text style={styles.planPriceSuffix}>/mes</Text>
+                          </Text>
+                        </View>
+                      </View>
 
-                        {discounts
-                          .sort((a, b) => a.months - b.months)
-                          .map((discount) => {
-                            const isSelected = chosenMonths === discount.months;
-                            return (
-                              <Pressable
-                                key={discount.months}
-                                style={[
-                                  styles.discountChip,
-                                  {
-                                    backgroundColor: isSelected
+                      {plan.description ? (
+                        <Text
+                          style={[
+                            styles.planDescription,
+                            { color: isDark ? "#a1a1aa" : "#71717a" },
+                          ]}
+                        >
+                          {plan.description}
+                        </Text>
+                      ) : null}
+
+                      <View
+                        style={[
+                          styles.divider,
+                          {
+                            backgroundColor: isDark
+                              ? "rgba(255,255,255,0.08)"
+                              : "rgba(0,0,0,0.06)",
+                          },
+                        ]}
+                      />
+
+                      <View style={styles.planDetails}>
+                        <View style={styles.featureRow}>
+                          <IconSymbol
+                            name="checkmark"
+                            size={16}
+                            color={isDark ? "#4ade80" : "#16a34a"}
+                          />
+                          <Text
+                            style={[
+                              styles.planDetail,
+                              { color: isDark ? "#d4d4d8" : "#3f3f46" },
+                            ]}
+                          >
+                            {plan.weeklyClassLimit >= 9999
+                              ? "Clases sin límite"
+                              : `${plan.weeklyClassLimit} clases por semana`}
+                          </Text>
+                        </View>
+                        <View style={styles.featureRow}>
+                          <IconSymbol
+                            name="checkmark"
+                            size={16}
+                            color={isDark ? "#4ade80" : "#16a34a"}
+                          />
+                          <Text
+                            style={[
+                              styles.planDetail,
+                              { color: isDark ? "#d4d4d8" : "#3f3f46" },
+                            ]}
+                          >
+                            {(plan.billingMode ?? "calendar") === "join_date"
+                              ? "Pago mensual según fecha de ingreso"
+                              : `Pago del ${plan.paymentWindowStartDay} al ${plan.paymentWindowEndDay} de cada mes`}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Advance payment options */}
+                      {hasDiscounts && (
+                        <View style={styles.discountSection}>
+                          <Text
+                            style={[
+                              styles.discountLabel,
+                              { color: isDark ? "#a1a1aa" : "#52525b" },
+                            ]}
+                          >
+                            Pagá por adelantado y ahorrá
+                          </Text>
+                          <View style={styles.discountOptions}>
+                            {/* Monthly (no discount) option */}
+                            <Pressable
+                              style={[
+                                styles.discountChip,
+                                {
+                                  backgroundColor:
+                                    chosenMonths === 1
                                       ? isDark
                                         ? "#fff"
                                         : "#000"
                                       : isDark
-                                        ? "#333"
-                                        : "#e5e5e5",
-                                  },
-                                ]}
-                                onPress={() =>
-                                  setSelectedMonths((prev) => ({
-                                    ...prev,
-                                    [plan._id]: discount.months,
-                                  }))
-                                }
-                              >
-                                <Text
-                                  style={[
-                                    styles.discountChipText,
-                                    {
-                                      color: isSelected
+                                        ? "rgba(255,255,255,0.08)"
+                                        : "rgba(0,0,0,0.05)",
+                                },
+                              ]}
+                              onPress={() =>
+                                setSelectedMonths((prev) => ({
+                                  ...prev,
+                                  [plan._id]: 1,
+                                }))
+                              }
+                            >
+                              <Text
+                                style={[
+                                  styles.discountChipText,
+                                  {
+                                    color:
+                                      chosenMonths === 1
                                         ? isDark
                                           ? "#000"
                                           : "#fff"
                                         : isDark
-                                          ? "#ccc"
-                                          : "#444",
-                                    },
+                                          ? "#d4d4d8"
+                                          : "#3f3f46",
+                                  },
+                                ]}
+                              >
+                                1 mes
+                              </Text>
+                            </Pressable>
+
+                            {discounts
+                              .sort((a, b) => a.months - b.months)
+                              .map((discount) => {
+                                const isSelected =
+                                  chosenMonths === discount.months;
+                                return (
+                                  <Pressable
+                                    key={discount.months}
+                                    style={[
+                                      styles.discountChip,
+                                      {
+                                        backgroundColor: isSelected
+                                          ? isDark
+                                            ? "#fff"
+                                            : "#000"
+                                          : isDark
+                                            ? "rgba(255,255,255,0.08)"
+                                            : "rgba(0,0,0,0.05)",
+                                      },
+                                    ]}
+                                    onPress={() =>
+                                      setSelectedMonths((prev) => ({
+                                        ...prev,
+                                        [plan._id]: discount.months,
+                                      }))
+                                    }
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.discountChipText,
+                                        {
+                                          color: isSelected
+                                            ? isDark
+                                              ? "#000"
+                                              : "#fff"
+                                            : isDark
+                                              ? "#d4d4d8"
+                                              : "#3f3f46",
+                                        },
+                                      ]}
+                                    >
+                                      {MONTH_LABELS[discount.months] ??
+                                        `${discount.months} meses`}
+                                    </Text>
+                                    <View
+                                      style={[
+                                        styles.discountChipBadge,
+                                        {
+                                          backgroundColor: isSelected
+                                            ? "rgba(34,197,94,0.22)"
+                                            : "rgba(34,197,94,0.16)",
+                                        },
+                                      ]}
+                                    >
+                                      <Text style={styles.discountChipBadgeText}>
+                                        -{discount.discountPercentage}%
+                                      </Text>
+                                    </View>
+                                  </Pressable>
+                                );
+                              })}
+                          </View>
+
+                          {/* Price summary for selected option */}
+                          {chosenDiscount && (
+                            <View
+                              style={[
+                                styles.discountSummary,
+                                {
+                                  backgroundColor: isDark
+                                    ? "rgba(34,197,94,0.12)"
+                                    : "rgba(34,197,94,0.10)",
+                                },
+                              ]}
+                            >
+                              <View style={styles.discountSummaryRow}>
+                                <Text
+                                  style={[
+                                    styles.discountSummaryText,
+                                    { color: isDark ? "#d4d4d8" : "#3f3f46" },
                                   ]}
                                 >
-                                  {MONTH_LABELS[discount.months] ??
-                                    `${discount.months} meses`}
+                                  $
+                                  {Math.round(
+                                    plan.priceArs *
+                                      (1 -
+                                        chosenDiscount.discountPercentage / 100),
+                                  ).toLocaleString("es-AR")}
+                                  /mes
                                 </Text>
                                 <Text
                                   style={[
-                                    styles.discountChipBadge,
-                                    {
-                                      color: isSelected
-                                        ? isDark
-                                          ? "#166534"
-                                          : "#22c55e"
-                                        : "#22c55e",
-                                    },
+                                    styles.discountSummaryText,
+                                    { color: isDark ? "#d4d4d8" : "#3f3f46" },
                                   ]}
                                 >
-                                  -{discount.discountPercentage}%
+                                  Total: $
+                                  {(
+                                    Math.round(
+                                      plan.priceArs *
+                                        (1 -
+                                          chosenDiscount.discountPercentage /
+                                            100),
+                                    ) * chosenDiscount.months
+                                  ).toLocaleString("es-AR")}
                                 </Text>
-                              </Pressable>
-                            );
-                          })}
-                      </View>
-
-                      {/* Price summary for selected option */}
-                      {chosenDiscount && (
-                        <View style={styles.discountSummary}>
-                          <Text
-                            style={[
-                              styles.discountSummaryText,
-                              { color: isDark ? "#aaa" : "#666" },
-                            ]}
-                          >
-                            $
-                            {Math.round(
-                              plan.priceArs *
-                                (1 - chosenDiscount.discountPercentage / 100),
-                            ).toLocaleString("es-AR")}
-                            /mes
-                            {"  ·  "}
-                            Total: $
-                            {(
-                              Math.round(
-                                plan.priceArs *
-                                  (1 - chosenDiscount.discountPercentage / 100),
-                              ) * chosenDiscount.months
-                            ).toLocaleString("es-AR")}
-                          </Text>
-                          <Text style={styles.savingsText}>
-                            Ahorrás $
-                            {(
-                              plan.priceArs * chosenDiscount.months -
-                              Math.round(
-                                plan.priceArs *
-                                  (1 - chosenDiscount.discountPercentage / 100),
-                              ) *
-                                chosenDiscount.months
-                            ).toLocaleString("es-AR")}
-                          </Text>
+                              </View>
+                              <Text style={styles.savingsText}>
+                                Ahorrás $
+                                {(
+                                  plan.priceArs * chosenDiscount.months -
+                                  Math.round(
+                                    plan.priceArs *
+                                      (1 -
+                                        chosenDiscount.discountPercentage / 100),
+                                  ) *
+                                    chosenDiscount.months
+                                ).toLocaleString("es-AR")}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                       )}
-                    </View>
-                  )}
 
-                  <ThemedPressable
-                    type="primary"
-                    style={styles.activateButton}
-                    onPress={() =>
-                      handleActivate(
-                        plan._id,
-                        plan.name,
-                        plan.priceArs,
-                        chosenMonths,
-                        chosenDiscount,
-                      )
-                    }
-                  >
-                    <ThemedText
-                      style={[
-                        styles.activateText,
-                        { color: isDark ? "#000" : "#fff" },
-                      ]}
-                    >
-                      {chosenMonths > 1
-                        ? `Activar plan (${chosenMonths} meses)`
-                        : "Activar plan"}
-                    </ThemedText>
-                  </ThemedPressable>
-                </View>
-              );
-            })}
-          </View>
-        )}
+                      <ThemedPressable
+                        type="primary"
+                        style={styles.activateButton}
+                        onPress={() =>
+                          handleActivate(
+                            plan._id,
+                            plan.name,
+                            plan.priceArs,
+                            chosenMonths,
+                            chosenDiscount,
+                          )
+                        }
+                      >
+                        <ThemedText
+                          style={[
+                            styles.activateText,
+                            { color: isDark ? "#000" : "#fff" },
+                          ]}
+                        >
+                          {chosenMonths > 1
+                            ? `Activar plan (${chosenMonths} meses)`
+                            : "Activar plan"}
+                        </ThemedText>
+                      </ThemedPressable>
+                    </View>
+                  );
+                })}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </ThemedView>
   );
@@ -375,40 +475,77 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    gap: 12,
+    paddingBottom: 16,
+  },
+  headerCard: {
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    marginBottom: 16,
   },
   title: {
-    marginBottom: 0,
+    marginBottom: 4,
   },
   subtitle: {
     fontSize: 15,
     opacity: 0.6,
-    marginBottom: 8,
+  },
+  body: {
+    paddingHorizontal: 16,
   },
   loader: {
     marginTop: 40,
   },
   emptyContainer: {
-    marginTop: 40,
+    marginTop: 48,
     alignItems: "center",
+    gap: 16,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyText: {
     textAlign: "center",
     opacity: 0.6,
+    paddingHorizontal: 24,
   },
   plansList: {
     gap: 16,
   },
   planCard: {
-    borderRadius: 16,
-    padding: 20,
-    gap: 12,
+    borderRadius: 20,
+    padding: 18,
+    gap: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  planCardLight: {
+    backgroundColor: "rgba(0,0,0,0.04)",
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  planCardDark: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.1)",
   },
   planHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
+    alignItems: "center",
+    gap: 12,
+  },
+  planIconTile: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  planHeaderText: {
+    flex: 1,
+    gap: 2,
   },
   planName: {
     fontSize: 18,
@@ -419,21 +556,31 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   planPriceSuffix: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "400",
     opacity: 0.6,
   },
   planDescription: {
     fontSize: 14,
+    lineHeight: 20,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
   },
   planDetails: {
-    gap: 4,
+    gap: 10,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   planDetail: {
     fontSize: 14,
+    flex: 1,
   },
   discountSection: {
-    gap: 8,
+    gap: 10,
   },
   discountLabel: {
     fontSize: 13,
@@ -447,7 +594,7 @@ const styles = StyleSheet.create({
   discountChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -457,18 +604,32 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   discountChipBadge: {
-    fontSize: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  discountChipBadgeText: {
+    fontSize: 11,
     fontWeight: "700",
+    color: "#22c55e",
   },
   discountSummary: {
-    gap: 2,
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+  },
+  discountSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   discountSummaryText: {
     fontSize: 13,
+    fontWeight: "500",
   },
   savingsText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
     color: "#22c55e",
   },
   activateButton: {

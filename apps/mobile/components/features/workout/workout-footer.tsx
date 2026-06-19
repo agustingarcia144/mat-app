@@ -1,6 +1,6 @@
 import React from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
-import { ThemedPressable } from "@/components/ui/themed-pressable";
+import { View, StyleSheet } from "react-native";
+import { WorkoutFooterButton } from "./workout-footer-button";
 
 export interface WorkoutFooterProps {
   isNewSession: boolean;
@@ -22,109 +22,41 @@ export function WorkoutFooter({
   onStartWorkout,
   onComplete,
   paddingBottom,
-  isDark,
   colorScheme,
 }: WorkoutFooterProps) {
   if (isNewSession) {
     return (
-      <View
-        style={[
-          styles.footer,
-          {
-            paddingBottom,
-            backgroundColor: isDark ? "#0a0a0a" : "#fff",
-          },
-        ]}
-      >
-        <ThemedPressable
-          type="primary"
+      <View style={[styles.footer, { paddingBottom }]} pointerEvents="box-none">
+        <WorkoutFooterButton
+          label="Empezar entrenamiento"
+          loading={starting}
           onPress={onStartWorkout}
-          disabled={starting}
-        >
-          {starting ? (
-            <ActivityIndicator
-              size="small"
-              color={colorScheme === "dark" ? "#000" : "#fff"}
-            />
-          ) : (
-            <Text
-              style={[
-                styles.primaryButtonText,
-                { color: colorScheme === "dark" ? "#000" : "#fff" },
-              ]}
-            >
-              Empezar entrenamiento
-            </Text>
-          )}
-        </ThemedPressable>
+          colorScheme={colorScheme}
+        />
       </View>
     );
   }
 
   if (!isCompleted) {
     return (
-      <View
-        style={[
-          styles.footer,
-          {
-            paddingBottom,
-            backgroundColor: isDark ? "#0a0a0a" : "#fff",
-          },
-        ]}
-      >
-        <ThemedPressable
-          type="primary"
+      <View style={[styles.footer, { paddingBottom }]} pointerEvents="box-none">
+        <WorkoutFooterButton
+          label="Completar entrenamiento"
+          loading={completing}
           onPress={onComplete}
-          disabled={completing}
-        >
-          {completing ? (
-            <ActivityIndicator
-              size="small"
-              color={colorScheme === "dark" ? "#000" : "#fff"}
-            />
-          ) : (
-            <Text
-              style={[
-                styles.primaryButtonText,
-                { color: colorScheme === "dark" ? "#000" : "#fff" },
-              ]}
-            >
-              Completar entrenamiento
-            </Text>
-          )}
-        </ThemedPressable>
+          colorScheme={colorScheme}
+        />
       </View>
     );
   }
 
-  return (
-    <View
-      style={[
-        styles.footer,
-        {
-          paddingBottom,
-          backgroundColor: isDark ? "#0a0a0a" : "#fff",
-        },
-      ]}
-    >
-      <Text style={styles.completedLabel}>Sesión completada</Text>
-    </View>
-  );
+  // Completed sessions show no footer.
+  return null;
 }
 
 const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 24,
     paddingTop: 16,
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  completedLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-    opacity: 0.8,
   },
 });

@@ -756,10 +756,10 @@ function WorkoutContent() {
           title: workoutDay?.name ?? '',
           headerRight: resolvedAssignmentId
             ? () => (
-                <PressableScale
+                <Pressable
                   onPress={() =>
                     router.push(
-                      `/profile/planifications/${resolvedAssignmentId}` as Href
+                      `/home/planification/${resolvedAssignmentId}` as Href
                     )
                   }
                   hitSlop={12}
@@ -770,7 +770,7 @@ function WorkoutContent() {
                     size={22}
                     color={isDark ? '#fff' : '#000'}
                   />
-                </PressableScale>
+                </Pressable>
               )
             : undefined,
         }}
@@ -786,7 +786,7 @@ function WorkoutContent() {
             styles.scrollContent,
             {
               paddingTop: insets.top + 60,
-              paddingBottom: insets.bottom,
+              paddingBottom: insets.bottom + 96,
             },
           ]}
           keyboardShouldPersistTaps="handled"
@@ -918,17 +918,21 @@ function WorkoutContent() {
             })}
         </ScrollView>
 
-        <WorkoutFooter
-          isNewSession={isNewSession}
-          isCompleted={isCompleted}
-          starting={starting}
-          completing={completing}
-          onStartWorkout={handleStartWorkout}
-          onComplete={handleComplete}
-          paddingBottom={insets.bottom + (Platform.OS === 'ios' ? 16 : 0)}
-          isDark={isDark}
-          colorScheme={colorScheme ?? 'light'}
-        />
+        <View style={styles.footerOverlay} pointerEvents="box-none">
+          <WorkoutFooter
+            isNewSession={isNewSession}
+            isCompleted={isCompleted}
+            starting={starting}
+            completing={completing}
+            onStartWorkout={handleStartWorkout}
+            onComplete={handleComplete}
+            paddingBottom={
+              insets.bottom - 48 + (Platform.OS === 'android' ? 32 : 0)
+            }
+            isDark={isDark}
+            colorScheme={colorScheme ?? 'light'}
+          />
+        </View>
       </KeyboardAvoidingView>
       <Modal
         visible={!!commentModalDayEx}
@@ -1099,6 +1103,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
+  },
+  footerOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   blockSection: {
     marginTop: 20,

@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo } from "react";
-import { View, Text, StyleSheet, Platform } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { View, Text, StyleSheet } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { scheduleOnRN } from "react-native-worklets";
 import Animated, {
@@ -7,27 +7,29 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { addDays, endOfWeek, format, startOfWeek } from "date-fns";
+import {
+  addDays,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameMonth,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { es } from "date-fns/locale";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
-import { IconSymbol } from "../../ui/icon-symbol";
 
 const SWIPE_THRESHOLD = 50;
 const VELOCITY_THRESHOLD = 400;
 const PAN_ACTIVE_OFFSET_X = 25;
-const SLIDE_OUT_DISTANCE = 280;
+const SLIDE_OUT_DISTANCE = 320;
 const WHEEL_DURATION_MS = 220;
+const EXPAND_DURATION_MS = 280;
+
+const ROW_HEIGHT = 62;
 
 const WEEK_STARTS_MONDAY = { weekStartsOn: 1 as const };
-
-/** Get Monday and Sunday of the week containing `date` */
-function getWeekRange(date: Date): { monday: Date; sunday: Date } {
-  return {
-    monday: startOfWeek(date, WEEK_STARTS_MONDAY),
-    sunday: endOfWeek(date, WEEK_STARTS_MONDAY),
-  };
-}
 
 /** Short day names (Mon–Sun) in Spanish, for use as column labels */
 const SHORT_DAY_NAMES = (() => {
@@ -36,6 +38,8 @@ const SHORT_DAY_NAMES = (() => {
     format(addDays(monday, i), "EEE", { locale: es }),
   );
 })();
+
+type CalendarDay = { date: Date; ymd: string; inMonth: boolean };
 
 type CalendarWeekViewProps = {
   selectedDate: Date;
@@ -51,6 +55,9 @@ type CalendarWeekViewProps = {
   daysWithClasses?: string[];
   /** YMD strings (yyyy-MM-dd) for days that have at least one attended class */
   daysWithAttendedClasses?: string[];
+  /** When true, the component renders without its own card background so a
+   * parent container can provide it (e.g. a unified header section). */
+  transparentBackground?: boolean;
 };
 
 export function CalendarWeekView({
@@ -61,27 +68,46 @@ export function CalendarWeekView({
   daysWithWorkouts,
   daysWithClasses,
   daysWithAttendedClasses,
+  transparentBackground = false,
 }: CalendarWeekViewProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
-  const { monday } = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
+  const [expanded, setExpanded] = useState(false);
 
-  const weekDays = useMemo(() => {
-    const days: { date: Date; label: string; ymd: string }[] = [];
-    const curr = new Date(monday);
-    for (let i = 0; i < 7; i++) {
-      days.push({
-        date: new Date(curr),
-        label: SHORT_DAY_NAMES[i],
-        ymd: format(curr, "yyyy-MM-dd"),
-      });
-      curr.setDate(curr.getDate() + 1);
+  // Full month grid (leading/trailing days included so every row has 7 cells)
+  const monthWeeks = useMemo(() => {
+    const gridStart = startOfWeek(
+      startOfMonth(selectedDate),
+      WEEK_STARTS_MONDAY,
+    );
+    const gridEnd = endOfWeek(endOfMonth(selectedDate), WEEK_STARTS_MONDAY);
+    const weeks: CalendarDay[][] = [];
+    let cursor = gridStart;
+    while (cursor <= gridEnd) {
+      const days: CalendarDay[] = [];
+      for (let i = 0; i < 7; i++) {
+        const date = addDays(cursor, i);
+        days.push({
+          date,
+          ymd: format(date, "yyyy-MM-dd"),
+          inMonth: isSameMonth(date, selectedDate),
+        });
+      }
+      weeks.push(days);
+      cursor = addDays(cursor, 7);
     }
-    return days;
-  }, [monday]);
+    return weeks;
+  }, [selectedDate]);
 
   const selectedYmd = format(selectedDate, "yyyy-MM-dd");
+
+  const selectedWeekIndex = useMemo(() => {
+    const idx = monthWeeks.findIndex((week) =>
+      week.some((d) => d.ymd === selectedYmd),
+    );
+    return idx < 0 ? 0 : idx;
+  }, [monthWeeks, selectedYmd]);
 
   const completedForDay = (ymd: string) => {
     const completedWorkout =
@@ -103,19 +129,38 @@ export function CalendarWeekView({
   const hasClassOnDay = (ymd: string) =>
     daysWithClasses?.includes(ymd) ?? false;
 
-  const handlePreviousWeek = useCallback(() => {
+  const handlePrevious = useCallback(() => {
     const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() - 7);
+    if (expanded) {
+      newDate.setMonth(newDate.getMonth() - 1);
+    } else {
+      newDate.setDate(newDate.getDate() - 7);
+    }
     onWeekChange(newDate);
-  }, [selectedDate, onWeekChange]);
+  }, [selectedDate, onWeekChange, expanded]);
 
-  const handleNextWeek = useCallback(() => {
+  const handleNext = useCallback(() => {
     const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + 7);
+    if (expanded) {
+      newDate.setMonth(newDate.getMonth() + 1);
+    } else {
+      newDate.setDate(newDate.getDate() + 7);
+    }
     onWeekChange(newDate);
-  }, [selectedDate, onWeekChange]);
+  }, [selectedDate, onWeekChange, expanded]);
 
   const dragX = useSharedValue(0);
+  const expandProgress = useSharedValue(0);
+
+  const expand = useCallback(() => {
+    setExpanded(true);
+    expandProgress.value = withTiming(1, { duration: EXPAND_DURATION_MS });
+  }, [expandProgress]);
+
+  const collapse = useCallback(() => {
+    setExpanded(false);
+    expandProgress.value = withTiming(0, { duration: EXPAND_DURATION_MS });
+  }, [expandProgress]);
 
   const panGesture = useMemo(
     () =>
@@ -137,7 +182,7 @@ export function CalendarWeekView({
               { duration: WHEEL_DURATION_MS },
               (finished) => {
                 if (finished) {
-                  scheduleOnRN(handlePreviousWeek);
+                  scheduleOnRN(handlePrevious);
                   dragX.value = 0;
                 }
               },
@@ -148,7 +193,7 @@ export function CalendarWeekView({
               { duration: WHEEL_DURATION_MS },
               (finished) => {
                 if (finished) {
-                  scheduleOnRN(handleNextWeek);
+                  scheduleOnRN(handleNext);
                   dragX.value = 0;
                 }
               },
@@ -157,14 +202,41 @@ export function CalendarWeekView({
             dragX.value = withTiming(0, { duration: 180 });
           }
         }),
-    [handlePreviousWeek, handleNextWeek, dragX],
+    [handlePrevious, handleNext, dragX],
   );
 
-  const animatedStripStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: dragX.value }],
-  }));
+  // Vertical drag on the handle expands / collapses the calendar
+  const handleGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY([-10, 10])
+        .onEnd((e) => {
+          if (e.translationY > 16 || e.velocityY > 300) {
+            scheduleOnRN(expand);
+          } else if (e.translationY < -16 || e.velocityY < -300) {
+            scheduleOnRN(collapse);
+          }
+        }),
+    [expand, collapse],
+  );
 
-  const arrowColor = isDark ? "#fff" : "#000";
+  const containerStyle = useAnimatedStyle(() => {
+    const totalHeight = monthWeeks.length * ROW_HEIGHT;
+    return {
+      height: ROW_HEIGHT + expandProgress.value * (totalHeight - ROW_HEIGHT),
+    };
+  });
+
+  const gridStyle = useAnimatedStyle(() => {
+    const collapseOffset =
+      -(selectedWeekIndex * ROW_HEIGHT) * (1 - expandProgress.value);
+    return {
+      transform: [
+        { translateX: dragX.value },
+        { translateY: collapseOffset },
+      ],
+    };
+  });
 
   const monthYearLabel = useMemo(() => {
     const str = selectedDate.toLocaleDateString("es", {
@@ -174,48 +246,58 @@ export function CalendarWeekView({
     return str.charAt(0).toUpperCase() + str.slice(1);
   }, [selectedDate]);
 
+  const handleDayPress = useCallback(
+    (date: Date) => {
+      onDateSelect(date);
+      if (expanded) collapse();
+    },
+    [onDateSelect, expanded, collapse],
+  );
+
   return (
-    <View style={styles.wrapper}>
+    <View
+      style={[
+        styles.wrapper,
+        transparentBackground
+          ? styles.wrapperEmbedded
+          : {
+              ...styles.wrapperCard,
+              backgroundColor: isDark
+                ? "rgba(255, 255, 255, 0.05)"
+                : "rgba(0, 0, 0, 0.03)",
+            },
+      ]}
+    >
       <Text
         style={[styles.monthYear, { color: isDark ? "#fff" : "#000" }]}
         numberOfLines={1}
       >
         {monthYearLabel}
       </Text>
-      <View style={styles.container}>
-        <ThemedPressable
-          onPress={handlePreviousWeek}
-          style={styles.navButton}
-          hitSlop={12}
-          accessibilityLabel="Semana anterior"
-        >
-          <IconSymbol name="chevron.left" size={16} color={arrowColor} />
-        </ThemedPressable>
 
-        <View style={styles.stripChannel} pointerEvents="box-none">
-          <GestureDetector gesture={panGesture}>
-            <Animated.View style={[styles.weekStripWrap, animatedStripStyle]}>
-              <View style={styles.weekStrip}>
-                {weekDays.map(({ date, label, ymd }) => {
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[styles.gridChannel, containerStyle]}>
+          <Animated.View style={gridStyle}>
+            {monthWeeks.map((week, wi) => (
+              <View key={wi} style={styles.weekRow}>
+                {week.map(({ date, ymd, inMonth }, ci) => {
                   const isSelected = selectedYmd === ymd;
                   const isToday = ymd === format(new Date(), "yyyy-MM-dd");
                   const hasCompleted = completedForDay(ymd);
                   const hasInProgress = inProgressForDay(ymd);
-                  const hasScheduled = hasScheduledWorkout(ymd);
-                  const hasClass = hasClassOnDay(ymd);
-                  const hasWorkoutOrClass = hasScheduled || hasClass;
+                  const hasWorkoutOrClass =
+                    hasScheduledWorkout(ymd) || hasClassOnDay(ymd);
 
-                  // Determine circle color: green if completed, blue if in progress, orange if workout or class that day
+                  // Dot color: green completed, blue in progress, orange scheduled
                   let circleColor: string | null = null;
                   if (hasCompleted) {
-                    circleColor = "#22c55e"; // green
+                    circleColor = "#22c55e";
                   } else if (hasInProgress) {
-                    circleColor = "#2563eb"; // blue
+                    circleColor = "#2563eb";
                   } else if (hasWorkoutOrClass) {
-                    circleColor = "#f97316"; // orange
+                    circleColor = "#f97316";
                   }
 
-                  // Background: white for dark mode selected, black for light mode selected, light gray for today, transparent otherwise
                   let backgroundColor = "transparent";
                   if (isSelected) {
                     backgroundColor = isDark ? "#fff" : "#000";
@@ -225,7 +307,6 @@ export function CalendarWeekView({
                       : "rgba(0, 0, 0, 0.05)";
                   }
 
-                  // Text color: black for selected in dark mode, white for selected in light mode, white for unselected in dark mode, black for unselected in light mode
                   const textColor = isSelected
                     ? isDark
                       ? "#000"
@@ -234,137 +315,151 @@ export function CalendarWeekView({
                       ? "#fff"
                       : "#000";
 
+                  const dimmed = !inMonth && !isSelected;
+
                   return (
-                    <ThemedPressable
-                      key={ymd}
-                      style={[
-                        styles.dayCell,
-                        {
-                          backgroundColor,
-                          borderColor: "transparent",
-                          borderWidth: 2, // Always 2px border for consistent sizing
-                        },
-                      ]}
-                      onPress={() => onDateSelect(date)}
-                    >
-                      <View style={styles.dayCellContent}>
+                    <View key={ymd} style={styles.dayColumn}>
+                      <ThemedPressable
+                        style={[styles.dayCell, { backgroundColor }]}
+                        onPress={() => handleDayPress(date)}
+                      >
                         <Text
                           style={[
                             styles.dayCellLabel,
-                            textColor ? { color: textColor } : undefined,
+                            { color: textColor },
+                            dimmed && styles.outOfMonth,
                           ]}
                         >
-                          {label}
+                          {SHORT_DAY_NAMES[ci]}
                         </Text>
                         <Text
                           style={[
                             styles.dayCellNum,
-                            textColor ? { color: textColor } : undefined,
+                            { color: textColor },
+                            dimmed && styles.outOfMonth,
                           ]}
                         >
                           {date.getDate()}
                         </Text>
-                        {circleColor && (
-                          <View
-                            style={[
-                              styles.statusCircle,
-                              { backgroundColor: circleColor },
-                            ]}
-                          />
-                        )}
-                      </View>
-                    </ThemedPressable>
+                        <View style={styles.statusCircleSlot}>
+                          {circleColor && (
+                            <View
+                              style={[
+                                styles.statusCircle,
+                                { backgroundColor: circleColor },
+                              ]}
+                            />
+                          )}
+                        </View>
+                      </ThemedPressable>
+                    </View>
                   );
                 })}
               </View>
-            </Animated.View>
-          </GestureDetector>
-        </View>
+            ))}
+          </Animated.View>
+        </Animated.View>
+      </GestureDetector>
 
+      <GestureDetector gesture={handleGesture}>
         <ThemedPressable
-          onPress={handleNextWeek}
-          style={styles.navButton}
-          hitSlop={12}
-          accessibilityLabel="Semana siguiente"
+          onPress={() => (expanded ? collapse() : expand())}
+          style={styles.handleHitArea}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={expanded ? "Contraer calendario" : "Ver mes completo"}
         >
-          <IconSymbol name="chevron.right" size={16} color={arrowColor} />
+          <View
+            style={[
+              styles.handle,
+              {
+                backgroundColor: isDark
+                  ? "rgba(255, 255, 255, 0.4)"
+                  : "rgba(0, 0, 0, 0.3)",
+              },
+            ]}
+          />
         </ThemedPressable>
-      </View>
+      </GestureDetector>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    alignItems: "center",
-    marginBottom: 20,
     width: "100%",
+    paddingBottom: 4,
+  },
+  wrapperCard: {
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    borderRadius: 20,
+  },
+  wrapperEmbedded: {
+    paddingHorizontal: 0,
+    paddingTop: 4,
   },
   monthYear: {
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 12,
+    textAlign: "center",
   },
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  gridChannel: {
     width: "100%",
-  },
-  navButton: {
-    width: 22,
-    height: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    marginHorizontal: 4,
-  },
-  stripChannel: {
-    flex: 1,
     overflow: "hidden",
-    justifyContent: "center",
-    minHeight: 56,
   },
-  weekStripWrap: {
-    alignSelf: "center",
+  weekRow: {
     flexDirection: "row",
+    height: ROW_HEIGHT,
   },
-  weekStrip: {
-    flexDirection: "row",
+  dayColumn: {
+    flex: 1,
     alignItems: "center",
-    gap: Platform.select({ android: 4, default: 8 }),
+    justifyContent: "center",
   },
   dayCell: {
-    width: Platform.select({ android: 36, default: 38 }),
+    width: 40,
     height: 56,
     borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-  },
-  dayCellContent: {
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100%",
   },
   dayCellLabel: {
     fontSize: 11,
+    fontWeight: "500",
     opacity: 0.9,
-    lineHeight: 13,
-    // Android font metrics include larger ascenders — removing the fixed height
-    // prevents tall glyphs like 'l' and 'j' from being clipped at the top
-    height: Platform.select({ android: undefined, default: 13 }),
+    lineHeight: 14,
   },
   dayCellNum: {
     fontSize: 16,
     fontWeight: "600",
     lineHeight: 20,
-    height: 20,
     marginTop: 2,
+  },
+  outOfMonth: {
+    opacity: 0.3,
+  },
+  statusCircleSlot: {
+    height: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
   statusCircle: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginTop: 4,
+  },
+  handleHitArea: {
+    alignSelf: "center",
+    paddingTop: 8,
+    paddingBottom: 2,
+    paddingHorizontal: 24,
+  },
+  handle: {
+    width: 32,
+    height: 5,
+    borderRadius: 3,
   },
 });
