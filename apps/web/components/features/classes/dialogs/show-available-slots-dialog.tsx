@@ -80,6 +80,13 @@ export default function ShowAvailableSlotsDialog({
     open && canQueryOrgData ? {} : 'skip'
   )
 
+  // Real availability per model slot (capacity − fixed weekly reservations,
+  // i.e. the "X/N fijos" count). Only needed when the user wants to show spots.
+  const availabilityMap = useQuery(
+    api.modelWeekSlots.listModelWeekAvailability,
+    open && canQueryOrgData && showAvailableSpots ? {} : 'skip'
+  )
+
   // Build trainers map: userId -> name
   const trainersMap = useMemo(() => {
     const map = new Map<string, string>()
@@ -150,8 +157,15 @@ export default function ShowAvailableSlotsDialog({
           let line = `${dayLabel} ${time} - ${className}`
 
           if (showAvailableSpots) {
-            const capacity = slot.capacity ?? slot.class?.capacity ?? 0
-            line += ` (${capacity} lugares)`
+            // Prefer real availability from the next upcoming occurrence; fall
+            // back to raw capacity when no schedule has been generated yet.
+            const availability = availabilityMap?.[slot._id]
+            const spots =
+              availability?.available ??
+              slot.capacity ??
+              slot.class?.capacity ??
+              0
+            line += ` (${spots} lugares)`
           }
 
           if (showTrainers && slot.class?.trainerId) {
@@ -164,7 +178,7 @@ export default function ShowAvailableSlotsDialog({
         })
         .join('\n')
     },
-    [showTrainers, showAvailableSpots, trainersMap]
+    [showTrainers, showAvailableSpots, trainersMap, availabilityMap]
   )
 
   const displayText = useMemo(
