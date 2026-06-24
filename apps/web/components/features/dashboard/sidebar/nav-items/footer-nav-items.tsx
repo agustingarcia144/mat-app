@@ -15,7 +15,7 @@ import {
 import { useClerk, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronsUpDown, LogOut, Sparkles, User } from "lucide-react";
+import { ChevronsUpDown, CreditCard, LogOut, Sparkles, User } from "lucide-react";
 import EditProfileDialog from "./edit-profile-dialog";
 import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 
@@ -43,7 +43,7 @@ export default function FooterNavItems() {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+              className="bg-[#FF5C24]/10 text-[#FF5C24] hover:bg-[#FF5C24]/15 hover:text-[#FF5C24]"
             >
               <Link href="/dashboard/billing">
                 <Sparkles className="size-4" />
@@ -99,6 +99,12 @@ export default function FooterNavItems() {
               >
                 <User className="mr-2 size-4" />
                 Editar perfil
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/billing">
+                  <CreditCard className="mr-2 size-4" />
+                  Suscripción
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => signOut({ redirectUrl: "/" })}>

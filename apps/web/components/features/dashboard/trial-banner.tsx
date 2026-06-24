@@ -28,14 +28,14 @@ export default function TrialBanner() {
       : "Tu prueba Pro termina hoy";
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/40 bg-primary/5 px-4 py-2 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#FF5C24]/40 bg-[#FF5C24]/5 px-4 py-3 text-sm mt-4">
       <span className="flex items-center gap-2 font-medium">
-        <Sparkles className="size-4 text-primary" />
+        <Sparkles className="size-4 text-[#FF5C24]" />
         {label}
       </span>
       <Link
         href="/dashboard/billing"
-        className="font-semibold text-primary underline-offset-4 hover:underline"
+        className="font-semibold text-[#FF5C24] underline-offset-4 hover:underline"
       >
         Mejorar ahora
       </Link>

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Platform,
-  useWindowDimensions,
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +17,13 @@ import { useSubscriptionGate } from "@/hooks/use-subscription-gate";
 import { useOrgSettings } from "@/hooks/use-org-settings";
 import { ThemedView } from "@/components/ui/themed-view";
 import { ThemedText } from "@/components/ui/themed-text";
-import { format, startOfWeek, endOfWeek } from "date-fns";
+import {
+  format,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+} from "date-fns";
 import { CalendarWeekView } from "@/components/features/home/calendar-week-view";
 import { NoActivePlanAlert } from "@/components/features/home/no-active-plan-alert";
 import { SubscriptionBanner } from "@/components/features/home/subscription-banner";
@@ -37,7 +42,6 @@ export default function DashboardContent() {
   const convexUser = useQuery(api.users.getCurrentUser);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width: windowWidth } = useWindowDimensions();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
 
@@ -86,10 +90,12 @@ export default function DashboardContent() {
   const alertBottomOffset = insets.bottom + tabBarHeight + alertTabGap;
   const alertHeight = 110;
 
-  const { monday, sunday } = useMemo(
+  // Full month grid (leading/trailing days included) so the expanded calendar
+  // shows dots for every visible day, not just the selected week.
+  const { gridStart, gridEnd } = useMemo(
     () => ({
-      monday: startOfWeek(selectedDate, WEEK_STARTS_MONDAY),
-      sunday: endOfWeek(selectedDate, WEEK_STARTS_MONDAY),
+      gridStart: startOfWeek(startOfMonth(selectedDate), WEEK_STARTS_MONDAY),
+      gridEnd: endOfWeek(endOfMonth(selectedDate), WEEK_STARTS_MONDAY),
     }),
     [selectedDate],
   );
@@ -98,8 +104,8 @@ export default function DashboardContent() {
     api.workoutDaySessions.getMyWeekSessions,
     user?.id
       ? {
-          startOn: format(monday, "yyyy-MM-dd"),
-          endOn: format(sunday, "yyyy-MM-dd"),
+          startOn: format(gridStart, "yyyy-MM-dd"),
+          endOn: format(gridEnd, "yyyy-MM-dd"),
         }
       : "skip",
   );
@@ -128,13 +134,13 @@ export default function DashboardContent() {
   // AssignmentDayWorkout are free. The hook returns [] for undefined.
   const scheduledDays0 = useAssignmentScheduledDays(
     activeAssignments[0],
-    monday,
-    selectedDate,
+    gridStart,
+    gridEnd,
   );
   const scheduledDays1 = useAssignmentScheduledDays(
     activeAssignments[1],
-    monday,
-    selectedDate,
+    gridStart,
+    gridEnd,
   );
   const daysWithScheduledWorkouts = useMemo(
     () => Array.from(new Set([...scheduledDays0, ...scheduledDays1])),
@@ -154,10 +160,10 @@ export default function DashboardContent() {
 
   const { startOfWeekMs, endOfWeekMs } = useMemo(
     () => ({
-      startOfWeekMs: monday.getTime(),
-      endOfWeekMs: sunday.getTime(),
+      startOfWeekMs: gridStart.getTime(),
+      endOfWeekMs: gridEnd.getTime(),
     }),
-    [monday, sunday],
+    [gridStart, gridEnd],
   );
 
   const reservationsForDay = useQuery(api.classReservations.getByUserForDate, {
@@ -227,22 +233,28 @@ export default function DashboardContent() {
           },
         ]}
       >
-        <View style={styles.headerRow}>
-          <ThemedText type="title" style={styles.welcome}>
-            ¡Hola,{" "}
-            {convexUser?.nickname ||
-              user?.firstName ||
-              user?.emailAddresses[0]?.emailAddress}
-            !
-          </ThemedText>
-        </View>
-
         <View
           style={[
-            styles.calendarFullWidth,
-            { width: windowWidth, marginLeft: -24 },
+            styles.headerCard,
+            {
+              marginTop: -(insets.top + 24),
+              paddingTop: insets.top + 16,
+              backgroundColor: isDark
+                ? "rgba(255, 255, 255, 0.05)"
+                : "rgba(0, 0, 0, 0.03)",
+            },
           ]}
         >
+          <View style={styles.headerRow}>
+            <ThemedText type="title" style={styles.welcome}>
+              ¡Hola,{" "}
+              {convexUser?.nickname ||
+                user?.firstName ||
+                user?.emailAddresses[0]?.emailAddress}
+              !
+            </ThemedText>
+          </View>
+
           <CalendarWeekView
             selectedDate={selectedDate}
             onDateSelect={setSelectedDate}
@@ -251,6 +263,7 @@ export default function DashboardContent() {
             daysWithWorkouts={daysWithScheduledWorkouts}
             daysWithClasses={daysWithClasses}
             daysWithAttendedClasses={daysWithAttendedClasses}
+            transparentBackground
           />
         </View>
 
@@ -361,8 +374,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 24,
   },
-  calendarFullWidth: {
-    marginLeft: -24,
+  headerCard: {
+    marginHorizontal: -24,
+    paddingHorizontal: 24,
+    paddingBottom: 10,
+    marginBottom: 12,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
   headerRow: {
     flexDirection: "row",

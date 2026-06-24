@@ -42,6 +42,8 @@ import { type DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { getOrgRoleLabel } from "@/lib/security/roles";
+import { Badge } from "@/components/ui/badge";
 
 interface AssignDialogProps {
   open: boolean;
@@ -117,16 +119,18 @@ export default function AssignDialog({
   const availableMembers = useMemo(() => {
     if (!memberships) return [];
 
+    // Any active member of the organization can be assigned a planification,
+    // regardless of role (members, trainers, admins, including yourself).
+    // Only exclude users already actively assigned to this planification.
     return memberships.filter(
-      (m: { role: string; userId: string }) =>
-        m.role === "member" && !assignedUserIds.has(m.userId),
+      (m: { role: string; userId: string }) => !assignedUserIds.has(m.userId),
     );
   }, [memberships, assignedUserIds]);
 
   const onSubmit = async (data: Assignment) => {
     try {
       if (selectedUsers.length === 0) {
-        toast.error("Selecciona al menos un miembro");
+        toast.error("Selecciona al menos un usuario");
         return;
       }
 
@@ -161,7 +165,8 @@ export default function AssignDialog({
         <SheetHeader>
           <SheetTitle>Asignar planificación</SheetTitle>
           <SheetDescription>
-            Asigna esta planificación a uno o varios miembros
+            Asigna esta planificación a uno o varios usuarios (miembros,
+            entrenadores o administradores)
           </SheetDescription>
         </SheetHeader>
 
@@ -171,7 +176,7 @@ export default function AssignDialog({
             control={form.control}
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
-                <FieldLabel>Miembros *</FieldLabel>
+                <FieldLabel>Usuarios *</FieldLabel>
 
                 <Popover
                   open={memberSearchOpen}
@@ -190,8 +195,8 @@ export default function AssignDialog({
                       type="button"
                     >
                       {selectedUsers.length > 0
-                        ? `${selectedUsers.length} miembro(s) seleccionado(s)`
-                        : "Buscar miembros..."}
+                        ? `${selectedUsers.length} usuario(s) seleccionado(s)`
+                        : "Buscar usuarios..."}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
@@ -201,15 +206,16 @@ export default function AssignDialog({
                     align="start"
                   >
                     <Command>
-                      <CommandInput placeholder="Buscar miembro..." />
+                      <CommandInput placeholder="Buscar usuario..." />
                       <CommandList>
                         <CommandEmpty>
-                          No se encontraron miembros disponibles.
+                          No se encontraron usuarios disponibles.
                         </CommandEmpty>
                         <CommandGroup>
                           {availableMembers.map(
                             (member: {
                               userId: string;
+                              role: string;
                               fullName?: string;
                               email?: string;
                             }) => {
@@ -247,7 +253,7 @@ export default function AssignDialog({
                                       isSelected ? "opacity-100" : "opacity-0",
                                     )}
                                   />
-                                  <div className="flex flex-col">
+                                  <div className="flex flex-1 flex-col">
                                     <span className="font-medium">
                                       {member.fullName || "Sin nombre"}
                                     </span>
@@ -257,6 +263,14 @@ export default function AssignDialog({
                                       </span>
                                     )}
                                   </div>
+                                  {member.role !== "member" && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="ml-2 shrink-0"
+                                    >
+                                      {getOrgRoleLabel(member.role)}
+                                    </Badge>
+                                  )}
                                 </CommandItem>
                               );
                             },
@@ -268,7 +282,7 @@ export default function AssignDialog({
                 </Popover>
 
                 <FieldDescription>
-                  Busca y selecciona uno o varios miembros disponibles para
+                  Busca y selecciona uno o varios usuarios disponibles para
                   asignar la planificación.
                 </FieldDescription>
 

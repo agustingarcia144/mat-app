@@ -7,14 +7,16 @@ import { api } from "@repo/convex";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ThemedView } from "@/components/ui/themed-view";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: "Pendiente", color: "#f59e0b" },
-  in_review: { label: "En revisión", color: "#3b82f6" },
-  approved: { label: "Aprobado", color: "#22c55e" },
-  declined: { label: "Rechazado", color: "#ef4444" },
-  bonification: { label: "Bonificado", color: "#a855f7" },
-};
+const STATUS_VISUALS: Record<string, { label: string; accent: string; tint: string }> =
+  {
+    pending: { label: "Pendiente", accent: "#f59e0b", tint: "rgba(245,158,11,0.16)" },
+    in_review: { label: "En revisión", accent: "#3b82f6", tint: "rgba(59,130,246,0.16)" },
+    approved: { label: "Aprobado", accent: "#22c55e", tint: "rgba(34,197,94,0.16)" },
+    declined: { label: "Rechazado", accent: "#ef4444", tint: "rgba(239,68,68,0.16)" },
+    bonification: { label: "Bonificado", accent: "#a855f7", tint: "rgba(168,85,247,0.16)" },
+  };
 
 function formatBillingPeriod(period: string): string {
   const [year, month] = period.split("-");
@@ -55,8 +57,24 @@ export default function PaymentHistoryContent() {
   if (payments.length === 0) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
-        <Text style={[styles.emptyText, { color: isDark ? "#aaa" : "#666" }]}>
-          No hay pagos registrados.
+        <View
+          style={[
+            styles.emptyIcon,
+            {
+              backgroundColor: isDark
+                ? "rgba(255,255,255,0.06)"
+                : "rgba(0,0,0,0.05)",
+            },
+          ]}
+        >
+          <IconSymbol
+            name="list.bullet"
+            size={28}
+            color={isDark ? "#52525b" : "#a1a1aa"}
+          />
+        </View>
+        <Text style={[styles.emptyText, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
+          No hay pagos registrados todavía.
         </Text>
       </ThemedView>
     );
@@ -77,8 +95,8 @@ export default function PaymentHistoryContent() {
             (item as any).isBonification ||
             (item as any).paymentMethod === "bonification";
           const statusInfo = isBonification
-            ? STATUS_LABELS.bonification
-            : (STATUS_LABELS[item.status] ?? STATUS_LABELS.pending);
+            ? STATUS_VISUALS.bonification
+            : (STATUS_VISUALS[item.status] ?? STATUS_VISUALS.pending);
           const amountArs =
             (item as any).payableAmountArs ??
             (item as any).totalAmountArs ??
@@ -88,30 +106,22 @@ export default function PaymentHistoryContent() {
             item.amountArs;
           return (
             <View
-              style={[
-                styles.row,
-                { backgroundColor: isDark ? "#1c1c1e" : "#f5f5f5" },
-              ]}
+              style={[styles.row, isDark ? styles.rowDark : styles.rowLight]}
             >
+              <View style={[styles.iconTile, { backgroundColor: statusInfo.tint }]}>
+                <IconSymbol name="calendar" size={20} color={statusInfo.accent} />
+              </View>
               <View style={styles.rowMain}>
-                <Text
-                  style={[styles.period, { color: isDark ? "#fff" : "#000" }]}
-                >
+                <Text style={[styles.period, { color: isDark ? "#fff" : "#000" }]}>
                   {formatBillingPeriod(item.billingPeriod)}
                 </Text>
-                <Text
-                  style={[styles.amount, { color: isDark ? "#ccc" : "#444" }]}
-                >
+                <Text style={[styles.amount, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
                   ${amountArs.toLocaleString("es-AR")}
                 </Text>
               </View>
-              <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: statusInfo.color + "22" },
-                ]}
-              >
-                <Text style={[styles.statusText, { color: statusInfo.color }]}>
+              <View style={[styles.statusPill, { backgroundColor: statusInfo.tint }]}>
+                <View style={[styles.statusDot, { backgroundColor: statusInfo.accent }]} />
+                <Text style={[styles.statusText, { color: statusInfo.accent }]}>
                   {statusInfo.label}
                 </Text>
               </View>
@@ -131,6 +141,14 @@ const styles = StyleSheet.create({
   centered: {
     justifyContent: "center",
     alignItems: "center",
+    gap: 16,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyText: {
     fontSize: 15,
@@ -138,30 +156,56 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    borderRadius: 12,
+    gap: 14,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  rowLight: {
+    backgroundColor: "rgba(0,0,0,0.04)",
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  rowDark: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  iconTile: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   rowMain: {
+    flex: 1,
     gap: 2,
   },
   period: {
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   amount: {
     fontSize: 14,
   },
-  statusBadge: {
-    paddingHorizontal: 10,
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingLeft: 8,
+    paddingRight: 10,
     paddingVertical: 4,
     borderRadius: 10,
   },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
   statusText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   separator: {
-    height: 8,
+    height: 10,
   },
 });

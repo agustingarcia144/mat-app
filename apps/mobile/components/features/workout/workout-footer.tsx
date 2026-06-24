@@ -1,14 +1,14 @@
-import React from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
-import { ThemedPressable } from "@/components/ui/themed-pressable";
+import React, { useCallback, useState } from "react";
+import { View, StyleSheet } from "react-native";
+import { WorkoutFooterButton } from "./workout-footer-button";
 
 export interface WorkoutFooterProps {
   isNewSession: boolean;
   isCompleted: boolean;
-  starting: boolean;
-  completing: boolean;
-  onStartWorkout: () => void;
-  onComplete: () => void;
+  /** May be async; the button shows a spinner while it resolves. */
+  onStartWorkout: () => void | Promise<void>;
+  /** May be async; the button shows a spinner while it resolves. */
+  onComplete: () => void | Promise<void>;
   paddingBottom: number;
   isDark: boolean;
   colorScheme: "light" | "dark" | null;
@@ -17,97 +17,36 @@ export interface WorkoutFooterProps {
 export function WorkoutFooter({
   isNewSession,
   isCompleted,
-  starting,
-  completing,
   onStartWorkout,
   onComplete,
   paddingBottom,
-  isDark,
   colorScheme,
 }: WorkoutFooterProps) {
-  if (isNewSession) {
-    return (
-      <View
-        style={[
-          styles.footer,
-          {
-            paddingBottom,
-            backgroundColor: isDark ? "#0a0a0a" : "#fff",
-          },
-        ]}
-      >
-        <ThemedPressable
-          type="primary"
-          onPress={onStartWorkout}
-          disabled={starting}
-        >
-          {starting ? (
-            <ActivityIndicator
-              size="small"
-              color={colorScheme === "dark" ? "#000" : "#fff"}
-            />
-          ) : (
-            <Text
-              style={[
-                styles.primaryButtonText,
-                { color: colorScheme === "dark" ? "#000" : "#fff" },
-              ]}
-            >
-              Empezar entrenamiento
-            </Text>
-          )}
-        </ThemedPressable>
-      </View>
-    );
-  }
+  // Pending lives here so a press only re-renders the footer button, not the
+  // whole workout screen.
+  const [pending, setPending] = useState(false);
+  const action = isNewSession ? onStartWorkout : onComplete;
+  const handlePress = useCallback(() => {
+    if (pending) return;
+    setPending(true);
+    Promise.resolve(action()).finally(() => setPending(false));
+  }, [pending, action]);
 
-  if (!isCompleted) {
-    return (
-      <View
-        style={[
-          styles.footer,
-          {
-            paddingBottom,
-            backgroundColor: isDark ? "#0a0a0a" : "#fff",
-          },
-        ]}
-      >
-        <ThemedPressable
-          type="primary"
-          onPress={onComplete}
-          disabled={completing}
-        >
-          {completing ? (
-            <ActivityIndicator
-              size="small"
-              color={colorScheme === "dark" ? "#000" : "#fff"}
-            />
-          ) : (
-            <Text
-              style={[
-                styles.primaryButtonText,
-                { color: colorScheme === "dark" ? "#000" : "#fff" },
-              ]}
-            >
-              Completar entrenamiento
-            </Text>
-          )}
-        </ThemedPressable>
-      </View>
-    );
+  // Completed sessions show no footer.
+  if (!isNewSession && isCompleted) {
+    return null;
   }
 
   return (
-    <View
-      style={[
-        styles.footer,
-        {
-          paddingBottom,
-          backgroundColor: isDark ? "#0a0a0a" : "#fff",
-        },
-      ]}
-    >
-      <Text style={styles.completedLabel}>Sesión completada</Text>
+    <View style={[styles.footer, { paddingBottom }]} pointerEvents="box-none">
+      <WorkoutFooterButton
+        label={
+          isNewSession ? "Empezar entrenamiento" : "Completar entrenamiento"
+        }
+        loading={pending}
+        onPress={handlePress}
+        colorScheme={colorScheme}
+      />
     </View>
   );
 }
@@ -116,15 +55,5 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 24,
     paddingTop: 16,
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  completedLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-    opacity: 0.8,
   },
 });

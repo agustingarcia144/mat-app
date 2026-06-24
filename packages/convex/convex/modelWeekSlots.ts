@@ -44,6 +44,90 @@ export const listByOrganization = query({
   },
 });
 
+/**
+ * For each model week slot, compute how many spots are still free based on the
+ * fixed weekly reservations (fixedClassSlots) for that class/day/time — the same
+ * "X/N fijos" count shown in the model-week timeline.
+ *
+ * Model week slots are recurring templates, so availability is defined by the
+ * recurring fixed slots rather than any single dated occurrence's reservations.
+ * Returns a map keyed by the model slot id.
+ */
+export const listModelWeekAvailability = query({
+  args: {
+    classId: v.optional(v.id("classes")),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdminOrTrainer(ctx, membership.organizationId);
+
+    const slots = args.classId
+      ? await ctx.db
+          .query("modelWeekSlots")
+          .withIndex("by_organization_class", (q) =>
+            q
+              .eq("organizationId", membership.organizationId)
+              .eq("classId", args.classId!),
+          )
+          .collect()
+      : await ctx.db
+          .query("modelWeekSlots")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .collect();
+
+    const fixedSlots = await ctx.db
+      .query("fixedClassSlots")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", membership.organizationId),
+      )
+      .collect();
+
+    // Count fixed members per (classId, dayOfWeek, startTimeMinutes).
+    const fixedCounts = new Map<string, number>();
+    for (const fs of fixedSlots) {
+      const key = `${fs.classId}-${fs.dayOfWeek}-${fs.startTimeMinutes}`;
+      fixedCounts.set(key, (fixedCounts.get(key) ?? 0) + 1);
+    }
+
+    // Cache class capacities so we resolve each class only once.
+    const classCapacity = new Map<string, number>();
+
+    const availability: Record<
+      string,
+      { capacity: number; reserved: number; available: number }
+    > = {};
+
+    for (const slot of slots) {
+      let capacity = slot.capacity;
+      if (capacity === undefined) {
+        const cached = classCapacity.get(slot.classId);
+        if (cached !== undefined) {
+          capacity = cached;
+        } else {
+          const classDoc = await ctx.db.get(slot.classId);
+          capacity = classDoc?.capacity ?? 0;
+          classCapacity.set(slot.classId, capacity);
+        }
+      }
+
+      const reserved =
+        fixedCounts.get(
+          `${slot.classId}-${slot.dayOfWeek}-${slot.startTimeMinutes}`,
+        ) ?? 0;
+
+      availability[slot._id] = {
+        capacity,
+        reserved,
+        available: Math.max(0, capacity - reserved),
+      };
+    }
+
+    return availability;
+  },
+});
+
 export const create = mutation({
   args: {
     classId: v.id("classes"),

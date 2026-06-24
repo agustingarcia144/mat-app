@@ -30,6 +30,8 @@ const MAPPING = {
   "person.2.fill": "people",
   calendar: "calendar-today",
   "list.bullet": "format-list-bulleted",
+  "figure.strengthtraining.traditional": "fitness-center",
+  "bolt.fill": "bolt",
 } as IconMapping;
 
 /**

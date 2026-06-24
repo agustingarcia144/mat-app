@@ -8,7 +8,11 @@ const renderHeaderCloseButton = () => <HeaderCloseButton />;
 const renderEmptyHeaderLeft = () => null;
 
 const homeStackScreenOptions = { headerShown: false };
-const completeScreenOptions = { headerShown: false, gestureEnabled: false };
+const completeScreenOptions = {
+  headerShown: false,
+  gestureEnabled: false,
+  presentation: "fullScreenModal" as const,
+};
 const logSetSheetDetents = [0.85];
 const exerciseVideoSheetDetents = [0.7];
 const transparentContentStyle = { backgroundColor: "transparent" };
@@ -19,6 +23,20 @@ const transparentHeaderOptions = {
   title: "",
   headerLeft: renderHeaderBackButton,
   headerShadowVisible: false,
+};
+
+// Presented as a full-screen modal so it covers the native tab bar, giving the
+// workout session the full screen height (footer button sits at the bottom).
+// iOS hides the native header and renders its own (WorkoutHeader) so the
+// trailing controls can be separate Liquid Glass buttons; Android keeps the
+// native header with a left-aligned title. `headerShown` is set statically here
+// (not via per-render screen options) because toggling it through setOptions on
+// every render re-renders the screen body and causes an update loop.
+const workoutSessionOptions = {
+  ...transparentHeaderOptions,
+  presentation: "fullScreenModal" as const,
+  headerShown: Platform.OS !== "ios",
+  headerTitleAlign: "left" as const,
 };
 
 const logSetOptions = {
@@ -54,7 +72,7 @@ export default function InicioLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen
         name="workout/[sessionId]"
-        options={transparentHeaderOptions}
+        options={workoutSessionOptions}
       />
       <Stack.Screen
         name="workout/complete"

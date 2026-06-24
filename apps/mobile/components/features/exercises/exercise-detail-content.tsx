@@ -9,16 +9,18 @@ import {
   Dimensions,
   Text,
   Platform,
+  ScrollView,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useQuery } from 'convex/react'
 import { api } from '@repo/convex'
 import { getYoutubeVideoId, getVideoThumbnailUrl } from '@repo/core/utils'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useColorScheme } from '@/hooks/use-color-scheme'
+import { useThemeColor } from '@/hooks/use-theme-color'
 import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
-import ParallaxScrollView from '@/components/ui/parallax-scroll-view'
 import { useExerciseVideo } from '@/contexts/exercise-video-context'
 import { BarChart } from 'react-native-gifted-charts'
 import { format, parseISO } from 'date-fns'
@@ -110,6 +112,7 @@ export default function ExerciseDetailContent() {
   const insets = useSafeAreaInsets()
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
+  const cardBg = useThemeColor({}, 'background')
   const [activeMetric, setActiveMetric] = useState<Metric>('weight')
 
   const exercise = useQuery(
@@ -221,6 +224,15 @@ export default function ExerciseDetailContent() {
   const hasDescription = !!exercise.description?.trim()
   const hasDayNotes = !!dayExerciseId && !!dayExercise?.notes?.trim()
 
+  const subtitleText = exercise.category
+    ? summaryParts.length > 0
+      ? `${exercise.category} · ${summaryParts.join(' · ')}`
+      : exercise.category
+    : summaryParts.length > 0
+      ? summaryParts.join(' · ')
+      : ''
+  const hasSubtitle = !!subtitleText
+
   const headerImage = thumbnailUrl ? (
     <Pressable style={styles.headerImageWrap} onPress={openVideoSheet}>
       <Image
@@ -228,6 +240,16 @@ export default function ExerciseDetailContent() {
         style={styles.headerImage}
         resizeMode="cover"
       />
+      <LinearGradient
+        colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.9)']}
+        locations={[0, 0.55, 1]}
+        style={styles.headerGradient}
+      />
+      <View style={styles.headerTitleOverlay}>
+        <Text style={styles.headerTitleOverlayText} numberOfLines={2}>
+          {exercise.name}
+        </Text>
+      </View>
     </Pressable>
   ) : (
     <View
@@ -251,21 +273,27 @@ export default function ExerciseDetailContent() {
 
   return (
     <ThemedView style={styles.container}>
-      <ParallaxScrollView
-        headerImage={headerImage}
-        headerBackgroundColor={HEADER_BG}
-        contentBottomPadding={stickyFooterHeight + 24}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingBottom: stickyFooterHeight + 24 }}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Title block */}
-        <ThemedText style={styles.title}>{exercise.name}</ThemedText>
-        {(exercise.category || summaryParts.length > 0) && (
-          <ThemedText style={styles.subtitle}>
-            {exercise.category
-              ? summaryParts.length > 0
-                ? `${exercise.category} · ${summaryParts.join(' · ')}`
-                : exercise.category
-              : summaryParts.join(' · ')}
-          </ThemedText>
+        <View
+          style={[
+            styles.header,
+            { backgroundColor: HEADER_BG[colorScheme ?? 'light'] },
+          ]}
+        >
+          {headerImage}
+        </View>
+        <View style={[styles.card, { backgroundColor: cardBg }]}>
+        {/* The title is overlaid on the header image when a thumbnail exists;
+            without one it falls back to the card. The subtitle stays here. */}
+        {!thumbnailUrl && (
+          <ThemedText style={styles.title}>{exercise.name}</ThemedText>
+        )}
+        {hasSubtitle && (
+          <ThemedText style={styles.subtitle}>{subtitleText}</ThemedText>
         )}
 
         {hasDescription && (
@@ -438,7 +466,8 @@ export default function ExerciseDetailContent() {
               </View>
             )
           })()}
-      </ParallaxScrollView>
+        </View>
+      </ScrollView>
     </ThemedView>
   )
 }
@@ -446,6 +475,21 @@ export default function ExerciseDetailContent() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scroll: {
+    flex: 1,
+  },
+  header: {
+    height: 360,
+    overflow: 'hidden',
+  },
+  card: {
+    marginTop: -24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    minHeight: 400,
   },
   centered: {
     justifyContent: 'center',
@@ -478,6 +522,21 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: '#000',
+  },
+  headerGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  headerTitleOverlay: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    bottom: 40,
+  },
+  headerTitleOverlayText: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   title: {
     fontSize: 26,

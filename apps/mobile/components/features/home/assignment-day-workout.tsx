@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import type { Href } from "expo-router";
 import { useRouter } from "expo-router";
 import { useQuery } from "convex/react";
@@ -7,8 +7,6 @@ import { api } from "@repo/convex";
 import {
   format,
   getISODay,
-  startOfWeek,
-  endOfWeek,
   differenceInCalendarWeeks,
 } from "date-fns";
 import { ScheduledWorkoutCard } from "./scheduled-workout-card";
@@ -249,13 +247,15 @@ export function AssignmentDayWorkout({
 }
 
 /**
- * Returns YMD strings for days in the given week that have a scheduled workout
- * for this assignment, accounting for multi-week cycling and date range.
+ * Returns YMD strings for days within [gridStart, gridEnd] that have a scheduled
+ * workout for this assignment, accounting for multi-week cycling and date range.
+ * The range can span several calendar weeks (e.g. a full month grid), so the
+ * active planification week is resolved per day rather than once for the range.
  */
 export function useAssignmentScheduledDays(
   assignment: AssignmentData | undefined,
-  monday: Date,
-  selectedDate: Date,
+  gridStart: Date,
+  gridEnd: Date,
 ): string[] {
   const weeks = useQuery(
     api.workoutWeeks.getByPlanification,
@@ -281,51 +281,23 @@ export function useAssignmentScheduledDays(
     if (!assignment || !allWorkoutDays || allWorkoutDays.length === 0)
       return [];
 
-    // Determine active week for this calendar week
-    let filteredDays = allWorkoutDays;
-    if (weeks && weeks.length > 0 && assignment.startDate) {
-      const sorted = [...weeks].sort((a, b) => a.order - b.order);
-      const utc = new Date(assignment.startDate);
-      const assignmentStartLocal = new Date(
-        utc.getUTCFullYear(),
-        utc.getUTCMonth(),
-        utc.getUTCDate(),
-      );
-      const weeksPassed = differenceInCalendarWeeks(
-        selectedDate,
-        assignmentStartLocal,
-        WEEK_STARTS_MONDAY,
-      );
-      if (weeksPassed >= 0) {
-        const weekIndex = weeksPassed % sorted.length;
-        const activeWeek = sorted[weekIndex];
-        filteredDays = allWorkoutDays.filter(
-          (d) => d.weekId === activeWeek._id,
-        );
-      }
-    }
+    const sortedWeeks =
+      weeks && weeks.length > 0
+        ? [...weeks].sort((a, b) => a.order - b.order)
+        : null;
 
-    const result: string[] = [];
-    const curr = new Date(monday);
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(curr);
-      const isoDay = getISODay(date);
-      const ymd = format(date, "yyyy-MM-dd");
-      const hasWorkout = filteredDays.some((d) => d.dayOfWeek === isoDay);
-      if (hasWorkout) {
-        let inRange = true;
-        if (assignment.startDate) {
+    const assignmentStartLocal = assignment.startDate
+      ? (() => {
           const s = new Date(assignment.startDate);
-          const start = new Date(
-            s.getUTCFullYear(),
-            s.getUTCMonth(),
-            s.getUTCDate(),
-          );
-          if (date < start) inRange = false;
-        }
-        if (assignment.endDate) {
+          return new Date(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate());
+        })()
+      : null;
+
+    const rangeStart = assignmentStartLocal;
+    const rangeEnd = assignment.endDate
+      ? (() => {
           const e = new Date(assignment.endDate);
-          const end = new Date(
+          return new Date(
             e.getUTCFullYear(),
             e.getUTCMonth(),
             e.getUTCDate(),
@@ -334,14 +306,43 @@ export function useAssignmentScheduledDays(
             59,
             999,
           );
-          if (date > end) inRange = false;
+        })()
+      : null;
+
+    const result: string[] = [];
+    const curr = new Date(gridStart);
+    while (curr <= gridEnd) {
+      const date = new Date(curr);
+
+      // Resolve the active planification week for this specific day, so a
+      // multi-week cycle maps correctly across the calendar weeks in range.
+      let filteredDays = allWorkoutDays;
+      if (sortedWeeks && assignmentStartLocal) {
+        const weeksPassed = differenceInCalendarWeeks(
+          date,
+          assignmentStartLocal,
+          WEEK_STARTS_MONDAY,
+        );
+        if (weeksPassed >= 0) {
+          const activeWeek = sortedWeeks[weeksPassed % sortedWeeks.length];
+          filteredDays = allWorkoutDays.filter(
+            (d) => d.weekId === activeWeek._id,
+          );
         }
-        if (inRange) result.push(ymd);
+      }
+
+      const isoDay = getISODay(date);
+      const hasWorkout = filteredDays.some((d) => d.dayOfWeek === isoDay);
+      if (hasWorkout) {
+        const inRange =
+          (!rangeStart || date >= rangeStart) &&
+          (!rangeEnd || date <= rangeEnd);
+        if (inRange) result.push(format(date, "yyyy-MM-dd"));
       }
       curr.setDate(curr.getDate() + 1);
     }
     return result;
-  }, [assignment, allWorkoutDays, weeks, monday, selectedDate]);
+  }, [assignment, allWorkoutDays, weeks, gridStart, gridEnd]);
 }
 
 const styles = StyleSheet.create({
