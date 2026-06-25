@@ -9,8 +9,14 @@ function getPeriod(ts: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function getHour(ts: number) {
-  return new Date(ts).getHours();
+function getHour(ts: number, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(ts));
+
+  return parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
 }
 
 function getDayOfWeek(ts: number) {
@@ -29,7 +35,8 @@ export const getClassMetrics = query({
     const now = Date.now();
 
     // ── Fetch data ──────────────────────────────────────────────────────────
-    const [schedules, reservations, classes] = await Promise.all([
+    const [organization, schedules, reservations, classes] = await Promise.all([
+      ctx.db.get(membership.organizationId),
       ctx.db
         .query("classSchedules")
         .withIndex("by_organization", (q) =>
@@ -49,6 +56,10 @@ export const getClassMetrics = query({
         )
         .collect(),
     ]);
+    const timezone =
+      organization?.timezone && organization.timezone.trim() !== ""
+        ? organization.timezone
+        : "UTC";
 
     const classMap = new Map(classes.map((c) => [c._id, c]));
 
@@ -61,6 +72,17 @@ export const getClassMetrics = query({
     const pastScheduleIds = new Set(pastSchedules.map((s) => s._id));
     const activeReservations = reservations.filter(
       (r) => r.status !== "cancelled" && pastScheduleIds.has(r.scheduleId),
+    );
+    const activeReservationCountsBySchedule = new Map<string, number>();
+    for (const r of activeReservations) {
+      const key = r.scheduleId as string;
+      activeReservationCountsBySchedule.set(
+        key,
+        (activeReservationCountsBySchedule.get(key) ?? 0) + 1,
+      );
+    }
+    const heldSchedules = pastSchedules.filter(
+      (s) => (activeReservationCountsBySchedule.get(s._id as string) ?? 0) > 0,
     );
 
     const attended = activeReservations.filter((r) => r.status === "attended").length;
@@ -102,8 +124,8 @@ export const getClassMetrics = query({
 
     // ── Busiest hours ────────────────────────────────────────────────────────
     const hourCounts: Record<number, number> = {};
-    for (const s of pastSchedules) {
-      const h = getHour(s.startTime);
+    for (const s of heldSchedules) {
+      const h = getHour(s.startTime, timezone);
       hourCounts[h] = (hourCounts[h] ?? 0) + 1;
     }
     const busiestHours = Object.entries(hourCounts)
