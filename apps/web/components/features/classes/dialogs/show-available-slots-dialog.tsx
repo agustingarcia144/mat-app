@@ -81,10 +81,23 @@ export default function ShowAvailableSlotsDialog({
   )
 
   // Real availability per model slot (capacity − fixed weekly reservations,
-  // i.e. the "X/N fijos" count). Only needed when the user wants to show spots.
+  // i.e. the "X/N fijos" count). Also used to hide full slots from the list.
   const availabilityMap = useQuery(
     api.modelWeekSlots.listModelWeekAvailability,
-    open && canQueryOrgData && showAvailableSpots ? {} : 'skip'
+    open && canQueryOrgData ? {} : 'skip'
+  )
+
+  const getAvailableSpots = useCallback(
+    (slot: EnrichedSlot): number => {
+      const availability = availabilityMap?.[slot._id]
+      return (
+        availability?.available ??
+        slot.capacity ??
+        slot.class?.capacity ??
+        0
+      )
+    },
+    [availabilityMap]
   )
 
   // Build trainers map: userId -> name
@@ -134,6 +147,8 @@ export default function ShowAvailableSlotsDialog({
       slots = slots.filter((s) => s.class?.trainerId === trainerFilter)
     }
 
+    slots = slots.filter((s) => getAvailableSpots(s) > 0)
+
     // Sort by day of week (Mon first), then by time
     const dayOrder = [1, 2, 3, 4, 5, 6, 0] // Mon-Sun
     return [...slots].sort((a, b) => {
@@ -142,7 +157,7 @@ export default function ShowAvailableSlotsDialog({
       if (dayA !== dayB) return dayA - dayB
       return a.startTimeMinutes - b.startTimeMinutes
     })
-  }, [modelWeekSlots, classFilter, trainerFilter, hasSearched])
+  }, [modelWeekSlots, classFilter, trainerFilter, hasSearched, getAvailableSpots])
 
   // Generate text for display and clipboard
   const generateText = useCallback(
@@ -157,14 +172,8 @@ export default function ShowAvailableSlotsDialog({
           let line = `${dayLabel} ${time} - ${className}`
 
           if (showAvailableSpots) {
-            // Prefer real availability from the next upcoming occurrence; fall
-            // back to raw capacity when no schedule has been generated yet.
-            const availability = availabilityMap?.[slot._id]
-            const spots =
-              availability?.available ??
-              slot.capacity ??
-              slot.class?.capacity ??
-              0
+            // Prefer real availability; fall back to raw capacity while it loads.
+            const spots = getAvailableSpots(slot)
             line += ` (${spots} lugares)`
           }
 
@@ -178,7 +187,7 @@ export default function ShowAvailableSlotsDialog({
         })
         .join('\n')
     },
-    [showTrainers, showAvailableSpots, trainersMap, availabilityMap]
+    [showTrainers, showAvailableSpots, trainersMap, getAvailableSpots]
   )
 
   const displayText = useMemo(
