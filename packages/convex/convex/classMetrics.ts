@@ -9,13 +9,27 @@ function getPeriod(ts: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function getHour(ts: number) {
-  return new Date(ts).getHours();
+function getHour(ts: number, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    hour12: false,
+    timeZone: timezone,
+  }).formatToParts(new Date(ts));
+  return parseInt(parts.find((p) => p.type === "hour")?.value ?? "0", 10);
 }
 
-function getDayOfWeek(ts: number) {
+const WEEKDAY_MAP: Record<string, number> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+function getDayOfWeek(ts: number, timezone: string) {
   // 0 = Sunday ... 6 = Saturday
-  return new Date(ts).getDay();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    timeZone: timezone,
+  }).formatToParts(new Date(ts));
+  const label = parts.find((p) => p.type === "weekday")?.value ?? "";
+  return WEEKDAY_MAP[label] ?? 0;
 }
 
 const DAY_LABELS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -29,6 +43,9 @@ export const getClassMetrics = query({
     const now = Date.now();
 
     // ── Fetch data ──────────────────────────────────────────────────────────
+    const organization = await ctx.db.get(membership.organizationId);
+    const timezone = organization?.timezone ?? "UTC";
+
     const [schedules, reservations, classes] = await Promise.all([
       ctx.db
         .query("classSchedules")
@@ -103,7 +120,7 @@ export const getClassMetrics = query({
     // ── Busiest hours ────────────────────────────────────────────────────────
     const hourCounts: Record<number, number> = {};
     for (const s of pastSchedules) {
-      const h = getHour(s.startTime);
+      const h = getHour(s.startTime, timezone);
       hourCounts[h] = (hourCounts[h] ?? 0) + 1;
     }
     const busiestHours = Object.entries(hourCounts)
@@ -114,7 +131,7 @@ export const getClassMetrics = query({
     // ── Busiest days of week ─────────────────────────────────────────────────
     const dayCounts: Record<number, number> = {};
     for (const s of pastSchedules) {
-      const d = getDayOfWeek(s.startTime);
+      const d = getDayOfWeek(s.startTime, timezone);
       dayCounts[d] = (dayCounts[d] ?? 0) + 1;
     }
     const busiestDays = Array.from({ length: 7 }, (_, i) => ({
