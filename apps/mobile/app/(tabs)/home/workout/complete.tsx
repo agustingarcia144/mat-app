@@ -96,7 +96,15 @@ export default function WorkoutCompleteScreen() {
   )
 
   const goHome = () => {
-    router.replace('/(tabs)/home')
+    // The workout session and this screen are both fullScreenModals presented on
+    // top of the home index. Dismissing returns to the existing home screen.
+    // Using router.replace here would instead stack a second home screen on top
+    // of the first (inheriting the modal/formSheet presentation).
+    if (router.canDismiss()) {
+      router.dismissAll()
+    } else {
+      router.replace('/(tabs)/home')
+    }
   }
 
   const animateToStep = (next: 0 | 1) => {
