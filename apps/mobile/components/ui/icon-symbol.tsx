@@ -32,6 +32,8 @@ const MAPPING = {
   "list.bullet": "format-list-bulleted",
   "figure.strengthtraining.traditional": "fitness-center",
   "bolt.fill": "bolt",
+  bell: "notifications-none",
+  "bell.fill": "notifications",
 } as IconMapping;
 
 /**
