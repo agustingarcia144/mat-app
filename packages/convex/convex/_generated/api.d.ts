@@ -50,6 +50,7 @@ import type * as pushNotifications from "../pushNotifications.js";
 import type * as pushNotificationsNode from "../pushNotificationsNode.js";
 import type * as scheduleBatchUtils from "../scheduleBatchUtils.js";
 import type * as scheduleBatches from "../scheduleBatches.js";
+import type * as seedDemoOrg from "../seedDemoOrg.js";
 import type * as seedExercises from "../seedExercises.js";
 import type * as sessionExerciseLogs from "../sessionExerciseLogs.js";
 import type * as userDeletion from "../userDeletion.js";
@@ -109,6 +110,7 @@ declare const fullApi: ApiFromModules<{
   pushNotificationsNode: typeof pushNotificationsNode;
   scheduleBatchUtils: typeof scheduleBatchUtils;
   scheduleBatches: typeof scheduleBatches;
+  seedDemoOrg: typeof seedDemoOrg;
   seedExercises: typeof seedExercises;
   sessionExerciseLogs: typeof sessionExerciseLogs;
   userDeletion: typeof userDeletion;
