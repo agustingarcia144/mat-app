@@ -389,6 +389,19 @@ export async function requireActiveSubscription(
   // HOTFIX: bypass subscription enforcement until mobile app is live
   return;
 
+  // Only members are subject to the subscription requirement. Staff
+  // (admins, trainers) don't hold plan subscriptions and must not be
+  // blocked from starting workouts or reserving classes.
+  const membership = await ctx.db
+    .query("organizationMemberships")
+    .withIndex("by_organization_user", (q) =>
+      q.eq("organizationId", organizationId).eq("userId", userId),
+    )
+    .first();
+  if (membership?.role !== "member") {
+    return;
+  }
+
   const { hasActiveSubscription, subscriptionStatus } =
     await checkSubscriptionStatus(ctx, organizationId, userId);
 
