@@ -34,15 +34,20 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 import {
   Field,
   FieldLabel,
   FieldDescription,
-  FieldError,
 } from "@/components/ui/field";
-import { Check, ChevronsUpDown, Upload } from "lucide-react";
+import {
+  Banknote,
+  Check,
+  ChevronsUpDown,
+  FileText,
+  Landmark,
+  Upload,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
@@ -316,32 +321,43 @@ export default function RecordPaymentDialog({
           {/* Payment method */}
           <Field>
             <FieldLabel>Método de pago</FieldLabel>
-            <RadioGroup
-              value={paymentMethod}
-              onValueChange={(v) =>
-                setPaymentMethod(v as "cash" | "bank_transfer")
-              }
-              className="flex gap-4"
+            <div
+              role="radiogroup"
+              aria-label="Método de pago"
+              className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-1"
             >
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="cash" id="method-cash" />
-                <Label
-                  htmlFor="method-cash"
-                  className="font-normal cursor-pointer"
-                >
-                  Efectivo
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <RadioGroupItem value="bank_transfer" id="method-transfer" />
-                <Label
-                  htmlFor="method-transfer"
-                  className="font-normal cursor-pointer"
-                >
-                  Transferencia
-                </Label>
-              </div>
-            </RadioGroup>
+              {(
+                [
+                  { value: "cash", label: "Efectivo", icon: Banknote },
+                  {
+                    value: "bank_transfer",
+                    label: "Transferencia",
+                    icon: Landmark,
+                  },
+                ] as const
+              ).map((option) => {
+                const Icon = option.icon;
+                const isSelected = paymentMethod === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    onClick={() => setPaymentMethod(option.value)}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
+                      isSelected
+                        ? "border-border bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
           </Field>
 
           {/* Amount */}
@@ -384,25 +400,52 @@ export default function RecordPaymentDialog({
           {paymentMethod === "bank_transfer" && (
             <Field>
               <FieldLabel>Comprobante (opcional)</FieldLabel>
-              <div className="flex items-center gap-2">
-                <Button
+              {proofFile ? (
+                <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-background text-muted-foreground">
+                    <FileText className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {proofFile.name}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        document.getElementById("proof-file-input")?.click()
+                      }
+                    >
+                      Cambiar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-muted-foreground"
+                      onClick={() => setProofFile(null)}
+                    >
+                      <X className="size-4" />
+                      <span className="sr-only">Quitar archivo</span>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
                   onClick={() =>
                     document.getElementById("proof-file-input")?.click()
                   }
+                  className="flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center transition-colors hover:border-border hover:bg-muted/40"
                 >
-                  <Upload className="h-4 w-4" />
-                  {proofFile ? "Cambiar archivo" : "Subir comprobante"}
-                </Button>
-                {proofFile && (
-                  <span className="truncate text-sm text-muted-foreground">
-                    {proofFile.name}
+                  <Upload className="size-5 text-muted-foreground" />
+                  <span className="text-sm font-medium">Subir comprobante</span>
+                  <span className="text-xs text-muted-foreground">
+                    Imagen o PDF
                   </span>
-                )}
-              </div>
+                </button>
+              )}
               <input
                 id="proof-file-input"
                 type="file"
@@ -425,7 +468,7 @@ export default function RecordPaymentDialog({
           </Field>
 
           {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"

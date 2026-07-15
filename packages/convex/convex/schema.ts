@@ -818,6 +818,9 @@ export default defineSchema({
       ),
     ),
     isActive: v.boolean(),
+    // When true, the plan stays active but is hidden from the mobile app so
+    // members cannot self-assign to it. Admins can still assign it manually.
+    hiddenFromSelfAssignment: v.optional(v.boolean()),
     deletedAt: v.optional(v.number()),
     deletedBy: v.optional(v.string()),
     createdBy: v.string(), // Clerk user ID
@@ -918,7 +921,7 @@ export default defineSchema({
   // Finance recurring rules - monthly expenses generated into ledger rows
   financeRecurringRules: defineTable({
     organizationId: v.id("organizations"),
-    type: v.literal("expense"),
+    type: v.union(v.literal("income"), v.literal("expense")),
     title: v.string(),
     category: v.string(),
     amountArs: v.number(),

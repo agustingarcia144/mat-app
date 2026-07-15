@@ -8,6 +8,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -32,23 +33,33 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  financeRecurringExpenseSchema,
-  type FinanceRecurringExpenseForm,
+  AmountArsInput,
+  arsFormatter,
+  categoriesForType,
+  CategorySuggestions,
+  FinanceTypeToggle,
+} from "@/components/features/finance/finance-form-fields";
+import {
+  financeRecurringRuleSchema,
+  type FinanceRecurringRuleForm,
 } from "@repo/core/schemas";
 
-const EXPENSE_CATEGORIES = [
-  "Alquiler",
-  "Luz",
-  "Gas",
-  "Empleados",
-  "Insumos",
-  "Mantenimiento",
-  "Impuestos",
-  "Otros",
-];
+const QUICK_DAYS = [1, 5, 10, 15, 20, 28];
+
+const monthFormatter = new Intl.DateTimeFormat("es-AR", {
+  month: "long",
+  year: "numeric",
+});
+
+function formatPeriod(period: string) {
+  const [year, month] = period.split("-").map(Number);
+  if (!year || !month) return null;
+  return monthFormatter.format(new Date(year, month - 1, 1));
+}
 
 type RecurringRuleForEdit = {
   _id: Id<"financeRecurringRules">;
+  type: "income" | "expense";
   title: string;
   category: string;
   amountArs: number;
@@ -64,7 +75,21 @@ function currentPeriod() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export default function RecurringExpenseDialog({
+function emptyValues(): FinanceRecurringRuleForm {
+  return {
+    type: "expense",
+    title: "",
+    category: "",
+    amountArs: 0,
+    dayOfMonth: 1,
+    startPeriod: currentPeriod(),
+    endPeriod: "",
+    paymentMethod: undefined,
+    notes: "",
+  };
+}
+
+export default function RecurringRuleDialog({
   open,
   onOpenChange,
   rule,
@@ -84,25 +109,44 @@ export default function RecurringExpenseDialog({
     setValue,
     control,
     formState: { errors, isSubmitting },
-  } = useForm<FinanceRecurringExpenseForm>({
-    resolver: zodResolver(financeRecurringExpenseSchema as any) as any,
-    defaultValues: {
-      title: "",
-      category: "",
-      amountArs: 0,
-      dayOfMonth: 1,
-      startPeriod: currentPeriod(),
-      endPeriod: "",
-      paymentMethod: undefined,
-      notes: "",
-    },
+  } = useForm<FinanceRecurringRuleForm>({
+    resolver: zodResolver(financeRecurringRuleSchema as any) as any,
+    defaultValues: emptyValues(),
   });
 
+  const selectedType = useWatch({ control, name: "type" }) ?? "expense";
+  const selectedCategory = useWatch({ control, name: "category" }) ?? "";
+  const amount = useWatch({ control, name: "amountArs" }) ?? 0;
+  const dayOfMonth = useWatch({ control, name: "dayOfMonth" }) ?? 1;
+  const startPeriod = useWatch({ control, name: "startPeriod" }) ?? "";
+  const endPeriod = useWatch({ control, name: "endPeriod" }) ?? "";
   const selectedPaymentMethod =
     useWatch({ control, name: "paymentMethod" }) ?? "none";
 
+  const isIncome = selectedType === "income";
+  const startLabel = formatPeriod(startPeriod);
+  const endLabel = endPeriod ? formatPeriod(endPeriod) : null;
+
+  const setType = (nextType: FinanceRecurringRuleForm["type"]) => {
+    if (nextType === selectedType) return;
+    setValue("type", nextType, { shouldValidate: true });
+    setValue("category", "", { shouldValidate: true });
+  };
+
+  const setCategory = (value: string) => {
+    setValue("category", value, { shouldValidate: true });
+  };
+
+  const setAmount = (value: number) => {
+    setValue("amountArs", value, { shouldValidate: true });
+  };
+
+  const setDayOfMonth = (value: number) => {
+    setValue("dayOfMonth", value, { shouldValidate: true });
+  };
+
   const setPaymentMethod = (
-    value: FinanceRecurringExpenseForm["paymentMethod"] | "none",
+    value: FinanceRecurringRuleForm["paymentMethod"] | "none",
   ) => {
     setValue("paymentMethod", value === "none" ? undefined : value, {
       shouldValidate: true,
@@ -113,6 +157,7 @@ export default function RecurringExpenseDialog({
     if (!open) return;
     if (rule) {
       reset({
+        type: rule.type,
         title: rule.title,
         category: rule.category,
         amountArs: rule.amountArs,
@@ -125,21 +170,13 @@ export default function RecurringExpenseDialog({
       return;
     }
 
-    reset({
-      title: "",
-      category: "",
-      amountArs: 0,
-      dayOfMonth: 1,
-      startPeriod: currentPeriod(),
-      endPeriod: "",
-      paymentMethod: undefined,
-      notes: "",
-    });
+    reset(emptyValues());
   }, [open, reset, rule]);
 
-  const onSubmit = async (data: FinanceRecurringExpenseForm) => {
+  const onSubmit = async (data: FinanceRecurringRuleForm) => {
     try {
       const payload = {
+        type: data.type,
         title: data.title,
         category: data.category,
         amountArs: data.amountArs,
@@ -172,17 +209,29 @@ export default function RecurringExpenseDialog({
       <SheetContent className="overflow-y-auto">
         <SheetHeader>
           <SheetTitle>
-            {isEditing ? "Editar egreso recurrente" : "Nuevo egreso recurrente"}
+            {isEditing ? "Editar recurrente" : "Nuevo recurrente"}
           </SheetTitle>
           <SheetDescription>
-            Crea egresos mensuales como alquiler, servicios o sueldos.
+            Creá ingresos o egresos que se repiten todos los meses, como
+            alquiler, servicios, sueldos o un ingreso fijo.
           </SheetDescription>
         </SheetHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
           <Field>
+            <FieldLabel>Tipo</FieldLabel>
+            <FinanceTypeToggle value={selectedType} onChange={setType} />
+            {errors.type && <FieldError>{errors.type.message}</FieldError>}
+          </Field>
+
+          <Field>
             <FieldLabel>Título</FieldLabel>
-            <Input {...register("title")} placeholder="Ej: Alquiler" />
+            <Input
+              {...register("title")}
+              placeholder={
+                isIncome ? "Ej: Alquiler de sala" : "Ej: Alquiler del local"
+              }
+            />
             {errors.title && <FieldError>{errors.title.message}</FieldError>}
           </Field>
 
@@ -190,16 +239,15 @@ export default function RecurringExpenseDialog({
             <FieldLabel>Categoría</FieldLabel>
             <Input
               {...register("category")}
-              list="recurring-expense-categories"
-              placeholder="Ej: Alquiler"
+              placeholder={isIncome ? "Ej: Eventos" : "Ej: Alquiler"}
             />
-            <datalist id="recurring-expense-categories">
-              {EXPENSE_CATEGORIES.map((category) => (
-                <option key={category} value={category} />
-              ))}
-            </datalist>
+            <CategorySuggestions
+              options={categoriesForType(selectedType)}
+              value={selectedCategory}
+              onSelect={setCategory}
+            />
             <FieldDescription>
-              Podés escribir una categoría nueva o usar una sugerida.
+              Elegí una sugerida o escribí una categoría nueva.
             </FieldDescription>
             {errors.category && (
               <FieldError>{errors.category.message}</FieldError>
@@ -207,14 +255,8 @@ export default function RecurringExpenseDialog({
           </Field>
 
           <Field>
-            <FieldLabel>Monto (ARS)</FieldLabel>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              inputMode="numeric"
-              {...register("amountArs", { valueAsNumber: true })}
-            />
+            <FieldLabel>Monto</FieldLabel>
+            <AmountArsInput value={amount} onChange={setAmount} />
             {errors.amountArs && (
               <FieldError>{errors.amountArs.message}</FieldError>
             )}
@@ -222,13 +264,36 @@ export default function RecurringExpenseDialog({
 
           <Field>
             <FieldLabel>Día del mes</FieldLabel>
-            <Input
-              type="number"
-              min={1}
-              max={28}
-              step={1}
-              {...register("dayOfMonth", { valueAsNumber: true })}
-            />
+            <div className="flex flex-wrap gap-1.5">
+              {QUICK_DAYS.map((day) => {
+                const isSelected = dayOfMonth === day;
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => setDayOfMonth(day)}
+                    className={cn(
+                      "size-9 rounded-md border text-sm tabular-nums transition-colors",
+                      isSelected
+                        ? "border-primary bg-primary font-medium text-primary-foreground"
+                        : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+              <Input
+                type="number"
+                min={1}
+                max={28}
+                step={1}
+                aria-label="Otro día del mes"
+                className="h-9 w-20 tabular-nums"
+                {...register("dayOfMonth", { valueAsNumber: true })}
+              />
+            </div>
             <FieldDescription>
               Usamos 1 a 28 para evitar meses sin ese día.
             </FieldDescription>
@@ -249,10 +314,48 @@ export default function RecurringExpenseDialog({
             <Field>
               <FieldLabel>Fin opcional</FieldLabel>
               <Input type="month" {...register("endPeriod")} />
+              <FieldDescription>Vacío = sin fecha de fin.</FieldDescription>
               {errors.endPeriod && (
                 <FieldError>{errors.endPeriod.message}</FieldError>
               )}
             </Field>
+          </div>
+
+          <div className="rounded-lg border border-dashed bg-muted/40 p-3 text-sm text-muted-foreground">
+            {amount > 0 && startLabel ? (
+              <>
+                Se registrará un {isIncome ? "ingreso" : "egreso"} de{" "}
+                <span
+                  className={cn(
+                    "font-medium tabular-nums",
+                    isIncome ? "text-emerald-500" : "text-rose-500",
+                  )}
+                >
+                  ${arsFormatter.format(amount)}
+                </span>{" "}
+                el día{" "}
+                <span className="font-medium text-foreground">
+                  {dayOfMonth}
+                </span>{" "}
+                de cada mes, desde{" "}
+                <span className="font-medium text-foreground">
+                  {startLabel}
+                </span>{" "}
+                {endLabel ? (
+                  <>
+                    hasta{" "}
+                    <span className="font-medium text-foreground">
+                      {endLabel}
+                    </span>
+                    .
+                  </>
+                ) : (
+                  "y sin fecha de fin."
+                )}
+              </>
+            ) : (
+              "Completá el monto y el inicio para ver cómo se va a repetir."
+            )}
           </div>
 
           <Field>
@@ -261,9 +364,7 @@ export default function RecurringExpenseDialog({
               value={selectedPaymentMethod}
               onValueChange={(value) =>
                 setPaymentMethod(
-                  value as
-                    | FinanceRecurringExpenseForm["paymentMethod"]
-                    | "none",
+                  value as FinanceRecurringRuleForm["paymentMethod"] | "none",
                 )
               }
             >

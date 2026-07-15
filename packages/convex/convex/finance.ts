@@ -380,6 +380,8 @@ export const voidTransaction = mutation({
 
 export const createRecurringRule = mutation({
   args: {
+    // Optional for older mobile clients that predate income recurring rules.
+    type: v.optional(transactionTypeV),
     title: v.string(),
     category: v.string(),
     amountArs: v.number(),
@@ -392,7 +394,8 @@ export const createRecurringRule = mutation({
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
     const membership = await requireAdminMembership(ctx);
-    validateRecurringFields(args);
+    const type = args.type ?? "expense";
+    validateRecurringFields({ ...args, type });
 
     const organization = await ctx.db.get(membership.organizationId);
     const current = getPeriodPartsForTimezone(organization?.timezone);
@@ -401,7 +404,7 @@ export const createRecurringRule = mutation({
 
     const ruleId = await ctx.db.insert("financeRecurringRules", {
       organizationId: membership.organizationId,
-      type: "expense",
+      type,
       title: args.title.trim(),
       category: args.category.trim(),
       amountArs: args.amountArs,
@@ -428,7 +431,7 @@ export const createRecurringRule = mutation({
         ruleId,
         {
           organizationId: membership.organizationId,
-          type: "expense",
+          type,
           title: args.title.trim(),
           category: args.category.trim(),
           amountArs: args.amountArs,
@@ -450,6 +453,7 @@ export const createRecurringRule = mutation({
 export const updateRecurringRule = mutation({
   args: {
     ruleId: v.id("financeRecurringRules"),
+    type: v.optional(transactionTypeV),
     title: v.optional(v.string()),
     category: v.optional(v.string()),
     amountArs: v.optional(v.number()),
@@ -470,6 +474,7 @@ export const updateRecurringRule = mutation({
     }
 
     validateRecurringFields({
+      type: args.type ?? rule.type,
       title: args.title ?? rule.title,
       category: args.category ?? rule.category,
       amountArs: args.amountArs ?? rule.amountArs,
@@ -482,6 +487,7 @@ export const updateRecurringRule = mutation({
       updatedBy: identity.subject,
       updatedAt: Date.now(),
     };
+    if (args.type !== undefined) patch.type = args.type;
     if (args.title !== undefined) patch.title = args.title.trim();
     if (args.category !== undefined) patch.category = args.category.trim();
     if (args.amountArs !== undefined) patch.amountArs = args.amountArs;
@@ -586,6 +592,7 @@ function validateTransactionFields(fields: {
 }
 
 function validateRecurringFields(fields: {
+  type: "income" | "expense";
   title: string;
   category: string;
   amountArs: number;
@@ -593,6 +600,9 @@ function validateRecurringFields(fields: {
   startPeriod: string;
   endPeriod?: string;
 }) {
+  if (fields.type !== "income" && fields.type !== "expense") {
+    throw new Error("Tipo inválido");
+  }
   assertRequiredText(fields.title, "El título");
   assertRequiredText(fields.category, "La categoría");
   assertPositiveAmount(fields.amountArs);
@@ -627,7 +637,7 @@ async function createRecurringTransactionIfMissing(
   recurringRuleId: Id<"financeRecurringRules">,
   rule: {
     organizationId: Id<"organizations">;
-    type: "expense";
+    type: "income" | "expense";
     title: string;
     category: string;
     amountArs: number;
@@ -648,7 +658,7 @@ async function createRecurringTransactionIfMissing(
 
   await ctx.db.insert("financeTransactions", {
     organizationId: rule.organizationId,
-    type: "expense",
+    type: rule.type,
     title: rule.title,
     category: rule.category,
     amountArs: rule.amountArs,

@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { toast } from "sonner";
-import { Edit, MoreHorizontal, Trash2 } from "lucide-react";
+import {
+  Edit,
+  Loader2,
+  MoreHorizontal,
+  Receipt,
+  Repeat,
+  Trash2,
+} from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -16,7 +23,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,6 +39,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  amountToneClassName,
+  Chip,
+  FinanceStatePanel,
+  formatSignedCurrency,
+  TableShell,
+  tableHeadClassName,
+  tableRowClassName,
+  TypeAvatar,
+} from "@/components/features/finance/finance-display";
 import { cn } from "@/lib/utils";
 
 export type FinanceTransactionRow = {
@@ -55,10 +71,6 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   card: "Tarjeta",
   other: "Otro",
 };
-
-function formatCurrency(value: number) {
-  return `$${Math.round(value).toLocaleString("es-AR")}`;
-}
 
 function formatDate(value: string) {
   const [year, month, day] = value.split("-");
@@ -94,121 +106,160 @@ export default function FinanceTransactionList({
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border px-4 py-8 text-center text-sm text-muted-foreground">
-        Cargando movimientos...
-      </div>
+      <FinanceStatePanel
+        icon={Loader2}
+        iconClassName="animate-spin"
+        title="Cargando movimientos..."
+      />
     );
   }
 
   if (!transactions || transactions.length === 0) {
     return (
-      <div className="rounded-lg border px-4 py-8 text-center text-sm text-muted-foreground">
-        No hay movimientos registrados para este período.
-      </div>
+      <FinanceStatePanel
+        icon={Receipt}
+        title="Sin movimientos en este período"
+        description="Registrá un ingreso o egreso para verlo acá."
+      />
     );
   }
 
   return (
     <>
-      <div className="overflow-hidden rounded-lg border">
+      <TableShell>
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Detalle</TableHead>
-              <TableHead>Categoría</TableHead>
-              <TableHead>Método</TableHead>
-              <TableHead>Origen</TableHead>
-              <TableHead className="text-right">Monto</TableHead>
+            <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
+              <TableHead className={cn(tableHeadClassName, "w-[110px]")}>
+                Fecha
+              </TableHead>
+              <TableHead className={tableHeadClassName}>Detalle</TableHead>
+              <TableHead
+                className={cn(tableHeadClassName, "hidden md:table-cell")}
+              >
+                Categoría
+              </TableHead>
+              <TableHead
+                className={cn(tableHeadClassName, "hidden lg:table-cell")}
+              >
+                Método
+              </TableHead>
+              <TableHead className={cn(tableHeadClassName, "text-right")}>
+                Monto
+              </TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {transactions.map((transaction) => (
-              <TableRow
-                key={transaction._id}
-                className={cn(transaction.status === "voided" && "opacity-60")}
-              >
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {formatDate(transaction.occurredOn)}
-                </TableCell>
-                <TableCell>
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{transaction.title}</span>
-                      <Badge
-                        variant={
-                          transaction.type === "income"
-                            ? "default"
-                            : "secondary"
-                        }
-                      >
-                        {transaction.type === "income" ? "Ingreso" : "Egreso"}
-                      </Badge>
-                      {transaction.status === "voided" ? (
-                        <Badge variant="outline">Anulado</Badge>
-                      ) : null}
-                    </div>
-                    {transaction.notes ? (
-                      <p className="text-xs text-muted-foreground">
-                        {transaction.notes}
-                      </p>
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell>{transaction.category}</TableCell>
-                <TableCell>
-                  {transaction.paymentMethod
-                    ? PAYMENT_METHOD_LABELS[transaction.paymentMethod]
-                    : "-"}
-                </TableCell>
-                <TableCell>
-                  {transaction.source === "recurring" ? "Recurrente" : "Manual"}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "text-right font-semibold",
-                    transaction.type === "income"
-                      ? "text-emerald-600"
-                      : "text-amber-600",
-                  )}
+            {transactions.map((transaction) => {
+              const isVoided = transaction.status === "voided";
+              return (
+                <TableRow
+                  key={transaction._id}
+                  className={cn(tableRowClassName, isVoided && "opacity-55")}
                 >
-                  {transaction.type === "income" ? "+" : "-"}
-                  {formatCurrency(transaction.amountArs)}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Acciones</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        disabled={transaction.status === "voided"}
-                        onClick={() => onEdit(transaction)}
-                      >
-                        <Edit className="mr-2 h-4 w-4" />
-                        Editar
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        disabled={transaction.status === "voided"}
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setSelected(transaction)}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Anular
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
+                  <TableCell className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">
+                    {formatDate(transaction.occurredOn)}
+                  </TableCell>
+
+                  <TableCell>
+                    <div className="flex items-start gap-3">
+                      <TypeAvatar type={transaction.type} />
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={cn(
+                              "font-medium",
+                              isVoided && "line-through",
+                            )}
+                          >
+                            {transaction.title}
+                          </span>
+                          {transaction.source === "recurring" ? (
+                            <Chip>
+                              <Repeat className="size-3" />
+                              Recurrente
+                            </Chip>
+                          ) : null}
+                          {isVoided ? (
+                            <Chip className="border-destructive/30 bg-destructive/10 text-destructive">
+                              Anulado
+                            </Chip>
+                          ) : null}
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground md:hidden">
+                          {transaction.category}
+                        </p>
+                        {transaction.notes ? (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {transaction.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="hidden md:table-cell">
+                    <Chip>{transaction.category}</Chip>
+                  </TableCell>
+
+                  <TableCell className="hidden text-sm text-muted-foreground lg:table-cell">
+                    {transaction.paymentMethod
+                      ? PAYMENT_METHOD_LABELS[transaction.paymentMethod]
+                      : "—"}
+                  </TableCell>
+
+                  <TableCell
+                    className={cn(
+                      "whitespace-nowrap text-right font-semibold tabular-nums",
+                      amountToneClassName(transaction.type),
+                      isVoided && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {formatSignedCurrency(
+                      transaction.type,
+                      transaction.amountArs,
+                    )}
+                  </TableCell>
+
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 text-muted-foreground"
+                        >
+                          <MoreHorizontal className="size-4" />
+                          <span className="sr-only">Acciones</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          disabled={isVoided}
+                          onClick={() => onEdit(transaction)}
+                        >
+                          <Edit className="mr-2 size-4" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          disabled={isVoided}
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setSelected(transaction)}
+                        >
+                          <Trash2 className="mr-2 size-4" />
+                          Anular
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
-      </div>
+      </TableShell>
 
       <AlertDialog
         open={Boolean(selected)}

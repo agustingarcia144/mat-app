@@ -450,7 +450,7 @@ export default function BonificationDialog({
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
@@ -586,7 +586,7 @@ export default function BonificationDialog({
                 />
               </Field>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"

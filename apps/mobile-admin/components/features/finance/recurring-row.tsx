@@ -10,6 +10,7 @@ import { Colors } from "@/constants/theme";
 type RecurringRowProps = {
   title: string;
   category?: string;
+  type?: "income" | "expense";
   amountArs: number;
   dayOfMonth: number;
   status: string;
@@ -25,6 +26,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function RecurringRow({
   title,
   category,
+  type = "expense",
   amountArs,
   dayOfMonth,
   status,
@@ -35,6 +37,7 @@ export function RecurringRow({
 
   const statusColor =
     status === "active" ? "#22c55e" : status === "paused" ? "#f59e0b" : "#a1a1aa";
+  const isIncome = type === "income";
 
   return (
     <ThemedPressable
@@ -63,8 +66,11 @@ export function RecurringRow({
         </ThemedText>
       </View>
       <View style={styles.right}>
-        <ThemedText type="defaultSemiBold" style={styles.amount}>
-          ${amountArs.toLocaleString("es-AR")}
+        <ThemedText
+          type="defaultSemiBold"
+          style={[styles.amount, { color: isIncome ? "#22c55e" : "#f43f5e" }]}
+        >
+          {isIncome ? "+" : "-"}${amountArs.toLocaleString("es-AR")}
         </ThemedText>
         <View style={styles.statusRow}>
           <View style={[styles.dot, { backgroundColor: statusColor }]} />

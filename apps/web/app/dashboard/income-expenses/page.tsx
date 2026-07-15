@@ -2,18 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { Plus, Repeat } from "lucide-react";
+import { CalendarDays, Loader2, Lock, Plus, Repeat } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import FinanceSummaryCards from "@/components/features/finance/finance-summary-cards";
+import { FinanceStatePanel } from "@/components/features/finance/finance-display";
 import FinanceTransactionDialog from "@/components/features/finance/finance-transaction-dialog";
 import FinanceTransactionList, {
   type FinanceTransactionRow,
 } from "@/components/features/finance/finance-transaction-list";
-import RecurringExpenseDialog from "@/components/features/finance/recurring-expense-dialog";
-import RecurringExpenseList, {
-  type RecurringExpenseRow,
-} from "@/components/features/finance/recurring-expense-list";
+import RecurringRuleDialog from "@/components/features/finance/recurring-rule-dialog";
+import RecurringRuleList, {
+  type RecurringRuleRow,
+} from "@/components/features/finance/recurring-rule-list";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -53,9 +54,7 @@ export default function IncomeExpensesPage() {
   const [recurringOpen, setRecurringOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<FinanceTransactionRow | null>(null);
-  const [editingRule, setEditingRule] = useState<RecurringExpenseRow | null>(
-    null,
-  );
+  const [editingRule, setEditingRule] = useState<RecurringRuleRow | null>(null);
 
   const membership = useQuery(api.organizationMemberships.getCurrentMembership);
   const isAdmin = membership?.role === "admin";
@@ -75,6 +74,9 @@ export default function IncomeExpensesPage() {
   );
 
   const periodOptions = useMemo(() => buildPeriodOptions(), []);
+  const activeRulesCount = recurringRules?.filter(
+    (rule) => rule.status !== "cancelled",
+  ).length;
 
   if (orgSettings && !orgSettings.financeEnabled) {
     return <FeatureDisabledPage featureName="Ingresos y egresos" />;
@@ -90,9 +92,11 @@ export default function IncomeExpensesPage() {
   if (isLoadingAccess) {
     return (
       <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-        <div className="rounded-lg border px-4 py-8 text-center text-sm text-muted-foreground">
-          Cargando acceso...
-        </div>
+        <FinanceStatePanel
+          icon={Loader2}
+          iconClassName="animate-spin"
+          title="Cargando acceso..."
+        />
       </DashboardPageContainer>
     );
   }
@@ -100,9 +104,11 @@ export default function IncomeExpensesPage() {
   if (!isAdmin) {
     return (
       <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-        <div className="rounded-lg border px-4 py-8 text-center text-sm text-muted-foreground">
-          Solo administradores pueden gestionar ingresos y egresos.
-        </div>
+        <FinanceStatePanel
+          icon={Lock}
+          title="Acceso restringido"
+          description="Solo administradores pueden gestionar ingresos y egresos."
+        />
       </DashboardPageContainer>
     );
   }
@@ -110,17 +116,20 @@ export default function IncomeExpensesPage() {
   return (
     <DashboardPageContainer className="space-y-6 py-6 md:py-10">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold md:text-3xl">Ingresos y egresos</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-            Registra movimientos externos a membresías y gastos mensuales
-            recurrentes.
+        <div className="space-y-1.5">
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+            Ingresos y egresos
+          </h1>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            Registrá movimientos externos a membresías e ingresos o egresos
+            mensuales recurrentes.
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-full sm:w-[220px]">
+            <SelectTrigger className="w-full gap-2 sm:w-[210px]">
+              <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -164,8 +173,22 @@ export default function IncomeExpensesPage() {
 
       <Tabs defaultValue="transactions" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="transactions">Movimientos</TabsTrigger>
-          <TabsTrigger value="recurring">Recurrentes</TabsTrigger>
+          <TabsTrigger value="transactions" className="gap-2">
+            Movimientos
+            {transactions?.length ? (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+                {transactions.length}
+              </span>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger value="recurring" className="gap-2">
+            Recurrentes
+            {activeRulesCount ? (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+                {activeRulesCount}
+              </span>
+            ) : null}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="transactions">
@@ -180,7 +203,7 @@ export default function IncomeExpensesPage() {
         </TabsContent>
 
         <TabsContent value="recurring">
-          <RecurringExpenseList
+          <RecurringRuleList
             rules={recurringRules}
             isLoading={isLoadingFinance}
             onEdit={(rule) => {
@@ -197,7 +220,7 @@ export default function IncomeExpensesPage() {
         transaction={editingTransaction}
       />
 
-      <RecurringExpenseDialog
+      <RecurringRuleDialog
         open={recurringOpen}
         onOpenChange={setRecurringOpen}
         rule={editingRule}

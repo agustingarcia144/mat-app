@@ -5,9 +5,11 @@ import { useEffect } from "react";
 import { useMutation } from "convex/react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useWatch } from "react-hook-form";
+import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -32,21 +34,15 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  AmountArsInput,
+  CategorySuggestions,
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+} from "@/components/features/finance/finance-form-fields";
+import {
   financeTransactionSchema,
   type FinanceTransactionForm,
 } from "@repo/core/schemas";
-
-const INCOME_CATEGORIES = ["Indumentaria", "Suplementos", "Eventos", "Otros"];
-const EXPENSE_CATEGORIES = [
-  "Alquiler",
-  "Luz",
-  "Gas",
-  "Empleados",
-  "Insumos",
-  "Mantenimiento",
-  "Impuestos",
-  "Otros",
-];
 
 type TransactionForEdit = {
   _id: Id<"financeTransactions">;
@@ -97,10 +93,27 @@ export default function FinanceTransactionDialog({
   });
 
   const selectedType = useWatch({ control, name: "type" }) ?? "income";
+  const selectedCategory = useWatch({ control, name: "category" }) ?? "";
+  const amount = useWatch({ control, name: "amountArs" }) ?? 0;
   const selectedPaymentMethod =
     useWatch({ control, name: "paymentMethod" }) ?? "none";
   const categoryOptions =
     selectedType === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const isIncome = selectedType === "income";
+
+  const setType = (nextType: FinanceTransactionForm["type"]) => {
+    if (nextType === selectedType) return;
+    setValue("type", nextType, { shouldValidate: true });
+    setValue("category", "", { shouldValidate: true });
+  };
+
+  const setCategory = (value: string) => {
+    setValue("category", value, { shouldValidate: true });
+  };
+
+  const setAmount = (value: number) => {
+    setValue("amountArs", value, { shouldValidate: true });
+  };
 
   const setPaymentMethod = (
     value: FinanceTransactionForm["paymentMethod"] | "none",
@@ -180,30 +193,59 @@ export default function FinanceTransactionDialog({
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
           <Field>
             <FieldLabel>Tipo</FieldLabel>
-            <Select
-              value={selectedType}
-              onValueChange={(value) => {
-                const nextType = value as "income" | "expense";
-                setValue("type", nextType, {
-                  shouldValidate: true,
-                });
-                setValue("category", "", { shouldValidate: true });
-              }}
+            <div
+              role="radiogroup"
+              aria-label="Tipo de movimiento"
+              className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-1"
             >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="income">Ingreso</SelectItem>
-                <SelectItem value="expense">Egreso</SelectItem>
-              </SelectContent>
-            </Select>
+              {(
+                [
+                  {
+                    value: "income",
+                    label: "Ingreso",
+                    icon: ArrowDownLeft,
+                    active:
+                      "border-emerald-500/40 bg-emerald-500/10 text-emerald-500",
+                  },
+                  {
+                    value: "expense",
+                    label: "Egreso",
+                    icon: ArrowUpRight,
+                    active: "border-rose-500/40 bg-rose-500/10 text-rose-500",
+                  },
+                ] as const
+              ).map((option) => {
+                const Icon = option.icon;
+                const isSelected = selectedType === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    onClick={() => setType(option.value)}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-md border border-transparent px-3 py-2 text-sm font-medium transition-colors",
+                      isSelected
+                        ? option.active
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
             {errors.type && <FieldError>{errors.type.message}</FieldError>}
           </Field>
 
           <Field>
             <FieldLabel>Título</FieldLabel>
-            <Input {...register("title")} placeholder="Ej: Remeras MAT" />
+            <Input
+              {...register("title")}
+              placeholder={isIncome ? "Ej: Remeras MAT" : "Ej: Alquiler junio"}
+            />
             {errors.title && <FieldError>{errors.title.message}</FieldError>}
           </Field>
 
@@ -211,18 +253,15 @@ export default function FinanceTransactionDialog({
             <FieldLabel>Categoría</FieldLabel>
             <Input
               {...register("category")}
-              list={`finance-categories-${selectedType}`}
-              placeholder={
-                selectedType === "income" ? "Ej: Indumentaria" : "Ej: Alquiler"
-              }
+              placeholder={isIncome ? "Ej: Indumentaria" : "Ej: Alquiler"}
             />
-            <datalist id={`finance-categories-${selectedType}`}>
-              {categoryOptions.map((category) => (
-                <option key={category} value={category} />
-              ))}
-            </datalist>
+            <CategorySuggestions
+              options={categoryOptions}
+              value={selectedCategory}
+              onSelect={setCategory}
+            />
             <FieldDescription>
-              Podés escribir una categoría nueva o usar una sugerida.
+              Elegí una sugerida o escribí una categoría nueva.
             </FieldDescription>
             {errors.category && (
               <FieldError>{errors.category.message}</FieldError>
@@ -230,14 +269,8 @@ export default function FinanceTransactionDialog({
           </Field>
 
           <Field>
-            <FieldLabel>Monto (ARS)</FieldLabel>
-            <Input
-              type="number"
-              min={1}
-              step={1}
-              inputMode="numeric"
-              {...register("amountArs", { valueAsNumber: true })}
-            />
+            <FieldLabel>Monto</FieldLabel>
+            <AmountArsInput value={amount} onChange={setAmount} />
             {errors.amountArs && (
               <FieldError>{errors.amountArs.message}</FieldError>
             )}
