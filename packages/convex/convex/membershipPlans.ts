@@ -30,7 +30,15 @@ export const getByOrganization = query({
 
     const visiblePlans = plans.filter((p) => p.deletedAt === undefined);
 
-    if (!isAdmin || args.activeOnly) {
+    // Members can only see active plans that are not hidden from
+    // self-assignment. Hidden plans stay assignable by admins/trainers.
+    if (!isAdmin) {
+      return visiblePlans.filter(
+        (p) => p.isActive && !p.hiddenFromSelfAssignment,
+      );
+    }
+
+    if (args.activeOnly) {
       return visiblePlans.filter((p) => p.isActive);
     }
 
@@ -216,6 +224,36 @@ export const toggleActive = mutation({
 
     await ctx.db.patch(args.planId, {
       isActive: !plan.isActive,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Toggle whether a plan is hidden from self-assignment in the mobile app.
+ * The plan stays active; hiding only removes it from the member-facing
+ * plan selector. Admins can still assign hidden plans manually.
+ */
+export const toggleVisibility = mutation({
+  args: {
+    planId: v.id("membershipPlans"),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx);
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdmin(ctx, membership.organizationId);
+
+    const plan = await ctx.db.get(args.planId);
+    if (
+      !plan ||
+      plan.organizationId !== membership.organizationId ||
+      plan.deletedAt !== undefined
+    ) {
+      throw new Error("Plan no encontrado");
+    }
+
+    await ctx.db.patch(args.planId, {
+      hiddenFromSelfAssignment: !plan.hiddenFromSelfAssignment,
       updatedAt: Date.now(),
     });
   },

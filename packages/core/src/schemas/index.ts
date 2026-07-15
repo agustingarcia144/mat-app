@@ -315,8 +315,9 @@ export const financeTransactionSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const financeRecurringExpenseSchema = z
+export const financeRecurringRuleSchema = z
   .object({
+    type: z.enum(["income", "expense"]),
     title: z.string().min(1, "El título es requerido").trim(),
     category: z.string().min(1, "La categoría es requerida").trim(),
     amountArs: z.coerce
@@ -342,8 +343,8 @@ export const financeRecurringExpenseSchema = z
 
 // Type exports
 export type FinanceTransactionForm = z.infer<typeof financeTransactionSchema>;
-export type FinanceRecurringExpenseForm = z.infer<
-  typeof financeRecurringExpenseSchema
+export type FinanceRecurringRuleForm = z.infer<
+  typeof financeRecurringRuleSchema
 >;
 export type PlanBonificationForm = z.infer<typeof planBonificationSchema>;
 export type MembershipPlanForm = z.infer<typeof membershipPlanSchema>;

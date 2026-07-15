@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { type Id } from "@/convex/_generated/dataModel";
@@ -28,11 +28,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Gift, MoreHorizontal, Eye, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  Gift,
+  Loader2,
+  MoreHorizontal,
+  Eye,
+  Receipt,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Chip,
+  FinanceStatePanel,
+  TableShell,
+  tableHeadClassName,
+  tableRowClassName,
+} from "@/components/features/finance/finance-display";
 import PaymentReviewDialog from "./dialogs/payment-review-dialog";
 import PaymentDetailDialog from "./dialogs/payment-detail-dialog";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { cn } from "@/lib/utils";
 
 type PaymentStatusFilter =
   | "all"
@@ -85,6 +109,7 @@ function formatDate(timestamp: number): string {
 export default function PaymentHistoryList() {
   const canQuery = useCanQueryCurrentOrganization();
   const [statusFilter, setStatusFilter] = useState<PaymentStatusFilter>("all");
+  const [periodFilter, setPeriodFilter] = useState<string>("all");
 
   const payments = useQuery(
     api.planPayments.getByOrganization,
@@ -94,6 +119,23 @@ export default function PaymentHistoryList() {
         : { status: statusFilter }
       : "skip",
   );
+
+  // Distinct billing periods present in the results, most recent first.
+  const periodOptions = useMemo(() => {
+    const periods = Array.from(
+      new Set((payments ?? []).map((p) => p.billingPeriod)),
+    ).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+    return periods.map((value) => ({
+      value,
+      label: formatBillingPeriod(value),
+    }));
+  }, [payments]);
+
+  const visiblePayments = useMemo(() => {
+    if (!payments) return payments;
+    if (periodFilter === "all") return payments;
+    return payments.filter((p) => p.billingPeriod === periodFilter);
+  }, [payments, periodFilter]);
 
   type SelectedPayment = {
     id: Id<"planPayments">;
@@ -166,104 +208,139 @@ export default function PaymentHistoryList() {
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-semibold">Historial de pagos</h2>
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as PaymentStatusFilter)}
-          >
-            <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Filtrar por estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="pending">Pendiente</SelectItem>
-              <SelectItem value="in_review">En revisión</SelectItem>
-              <SelectItem value="approved">Aprobado</SelectItem>
-              <SelectItem value="declined">Rechazado</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select value={periodFilter} onValueChange={setPeriodFilter}>
+              <SelectTrigger className="w-full gap-2 sm:w-[190px]">
+                <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Filtrar por mes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los meses</SelectItem>
+                {periodOptions.map((period) => (
+                  <SelectItem key={period.value} value={period.value}>
+                    {period.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as PaymentStatusFilter)}
+            >
+              <SelectTrigger className="w-full sm:w-[190px]">
+                <SelectValue placeholder="Filtrar por estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="pending">Pendiente</SelectItem>
+                <SelectItem value="in_review">En revisión</SelectItem>
+                <SelectItem value="approved">Aprobado</SelectItem>
+                <SelectItem value="declined">Rechazado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {payments === undefined ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            Cargando historial...
-          </p>
-        ) : payments.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No hay pagos registrados.
-          </p>
+        {visiblePayments === undefined ? (
+          <FinanceStatePanel
+            icon={Loader2}
+            iconClassName="animate-spin"
+            title="Cargando historial..."
+          />
+        ) : visiblePayments.length === 0 ? (
+          <FinanceStatePanel
+            icon={Receipt}
+            title="Sin pagos registrados"
+            description={
+              statusFilter === "all" && periodFilter === "all"
+                ? "Los pagos de los miembros aparecerán acá."
+                : "No hay pagos que coincidan con los filtros."
+            }
+          />
         ) : (
-          <div className="overflow-hidden rounded-lg border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="p-3 text-left font-medium">Miembro</th>
-                  <th className="p-3 text-left font-medium">Plan</th>
-                  <th className="p-3 text-left font-medium">Periodo</th>
-                  <th className="p-3 text-left font-medium">Monto</th>
-                  <th className="p-3 text-left font-medium">Estado</th>
-                  <th className="p-3 text-left font-medium">Fecha</th>
-                  <th className="p-3 w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {payments.map((payment) => {
+          <TableShell>
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
+                  <TableHead className={tableHeadClassName}>Miembro</TableHead>
+                  <TableHead
+                    className={cn(tableHeadClassName, "hidden md:table-cell")}
+                  >
+                    Plan
+                  </TableHead>
+                  <TableHead
+                    className={cn(tableHeadClassName, "hidden sm:table-cell")}
+                  >
+                    Periodo
+                  </TableHead>
+                  <TableHead className={cn(tableHeadClassName, "text-right")}>
+                    Monto
+                  </TableHead>
+                  <TableHead className={tableHeadClassName}>Estado</TableHead>
+                  <TableHead
+                    className={cn(tableHeadClassName, "hidden lg:table-cell")}
+                  >
+                    Fecha
+                  </TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visiblePayments.map((payment) => {
                   const statusInfo = STATUS_LABELS[payment.status];
                   const amountArs =
                     payment.payableAmountArs ??
                     payment.totalAmountArs ??
                     payment.amountArs;
                   return (
-                    <tr
-                      key={payment._id}
-                      className="border-t border-border hover:bg-muted/30"
-                    >
-                      <td className="p-3">
-                        <div>
-                          <p>{payment.userFullName}</p>
-                          {payment.coveredMemberCount > 1 ? (
-                            <p className="text-xs text-muted-foreground">
-                              Asociados:{" "}
-                              {payment.coveredMemberNames.slice(1).join(", ")}
-                            </p>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="p-3">{payment.planName}</td>
-                      <td className="p-3">
+                    <TableRow key={payment._id} className={tableRowClassName}>
+                      <TableCell>
+                        <p className="font-medium">{payment.userFullName}</p>
+                        <p className="text-xs text-muted-foreground md:hidden">
+                          {payment.planName}
+                        </p>
+                        {payment.coveredMemberCount > 1 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Asociados:{" "}
+                            {payment.coveredMemberNames.slice(1).join(", ")}
+                          </p>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {payment.planName}
+                      </TableCell>
+                      <TableCell className="hidden whitespace-nowrap sm:table-cell">
                         {formatBillingPeriod(payment.billingPeriod)}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                         ${amountArs.toLocaleString("es-AR")}
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-1.5">
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <Badge variant={statusInfo?.variant ?? "secondary"}>
                             {statusInfo?.label ?? payment.status}
                           </Badge>
                           {payment.isBonification && (
-                            <Badge
-                              variant="outline"
-                              className="gap-1 border-purple-300 text-purple-600 dark:border-purple-700 dark:text-purple-400"
-                            >
-                              <Gift className="h-3 w-3" />
+                            <Chip className="border-purple-500/25 bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                              <Gift className="size-3" />
                               Bonificado
-                            </Badge>
+                            </Chip>
                           )}
                         </div>
-                      </td>
-                      <td className="p-3 text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="hidden whitespace-nowrap text-muted-foreground lg:table-cell">
                         {formatDate(payment.createdAt)}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8"
+                              className="size-8 text-muted-foreground"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <MoreHorizontal className="h-4 w-4" />
+                              <MoreHorizontal className="size-4" />
                               <span className="sr-only">Acciones</span>
                             </Button>
                           </DropdownMenuTrigger>
@@ -271,7 +348,7 @@ export default function PaymentHistoryList() {
                             <DropdownMenuItem
                               onClick={() => handleView(payment)}
                             >
-                              <Eye className="mr-2 h-4 w-4" />
+                              <Eye className="mr-2 size-4" />
                               Ver
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -279,18 +356,18 @@ export default function PaymentHistoryList() {
                               className="text-destructive focus:text-destructive"
                               onClick={() => handleDeleteClick(payment)}
                             >
-                              <Trash2 className="mr-2 h-4 w-4" />
+                              <Trash2 className="mr-2 size-4" />
                               Eliminar
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableShell>
         )}
       </div>
 

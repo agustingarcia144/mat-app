@@ -195,6 +195,7 @@ export default function FinanceIndexScreen() {
                   <RecurringRow
                     title={item.title}
                     category={item.category}
+                    type={item.type}
                     amountArs={item.amountArs}
                     dayOfMonth={item.dayOfMonth}
                     status={item.status}

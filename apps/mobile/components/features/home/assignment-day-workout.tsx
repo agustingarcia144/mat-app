@@ -202,6 +202,16 @@ export function AssignmentDayWorkout({
     };
   }, [sessionForSelected]);
 
+  const exerciseNames = useMemo(() => {
+    const dayId = workoutDayToDisplay?._id;
+    if (!dayId) return [];
+    const list = exercisesByDay[dayId] ?? [];
+    return [...list]
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((ex) => ex.exercise?.name)
+      .filter((name): name is string => Boolean(name));
+  }, [exercisesByDay, workoutDayToDisplay?._id]);
+
   const handleOpenWorkout = () => {
     if (!hasActiveSubscription) return;
     if (sessionForSelected) {
@@ -240,6 +250,7 @@ export function AssignmentDayWorkout({
         statusBadgeLabel={statusBadgeLabel}
         blockCount={blocksForDisplayDay?.length ?? 0}
         exerciseCount={exercisesByDay[workoutDayToDisplay._id]?.length ?? 0}
+        exerciseNames={exerciseNames}
         onPress={handleOpenWorkout}
       />
     </View>

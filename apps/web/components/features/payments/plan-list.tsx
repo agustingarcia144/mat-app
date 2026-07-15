@@ -26,15 +26,34 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   AlertTriangle,
+  CreditCard,
   Edit,
+  Eye,
+  EyeOff,
+  Loader2,
   MoreHorizontal,
   Plus,
   ToggleLeft,
   ToggleRight,
   Trash2,
 } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  FinanceStatePanel,
+  TableShell,
+  tableHeadClassName,
+  tableRowClassName,
+} from "@/components/features/finance/finance-display";
 import PlanFormDialog from "./dialogs/plan-form-dialog";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { cn } from "@/lib/utils";
 
 export default function PlanList() {
   const canQuery = useCanQueryCurrentOrganization();
@@ -43,6 +62,7 @@ export default function PlanList() {
     canQuery ? { activeOnly: false } : "skip",
   );
   const toggleActive = useMutation(api.membershipPlans.toggleActive);
+  const toggleVisibility = useMutation(api.membershipPlans.toggleVisibility);
   const deletePlan = useMutation(api.membershipPlans.softDelete);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -69,6 +89,20 @@ export default function PlanList() {
     try {
       await toggleActive({ planId });
       toast.success("Estado del plan actualizado");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al actualizar");
+    }
+  };
+
+  const handleToggleVisibility = async (
+    planId: Id<"membershipPlans">,
+    isHidden: boolean,
+  ) => {
+    try {
+      await toggleVisibility({ planId });
+      toast.success(
+        isHidden ? "Plan visible en la app" : "Plan oculto en la app",
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al actualizar");
     }
@@ -147,39 +181,55 @@ export default function PlanList() {
         </div>
 
         {plans === undefined ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            Cargando planes...
-          </p>
+          <FinanceStatePanel
+            icon={Loader2}
+            iconClassName="animate-spin"
+            title="Cargando planes..."
+          />
         ) : plans.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No hay planes creados. Crea tu primer plan para que los miembros
-            puedan suscribirse.
-          </p>
+          <FinanceStatePanel
+            icon={CreditCard}
+            title="Todavía no hay planes"
+            description="Creá tu primer plan para que los miembros puedan suscribirse."
+          />
         ) : (
-          <div className="overflow-hidden rounded-lg border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50">
-                <tr>
-                  <th className="p-3 text-left font-medium">Nombre</th>
-                  <th className="p-3 text-left font-medium">Precio</th>
-                  <th className="p-3 text-left font-medium">Clases/semana</th>
-                  <th className="p-3 text-left font-medium">Ventana de pago</th>
-                  <th className="p-3 text-left font-medium">Estado</th>
-                  <th className="w-24 p-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {plans.map((plan) => (
-                  <tr
-                    key={plan._id}
-                    className="border-t border-border hover:bg-muted/30"
+          <TableShell>
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
+                  <TableHead className={tableHeadClassName}>Nombre</TableHead>
+                  <TableHead className={cn(tableHeadClassName, "text-right")}>
+                    Precio
+                  </TableHead>
+                  <TableHead
+                    className={cn(tableHeadClassName, "hidden md:table-cell")}
                   >
-                    <td className="p-3">
+                    Clases/semana
+                  </TableHead>
+                  <TableHead
+                    className={cn(tableHeadClassName, "hidden lg:table-cell")}
+                  >
+                    Ventana de pago
+                  </TableHead>
+                  <TableHead className={tableHeadClassName}>Estado</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {plans.map((plan) => (
+                  <TableRow key={plan._id} className={tableRowClassName}>
+                    <TableCell>
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <p className="font-medium">{plan.name}</p>
                           {plan.isFamilyPlan ? (
                             <Badge variant="outline">Familiar</Badge>
+                          ) : null}
+                          {plan.hiddenFromSelfAssignment ? (
+                            <Badge variant="outline" className="gap-1">
+                              <EyeOff className="size-3" />
+                              Oculto
+                            </Badge>
                           ) : null}
                         </div>
                         {plan.description && (
@@ -188,37 +238,43 @@ export default function PlanList() {
                           </p>
                         )}
                       </div>
-                    </td>
-                    <td className="p-3">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
                       ${plan.priceArs.toLocaleString("es-AR")}
-                    </td>
-                    <td className="p-3">
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {plan.weeklyClassLimit >= 9999
                         ? "Sin límite"
                         : plan.weeklyClassLimit}
-                    </td>
-                    <td className="p-3">
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       {(plan.billingMode ?? "calendar") === "join_date"
                         ? "Por ingreso"
                         : `Día ${plan.paymentWindowStartDay} al ${plan.paymentWindowEndDay}`}
-                    </td>
-                    <td className="p-3">
+                    </TableCell>
+                    <TableCell>
                       <Badge variant={plan.isActive ? "default" : "secondary"}>
                         {plan.isActive ? "Activo" : "Inactivo"}
                       </Badge>
-                    </td>
-                    <td className="p-3">
+                    </TableCell>
+                    <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="ghost" title="Acciones">
-                            <MoreHorizontal className="h-4 w-4" />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="size-8 text-muted-foreground"
+                            title="Acciones"
+                          >
+                            <MoreHorizontal className="size-4" />
+                            <span className="sr-only">Acciones</span>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             onClick={() => handleEdit(plan._id, plan.name)}
                           >
-                            <Edit className="mr-2 h-4 w-4" />
+                            <Edit className="mr-2 size-4" />
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem
@@ -231,11 +287,28 @@ export default function PlanList() {
                             }
                           >
                             {plan.isActive ? (
-                              <ToggleRight className="mr-2 h-4 w-4" />
+                              <ToggleRight className="mr-2 size-4" />
                             ) : (
-                              <ToggleLeft className="mr-2 h-4 w-4" />
+                              <ToggleLeft className="mr-2 size-4" />
                             )}
                             {plan.isActive ? "Desactivar" : "Activar"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleToggleVisibility(
+                                plan._id,
+                                Boolean(plan.hiddenFromSelfAssignment),
+                              )
+                            }
+                          >
+                            {plan.hiddenFromSelfAssignment ? (
+                              <Eye className="mr-2 size-4" />
+                            ) : (
+                              <EyeOff className="mr-2 size-4" />
+                            )}
+                            {plan.hiddenFromSelfAssignment
+                              ? "Mostrar en la app"
+                              : "Ocultar en la app"}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -247,17 +320,17 @@ export default function PlanList() {
                               })
                             }
                           >
-                            <Trash2 className="mr-2 h-4 w-4" />
+                            <Trash2 className="mr-2 size-4" />
                             Eliminar
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableShell>
         )}
       </div>
 

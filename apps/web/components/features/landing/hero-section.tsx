@@ -734,16 +734,17 @@ fbq('track', 'PageView');`}
                     variant="outline"
                     size="sm"
                     onClick={() => setSignInOpen(true)}
-                    className={`hidden md:inline-flex ${compactSubtleButtonClassName} ${
-                      isScrolled ? 'text-xs' : ''
+                    className={`${compactSubtleButtonClassName} px-3 text-xs sm:px-4 ${
+                      isScrolled ? 'text-xs' : 'sm:text-sm'
                     }`}
                   >
-                    Iniciar sesión
+                    <span className="sm:hidden">Ingresar</span>
+                    <span className="hidden sm:inline">Iniciar sesión</span>
                   </Button>
                   <Button
                     size="sm"
                     onClick={() => setDialogMode('trial')}
-                    className={`${orangeButtonClassName} px-4 py-2 text-sm`}
+                    className={`${orangeButtonClassName} px-3 py-2 text-xs sm:px-4 sm:text-sm`}
                   >
                     Empezar gratis
                   </Button>
