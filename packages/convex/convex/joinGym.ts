@@ -14,6 +14,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
+  isStaffRole,
   requireAuth,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
@@ -269,8 +270,7 @@ export const listPendingJoinRequests = query({
   args: {},
   handler: async (ctx) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
-    const isStaff =
-      membership.role === "admin" || membership.role === "trainer";
+    const isStaff = isStaffRole(membership.role);
     if (!isStaff) return [];
 
     const requests = await ctx.db
@@ -430,10 +430,7 @@ export const approveJoinRequest = action({
         userId: identity.subject,
       },
     );
-    if (
-      !membership ||
-      (membership.role !== "admin" && membership.role !== "trainer")
-    ) {
+    if (!membership || !isStaffRole(membership.role)) {
       throw new Error("Access denied: admin or trainer required");
     }
 

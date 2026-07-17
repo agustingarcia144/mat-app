@@ -25,6 +25,7 @@ export type MemberTableRow = Member & {
   planBillingMode: 'calendar' | 'join_date'
   planDueDayLabel: string
   planPaymentStatus: 'pago' | 'pendiente' | 'vencido' | 'none'
+  responsibleName?: string | null
 }
 
 export function isBirthdayToday(birthday?: string): boolean {
@@ -252,6 +253,17 @@ export const getColumns = (
       cell: ({ row }) => (
         <PlanPaymentStatusBadge status={row.original.planPaymentStatus} />
       ),
+    },
+
+    {
+      id: 'responsible',
+      header: 'Responsable',
+      cell: ({ row }) =>
+        row.original.responsibleName ? (
+          <span className='text-sm'>{row.original.responsibleName}</span>
+        ) : (
+          <span className='text-sm text-muted-foreground'>—</span>
+        ),
     },
 
     {

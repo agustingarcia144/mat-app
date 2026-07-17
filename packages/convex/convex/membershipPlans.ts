@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
+  isStaffRole,
   requireAuth,
   requireAdmin,
   requireCurrentOrganizationMembership,
@@ -25,8 +26,7 @@ export const getByOrganization = query({
       )
       .collect();
 
-    const isAdmin =
-      membership.role === "admin" || membership.role === "trainer";
+    const isAdmin = isStaffRole(membership.role);
 
     const visiblePlans = plans.filter((p) => p.deletedAt === undefined);
 

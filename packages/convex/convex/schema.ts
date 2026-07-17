@@ -57,14 +57,29 @@ export default defineSchema({
     // Auth user id (not a users-table reference to keep flexibility)
     userId: v.string(),
     description: v.optional(v.string()),
+    // Internal role literal. "employee" is surfaced in the UI as "Empleado";
+    // the label lives only in label maps, never as a stored value.
     role: v.union(
       v.literal("admin"),
       v.literal("trainer"),
+      v.literal("employee"),
       v.literal("member"),
     ),
     status: v.union(v.literal("active"), v.literal("inactive")),
     // Whether the member should be included in planification tracking.
     usesPlanification: v.optional(v.boolean()),
+    // For members: Clerk user id of the staff member responsible for keeping
+    // this member's planification up to date.
+    responsibleUserId: v.optional(v.string()),
+    // For staff (admin/trainer/employee): payroll config.
+    // payrollType decides how the total is computed: "hourly" uses
+    // pricePerHour + pricePerClass; "monthly" uses a fixed pricePerMonth.
+    payrollType: v.optional(
+      v.union(v.literal("hourly"), v.literal("monthly")),
+    ),
+    pricePerHour: v.optional(v.number()),
+    pricePerClass: v.optional(v.number()),
+    pricePerMonth: v.optional(v.number()),
     joinedAt: v.number(),
     lastActiveAt: v.optional(v.number()),
     inactivatedAt: v.optional(v.number()),
@@ -75,7 +90,11 @@ export default defineSchema({
     .index("by_organization", ["organizationId"])
     .index("by_user", ["userId"])
     .index("by_organization_user", ["organizationId", "userId"])
-    .index("by_organization_role", ["organizationId", "role"]),
+    .index("by_organization_role", ["organizationId", "role"])
+    .index("by_organization_responsible", [
+      "organizationId",
+      "responsibleUserId",
+    ]),
 
   // Join requests (QR/deep link): user requested to join org; admin/trainer approves or rejects.
   organizationJoinRequests: defineTable({
@@ -115,7 +134,11 @@ export default defineSchema({
   organizationInvitations: defineTable({
     organizationId: v.id("organizations"),
     email: v.string(),
-    role: v.union(v.literal("admin"), v.literal("trainer")),
+    role: v.union(
+      v.literal("admin"),
+      v.literal("trainer"),
+      v.literal("employee"),
+    ),
     status: v.union(
       v.literal("pending"),
       v.literal("accepted"),
@@ -633,6 +656,9 @@ export default defineSchema({
       v.literal("cancelled"),
       v.literal("completed"),
     ),
+    // Staff (admin/trainer/employee) Clerk user id in charge of running this
+    // occurrence. Defaults from the class's trainerId at generation time.
+    inChargeUserId: v.optional(v.string()),
     notes: v.optional(v.string()),
     // Timestamps
     createdAt: v.number(),
@@ -722,6 +748,75 @@ export default defineSchema({
       "classId",
       "dayOfWeek",
       "startTimeMinutes",
+    ]),
+
+  // Staff shift model slots - recurring weekly template of when each staff
+  // member is in charge of the gym. Mirrors modelWeekSlots; applying the
+  // template to dated weeks generates staffShifts.
+  staffShiftModelSlots: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(), // Clerk user ID (staff)
+    dayOfWeek: v.number(), // 0-6, Sunday = 0 (same convention as modelWeekSlots)
+    startTimeMinutes: v.number(), // 0-1439
+    endTimeMinutes: v.number(), // 0-1440, must be > startTimeMinutes
+    notes: v.optional(v.string()),
+    createdBy: v.string(), // Clerk user ID
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_user", ["organizationId", "userId"]),
+
+  // Staff shifts - dated actual shifts (who is in charge of the gym and when).
+  // Used to track hours worked for payroll. Mirrors classSchedules.
+  staffShifts: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(), // Clerk user ID (staff)
+    startTime: v.number(), // Timestamp
+    endTime: v.number(), // Timestamp
+    status: v.union(v.literal("scheduled"), v.literal("cancelled")),
+    // When generated from a model slot, references it so re-applying can replace.
+    sourceModelSlotId: v.optional(v.id("staffShiftModelSlots")),
+    notes: v.optional(v.string()),
+    createdBy: v.string(), // Clerk user ID
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_time", ["organizationId", "startTime"])
+    .index("by_user", ["userId"])
+    .index("by_organization_user", ["organizationId", "userId"]),
+
+  // Staff payroll payments - records that a staff member's payroll for a given
+  // period (YYYY-MM) was paid, linked to the generated finance expense.
+  staffPayrollPayments: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(), // Clerk user ID (staff)
+    period: v.string(), // "YYYY-MM"
+    payrollType: v.union(v.literal("hourly"), v.literal("monthly")),
+    hours: v.number(),
+    classesInCharge: v.number(),
+    amountArs: v.number(),
+    occurredOn: v.optional(v.string()), // "YYYY-MM-DD" accounting date of the payment
+    paymentMethod: v.optional(
+      v.union(
+        v.literal("cash"),
+        v.literal("bank_transfer"),
+        v.literal("card"),
+        v.literal("other"),
+      ),
+    ),
+    transactionId: v.id("financeTransactions"),
+    paidBy: v.string(), // Clerk user ID of admin who marked as paid
+    paidAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization_period", ["organizationId", "period"])
+    .index("by_organization_user_period", [
+      "organizationId",
+      "userId",
+      "period",
     ]),
 
   // Push tokens - stores Expo push tokens per user/device

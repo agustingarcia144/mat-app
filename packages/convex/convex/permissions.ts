@@ -2,7 +2,18 @@ import { QueryCtx, MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
 type Ctx = QueryCtx | MutationCtx;
-type AppRole = "admin" | "trainer" | "member";
+type AppRole = "admin" | "trainer" | "employee" | "member";
+
+/**
+ * Staff roles: everyone with operational dashboard access. `employee` has the
+ * same operational access as `trainer` (but is not admin — money/settings
+ * mutations remain gated behind requireAdmin).
+ */
+const STAFF_ROLES: readonly AppRole[] = ["admin", "trainer", "employee"];
+
+export function isStaffRole(role: string | null | undefined): boolean {
+  return STAFF_ROLES.includes(role as AppRole);
+}
 type OrgMembershipLike = Pick<
   Doc<"organizationMemberships">,
   | "_creationTime"
@@ -214,7 +225,8 @@ export async function requireCurrentOrganizationMembership(
 }
 
 /**
- * Check if user is admin or trainer in the organization
+ * Check if user is staff (admin, trainer, or employee) in the organization.
+ * Employees share the same operational access as trainers.
  */
 export async function isAdminOrTrainer(
   ctx: Ctx,
@@ -226,7 +238,7 @@ export async function isAdminOrTrainer(
     return organization !== null;
   }
   const role = await getUserRole(ctx, organizationId);
-  return role === "admin" || role === "trainer";
+  return isStaffRole(role);
 }
 
 /**
@@ -253,8 +265,8 @@ export async function requireAdminOrTrainer(
   organizationId: Id<"organizations">,
 ) {
   const membership = await requireOrganizationMembership(ctx, organizationId);
-  if (membership.role !== "admin" && membership.role !== "trainer") {
-    throw new Error("Unauthorized: Admin or trainer role required");
+  if (!isStaffRole(membership.role)) {
+    throw new Error("Unauthorized: staff role required");
   }
 }
 

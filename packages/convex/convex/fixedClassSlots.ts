@@ -3,9 +3,9 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
   requireAuth,
+  isStaffRole,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
-  requireOrganizationMembership,
   tryActiveOrgContext,
 } from "./permissions";
 import { getMonthlyClassUsageForSchedule } from "./classQuota";
@@ -211,8 +211,7 @@ export const listByUser = query({
     }
 
     if (args.userId !== identity.subject) {
-      const canViewOthers =
-        membership.role === "admin" || membership.role === "trainer";
+      const canViewOthers = isStaffRole(membership.role);
       if (!canViewOthers) {
         // Avoid surfacing authorization errors in the UI; just hide others' data.
         return [];

@@ -122,6 +122,25 @@ export default function ClassesPage() {
     canQueryOrgData ? { activeOnly: false } : "skip",
   );
 
+  const memberships = useQuery(
+    api.organizationMemberships.getOrganizationMemberships,
+    canQueryOrgData ? {} : "skip",
+  );
+
+  const staffNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of memberships ?? []) {
+      map.set(
+        m.userId,
+        m.fullName ||
+          [m.firstName, m.lastName].filter(Boolean).join(" ") ||
+          m.email ||
+          m.userId,
+      );
+    }
+    return map;
+  }, [memberships]);
+
   // Get schedules for the current week
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -467,6 +486,7 @@ export default function ClassesPage() {
               currentDate={currentDate}
               onDateChange={setCurrentDate}
               onScheduleClick={handleScheduleClick}
+              staffNameById={staffNameById}
               showWeekNavigation={false}
               onEmptyCellClick={handleEmptyCellClick}
               onDayHeaderAction={handleDayHeaderAction}

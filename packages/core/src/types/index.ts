@@ -134,6 +134,11 @@ export type Member = {
   role: string;
   status: string;
   usesPlanification?: boolean;
+  responsibleUserId?: string;
+  payrollType?: "hourly" | "monthly";
+  pricePerHour?: number;
+  pricePerClass?: number;
+  pricePerMonth?: number;
   createdAt: Date | string | number;
   birthday?: string;
   phone?: string;
@@ -148,6 +153,11 @@ export type MembershipData = {
   role: string;
   status: string;
   usesPlanification?: boolean;
+  responsibleUserId?: string;
+  payrollType?: "hourly" | "monthly";
+  pricePerHour?: number;
+  pricePerClass?: number;
+  pricePerMonth?: number;
   createdAt: number;
   joinedAt: number;
   // User fields from users table

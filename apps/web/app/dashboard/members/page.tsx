@@ -117,9 +117,16 @@ export default function MembersPage() {
   const membersWithPlanData = useMemo<FilterableMemberTableRow[]>(() => {
     const latestSubscriptionByUser = new Map<string, any>()
     const membershipCreatedAtByUser = new Map<string, number>()
+    const nameByUserId = new Map<string, string>()
 
     for (const membership of memberships ?? []) {
       membershipCreatedAtByUser.set(membership.userId, membership.createdAt ?? 0)
+      const displayName =
+        membership.fullName ||
+        [membership.firstName, membership.lastName].filter(Boolean).join(' ') ||
+        membership.email ||
+        membership.userId
+      nameByUserId.set(membership.userId, displayName)
     }
 
     for (const subscription of subscriptions ?? []) {
@@ -181,6 +188,9 @@ export default function MembersPage() {
         planBillingMode,
         planDueDayLabel,
         planPaymentStatus,
+        responsibleName: member.responsibleUserId
+          ? (nameByUserId.get(member.responsibleUserId) ?? null)
+          : null,
         createdAtTimestamp: membershipCreatedAtByUser.get(member.id) ?? 0,
       }
     })

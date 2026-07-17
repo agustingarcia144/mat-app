@@ -72,6 +72,8 @@ export const create = mutation({
     startTime: v.number(),
     endTime: v.number(),
     capacity: v.optional(v.number()), // Override class capacity
+    // Staff member in charge of this occurrence; defaults from the class trainer.
+    inChargeUserId: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -99,6 +101,7 @@ export const create = mutation({
       capacity: args.capacity ?? classTemplate.capacity,
       currentReservations: 0,
       status: "scheduled",
+      inChargeUserId: args.inChargeUserId ?? classTemplate.trainerId,
       notes: args.notes,
       createdAt: now,
       updatedAt: now,
@@ -118,6 +121,8 @@ export const update = mutation({
     startTime: v.optional(v.number()),
     endTime: v.optional(v.number()),
     capacity: v.optional(v.number()),
+    // Pass a string to set the in-charge staff, or null to clear it.
+    inChargeUserId: v.optional(v.union(v.string(), v.null())),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -130,11 +135,21 @@ export const update = mutation({
 
     await requireAdminOrTrainer(ctx, schedule.organizationId);
 
-    const reservations = await getReservationsForSchedule(ctx, args.id);
-    if (!canEditOrDeleteSchedule(schedule, reservations)) {
-      throw new Error(
-        "No se puede editar un turno con reservas activas o asistencias.",
-      );
+    // Changing the time or capacity of a turno with active reservations /
+    // attendance is disallowed. Metadata-only edits (in-charge staff, notes)
+    // are always allowed, even when the turno has reservations.
+    const changesTimeOrCapacity =
+      args.startTime !== undefined ||
+      args.endTime !== undefined ||
+      args.capacity !== undefined;
+
+    if (changesTimeOrCapacity) {
+      const reservations = await getReservationsForSchedule(ctx, args.id);
+      if (!canEditOrDeleteSchedule(schedule, reservations)) {
+        throw new Error(
+          "No se puede editar un turno con reservas activas o asistencias.",
+        );
+      }
     }
 
     const nextStartTime = args.startTime ?? schedule.startTime;
@@ -153,12 +168,17 @@ export const update = mutation({
       );
     }
 
-    const { id, ...updates } = args;
+    const { id, inChargeUserId, ...updates } = args;
 
-    await ctx.db.patch(id, {
+    const patch: Record<string, unknown> = {
       ...updates,
       updatedAt: Date.now(),
-    });
+    };
+    if (inChargeUserId !== undefined) {
+      patch.inChargeUserId = inChargeUserId ?? undefined;
+    }
+
+    await ctx.db.patch(id, patch);
   },
 });
 

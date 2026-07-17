@@ -20,6 +20,10 @@ export function getOrgRoleLabel(role: string | null | undefined) {
     return "Entrenador";
   }
 
+  if (normalized.includes("employee") || normalized.includes("empleado")) {
+    return "Empleado";
+  }
+
   if (normalized.includes("member") || normalized.includes("miembro")) {
     return "Miembro";
   }
@@ -30,5 +34,9 @@ export function getOrgRoleLabel(role: string | null | undefined) {
 export function isOrgStaffRole(role: string | null | undefined) {
   if (!role) return false;
   const normalized = role.toLowerCase();
-  return normalized.includes("admin") || normalized.includes("trainer");
+  return (
+    normalized.includes("admin") ||
+    normalized.includes("trainer") ||
+    normalized.includes("employee")
+  );
 }

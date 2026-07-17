@@ -1,7 +1,7 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
-import { MoreHorizontal, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Trash2, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import RoleBadge from '@/components/shared/badges/role-badge'
@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import StaffCompensationDialog from '@/components/features/team/staff-compensation-dialog'
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,7 @@ function UserActionsCell({ member }: { member: Member }) {
   const { user: currentUser } = useUser()
   const removeMember = useMutation(api.organizationMemberships.removeMember)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [compOpen, setCompOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const isSelf = currentUser?.id === member.id
 
@@ -86,6 +88,10 @@ function UserActionsCell({ member }: { member: Member }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => setCompOpen(true)}>
+            <Wallet className="h-4 w-4" />
+            Editar precios
+          </DropdownMenuItem>
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
             disabled={isSelf}
@@ -96,6 +102,18 @@ function UserActionsCell({ member }: { member: Member }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <StaffCompensationDialog
+        open={compOpen}
+        onOpenChange={setCompOpen}
+        staff={{
+          userId: member.id,
+          name: member.name,
+          payrollType: member.payrollType,
+          pricePerHour: member.pricePerHour,
+          pricePerClass: member.pricePerClass,
+          pricePerMonth: member.pricePerMonth,
+        }}
+      />
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -144,6 +162,35 @@ export const getColumns = (): ColumnDef<Member>[] => [
     accessorKey: 'role',
     header: 'Rol',
     cell: ({ row }) => <RoleBadge role={row.original.role ?? ''} />,
+  },
+  {
+    id: 'prices',
+    header: 'Precios',
+    cell: ({ row }) => {
+      const { payrollType, pricePerHour, pricePerClass, pricePerMonth } =
+        row.original
+
+      if (payrollType === 'monthly') {
+        return pricePerMonth !== undefined ? (
+          <div className="text-sm text-muted-foreground">
+            ${pricePerMonth}/mes
+          </div>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )
+      }
+
+      if (pricePerHour === undefined && pricePerClass === undefined) {
+        return <span className="text-sm text-muted-foreground">—</span>
+      }
+      return (
+        <div className="text-sm text-muted-foreground">
+          {pricePerHour !== undefined && <span>${pricePerHour}/h</span>}
+          {pricePerHour !== undefined && pricePerClass !== undefined && ' · '}
+          {pricePerClass !== undefined && <span>${pricePerClass}/clase</span>}
+        </div>
+      )
+    },
   },
   {
     accessorKey: 'status',

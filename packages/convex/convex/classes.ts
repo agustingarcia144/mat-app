@@ -303,6 +303,7 @@ export const generateSchedules = mutation({
             capacity: classTemplate.capacity,
             currentReservations: 0,
             status: "scheduled",
+            inChargeUserId: classTemplate.trainerId,
             createdAt: now,
             updatedAt: now,
           },
@@ -371,6 +372,7 @@ export const generateSchedules = mutation({
               capacity: classTemplate.capacity,
               currentReservations: 0,
               status: "scheduled",
+              inChargeUserId: classTemplate.trainerId,
               createdAt: now,
               updatedAt: now,
             });
@@ -404,6 +406,7 @@ export const generateSchedules = mutation({
             capacity: classTemplate.capacity,
             currentReservations: 0,
             status: "scheduled",
+            inChargeUserId: classTemplate.trainerId,
             createdAt: now,
             updatedAt: now,
           });
@@ -551,6 +554,7 @@ export const generateSchedulesFromTimeWindow = mutation({
             capacity: classTemplate.capacity,
             currentReservations: 0,
             status: "scheduled",
+            inChargeUserId: classTemplate.trainerId,
             createdAt: now,
             updatedAt: now,
           });

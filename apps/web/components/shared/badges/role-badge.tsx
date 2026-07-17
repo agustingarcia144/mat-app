@@ -19,6 +19,9 @@ function RoleBadge({ role }: { role: string }) {
     ) {
       return "text-blue-400";
     }
+    if (normalized.includes("employee") || normalized.includes("empleado")) {
+      return "text-amber-500";
+    }
     return "text-zinc-400";
   };
 

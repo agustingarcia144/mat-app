@@ -1,4 +1,4 @@
-export const INVITABLE_STAFF_ROLES = ["admin", "trainer"] as const;
+export const INVITABLE_STAFF_ROLES = ["admin", "trainer", "employee"] as const;
 
 export type StaffInviteRole = (typeof INVITABLE_STAFF_ROLES)[number];
 export type StaffInvitation = {
@@ -14,6 +14,7 @@ export type StaffInvitation = {
 const STAFF_INVITE_ROLE_LABELS: Record<StaffInviteRole, string> = {
   admin: "Admin",
   trainer: "Entrenador",
+  employee: "Empleado",
 };
 
 export function isStaffInviteRole(value: unknown): value is StaffInviteRole {

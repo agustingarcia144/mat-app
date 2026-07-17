@@ -278,6 +278,7 @@ export const applyToDateRange = mutation({
       const classDoc = (await ctx.db.get(classId)) as {
         _id: Id<"classes">;
         capacity: number;
+        trainerId?: string;
         [key: string]: unknown;
       } | null;
       if (!classDoc) continue;
@@ -300,6 +301,7 @@ export const applyToDateRange = mutation({
             capacity: slot.capacity ?? classDoc.capacity,
             currentReservations: 0,
             status: "scheduled",
+            inChargeUserId: classDoc.trainerId,
             notes: slot.notes,
             createdAt: now,
             updatedAt: now,

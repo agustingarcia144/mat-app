@@ -1,10 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button, buttonVariants } from "@/components/ui/button";
+import StaffSelect, {
+  type StaffOption,
+} from "@/components/features/team/staff-select";
+import { isOrgStaffRole } from "@/lib/security/roles";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 import {
   Dialog,
   DialogContent,
@@ -292,8 +297,44 @@ export default function ScheduleDetailDialog({
   const markNoShow = useMutation(api.classReservations.markNoShow);
   const cancelSchedule = useMutation(api.classSchedules.cancel);
   const removeSchedule = useMutation(api.classSchedules.remove);
+  const updateSchedule = useMutation(api.classSchedules.update);
+
+  const canQueryOrgData = useCanQueryCurrentOrganization();
+  const memberships = useQuery(
+    api.organizationMemberships.getOrganizationMemberships,
+    open && canQueryOrgData ? {} : "skip",
+  );
+  const staffOptions = useMemo<StaffOption[]>(() => {
+    return (memberships ?? [])
+      .filter((m) => isOrgStaffRole(m.role))
+      .map((m) => ({
+        userId: m.userId,
+        fullName:
+          m.fullName ||
+          [m.firstName, m.lastName].filter(Boolean).join(" ") ||
+          m.email ||
+          m.userId,
+        email: m.email,
+        role: m.role,
+      }));
+  }, [memberships]);
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [inChargeSaving, setInChargeSaving] = useState(false);
+
+  const handleInChargeChange = async (nextUserId: string | null) => {
+    setInChargeSaving(true);
+    try {
+      await updateSchedule({ id: scheduleId, inChargeUserId: nextUserId });
+      toast.success("Responsable del turno actualizado");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Error al actualizar",
+      );
+    } finally {
+      setInChargeSaving(false);
+    }
+  };
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
   const [confirmAction, setConfirmAction] = useState<
@@ -516,6 +557,22 @@ export default function ScheduleDetailDialog({
                   </p>
                 </div>
               </div>
+
+              {/* In charge */}
+              {!isCancelled && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">A cargo</p>
+                  <StaffSelect
+                    staff={staffOptions}
+                    value={schedule.inChargeUserId ?? null}
+                    onChange={(next) => void handleInChargeChange(next)}
+                    placeholder="Sin asignar"
+                    noneLabel="Sin asignar"
+                    disabled={inChargeSaving}
+                    className="sm:max-w-xs"
+                  />
+                </div>
+              )}
 
               {/* Actions */}
               {!isCancelled && (
