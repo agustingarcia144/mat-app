@@ -498,6 +498,38 @@ export function getDayAndMinutesInZone(
 }
 
 /**
+ * Re-assign all of a member's fixed slots to the future schedules that already
+ * exist. Used when a subscription is reactivated after a payment so the member
+ * gets put back on the calendar automatically, without an admin having to press
+ * "Aplicar a turnos existentes".
+ *
+ * Relies on assignFixedSlotToMatchingSchedules, which re-checks the member's
+ * subscription status — so this must run AFTER the subscription is set to active.
+ */
+export async function reassignFixedSlotsForUser(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  userId: string,
+): Promise<void> {
+  const slots = await ctx.db
+    .query("fixedClassSlots")
+    .withIndex("by_organization_user", (q) =>
+      q.eq("organizationId", organizationId).eq("userId", userId),
+    )
+    .collect();
+
+  for (const slot of slots) {
+    await assignFixedSlotToMatchingSchedules(ctx, {
+      organizationId: slot.organizationId,
+      userId: slot.userId,
+      classId: slot.classId,
+      dayOfWeek: slot.dayOfWeek,
+      startTimeMinutes: slot.startTimeMinutes,
+    });
+  }
+}
+
+/**
  * List all fixed-slot members for a specific model week slot (classId + dayOfWeek + startTimeMinutes).
  * Used by the model week slot dialog to show and manage members for a single slot.
  */

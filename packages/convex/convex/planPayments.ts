@@ -1,7 +1,8 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { reassignFixedSlotsForUser } from "./fixedClassSlots";
 import {
   requireAuth,
   requireAdmin,
@@ -185,7 +186,7 @@ async function getPaymentCoverage(
 }
 
 async function setFamilySubscriptionsStatus(
-  ctx: { db: any },
+  ctx: MutationCtx,
   subscription: {
     _id: Id<"memberPlanSubscriptions">;
     organizationId: Id<"organizations">;
@@ -203,6 +204,16 @@ async function setFamilySubscriptionsStatus(
       suspendedAt: status === "active" ? undefined : now,
       updatedAt: now,
     });
+  }
+
+  // When reactivating after a payment, re-assign each member's fixed slots to the
+  // future schedules that already exist. While suspended, those schedules skipped
+  // the member (plan enforcement), so paying alone wouldn't put them back on the
+  // calendar — this restores their recurring bookings automatically.
+  if (status === "active") {
+    for (const item of coveredSubscriptions) {
+      await reassignFixedSlotsForUser(ctx, item.organizationId, item.userId);
+    }
   }
 }
 
