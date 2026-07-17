@@ -9,6 +9,7 @@ import {
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
+  isStaffRole,
   requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
 } from "./permissions";
@@ -93,8 +94,8 @@ export const getCurrentAdminOrTrainerMembershipInternal = internalQuery({
   args: {},
   handler: async (ctx) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
-    if (membership.role !== "admin" && membership.role !== "trainer") {
-      throw new Error("Unauthorized: Admin or trainer role required");
+    if (!isStaffRole(membership.role)) {
+      throw new Error("Unauthorized: staff role required");
     }
     return membership;
   },

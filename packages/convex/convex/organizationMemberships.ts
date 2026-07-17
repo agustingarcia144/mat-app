@@ -2,6 +2,8 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
   getCurrentUserRecord,
+  isStaffRole,
+  requireAdmin,
   requireAdminOrTrainer,
   requireAuth,
   requireCurrentOrganizationMembership,
@@ -82,9 +84,7 @@ export const getOrganizationMemberships = query({
   handler: async (ctx, args) => {
     const currentMembership = await requireCurrentOrganizationMembership(ctx);
     const currentOrganizationId = currentMembership.organizationId;
-    const isPrivilegedRole =
-      currentMembership.role === "admin" ||
-      currentMembership.role === "trainer";
+    const isPrivilegedRole = isStaffRole(currentMembership.role);
     if (!isPrivilegedRole) {
       // Members should not be able to list all organization users.
       return [];
@@ -131,6 +131,11 @@ export const getOrganizationMemberships = query({
           role: membership.role,
           status: membership.status,
           usesPlanification: membership.usesPlanification,
+          responsibleUserId: membership.responsibleUserId,
+          payrollType: membership.payrollType,
+          pricePerHour: membership.pricePerHour,
+          pricePerClass: membership.pricePerClass,
+          pricePerMonth: membership.pricePerMonth,
           createdAt: membership.createdAt,
           joinedAt: membership.joinedAt,
           updatedAt: membership.updatedAt,
@@ -273,9 +278,8 @@ export const getMyStaffOrganizations = query({
       .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
-    const staffMemberships = memberships.filter(
-      (membership) =>
-        membership.role === "admin" || membership.role === "trainer",
+    const staffMemberships = memberships.filter((membership) =>
+      isStaffRole(membership.role),
     );
 
     const orgs = await Promise.all(
@@ -570,6 +574,115 @@ export const setMemberUsesPlanification = mutation({
       usesPlanification: args.usesPlanification,
       updatedAt: Date.now(),
     });
+
+    return { updated: true };
+  },
+});
+
+/**
+ * Assign (or clear) the staff member responsible for a member's planification.
+ * Staff-level action. Pass responsibleUserId: null to clear.
+ */
+export const setMemberResponsible = mutation({
+  args: {
+    userId: v.string(),
+    responsibleUserId: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const currentMembership = await requireCurrentOrganizationMembership(ctx);
+    const organizationId = currentMembership.organizationId;
+    await requireAdminOrTrainer(ctx, organizationId);
+
+    const targetMembership = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization_user", (q) =>
+        q.eq("organizationId", organizationId).eq("userId", args.userId),
+      )
+      .first();
+
+    if (!targetMembership) {
+      throw new Error("User is not a member of the current organization");
+    }
+    if (targetMembership.role !== "member") {
+      throw new Error("Only members can have a responsible staff member");
+    }
+
+    if (args.responsibleUserId) {
+      const responsibleMembership = await ctx.db
+        .query("organizationMemberships")
+        .withIndex("by_organization_user", (q) =>
+          q
+            .eq("organizationId", organizationId)
+            .eq("userId", args.responsibleUserId!),
+        )
+        .first();
+
+      if (
+        !responsibleMembership ||
+        !isStaffRole(responsibleMembership.role) ||
+        responsibleMembership.status !== "active"
+      ) {
+        throw new Error("Responsible must be an active staff member");
+      }
+    }
+
+    await ctx.db.patch(targetMembership._id, {
+      responsibleUserId: args.responsibleUserId ?? undefined,
+      updatedAt: Date.now(),
+    });
+
+    return { updated: true };
+  },
+});
+
+/**
+ * Update payroll rates for a staff member (admin only).
+ * Pass a rate to set it, or null to clear it. Omit to leave unchanged.
+ */
+export const updateStaffCompensation = mutation({
+  args: {
+    userId: v.string(),
+    payrollType: v.optional(
+      v.union(v.literal("hourly"), v.literal("monthly")),
+    ),
+    pricePerHour: v.optional(v.union(v.number(), v.null())),
+    pricePerClass: v.optional(v.union(v.number(), v.null())),
+    pricePerMonth: v.optional(v.union(v.number(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const currentMembership = await requireCurrentOrganizationMembership(ctx);
+    const organizationId = currentMembership.organizationId;
+    await requireAdmin(ctx, organizationId);
+
+    const targetMembership = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization_user", (q) =>
+        q.eq("organizationId", organizationId).eq("userId", args.userId),
+      )
+      .first();
+
+    if (!targetMembership) {
+      throw new Error("User is not a member of the current organization");
+    }
+    if (!isStaffRole(targetMembership.role)) {
+      throw new Error("Only staff members have payroll rates");
+    }
+
+    const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    if (args.payrollType !== undefined) {
+      patch.payrollType = args.payrollType;
+    }
+    if (args.pricePerHour !== undefined) {
+      patch.pricePerHour = args.pricePerHour ?? undefined;
+    }
+    if (args.pricePerClass !== undefined) {
+      patch.pricePerClass = args.pricePerClass ?? undefined;
+    }
+    if (args.pricePerMonth !== undefined) {
+      patch.pricePerMonth = args.pricePerMonth ?? undefined;
+    }
+
+    await ctx.db.patch(targetMembership._id, patch);
 
     return { updated: true };
   },

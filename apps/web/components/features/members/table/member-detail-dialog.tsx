@@ -45,6 +45,10 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 import PlanCalendar from "@/components/ui/plancalendar";
+import StaffSelect, {
+  type StaffOption,
+} from "@/components/features/team/staff-select";
+import { isOrgStaffRole } from "@/lib/security/roles";
 
 const DAYS_OF_WEEK = [
   { value: 0, label: "Domingo" },
@@ -144,6 +148,15 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
     memberId: string;
     value: boolean;
   } | null>(null);
+  const [responsibleOverride, setResponsibleOverride] = useState<{
+    memberId: string;
+    value: string | null;
+  } | null>(null);
+
+  const memberships = useQuery(
+    api.organizationMemberships.getOrganizationMemberships,
+    member && open ? {} : "skip",
+  );
 
   const assignments = useQuery(
     api.planificationAssignments.getByUser,
@@ -164,6 +177,24 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
   const setMemberUsesPlanification = useMutation(
     api.organizationMemberships.setMemberUsesPlanification,
   );
+  const setMemberResponsible = useMutation(
+    api.organizationMemberships.setMemberResponsible,
+  );
+
+  const staffOptions = useMemo<StaffOption[]>(() => {
+    return (memberships ?? [])
+      .filter((m) => isOrgStaffRole(m.role))
+      .map((m) => ({
+        userId: m.userId,
+        fullName:
+          m.fullName ||
+          [m.firstName, m.lastName].filter(Boolean).join(" ") ||
+          m.email ||
+          m.userId,
+        email: m.email,
+        role: m.role,
+      }));
+  }, [memberships]);
 
   type AssignmentWithPlanification = Doc<"planificationAssignments"> & {
     planification?: { _id: Id<"planifications">; name?: string } | null;
@@ -223,6 +254,33 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
     usesPlanificationOverride?.memberId === member.id
       ? usesPlanificationOverride.value
       : (member.usesPlanification ?? true);
+
+  const responsibleUserId =
+    responsibleOverride?.memberId === member.id
+      ? responsibleOverride.value
+      : (member.responsibleUserId ?? null);
+
+  const handleResponsibleChange = async (nextResponsible: string | null) => {
+    if (!member) return;
+    const previous = responsibleUserId;
+    if (previous === nextResponsible) return;
+
+    setResponsibleOverride({ memberId: member.id, value: nextResponsible });
+    try {
+      await setMemberResponsible({
+        userId: member.id,
+        responsibleUserId: nextResponsible,
+      });
+      toast.success(
+        nextResponsible ? "Responsable asignado" : "Responsable quitado",
+      );
+    } catch (e: unknown) {
+      setResponsibleOverride({ memberId: member.id, value: previous });
+      toast.error(
+        e instanceof Error ? e.message : "Error al asignar responsable",
+      );
+    }
+  };
 
   const initials =
     member.fullName
@@ -470,6 +528,21 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                   </Button>
                 </div>
               </div>
+            </div>
+
+            {/* RESPONSABLE */}
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Responsable</p>
+              <StaffSelect
+                staff={staffOptions}
+                value={responsibleUserId}
+                onChange={(next) => void handleResponsibleChange(next)}
+                placeholder="Asignar responsable…"
+                noneLabel="Sin responsable"
+              />
+              <p className="text-xs text-muted-foreground">
+                Encargado de mantener la planificación al día.
+              </p>
             </div>
 
             {/* TURNOS */}

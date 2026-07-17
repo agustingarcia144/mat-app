@@ -33,6 +33,8 @@ interface WeeklyTimelineProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
   onScheduleClick: (scheduleId: Id<"classSchedules">) => void;
+  /** Optional map of staff Clerk user id → display name, to label who's in charge. */
+  staffNameById?: Map<string, string>;
   /** When false, week navigation is rendered by the parent (e.g. classes page). Default true. */
   showWeekNavigation?: boolean;
   /** Called when an empty cell is clicked – opens a quick-create dialog. */
@@ -60,6 +62,7 @@ export default function WeeklyTimeline({
   currentDate,
   onDateChange,
   onScheduleClick,
+  staffNameById,
   showWeekNavigation = true,
   onEmptyCellClick,
   onDayHeaderAction,
@@ -360,6 +363,13 @@ export default function WeeklyTimeline({
                                   <p className="text-xs text-muted-foreground">
                                     {format(startTime, "HH:mm")} -{" "}
                                     {format(endTime, "HH:mm")}
+                                    {schedule.inChargeUserId &&
+                                      staffNameById?.get(
+                                        schedule.inChargeUserId,
+                                      ) &&
+                                      ` · ${staffNameById.get(
+                                        schedule.inChargeUserId,
+                                      )}`}
                                   </p>
                                 </div>
                               </div>
@@ -539,6 +549,12 @@ export default function WeeklyTimeline({
                                 {format(startTime, "HH:mm")} -{" "}
                                 {format(endTime, "HH:mm")}
                               </div>
+                              {schedule.inChargeUserId &&
+                                staffNameById?.get(schedule.inChargeUserId) && (
+                                  <div className="truncate text-[10px] opacity-90">
+                                    {staffNameById.get(schedule.inChargeUserId)}
+                                  </div>
+                                )}
                               <div className="mt-1 flex items-center justify-between gap-2 text-[10px] opacity-90">
                                 <span>
                                   {schedule.currentReservations}/

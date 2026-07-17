@@ -14,7 +14,7 @@ import {
   requireCurrentOrganizationMembership,
 } from "./permissions";
 
-type StaffInviteRole = "admin" | "trainer";
+type StaffInviteRole = "admin" | "trainer" | "employee";
 
 function slugifyOrganizationName(name: string): string {
   const withoutAccents = name
@@ -46,7 +46,7 @@ async function ensureUniqueOrganizationSlug(
 }
 
 function normalizeRole(value: string): StaffInviteRole | null {
-  if (value === "admin" || value === "trainer") {
+  if (value === "admin" || value === "trainer" || value === "employee") {
     return value;
   }
   return null;
@@ -59,7 +59,9 @@ type InvitationValidationReason =
   | "accepted";
 
 function getInvitationRoleLabel(role: StaffInviteRole) {
-  return role === "admin" ? "Admin" : "Entrenador";
+  if (role === "admin") return "Admin";
+  if (role === "employee") return "Empleado";
+  return "Entrenador";
 }
 
 async function resolveLogoUrl(
@@ -306,7 +308,7 @@ export const listPendingInvitations = query({
         id: invitation._id,
         email: invitation.email,
         role: invitation.role,
-        roleLabel: invitation.role === "admin" ? "Admin" : "Entrenador",
+        roleLabel: getInvitationRoleLabel(invitation.role),
         status: invitation.status,
         createdAt: invitation.createdAt,
         updatedAt: invitation.updatedAt,
@@ -568,7 +570,7 @@ export const createInvitation = mutation({
         id: invitationId,
         email: normalizedEmail,
         role,
-        roleLabel: role === "admin" ? "Admin" : "Entrenador",
+        roleLabel: getInvitationRoleLabel(role),
         status: "pending",
         createdAt: now,
         updatedAt: now,

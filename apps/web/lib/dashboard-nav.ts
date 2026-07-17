@@ -84,7 +84,7 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
     billingModule: "metrics",
   },
   {
-    label: "Usuarios",
+    label: "Mi Equipo",
     icon: UserCog,
     url: "/users",
     billingModule: "users",

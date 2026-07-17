@@ -34,6 +34,7 @@ export type ClassScheduleInsert = {
   capacity: number;
   currentReservations: number;
   status: "scheduled";
+  inChargeUserId?: string;
   notes?: string;
   createdAt: number;
   updatedAt: number;

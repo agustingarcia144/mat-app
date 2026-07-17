@@ -319,6 +319,7 @@ function buildShiftedSchedules(
       capacity: args.capacity ?? schedule.capacity,
       currentReservations: 0,
       status: "scheduled",
+      inChargeUserId: schedule.inChargeUserId,
       notes: args.notes ?? schedule.notes,
       createdAt: now,
       updatedAt: now,

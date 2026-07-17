@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useState, useEffect, useMemo } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { type Id, type Doc } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
+import StaffSelect, {
+  type StaffOption,
+} from "@/components/features/team/staff-select";
+import { isOrgStaffRole } from "@/lib/security/roles";
+import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +50,26 @@ export default function QuickCreateScheduleDialog({
   classes,
 }: QuickCreateScheduleDialogProps) {
   const createSchedule = useMutation(api.classSchedules.create);
+  const canQueryOrgData = useCanQueryCurrentOrganization();
+  const memberships = useQuery(
+    api.organizationMemberships.getOrganizationMemberships,
+    open && canQueryOrgData ? {} : "skip",
+  );
+
+  const staffOptions = useMemo<StaffOption[]>(() => {
+    return (memberships ?? [])
+      .filter((m) => isOrgStaffRole(m.role))
+      .map((m) => ({
+        userId: m.userId,
+        fullName:
+          m.fullName ||
+          [m.firstName, m.lastName].filter(Boolean).join(" ") ||
+          m.email ||
+          m.userId,
+        email: m.email,
+        role: m.role,
+      }));
+  }, [memberships]);
 
   const [classId, setClassId] = useState("");
   const [hour, setHour] = useState(initialHour);
@@ -52,6 +77,7 @@ export default function QuickCreateScheduleDialog({
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [capacity, setCapacity] = useState<string>("");
   const [notes, setNotes] = useState("");
+  const [inChargeUserId, setInChargeUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Reset form when dialog opens
@@ -63,9 +89,15 @@ export default function QuickCreateScheduleDialog({
     setDurationMinutes(60);
     setCapacity("");
     setNotes("");
+    setInChargeUserId(null);
   }, [open, initialHour]);
 
   const selectedClass = classes.find((c) => c._id === classId);
+
+  // Default the in-charge staff from the selected class's trainer.
+  useEffect(() => {
+    setInChargeUserId(selectedClass?.trainerId ?? null);
+  }, [selectedClass?.trainerId]);
 
   const handleSubmit = async () => {
     if (!classId) {
@@ -98,6 +130,7 @@ export default function QuickCreateScheduleDialog({
         startTime,
         endTime,
         capacity: capacityValue,
+        inChargeUserId: inChargeUserId ?? undefined,
         notes: notes || undefined,
       });
       toast.success("Turno creado");
@@ -213,6 +246,21 @@ export default function QuickCreateScheduleDialog({
               {selectedClass
                 ? `Capacidad por defecto de "${selectedClass.name}": ${selectedClass.capacity}`
                 : "Se usará la capacidad de la clase seleccionada."}
+            </FieldDescription>
+          </Field>
+
+          {/* In charge */}
+          <Field>
+            <FieldLabel>A cargo (opcional)</FieldLabel>
+            <StaffSelect
+              staff={staffOptions}
+              value={inChargeUserId}
+              onChange={setInChargeUserId}
+              placeholder="Sin asignar"
+              noneLabel="Sin asignar"
+            />
+            <FieldDescription>
+              Personal responsable de este turno.
             </FieldDescription>
           </Field>
 

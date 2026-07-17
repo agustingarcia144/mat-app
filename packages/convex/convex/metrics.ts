@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import {
+  isStaffRole,
   requireAdmin,
   requireCurrentOrganizationMembership,
 } from "./permissions";
@@ -148,8 +149,8 @@ export const listExerciseMetricMembers = query({
   },
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
-    if (membership.role !== "admin" && membership.role !== "trainer") {
-      throw new Error("Unauthorized: Admin or trainer role required");
+    if (!isStaffRole(membership.role)) {
+      throw new Error("Unauthorized: staff role required");
     }
 
     const organizationId = membership.organizationId;
@@ -323,8 +324,8 @@ export const getExerciseMetricsByMember = query({
   },
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
-    if (membership.role !== "admin" && membership.role !== "trainer") {
-      throw new Error("Unauthorized: Admin or trainer role required");
+    if (!isStaffRole(membership.role)) {
+      throw new Error("Unauthorized: staff role required");
     }
 
     const organizationId = membership.organizationId;
@@ -660,8 +661,8 @@ export const getExerciseMetricsByMembers = query({
   args: {},
   handler: async (ctx) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
-    if (membership.role !== "admin" && membership.role !== "trainer") {
-      throw new Error("Unauthorized: Admin or trainer role required");
+    if (!isStaffRole(membership.role)) {
+      throw new Error("Unauthorized: staff role required");
     }
 
     const organizationId = membership.organizationId;
