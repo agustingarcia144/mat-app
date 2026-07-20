@@ -15,6 +15,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Empty,
   EmptyDescription,
@@ -24,7 +26,7 @@ import {
 } from "@/components/ui/empty";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar, UserMinus } from "lucide-react";
+import { Calendar, CalendarClock, UserMinus } from "lucide-react";
 import matWolfLooking from "@/assets/mat-wolf-looking.png";
 import { toast } from "sonner";
 import StatusBadge from "../../../shared/badges/status-badge";
@@ -43,8 +45,13 @@ export default function AssignedMembersDialog({
   planificationName,
 }: AssignedMembersDialogProps) {
   const unassign = useMutation(api.planificationAssignments.unassign);
+  const extend = useMutation(api.planificationAssignments.extend);
   const [unassigningId, setUnassigningId] =
     useState<Id<"planificationAssignments"> | null>(null);
+  const [extendId, setExtendId] =
+    useState<Id<"planificationAssignments"> | null>(null);
+  const [extendEndDate, setExtendEndDate] = useState("");
+  const [extending, setExtending] = useState(false);
 
   const handleUnassign = async (
     assignmentId: Id<"planificationAssignments">,
@@ -58,6 +65,44 @@ export default function AssignedMembersDialog({
       toast.error("Error al desasignar");
     } finally {
       setUnassigningId(null);
+    }
+  };
+
+  const toDateInputValue = (date: Date) => format(date, "yyyy-MM-dd");
+
+  const handleOpenExtend = (assignment: {
+    _id: Id<"planificationAssignments">;
+    endDate?: number | null;
+  }) => {
+    // Suggest 30 days past the current end (or from today if it has none yet).
+    const base = assignment.endDate ? new Date(assignment.endDate) : new Date();
+    const suggestedEnd = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+    setExtendId(assignment._id);
+    setExtendEndDate(toDateInputValue(suggestedEnd));
+  };
+
+  const handleExtend = async () => {
+    if (!extendId) return;
+    if (!extendEndDate) {
+      toast.error("Seleccioná una fecha de fin");
+      return;
+    }
+    setExtending(true);
+    try {
+      await extend({
+        id: extendId,
+        endDate: new Date(`${extendEndDate}T00:00:00`).getTime(),
+      });
+      toast.success("Planificación extendida");
+      setExtendId(null);
+      setExtendEndDate("");
+    } catch (error) {
+      console.error("Failed to extend:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Error al extender",
+      );
+    } finally {
+      setExtending(false);
     }
   };
 
@@ -167,18 +212,29 @@ export default function AssignedMembersDialog({
                         </p>
                       )}
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleUnassign(assignment._id)}
-                      disabled={unassigningId === assignment._id}
-                    >
-                      <UserMinus className="h-4 w-4 mr-1.5" />
-                      {unassigningId === assignment._id
-                        ? "Desasignando..."
-                        : "Desasignar"}
-                    </Button>
+                    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenExtend(assignment)}
+                        disabled={assignment.status === "cancelled"}
+                      >
+                        <CalendarClock className="h-4 w-4 mr-1.5" />
+                        Extender
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => handleUnassign(assignment._id)}
+                        disabled={unassigningId === assignment._id}
+                      >
+                        <UserMinus className="h-4 w-4 mr-1.5" />
+                        {unassigningId === assignment._id
+                          ? "Desasignando..."
+                          : "Desasignar"}
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
@@ -186,6 +242,49 @@ export default function AssignedMembersDialog({
           )}
         </div>
       </DialogContent>
+
+      <Dialog
+        open={extendId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setExtendId(null);
+            setExtendEndDate("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Extender planificación</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Nueva fecha de fin</Label>
+              <Input
+                type="date"
+                value={extendEndDate}
+                onChange={(e) => setExtendEndDate(e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setExtendId(null);
+                  setExtendEndDate("");
+                }}
+                disabled={extending}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleExtend} disabled={extending}>
+                {extending ? "Extendiendo..." : "Extender"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

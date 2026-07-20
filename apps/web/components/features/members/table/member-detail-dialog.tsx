@@ -26,9 +26,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  Users,
   Plus,
   Trash2,
+  CalendarDays,
+  CalendarClock,
+  List,
+  CalendarPlus,
+  Wallet,
+  CreditCard,
+  RefreshCw,
+  UserMinus,
 } from "lucide-react";
 
 import { useRouter } from "next/navigation";
@@ -42,6 +49,7 @@ import {
 } from "@/components/ui/select";
 
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 import PlanCalendar from "@/components/ui/plancalendar";
@@ -132,10 +140,90 @@ function getPlanStatus(assignment: {
   };
 }
 
+function formatArs(amount: number) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function billingPeriodLabel(period: string) {
+  const [year, month] = period.split("-").map(Number);
+  if (!year || !month) return period;
+  return format(new Date(year, month - 1, 1), "MMMM yyyy", { locale: es });
+}
+
+function getCuotaBadge(
+  currentPeriod: { status: string; dueAt?: number | null },
+  memberStatus: string,
+) {
+  if (memberStatus === "suspended") {
+    return {
+      label: "Suspendida",
+      className: "bg-red-500/20 text-red-400 border border-red-500/40",
+    };
+  }
+  if (currentPeriod.status === "approved") {
+    return {
+      label: "Al día",
+      className: "bg-green-500/20 text-green-400 border border-green-500/40",
+    };
+  }
+  if (currentPeriod.status === "in_review") {
+    return {
+      label: "En revisión",
+      className: "bg-blue-500/20 text-blue-400 border border-blue-500/40",
+    };
+  }
+  const overdue =
+    typeof currentPeriod.dueAt === "number" && Date.now() > currentPeriod.dueAt;
+  return overdue
+    ? {
+        label: "Vencida",
+        className: "bg-red-500/20 text-red-400 border border-red-500/40",
+      }
+    : {
+        label: "Pendiente",
+        className:
+          "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40",
+      };
+}
+
+const UNLIMITED_WEEKLY_CLASS_LIMIT = 9999;
+
 export default function MemberDetailDialog({ member, open, onClose }: Props) {
   const router = useRouter();
 
   const [addFixedSlotOpen, setAddFixedSlotOpen] = useState(false);
+  const [planViewMode, setPlanViewMode] = useState<"calendar" | "summary">(
+    "calendar",
+  );
+  const [assignPlanOpen, setAssignPlanOpen] = useState(false);
+  const [assignPlanId, setAssignPlanId] = useState<Id<"planifications"> | "">(
+    "",
+  );
+  const [assignStartDate, setAssignStartDate] = useState("");
+  const [assignEndDate, setAssignEndDate] = useState("");
+  const [extendOpen, setExtendOpen] = useState(false);
+  const [extendEndDate, setExtendEndDate] = useState("");
+  const [extendAssignmentId, setExtendAssignmentId] =
+    useState<Id<"planificationAssignments"> | "">("");
+
+  // Membership / cuota
+  const [recordPaymentOpen, setRecordPaymentOpen] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "bank_transfer">(
+    "cash",
+  );
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [membershipPlanOpen, setMembershipPlanOpen] = useState(false);
+  const [membershipPlanMode, setMembershipPlanMode] = useState<
+    "assign" | "change"
+  >("assign");
+  const [selectedMembershipPlanId, setSelectedMembershipPlanId] = useState<
+    Id<"membershipPlans"> | ""
+  >("");
+  const [membershipBusy, setMembershipBusy] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState({
     memberId: "",
     index: 0,
@@ -172,6 +260,89 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
     activeOnly: false,
   });
 
+  const planifications = useQuery(
+    api.planifications.getByOrganization,
+    member && open ? {} : "skip",
+  );
+
+  // Membership + cuota are derived from already-deployed org-wide queries so the
+  // screen works without pushing a dedicated backend function.
+  const orgSubscriptions = useQuery(
+    api.memberPlanSubscriptions.getByOrganization,
+    member && open ? {} : "skip",
+  );
+
+  const orgPayments = useQuery(
+    api.planPayments.getByOrganization,
+    member && open ? {} : "skip",
+  );
+
+  const financeSummary = useMemo(() => {
+    if (!member) return undefined;
+    if (orgSubscriptions === undefined) return undefined;
+
+    const sub = orgSubscriptions.find(
+      (s) => s.userId === member.id && s.status !== "cancelled",
+    );
+    if (!sub || !sub.plan) return null;
+
+    const billingSubscriptionId = sub.billingSubscriptionId ?? sub._id;
+    const now = new Date();
+    const billingPeriod = `${now.getFullYear()}-${String(
+      now.getMonth() + 1,
+    ).padStart(2, "0")}`;
+
+    const currentPayment = (orgPayments ?? [])
+      .filter(
+        (p) =>
+          p.subscriptionId === billingSubscriptionId &&
+          p.billingPeriod === billingPeriod,
+      )
+      .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
+
+    const coveredMemberCount = sub.coveredMemberCount ?? 1;
+
+    return {
+      subscriptionId: billingSubscriptionId,
+      memberStatus: sub.status,
+      activatedAt: sub.activatedAt,
+      isFamilyChild: Boolean(sub.familyParentSubscriptionId),
+      coveredMemberCount,
+      plan: {
+        _id: sub.planId,
+        name: sub.plan.name,
+        weeklyClassLimit: sub.plan.weeklyClassLimit,
+      },
+      currentPeriod: {
+        billingPeriod,
+        dueAt: currentPayment?.dueAt ?? null,
+        status: currentPayment?.status ?? "none",
+        payableAmountArs:
+          sub.payableAmountArs ?? sub.plan.priceArs * coveredMemberCount,
+      },
+    };
+  }, [member, orgSubscriptions, orgPayments]);
+
+  const membershipPlans = useQuery(
+    api.membershipPlans.getByOrganization,
+    member && open ? { activeOnly: true } : "skip",
+  );
+
+  const assignablePlanifications = useMemo(
+    () =>
+      ((planifications ?? []) as Doc<"planifications">[]).filter(
+        (p) => !p.isTemplate,
+      ),
+    [planifications],
+  );
+
+  const assignPlanification = useMutation(api.planificationAssignments.assign);
+  const extendPlanification = useMutation(api.planificationAssignments.extend);
+  const recordPayment = useMutation(api.planPayments.recordPayment);
+  const assignPlanToMember = useMutation(
+    api.memberPlanSubscriptions.assignToMember,
+  );
+  const cancelSubscription = useMutation(api.memberPlanSubscriptions.cancel);
   const createFixedSlot = useMutation(api.fixedClassSlots.create);
   const removeFixedSlot = useMutation(api.fixedClassSlots.remove);
   const setMemberUsesPlanification = useMutation(
@@ -248,6 +419,23 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
       : defaultAssignmentIndex;
   const assignment = visibleAssignments[selectedAssignmentIndex] ?? null;
 
+  // "Extender" always acts on the member's current plan, regardless of which
+  // block is being viewed: the active/expiring one, or — if none is active —
+  // the most recently expired one (extending it brings it back to active).
+  const currentPlanAssignment =
+    visibleAssignments.find((a) => {
+      const status = getPlanStatus(a)?.status;
+      return status === "active" || status === "expiring_soon";
+    }) ??
+    visibleAssignments
+      .filter((a) => getPlanStatus(a)?.status === "expired")
+      .sort(
+        (a, b) =>
+          (safeDate(b.endDate)?.getTime() ?? 0) -
+          (safeDate(a.endDate)?.getTime() ?? 0),
+      )[0] ??
+    null;
+
   if (!member) return null;
 
   const usesPlanification =
@@ -297,8 +485,177 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
     router.push(`/dashboard/planifications/${assignment.planification._id}`);
   };
 
-  const handleAssign = () => {
-    router.push("/dashboard/planifications");
+  const toDateInputValue = (date: Date) => format(date, "yyyy-MM-dd");
+
+  const handleOpenAssignPlan = () => {
+    // Suggest the day after the current plan ends, so a new block picks up
+    // where the active one leaves off.
+    const suggestedStart = activeEndDate
+      ? new Date(activeEndDate.getTime() + 24 * 60 * 60 * 1000)
+      : new Date();
+    setAssignStartDate(toDateInputValue(suggestedStart));
+    setAssignEndDate("");
+    setAssignPlanId("");
+    setAssignPlanOpen(true);
+  };
+
+  const handleAssignPlanification = async () => {
+    if (!assignPlanId) {
+      toast.error("Seleccioná una planificación");
+      return;
+    }
+
+    try {
+      await assignPlanification({
+        planificationId: assignPlanId as Id<"planifications">,
+        userId: member.id,
+        startDate: assignStartDate
+          ? new Date(`${assignStartDate}T00:00:00`).getTime()
+          : undefined,
+        endDate: assignEndDate
+          ? new Date(`${assignEndDate}T00:00:00`).getTime()
+          : undefined,
+      });
+
+      toast.success("Planificación asignada");
+      setAssignPlanOpen(false);
+      setAssignPlanId("");
+      setAssignStartDate("");
+      setAssignEndDate("");
+    } catch (e: unknown) {
+      toast.error(
+        e instanceof Error ? e.message : "Error al asignar planificación",
+      );
+    }
+  };
+
+  const handleOpenExtendPlan = () => {
+    if (!currentPlanAssignment) return;
+    // Pre-fill 30 days past the current end (or from today if it has no end yet).
+    const currentEnd = safeDate(currentPlanAssignment.endDate);
+    const base = currentEnd ?? new Date();
+    const suggestedEnd = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+    setExtendAssignmentId(currentPlanAssignment._id);
+    setExtendEndDate(toDateInputValue(suggestedEnd));
+    setExtendOpen(true);
+  };
+
+  const handleExtendPlanification = async () => {
+    if (!extendAssignmentId) return;
+    if (!extendEndDate) {
+      toast.error("Seleccioná una fecha de fin");
+      return;
+    }
+
+    try {
+      await extendPlanification({
+        id: extendAssignmentId,
+        endDate: new Date(`${extendEndDate}T00:00:00`).getTime(),
+      });
+
+      toast.success("Planificación extendida");
+      setExtendOpen(false);
+      setExtendAssignmentId("");
+      setExtendEndDate("");
+    } catch (e: unknown) {
+      toast.error(
+        e instanceof Error ? e.message : "Error al extender la planificación",
+      );
+    }
+  };
+
+  const handleOpenRecordPayment = () => {
+    if (!financeSummary) return;
+    setPaymentMethod("cash");
+    setPaymentAmount(String(financeSummary.currentPeriod.payableAmountArs));
+    setRecordPaymentOpen(true);
+  };
+
+  const handleRecordPayment = async () => {
+    if (!financeSummary) return;
+    const amount = Number(paymentAmount);
+    if (!Number.isFinite(amount) || amount < 0) {
+      toast.error("Ingresá un monto válido");
+      return;
+    }
+    setMembershipBusy(true);
+    try {
+      await recordPayment({
+        subscriptionId: financeSummary.subscriptionId,
+        billingPeriod: financeSummary.currentPeriod.billingPeriod,
+        paymentMethod,
+        amountArs: amount,
+      });
+      toast.success("Pago registrado");
+      setRecordPaymentOpen(false);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Error al registrar el pago");
+    } finally {
+      setMembershipBusy(false);
+    }
+  };
+
+  const handleOpenMembershipPlan = (mode: "assign" | "change") => {
+    setMembershipPlanMode(mode);
+    setSelectedMembershipPlanId(
+      mode === "change" ? (financeSummary?.plan._id ?? "") : "",
+    );
+    setMembershipPlanOpen(true);
+  };
+
+  const handleSaveMembershipPlan = async () => {
+    if (!selectedMembershipPlanId) {
+      toast.error("Seleccioná un plan");
+      return;
+    }
+    setMembershipBusy(true);
+    try {
+      // Changing plans = cancel the current subscription, then assign the new
+      // one (mirrors how the member-facing changePlan flow works).
+      if (membershipPlanMode === "change" && financeSummary) {
+        if (selectedMembershipPlanId === financeSummary.plan._id) {
+          toast.error("El miembro ya tiene ese plan");
+          setMembershipBusy(false);
+          return;
+        }
+        await cancelSubscription({
+          subscriptionId: financeSummary.subscriptionId,
+        });
+      }
+      await assignPlanToMember({
+        userId: member.id,
+        planId: selectedMembershipPlanId as Id<"membershipPlans">,
+      });
+      toast.success(
+        membershipPlanMode === "change" ? "Plan cambiado" : "Plan asignado",
+      );
+      setMembershipPlanOpen(false);
+      setSelectedMembershipPlanId("");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Error al actualizar el plan");
+    } finally {
+      setMembershipBusy(false);
+    }
+  };
+
+  const handleRemovePlan = async () => {
+    if (!financeSummary) return;
+    if (
+      !window.confirm(
+        "¿Quitar el plan de membresía de este miembro? Se cancelará su suscripción.",
+      )
+    ) {
+      return;
+    }
+    setMembershipBusy(true);
+    try {
+      await cancelSubscription({ subscriptionId: financeSummary.subscriptionId });
+      toast.success("Plan quitado");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Error al quitar el plan");
+    } finally {
+      setMembershipBusy(false);
+    }
   };
 
   const goToPreviousAssignment = () => {
@@ -423,6 +780,9 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
     : null;
   const selectedStartDate = assignment ? safeDate(assignment.startDate) : null;
   const selectedEndDate = assignment ? safeDate(assignment.endDate) : null;
+  const activeEndDate = activeAssignment
+    ? safeDate(activeAssignment.endDate)
+    : null;
   const hasCurrentActiveAssignment =
     activeAssignment != null && activePlanStatus?.status !== "expired";
   const showAssignButton =
@@ -436,7 +796,157 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
           <DialogTitle>Detalle del miembro</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
+        {/* MEMBERSHIP & CUOTA */}
+        <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3 sm:p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">Membresía y cuota</span>
+            </div>
+            {financeSummary && (
+              <span className="truncate text-xs text-muted-foreground">
+                Plan · {financeSummary.plan.name}
+              </span>
+            )}
+          </div>
+
+          {financeSummary === undefined ? (
+            <p className="text-sm text-muted-foreground">Cargando…</p>
+          ) : financeSummary === null ? (
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Este miembro no tiene un plan de membresía asignado.
+              </p>
+              <Button
+                size="sm"
+                onClick={() => handleOpenMembershipPlan("assign")}
+                disabled={membershipBusy}
+              >
+                <CreditCard className="mr-1 h-4 w-4" />
+                Asignar plan
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="rounded-lg bg-background/60 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Cuota{" "}
+                    {billingPeriodLabel(
+                      financeSummary.currentPeriod.billingPeriod,
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-lg font-semibold">
+                    {formatArs(financeSummary.currentPeriod.payableAmountArs)}
+                  </p>
+                  {(() => {
+                    const cuota = getCuotaBadge(
+                      financeSummary.currentPeriod,
+                      financeSummary.memberStatus,
+                    );
+                    return (
+                      <span
+                        className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] ${cuota.className}`}
+                      >
+                        {cuota.label}
+                        {financeSummary.currentPeriod.dueAt
+                          ? ` · vence ${format(
+                              new Date(financeSummary.currentPeriod.dueAt),
+                              "d MMM",
+                              { locale: es },
+                            )}`
+                          : ""}
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                <div className="rounded-lg bg-background/60 p-3">
+                  <p className="text-xs text-muted-foreground">Suscripción</p>
+                  <p
+                    className={`mt-0.5 text-lg font-semibold ${
+                      financeSummary.memberStatus === "active"
+                        ? "text-green-500"
+                        : "text-red-500"
+                    }`}
+                  >
+                    {financeSummary.memberStatus === "active"
+                      ? "Activa"
+                      : "Suspendida"}
+                  </p>
+                  <span className="mt-1 inline-block text-[11px] text-muted-foreground">
+                    Desde{" "}
+                    {format(
+                      new Date(financeSummary.activatedAt),
+                      "d MMM yyyy",
+                      { locale: es },
+                    )}
+                  </span>
+                </div>
+
+                <div className="rounded-lg bg-background/60 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Clases del plan
+                  </p>
+                  <p className="mt-0.5 text-lg font-semibold">
+                    {financeSummary.plan.weeklyClassLimit >=
+                    UNLIMITED_WEEKLY_CLASS_LIMIT
+                      ? "Ilimitadas"
+                      : `${financeSummary.plan.weeklyClassLimit} / semana`}
+                  </p>
+                  {financeSummary.coveredMemberCount > 1 && (
+                    <span className="mt-1 inline-block text-[11px] text-muted-foreground">
+                      Grupo familiar · {financeSummary.coveredMemberCount}{" "}
+                      miembros
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleOpenRecordPayment}
+                  disabled={membershipBusy}
+                >
+                  <CreditCard className="mr-1 h-4 w-4" />
+                  Registrar pago
+                </Button>
+
+                {financeSummary.isFamilyChild ||
+                financeSummary.coveredMemberCount > 1 ? (
+                  <span className="self-center text-xs text-muted-foreground">
+                    Plan familiar · gestioná el plan desde finanzas
+                  </span>
+                ) : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleOpenMembershipPlan("change")}
+                      disabled={membershipBusy}
+                    >
+                      <RefreshCw className="mr-1 h-4 w-4" />
+                      Cambiar plan
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive hover:text-destructive"
+                      onClick={handleRemovePlan}
+                      disabled={membershipBusy}
+                    >
+                      <UserMinus className="mr-1 h-4 w-4" />
+                      Quitar plan
+                    </Button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
           {/* LEFT */}
           <div className="space-y-4 sm:space-y-6">
             <div className="flex items-center gap-3 sm:gap-4">
@@ -732,7 +1242,34 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 )}
               </div>
 
-              <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+                {selectedStartDate && selectedEndDate && (
+                  <div className="inline-flex self-start rounded-md border bg-background p-0.5 sm:self-auto">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={
+                        planViewMode === "calendar" ? "default" : "ghost"
+                      }
+                      className="h-7 gap-1 px-2 text-xs"
+                      onClick={() => setPlanViewMode("calendar")}
+                    >
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      Calendario
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={planViewMode === "summary" ? "default" : "ghost"}
+                      className="h-7 gap-1 px-2 text-xs"
+                      onClick={() => setPlanViewMode("summary")}
+                    >
+                      <List className="h-3.5 w-3.5" />
+                      Resumen
+                    </Button>
+                  </div>
+                )}
+
                 {assignment && (
                   <Button
                     size="sm"
@@ -745,27 +1282,68 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                   </Button>
                 )}
 
-                {showAssignButton && (
+                {currentPlanAssignment && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={handleAssign}
+                    onClick={handleOpenExtendPlan}
                     className="flex w-full items-center gap-2 sm:w-auto"
                   >
-                    <Users className="h-4 w-4" />
-                    Asignar
+                    <CalendarClock className="h-4 w-4" />
+                    Extender
                   </Button>
                 )}
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleOpenAssignPlan}
+                  className="flex w-full items-center gap-2 sm:w-auto"
+                >
+                  <CalendarPlus className="h-4 w-4" />
+                  Asignar
+                </Button>
               </div>
             </div>
 
             <div className="flex min-h-[200px] flex-1 items-start justify-center overflow-x-auto rounded-md bg-muted/20 p-2 sm:min-h-[220px] sm:p-3">
               {selectedStartDate && selectedEndDate ? (
-                <PlanCalendar
-                  key={assignment?._id}
-                  startDate={selectedStartDate}
-                  endDate={selectedEndDate}
-                />
+                planViewMode === "calendar" ? (
+                  <PlanCalendar
+                    key={assignment?._id}
+                    startDate={selectedStartDate}
+                    endDate={selectedEndDate}
+                  />
+                ) : (
+                  <div className="w-full space-y-2 self-stretch">
+                    <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Inicio</span>
+                      <span className="font-medium">
+                        {format(selectedStartDate, "d MMM yyyy", { locale: es })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Fin</span>
+                      <span className="font-medium">
+                        {format(selectedEndDate, "d MMM yyyy", { locale: es })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Estado</span>
+                      <span className="font-medium">
+                        {planStatus?.status === "active"
+                          ? `Activa · ${planStatus.daysLeft} día${planStatus.daysLeft !== 1 ? "s" : ""} restantes`
+                          : planStatus?.status === "expiring_soon"
+                            ? `Por vencer · ${planStatus.daysLeft} día${planStatus.daysLeft !== 1 ? "s" : ""}`
+                            : planStatus?.status === "expired"
+                              ? "Vencida"
+                              : planStatus?.status === "not_started"
+                                ? "No iniciada"
+                                : "-"}
+                      </span>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="text-sm text-muted-foreground">
                   Sin planificación activa
@@ -874,6 +1452,228 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 Cancelar
               </Button>
               <Button onClick={handleAddFixedSlot}>Agregar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ASSIGN PLANIFICATION DIALOG */}
+      <Dialog open={assignPlanOpen} onOpenChange={setAssignPlanOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Asignar planificación</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Planificación</Label>
+              <Select
+                value={assignPlanId}
+                onValueChange={(v) =>
+                  setAssignPlanId(v as Id<"planifications">)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar planificación" />
+                </SelectTrigger>
+
+                <SelectContent>
+                  {assignablePlanifications.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No hay planificaciones disponibles
+                    </div>
+                  ) : (
+                    assignablePlanifications.map((p) => (
+                      <SelectItem key={p._id} value={p._id}>
+                        {p.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Desde</Label>
+                <Input
+                  type="date"
+                  value={assignStartDate}
+                  onChange={(e) => setAssignStartDate(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Hasta</Label>
+                <Input
+                  type="date"
+                  value={assignEndDate}
+                  onChange={(e) => setAssignEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setAssignPlanOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleAssignPlanification}>Asignar</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* EXTEND PLANIFICATION DIALOG */}
+      <Dialog open={extendOpen} onOpenChange={setExtendOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Extender planificación</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Nueva fecha de fin</Label>
+              <Input
+                type="date"
+                value={extendEndDate}
+                onChange={(e) => setExtendEndDate(e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setExtendOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleExtendPlanification}>Extender</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* RECORD PAYMENT DIALOG */}
+      <Dialog open={recordPaymentOpen} onOpenChange={setRecordPaymentOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Registrar pago</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {financeSummary && (
+              <p className="text-sm text-muted-foreground">
+                Cuota de{" "}
+                {billingPeriodLabel(financeSummary.currentPeriod.billingPeriod)}
+                {financeSummary.coveredMemberCount > 1
+                  ? ` · ${financeSummary.coveredMemberCount} miembros`
+                  : ""}
+              </p>
+            )}
+
+            <div className="space-y-2">
+              <Label>Método</Label>
+              <Select
+                value={paymentMethod}
+                onValueChange={(v) =>
+                  setPaymentMethod(v as "cash" | "bank_transfer")
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Efectivo</SelectItem>
+                  <SelectItem value="bank_transfer">Transferencia</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Monto (ARS)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setRecordPaymentOpen(false)}
+                disabled={membershipBusy}
+              >
+                Cancelar
+              </Button>
+              <Button onClick={handleRecordPayment} disabled={membershipBusy}>
+                Registrar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ASSIGN / CHANGE MEMBERSHIP PLAN DIALOG */}
+      <Dialog open={membershipPlanOpen} onOpenChange={setMembershipPlanOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {membershipPlanMode === "change"
+                ? "Cambiar plan"
+                : "Asignar plan"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Plan de membresía</Label>
+              <Select
+                value={selectedMembershipPlanId}
+                onValueChange={(v) =>
+                  setSelectedMembershipPlanId(v as Id<"membershipPlans">)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(membershipPlans ?? []).length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      No hay planes disponibles
+                    </div>
+                  ) : (
+                    (membershipPlans ?? []).map((p: Doc<"membershipPlans">) => (
+                      <SelectItem key={p._id} value={p._id}>
+                        {p.name} · {formatArs(p.priceArs)}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {membershipPlanMode === "change" && (
+              <p className="text-xs text-muted-foreground">
+                Se cancelará la suscripción actual y se asignará el nuevo plan.
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setMembershipPlanOpen(false)}
+                disabled={membershipBusy}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveMembershipPlan}
+                disabled={membershipBusy}
+              >
+                {membershipPlanMode === "change" ? "Cambiar" : "Asignar"}
+              </Button>
             </div>
           </div>
         </DialogContent>
