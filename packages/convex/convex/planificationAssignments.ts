@@ -120,6 +120,44 @@ export const unassign = mutation({
 });
 
 /**
+ * Extend an assignment by moving its end date forward.
+ * Used to give a member more time on a plan without re-assigning it.
+ */
+export const extend = mutation({
+  args: {
+    id: v.id("planificationAssignments"),
+    endDate: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireAuth(ctx);
+
+    const assignment = await ctx.db.get(args.id);
+    if (!assignment) {
+      throw new Error("Assignment not found");
+    }
+
+    await requireAdminOrTrainer(ctx, assignment.organizationId);
+
+    if (assignment.status === "cancelled") {
+      throw new Error("No se puede extender una asignación desasignada");
+    }
+
+    if (assignment.startDate != null && args.endDate < assignment.startDate) {
+      throw new Error(
+        "La fecha de fin no puede ser anterior a la fecha de inicio",
+      );
+    }
+
+    await ctx.db.patch(args.id, {
+      endDate: args.endDate,
+      // Reactivate a plan that had already run its course when it gets extended.
+      status: assignment.status === "completed" ? "active" : assignment.status,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
  * Update assignment status
  */
 export const updateStatus = mutation({
