@@ -466,6 +466,100 @@ export const getMyCurrentPeriodPayment = query({
 });
 
 /**
+ * Admin/trainer: finance summary for a specific member — their subscription,
+ * plan, and the current billing period's payment status. Powers the membership
+ * and cuota block in the member detail screen. Returns null if the member has
+ * no active/suspended subscription.
+ */
+export const getMemberPaymentSummary = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdminOrTrainer(ctx, membership.organizationId);
+
+    const subscription = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization_user", (q) =>
+        q
+          .eq("organizationId", membership.organizationId)
+          .eq("userId", args.userId),
+      )
+      .filter((q) => q.neq(q.field("status"), "cancelled"))
+      .first();
+
+    if (!subscription) return null;
+
+    const { billingSubscription, coveredMemberCount } =
+      await getPaymentCoverage(ctx, subscription);
+    const [plan, organization] = await Promise.all([
+      ctx.db.get(billingSubscription.planId as Id<"membershipPlans">),
+      ctx.db.get(membership.organizationId),
+    ]);
+    if (!plan) return null;
+
+    const timezone = getPaymentTimezone(organization?.timezone);
+    const now = Date.now();
+    const cycle = getBillingCycle(
+      plan,
+      billingSubscription.activatedAt,
+      now,
+      timezone,
+    );
+
+    const currentPeriodPayment = await ctx.db
+      .query("planPayments")
+      .withIndex("by_subscription_period", (q) =>
+        q
+          .eq("subscriptionId", billingSubscription._id)
+          .eq("billingPeriod", cycle.billingPeriod),
+      )
+      .first();
+
+    const activeBonification = await ctx.db
+      .query("planBonifications")
+      .withIndex("by_subscription_status", (q) =>
+        q.eq("subscriptionId", billingSubscription._id).eq("status", "active"),
+      )
+      .first();
+    const bonifiedAmountPerMember = activeBonification
+      ? computeBonificationAmount(
+          plan.priceArs,
+          activeBonification.discountType,
+          activeBonification.discountValue,
+        )
+      : null;
+    const payableAmountArs =
+      (bonifiedAmountPerMember ?? plan.priceArs) * coveredMemberCount;
+
+    return {
+      subscriptionId: billingSubscription._id,
+      memberStatus: subscription.status,
+      billingStatus: billingSubscription.status,
+      activatedAt: billingSubscription.activatedAt,
+      isFamilyChild: Boolean(subscription.familyParentSubscriptionId),
+      coveredMemberCount,
+      plan: {
+        _id: plan._id,
+        name: plan.name,
+        priceArs: plan.priceArs,
+        weeklyClassLimit: plan.weeklyClassLimit,
+        paymentWindowEndDay: plan.paymentWindowEndDay,
+        billingMode: plan.billingMode ?? "calendar",
+        isFamilyPlan: plan.isFamilyPlan ?? false,
+      },
+      currentPeriod: {
+        billingPeriod: cycle.billingPeriod,
+        dueAt: currentPeriodPayment?.dueAt ?? cycle.dueAt,
+        status: currentPeriodPayment?.status ?? "none",
+        paymentMethod: currentPeriodPayment?.paymentMethod ?? null,
+        payableAmountArs,
+        hasBonification: Boolean(activeBonification),
+      },
+    };
+  },
+});
+
+/**
  * Get a single payment by ID (admin/trainer or owner).
  */
 export const getById = query({
