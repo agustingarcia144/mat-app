@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { CheckCircle, UserMinus } from "lucide-react";
@@ -10,105 +9,24 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
-function monthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthLabel(date: Date) {
-  return new Intl.DateTimeFormat("es-AR", { month: "short" }).format(date);
-}
-
-function startOfNextMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 1);
-}
-
-function startOfDateMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function startOfMonth(timestamp: number) {
-  const date = new Date(timestamp);
-  return startOfDateMonth(date);
-}
-
-function isActiveAtPeriodEnd(subscription: any, periodEndAt: number) {
-  return (
-    typeof subscription.activatedAt === "number" &&
-    subscription.activatedAt < periodEndAt &&
-    (typeof subscription.cancelledAt !== "number" ||
-      subscription.cancelledAt >= periodEndAt)
+function monthLabelFromPeriod(period: string) {
+  const [year, month] = period.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-AR", { month: "short" }).format(
+    new Date(year, month - 1, 1),
   );
 }
 
 export default function ActiveMembers() {
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
-  const subscriptions = useQuery(
-    api.memberPlanSubscriptions.getByOrganization,
+  const data = useQuery(
+    api.metrics.getActiveMembersHistory,
     canQueryCurrentOrganization ? {} : "skip",
   );
 
-  const monthlyMembers = useMemo(() => {
-    const now = new Date();
-    const currentMonth = startOfDateMonth(now);
-    const defaultStartMonth = new Date(
-      now.getFullYear(),
-      now.getMonth() - 5,
-      1,
-    );
-    const firstActivatedAt = (subscriptions ?? []).reduce<number | null>(
-      (earliest, subscription: any) => {
-        if (typeof subscription.activatedAt !== "number") return earliest;
-        return earliest === null
-          ? subscription.activatedAt
-          : Math.min(earliest, subscription.activatedAt);
-      },
-      null,
-    );
-    const firstDataMonth =
-      firstActivatedAt === null
-        ? defaultStartMonth
-        : startOfMonth(firstActivatedAt);
-    const startMonth =
-      firstDataMonth > defaultStartMonth ? firstDataMonth : defaultStartMonth;
+  if (!data) return null;
 
-    const months = Array.from({ length: 6 }, (_, index) => {
-      const date = new Date(
-        startMonth.getFullYear(),
-        startMonth.getMonth() + index,
-        1,
-      );
-      return {
-        key: monthKey(date),
-        label: monthLabel(date),
-        startAt: date.getTime(),
-        endAt: startOfNextMonth(date).getTime(),
-      };
-    });
-
-    return months.map((month) => {
-      const isFutureMonth = month.startAt > currentMonth.getTime();
-
-      return {
-        ...month,
-        count: isFutureMonth
-          ? 0
-          : (subscriptions ?? []).filter((subscription: any) =>
-              isActiveAtPeriodEnd(subscription, month.endAt),
-            ).length,
-      };
-    });
-  }, [subscriptions]);
-
-  const currentPeriodEndAt = startOfNextMonth(new Date()).getTime();
-  const activeCount = (subscriptions ?? []).filter((subscription: any) =>
-    isActiveAtPeriodEnd(subscription, currentPeriodEndAt),
-  ).length;
-  const maxMonthlyMembers = Math.max(
-    ...monthlyMembers.map((month) => month.count),
-    1,
-  );
-
-  if (!subscriptions) return null;
+  const { activeCount, months } = data;
+  const maxMonthlyMembers = Math.max(...months.map((month) => month.count), 1);
 
   return (
     <Card className="flex min-h-[220px] w-full max-w-none flex-col rounded-2xl border bg-background/60 p-4 md:h-[220px] md:p-5">
@@ -138,7 +56,7 @@ export default function ActiveMembers() {
           </div>
 
           <div className="flex h-[132px] min-w-0 items-end gap-2 rounded-xl border bg-background/30 px-3 pb-3 pt-4">
-            {monthlyMembers.map((month) => {
+            {months.map((month) => {
               const heightPct = Math.max(
                 (month.count / maxMonthlyMembers) * 100,
                 month.count > 0 ? 16 : 8,
@@ -146,7 +64,7 @@ export default function ActiveMembers() {
 
               return (
                 <div
-                  key={month.key}
+                  key={month.period}
                   className="flex h-full min-w-0 flex-1 flex-col items-center gap-2"
                 >
                   <span className="text-sm font-semibold leading-none">
@@ -159,7 +77,7 @@ export default function ActiveMembers() {
                     />
                   </div>
                   <span className="text-[11px] capitalize text-muted-foreground">
-                    {month.label}
+                    {monthLabelFromPeriod(month.period)}
                   </span>
                 </div>
               );

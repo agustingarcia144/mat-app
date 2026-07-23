@@ -83,6 +83,10 @@ export default defineSchema({
     joinedAt: v.number(),
     lastActiveAt: v.optional(v.number()),
     inactivatedAt: v.optional(v.number()),
+    // Timestamp of the most recent reactivation (inactive -> active). Kept
+    // separate from joinedAt so the original join date is preserved while a
+    // return still registers as a fresh "alta".
+    reactivatedAt: v.optional(v.number()),
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),

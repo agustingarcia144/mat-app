@@ -348,6 +348,7 @@ export const removeMember = mutation({
 
     await ctx.db.patch(targetMembership._id, {
       status: "inactive",
+      inactivatedAt: now,
       updatedAt: now,
     });
 
@@ -492,6 +493,7 @@ export const setMemberInactive = mutation({
     if (targetMembership.status === "active") {
       await ctx.db.patch(targetMembership._id, {
         status: "inactive",
+        inactivatedAt: now,
         updatedAt: now,
       });
     }
@@ -533,9 +535,16 @@ export const setMemberActive = mutation({
       return { updated: false };
     }
 
+    // Reactivating a previously-inactive member counts as a fresh "alta": we
+    // record `reactivatedAt` while preserving the original `joinedAt`, and clear
+    // `inactivatedAt` so the member reads as currently active.
+    const now = Date.now();
     await ctx.db.patch(targetMembership._id, {
       status: "active",
-      updatedAt: Date.now(),
+      reactivatedAt: now,
+      lastActiveAt: now,
+      inactivatedAt: undefined,
+      updatedAt: now,
     });
 
     return { updated: true };
