@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import {
   isStaffRole,
   requireAdmin,
+  requireAdminOrTrainer,
   requireCurrentOrganizationMembership,
 } from "./permissions";
 
@@ -103,6 +104,27 @@ function sortPeriodsDesc(periods: string[]) {
   );
 }
 
+/**
+ * Groups approved payments by billing period, returning for each period the set
+ * of billing subscription ids that paid. A payment's `subscriptionId` always
+ * points at the billing (family head / standalone) subscription, so family
+ * members map back to it via `familyParentSubscriptionId ?? _id`.
+ *
+ * Bonifications (including 100% comped members) are stored as approved payments
+ * too, so "paid" here means "approved payment OR active bonification".
+ */
+function buildApprovedBillingSubsByPeriod(
+  approvedPayments: { billingPeriod: string; subscriptionId: unknown }[],
+) {
+  const byPeriod = new Map<string, Set<string>>();
+  for (const payment of approvedPayments) {
+    const set = byPeriod.get(payment.billingPeriod) ?? new Set<string>();
+    set.add(String(payment.subscriptionId));
+    byPeriod.set(payment.billingPeriod, set);
+  }
+  return byPeriod;
+}
+
 function getPlanificationMetricStatus(assignment?: {
   status: "active" | "completed" | "cancelled";
   startDate?: number;
@@ -157,163 +179,144 @@ export const listExerciseMetricMembers = query({
     const limit = Math.max(1, Math.min(args.limit ?? 20, 200));
     const search = args.search?.trim().toLowerCase() ?? "";
 
-    const assignments = await ctx.db
-      .query("planificationAssignments")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", organizationId),
+    // Only active members. Deriving the roster from memberships (bounded by the
+    // member count) instead of the whole sessions history (unbounded) keeps this
+    // cheap, and inactive/removed members no longer show up.
+    const activeMemberships = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization_role", (q) =>
+        q.eq("organizationId", organizationId).eq("role", "member"),
       )
-      .filter((q) => q.neq(q.field("status"), "cancelled"))
+      .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
-    const assignmentsById = new Map(
-      assignments.map((assignment) => [String(assignment._id), assignment]),
-    );
 
-    const organizationSessions = (
-      await ctx.db
-        .query("workoutDaySessions")
-        .withIndex("by_organization_performedOn", (q) =>
-          q.eq("organizationId", organizationId),
-        )
-        .collect()
-    ).filter((session) => session.status !== "skipped");
-
-    const userIds = Array.from(
-      new Set(organizationSessions.map((session) => session.userId)),
-    );
-
-    const usersByExternalId = new Map<
-      string,
-      {
-        fullName?: string;
-        firstName?: string;
-        lastName?: string;
-        email?: string;
-        imageUrl?: string;
-      }
-    >();
-
-    await Promise.all(
-      userIds.map(async (userId) => {
+    const memberRoster = await Promise.all(
+      activeMemberships.map(async (member) => {
         const user = await ctx.db
           .query("users")
-          .withIndex("by_externalId", (q) => q.eq("externalId", userId))
+          .withIndex("by_externalId", (q) => q.eq("externalId", member.userId))
           .first();
-
-        usersByExternalId.set(userId, {
-          fullName: user?.fullName,
-          firstName: user?.firstName,
-          lastName: user?.lastName,
-          email: user?.email,
-          imageUrl: user?.imageUrl,
-        });
+        const name =
+          user?.fullName ||
+          [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+          member.userId;
+        return {
+          userId: member.userId,
+          name,
+          email: user?.email ?? null,
+          imageUrl: user?.imageUrl ?? null,
+        };
       }),
     );
 
+    const filteredMembers = memberRoster
+      .filter((member) => {
+        if (!search) return true;
+        return (
+          member.name.toLowerCase().includes(search) ||
+          Boolean(member.email?.toLowerCase().includes(search))
+        );
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const totalMembers = filteredMembers.length;
+    // Only hydrate session/plan data for the batch actually being shown, so
+    // scrolling loads one page at a time instead of recomputing everyone.
+    const pageMembers = filteredMembers.slice(0, limit);
+
     const planificationCache = new Map<string, any>();
-    const members = new Map<
-      string,
-      {
-        userId: string;
-        name: string;
-        email: string | null;
-        imageUrl: string | null;
-        totalSessions: number;
-        lastPerformedOn: string | null;
-        planifications: Map<
+
+    const detailedMembers = await Promise.all(
+      pageMembers.map(async (member) => {
+        const [userSessions, userAssignments] = await Promise.all([
+          ctx.db
+            .query("workoutDaySessions")
+            .withIndex("by_user_performedOn", (q) =>
+              q.eq("userId", member.userId),
+            )
+            .collect(),
+          ctx.db
+            .query("planificationAssignments")
+            .withIndex("by_user", (q) => q.eq("userId", member.userId))
+            .collect(),
+        ]);
+
+        const orgSessions = userSessions.filter(
+          (session) =>
+            session.organizationId === organizationId &&
+            session.status !== "skipped",
+        );
+
+        let lastPerformedOn: string | null = null;
+        for (const session of orgSessions) {
+          if (!lastPerformedOn || session.performedOn > lastPerformedOn) {
+            lastPerformedOn = session.performedOn;
+          }
+        }
+
+        const planifications = new Map<
           string,
           {
             planificationId: string;
             planificationName: string;
             status: "active" | "historical";
           }
-        >;
-      }
-    >();
+        >();
 
-    for (const session of organizationSessions) {
-      const assignment = assignmentsById.get(String(session.assignmentId));
-      const user = usersByExternalId.get(session.userId);
-      const name =
-        user?.fullName ||
-        [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
-        session.userId;
+        for (const assignment of userAssignments) {
+          if (
+            assignment.organizationId !== organizationId ||
+            assignment.status === "cancelled"
+          ) {
+            continue;
+          }
 
-      const memberEntry = members.get(session.userId) ?? {
-        userId: session.userId,
-        name,
-        email: user?.email ?? null,
-        imageUrl: user?.imageUrl ?? null,
-        totalSessions: 0,
-        lastPerformedOn: null,
-        planifications: new Map(),
-      };
-
-      let planification = planificationCache.get(
-        String(session.planificationId),
-      );
-      if (!planification) {
-        planification = await ctx.db.get(session.planificationId);
-        if (planification) {
-          planificationCache.set(
-            String(session.planificationId),
-            planification,
+          let planification = planificationCache.get(
+            String(assignment.planificationId),
           );
+          if (!planification) {
+            planification = await ctx.db.get(assignment.planificationId);
+            if (planification) {
+              planificationCache.set(
+                String(assignment.planificationId),
+                planification,
+              );
+            }
+          }
+
+          setPlanificationOption(planifications, {
+            planificationId: String(assignment.planificationId),
+            planificationName: planification?.name ?? "Plani sin nombre",
+            status: getPlanificationMetricStatus(assignment),
+          });
         }
-      }
 
-      const planificationKey = String(session.planificationId);
-      const planificationName = planification?.name ?? "Plani sin nombre";
-      setPlanificationOption(memberEntry.planifications, {
-        planificationId: planificationKey,
-        planificationName,
-        status: getPlanificationMetricStatus(assignment),
-      });
-
-      memberEntry.totalSessions += 1;
-      if (
-        !memberEntry.lastPerformedOn ||
-        session.performedOn > memberEntry.lastPerformedOn
-      ) {
-        memberEntry.lastPerformedOn = session.performedOn;
-      }
-
-      members.set(session.userId, memberEntry);
-    }
-
-    const allMembers = Array.from(members.values())
-      .map((member) => ({
-        userId: member.userId,
-        name: member.name,
-        email: member.email,
-        imageUrl: member.imageUrl,
-        totalSessions: member.totalSessions,
-        lastPerformedOn: member.lastPerformedOn,
-        planifications: Array.from(member.planifications.values()).sort(
-          (a, b) => {
+        return {
+          userId: member.userId,
+          name: member.name,
+          email: member.email,
+          imageUrl: member.imageUrl,
+          totalSessions: orgSessions.length,
+          lastPerformedOn,
+          planifications: Array.from(planifications.values()).sort((a, b) => {
             if (a.status !== b.status) return a.status === "active" ? -1 : 1;
             return a.planificationName.localeCompare(b.planificationName);
-          },
-        ),
-      }))
-      .filter((member) => {
-        if (!search) return true;
-        return (
-          member.name.toLowerCase().includes(search) ||
-          member.email?.toLowerCase().includes(search)
-        );
-      })
-      .sort((a, b) =>
-        compareDatesDesc(a.lastPerformedOn ?? "", b.lastPerformedOn ?? ""),
-      );
+          }),
+        };
+      }),
+    );
 
     return {
       summary: {
-        membersTracked: allMembers.length,
-        sessionsCount: organizationSessions.length,
+        membersTracked: totalMembers,
+        sessionsCount: detailedMembers.reduce(
+          (sum, member) => sum + member.totalSessions,
+          0,
+        ),
       },
-      members: allMembers.slice(0, limit),
-      hasMore: allMembers.length > limit,
-      totalMembers: allMembers.length,
+      members: detailedMembers,
+      hasMore: totalMembers > limit,
+      totalMembers,
     };
   },
 });
@@ -1023,6 +1026,134 @@ export const getExerciseMetricsByMembers = query({
   },
 });
 
+/**
+ * Monthly "active members" history for the dashboard cards.
+ *
+ * - Current (in-progress) month: members with a live, non-cancelled
+ *   subscription active through the end of the month (active "a la fecha").
+ * - Closed (past) months: members who actually paid that period (any approved
+ *   payment for the billing period, including bonifications). So a month that
+ *   had 80 active members but only 75 payers reports 75.
+ * - Future months: 0.
+ */
+export const getActiveMembersHistory = query({
+  args: {
+    monthsCount: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdminOrTrainer(ctx, membership.organizationId);
+
+    const organizationId = membership.organizationId;
+    const monthsCount = Math.min(
+      Math.max(Math.floor(args.monthsCount ?? 6), 1),
+      12,
+    );
+
+    const [subscriptions, approvedPayments] = await Promise.all([
+      ctx.db
+        .query("memberPlanSubscriptions")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("planPayments")
+        .withIndex("by_organization_status", (q) =>
+          q.eq("organizationId", organizationId).eq("status", "approved"),
+        )
+        .collect(),
+    ]);
+
+    const approvedByPeriod = buildApprovedBillingSubsByPeriod(approvedPayments);
+
+    const isActiveAtPeriodEnd = (
+      subscription: (typeof subscriptions)[number],
+      periodEndAt: number,
+    ) =>
+      subscription.activatedAt < periodEndAt &&
+      (typeof subscription.cancelledAt !== "number" ||
+        subscription.cancelledAt >= periodEndAt);
+
+    // Members whose billing group paid this period AND who were active during it.
+    const countPaidForPeriod = (
+      period: string,
+      startAt: number,
+      endAt: number,
+    ) => {
+      const paidBillingSubs = approvedByPeriod.get(period);
+      if (!paidBillingSubs || paidBillingSubs.size === 0) return 0;
+      let count = 0;
+      for (const subscription of subscriptions) {
+        const billingId = String(
+          subscription.familyParentSubscriptionId ?? subscription._id,
+        );
+        if (!paidBillingSubs.has(billingId)) continue;
+        if (
+          subscription.activatedAt < endAt &&
+          (typeof subscription.cancelledAt !== "number" ||
+            subscription.cancelledAt >= startAt)
+        ) {
+          count += 1;
+        }
+      }
+      return count;
+    };
+
+    const now = new Date();
+    const currentPeriod = getCurrentBillingPeriod();
+    const startMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() - (monthsCount - 1),
+      1,
+    );
+
+    const months = Array.from({ length: monthsCount }, (_, index) => {
+      const date = new Date(
+        startMonth.getFullYear(),
+        startMonth.getMonth() + index,
+        1,
+      );
+      const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const startAt = date.getTime();
+      const endAt = new Date(
+        date.getFullYear(),
+        date.getMonth() + 1,
+        1,
+      ).getTime();
+
+      if (period > currentPeriod) {
+        return { period, count: 0, isPaidBased: false };
+      }
+      if (period === currentPeriod) {
+        return {
+          period,
+          count: subscriptions.filter((subscription) =>
+            isActiveAtPeriodEnd(subscription, endAt),
+          ).length,
+          isPaidBased: false,
+        };
+      }
+      return {
+        period,
+        count: countPaidForPeriod(period, startAt, endAt),
+        isPaidBased: true,
+      };
+    });
+
+    const currentPeriodEndAt = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      1,
+    ).getTime();
+    const activeCount = subscriptions.filter((subscription) =>
+      isActiveAtPeriodEnd(subscription, currentPeriodEndAt),
+    ).length;
+
+    return { activeCount, months };
+  },
+});
+
 export const getChurnMetrics = query({
   args: {
     selectedPeriod: v.optional(v.string()),
@@ -1031,12 +1162,22 @@ export const getChurnMetrics = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdmin(ctx, membership.organizationId);
 
-    const subscriptions = await ctx.db
-      .query("memberPlanSubscriptions")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", membership.organizationId),
-      )
-      .collect();
+    const [subscriptions, approvedPayments] = await Promise.all([
+      ctx.db
+        .query("memberPlanSubscriptions")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", membership.organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("planPayments")
+        .withIndex("by_organization_status", (q) =>
+          q
+            .eq("organizationId", membership.organizationId)
+            .eq("status", "approved"),
+        )
+        .collect(),
+    ]);
 
     const currentPeriod = getCurrentBillingPeriod();
     const availablePeriods = sortPeriodsDesc([
@@ -1051,6 +1192,9 @@ export const getChurnMetrics = query({
             : null,
         )
         .filter((period): period is string => Boolean(period)),
+      // Include periods that had payments so closed months with no
+      // activation/cancellation still show up in the history.
+      ...approvedPayments.map((payment) => payment.billingPeriod),
     ]).slice(0, 12);
 
     const selectedPeriod =
@@ -1061,37 +1205,69 @@ export const getChurnMetrics = query({
     const previousPeriod =
       selectedIndex >= 0 ? (availablePeriods[selectedIndex + 1] ?? null) : null;
 
+    const approvedByPeriod = buildApprovedBillingSubsByPeriod(approvedPayments);
+
+    const getMemberIdsActiveAt = (timestamp: number) => {
+      const ids = new Set<string>();
+      for (const sub of subscriptions) {
+        if (
+          sub.activatedAt < timestamp &&
+          (typeof sub.cancelledAt !== "number" || sub.cancelledAt >= timestamp)
+        ) {
+          ids.add(sub.userId);
+        }
+      }
+      return ids;
+    };
+
+    // Members (userIds) whose billing group has an approved payment for a period.
+    const getPaidMemberIds = (period: string) => {
+      const paidBillingSubs = approvedByPeriod.get(period);
+      const ids = new Set<string>();
+      if (!paidBillingSubs || paidBillingSubs.size === 0) return ids;
+      for (const sub of subscriptions) {
+        const billingId = String(sub.familyParentSubscriptionId ?? sub._id);
+        if (paidBillingSubs.has(billingId)) ids.add(sub.userId);
+      }
+      return ids;
+    };
+
+    // The active base for a period: for a closed month it's who actually paid;
+    // for the in-progress month it's the members currently active (paid data is
+    // still incomplete).
+    const getPeriodMemberIds = (period: string) => {
+      if (period >= currentPeriod) {
+        const { end } = getPeriodRange(period);
+        return getMemberIdsActiveAt(end);
+      }
+      return getPaidMemberIds(period);
+    };
+
     const buildPeriodOverview = (period: string) => {
       const { start, end } = getPeriodRange(period);
+      const periodIndex = availablePeriods.indexOf(period);
+      const priorPeriod =
+        periodIndex >= 0 ? (availablePeriods[periodIndex + 1] ?? null) : null;
 
-      const getMemberIdsActiveAt = (timestamp: number) => {
-        const ids = new Set<string>();
-        for (const sub of subscriptions) {
-          if (
-            sub.activatedAt < timestamp &&
-            (typeof sub.cancelledAt !== "number" ||
-              sub.cancelledAt >= timestamp)
-          ) {
-            ids.add(sub.userId);
-          }
-        }
-        return ids;
-      };
+      // Base at the start of the period = who continued from the prior period
+      // (its payers). Falls back to live active subs for the earliest period.
+      const startingIds = priorPeriod
+        ? getPeriodMemberIds(priorPeriod)
+        : getMemberIdsActiveAt(start);
+      const endingIds = getPeriodMemberIds(period);
 
-      const activeAtStart = getMemberIdsActiveAt(start);
-      const activeAtEnd = getMemberIdsActiveAt(end);
-
-      // Members active at start who are no longer active at end
+      // Members in the starting base who are gone by the end of the period
       const churnedMembers = new Set<string>(
-        Array.from(activeAtStart).filter((id) => !activeAtEnd.has(id)),
+        Array.from(startingIds).filter((id) => !endingIds.has(id)),
       );
 
-      // Members active at end who were not active at start
+      // Members present at end who were not in the starting base
       const newMembers = new Set<string>(
-        Array.from(activeAtEnd).filter((id) => !activeAtStart.has(id)),
+        Array.from(endingIds).filter((id) => !startingIds.has(id)),
       );
 
       // Members whose active-at-end subs are all suspended
+      const activeAtEnd = getMemberIdsActiveAt(end);
       const suspendedAtEnd = new Set<string>();
       for (const userId of Array.from(activeAtEnd)) {
         const activeSubs = subscriptions.filter(
@@ -1105,12 +1281,12 @@ export const getChurnMetrics = query({
         }
       }
 
-      const churnBaseCount = activeAtStart.size + newMembers.size;
+      const churnBaseCount = startingIds.size + newMembers.size;
 
       return {
         period,
-        startingMembers: activeAtStart.size,
-        endingMembers: activeAtEnd.size,
+        startingMembers: startingIds.size,
+        endingMembers: endingIds.size,
         newMembers: newMembers.size,
         churnedMembers: churnedMembers.size,
         churnBaseMembers: churnBaseCount,
@@ -1118,12 +1294,12 @@ export const getChurnMetrics = query({
         netGrowth: newMembers.size - churnedMembers.size,
         churnRatePct: roundPercentage(churnedMembers.size, churnBaseCount),
         retentionRatePct:
-          activeAtStart.size > 0
+          startingIds.size > 0
             ? Math.max(
                 0,
                 Math.round(
-                  ((activeAtStart.size - churnedMembers.size) /
-                    activeAtStart.size) *
+                  ((startingIds.size - churnedMembers.size) /
+                    startingIds.size) *
                     1000,
                 ) / 10,
               )

@@ -714,7 +714,7 @@ export default function ExerciseMetricsPage() {
             </div>
           ) : members.length === 0 ? (
             <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-              No hay miembros con actividad para mostrar.
+              No hay miembros activos para mostrar.
             </div>
           ) : (
             <div
