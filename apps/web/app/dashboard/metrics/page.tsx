@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CalendarDays, Dumbbell, UserMinus } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarDays,
+  Dumbbell,
+  UserCheck,
+  UserMinus,
+} from "lucide-react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
@@ -22,6 +28,13 @@ const METRIC_CARDS = [
     href: "/dashboard/metrics/classes",
     icon: CalendarDays,
     adminOnly: true,
+  },
+  {
+    title: "Asistencia por Miembro",
+    description:
+      "Ranking de quienes mas vienen y quienes menos, contando check-in de clases y planificaciones completadas.",
+    href: "/dashboard/metrics/attendance",
+    icon: UserCheck,
   },
   {
     title: "Churn",
