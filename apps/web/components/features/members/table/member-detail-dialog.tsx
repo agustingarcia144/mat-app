@@ -312,6 +312,8 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
         _id: sub.planId,
         name: sub.plan.name,
         weeklyClassLimit: sub.plan.weeklyClassLimit,
+        allowedClassIds: sub.plan.allowedClassIds ?? null,
+        classesEnabled: sub.plan.classesEnabled !== false,
       },
       currentPeriod: {
         billingPeriod,
@@ -327,6 +329,27 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
     api.membershipPlans.getByOrganization,
     member && open ? { activeOnly: true } : "skip",
   );
+
+  // Classes the member's plan grants access to. null means every class.
+  const allowedClassIds = financeSummary?.plan.allowedClassIds ?? null;
+  const planClassesEnabled = financeSummary?.plan.classesEnabled !== false;
+
+  const assignableClasses = useMemo(() => {
+    const allClasses = (classes ?? []) as Doc<"classes">[];
+    if (!planClassesEnabled) return [];
+    if (!allowedClassIds) return allClasses;
+    return allClasses.filter((c) => allowedClassIds.includes(c._id));
+  }, [classes, allowedClassIds, planClassesEnabled]);
+
+  /** Human summary of the plan's class access; null means "all classes" */
+  const allowedClassNames = useMemo(() => {
+    if (!planClassesEnabled) return "el plan no incluye clases";
+    if (!allowedClassIds) return null;
+    const names = ((classes ?? []) as Doc<"classes">[])
+      .filter((c) => allowedClassIds.includes(c._id))
+      .map((c) => c.name);
+    return names.length > 0 ? names.join(", ") : "sin clases habilitadas";
+  }, [classes, allowedClassIds, planClassesEnabled]);
 
   const assignablePlanifications = useMemo(
     () =>
@@ -889,10 +912,12 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                     Clases del plan
                   </p>
                   <p className="mt-0.5 text-lg font-semibold">
-                    {financeSummary.plan.weeklyClassLimit >=
-                    UNLIMITED_WEEKLY_CLASS_LIMIT
-                      ? "Ilimitadas"
-                      : `${financeSummary.plan.weeklyClassLimit} / semana`}
+                    {!planClassesEnabled
+                      ? "Sin acceso"
+                      : financeSummary.plan.weeklyClassLimit >=
+                          UNLIMITED_WEEKLY_CLASS_LIMIT
+                        ? "Ilimitadas"
+                        : `${financeSummary.plan.weeklyClassLimit} / semana`}
                   </p>
                   {financeSummary.coveredMemberCount > 1 && (
                     <span className="mt-1 inline-block text-[11px] text-muted-foreground">
@@ -900,6 +925,11 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                       miembros
                     </span>
                   )}
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {allowedClassNames === null
+                      ? "Habilita todas las clases"
+                      : `Sólo: ${allowedClassNames}`}
+                  </p>
                 </div>
               </div>
 
@@ -1373,13 +1403,18 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                 </SelectTrigger>
 
                 <SelectContent>
-                  {classes?.map((c: Doc<"classes">) => (
+                  {assignableClasses.map((c: Doc<"classes">) => (
                     <SelectItem key={c._id} value={c._id}>
                       {c.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {allowedClassNames !== null && (
+                <p className="text-xs text-muted-foreground">
+                  El plan del socio sólo habilita: {allowedClassNames}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

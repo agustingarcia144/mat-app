@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -58,21 +59,7 @@ function initialsFor(name: string, email?: string) {
   return fromName || email?.[0]?.toUpperCase() || "?";
 }
 
-type PayRow = {
-  userId: string;
-  name: string;
-  email?: string;
-  imageUrl?: string;
-  role: string;
-  payrollType: "hourly" | "monthly";
-  pricePerMonth?: number;
-  hours: number;
-  classesInCharge: number;
-  total: number;
-  paidAmount: number;
-  remaining: number;
-  status: "pending" | "partial" | "paid";
-};
+type PayRow = FunctionReturnType<typeof api.payroll.getPayrollSummary>[number];
 
 export default function PayrollPanel() {
   const canQueryOrgData = useCanQueryCurrentOrganization();
@@ -97,7 +84,7 @@ export default function PayrollPanel() {
   const summary = useQuery(
     api.payroll.getPayrollSummary,
     canQueryOrgData ? { period, ...range } : "skip",
-  ) as PayRow[] | undefined;
+  );
 
   const totals = useMemo(() => {
     const rows = summary ?? [];
@@ -105,13 +92,15 @@ export default function PayrollPanel() {
     let paid = 0;
     let pending = 0;
     let pendingCount = 0;
+    let commission = 0;
     for (const row of rows) {
       total += row.total;
       paid += row.paidAmount;
       pending += row.remaining;
+      commission += row.commissionAmount;
       if (row.remaining > 0) pendingCount += 1;
     }
-    return { total, paid, pending, pendingCount };
+    return { total, paid, pending, pendingCount, commission };
   }, [summary]);
 
   const monthLabel = `${MONTH_LABELS[monthIndex]} ${year}`;
@@ -125,7 +114,8 @@ export default function PayrollPanel() {
             Liquidación de Sueldos
           </h2>
           <p className="text-sm text-muted-foreground">
-            Horas y clases por empleado según los precios configurados.
+            Horas, clases y comisiones por empleado según los precios
+            configurados.
           </p>
         </div>
         <div className="flex w-full gap-2 sm:w-auto">
@@ -133,7 +123,10 @@ export default function PayrollPanel() {
             value={String(monthIndex)}
             onValueChange={(v) => setMonthIndex(Number(v))}
           >
-            <SelectTrigger className="h-10 flex-1 sm:w-[150px]" aria-label="Mes">
+            <SelectTrigger
+              className="h-10 flex-1 sm:w-[150px]"
+              aria-label="Mes"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -144,7 +137,10 @@ export default function PayrollPanel() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+          <Select
+            value={String(year)}
+            onValueChange={(v) => setYear(Number(v))}
+          >
             <SelectTrigger className="h-10 w-[100px]" aria-label="Año">
               <SelectValue />
             </SelectTrigger>
@@ -236,6 +232,7 @@ export default function PayrollPanel() {
                     <TableHead>Modalidad</TableHead>
                     <TableHead className="text-right">Horas</TableHead>
                     <TableHead className="text-right">Clases</TableHead>
+                    <TableHead className="text-right">Comisión</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead className="w-0 text-right">Acción</TableHead>
@@ -244,6 +241,7 @@ export default function PayrollPanel() {
                 <TableBody>
                   {summary.map((row) => {
                     const isMonthly = row.payrollType === "monthly";
+                    const hasCommission = (row.commissionPercentage ?? 0) > 0;
                     return (
                       <TableRow key={row.userId}>
                         <TableCell>
@@ -274,6 +272,19 @@ export default function PayrollPanel() {
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">
                           {isMonthly ? "—" : row.classesInCharge}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {hasCommission ? (
+                            <>
+                              <span>{formatMoney(row.commissionAmount)}</span>
+                              <span className="block text-xs text-muted-foreground">
+                                {row.commissionPercentage}% de{" "}
+                                {formatMoney(row.commissionBase)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           <span className="font-semibold">
@@ -315,7 +326,9 @@ export default function PayrollPanel() {
                         <TableCell className="text-right">
                           <Button
                             size="sm"
-                            variant={row.status === "paid" ? "ghost" : "outline"}
+                            variant={
+                              row.status === "paid" ? "ghost" : "outline"
+                            }
                             disabled={row.total < 1}
                             onClick={() => setPayTarget(row)}
                           >
@@ -330,6 +343,9 @@ export default function PayrollPanel() {
                   <TableRow className="hover:bg-transparent">
                     <TableCell colSpan={4} className="font-medium">
                       Total
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatMoney(totals.commission)}
                     </TableCell>
                     <TableCell className="text-right font-bold tabular-nums">
                       {formatMoney(totals.total)}

@@ -74,12 +74,13 @@ export default defineSchema({
     // For staff (admin/trainer/employee): payroll config.
     // payrollType decides how the total is computed: "hourly" uses
     // pricePerHour + pricePerClass; "monthly" uses a fixed pricePerMonth.
-    payrollType: v.optional(
-      v.union(v.literal("hourly"), v.literal("monthly")),
-    ),
+    payrollType: v.optional(v.union(v.literal("hourly"), v.literal("monthly"))),
     pricePerHour: v.optional(v.number()),
     pricePerClass: v.optional(v.number()),
     pricePerMonth: v.optional(v.number()),
+    // Percentage (0-100) of what the members assigned to this staff member
+    // (via responsibleUserId) pay. Added on top of the hourly/monthly total.
+    commissionPercentage: v.optional(v.number()),
     joinedAt: v.number(),
     lastActiveAt: v.optional(v.number()),
     inactivatedAt: v.optional(v.number()),
@@ -800,6 +801,9 @@ export default defineSchema({
     payrollType: v.union(v.literal("hourly"), v.literal("monthly")),
     hours: v.number(),
     classesInCharge: v.number(),
+    // Snapshot of the commission inputs at payment time (audit only).
+    commissionPercentage: v.optional(v.number()),
+    commissionBaseArs: v.optional(v.number()),
     amountArs: v.number(),
     occurredOn: v.optional(v.string()), // "YYYY-MM-DD" accounting date of the payment
     paymentMethod: v.optional(
@@ -859,11 +863,14 @@ export default defineSchema({
       v.literal("workout_completion_reminder"),
       v.literal("payment_review_approved"),
       v.literal("payment_review_declined"),
+      v.literal("plan_due_soon"),
+      v.literal("plan_due_today"),
     ),
     userId: v.string(),
     scheduleId: v.optional(v.id("classSchedules")),
     workoutSessionId: v.optional(v.id("workoutDaySessions")),
     paymentId: v.optional(v.id("planPayments")),
+    subscriptionId: v.optional(v.id("memberPlanSubscriptions")),
     status: v.union(
       v.literal("pending"),
       v.literal("sent"),
@@ -916,6 +923,11 @@ export default defineSchema({
         }),
       ),
     ),
+    // Class templates this plan grants access to.
+    // undefined or [] means the plan includes every class in the organization.
+    // When false, the plan grants no class access at all. undefined = enabled.
+    classesEnabled: v.optional(v.boolean()),
+    allowedClassIds: v.optional(v.array(v.id("classes"))),
     isActive: v.boolean(),
     // When true, the plan stays active but is hidden from the mobile app so
     // members cannot self-assign to it. Admins can still assign it manually.

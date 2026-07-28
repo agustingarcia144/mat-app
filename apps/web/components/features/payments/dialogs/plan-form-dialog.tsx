@@ -29,7 +29,8 @@ import {
 import { type Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
-import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 
 const UNLIMITED_SENTINEL = 9999;
 
@@ -54,11 +55,20 @@ export default function PlanFormDialog({
     isEditing && canQuery ? { planId } : "skip",
   );
 
+  const orgClasses = useQuery(
+    api.classes.getByOrganization,
+    canQuery ? { activeOnly: false } : "skip",
+  );
+
   const createPlan = useMutation(api.membershipPlans.create);
   const updatePlan = useMutation(api.membershipPlans.update);
 
   const [priceDisplay, setPriceDisplay] = useState("0");
   const [isUnlimited, setIsUnlimited] = useState(false);
+  // "all" stores an empty allowedClassIds; "custom" narrows it to a selection
+  const [classSelectionMode, setClassSelectionMode] = useState<
+    "all" | "custom"
+  >("all");
   const [tierDayDrafts, setTierDayDrafts] = useState<Record<string, string>>(
     {},
   );
@@ -84,6 +94,8 @@ export default function PlanFormDialog({
       paymentWindowEndDay: 10,
       interestTiers: [],
       advancePaymentDiscounts: [],
+      classesEnabled: true,
+      allowedClassIds: [],
     },
   });
 
@@ -106,6 +118,22 @@ export default function PlanFormDialog({
   const isFamilyPlan = watch("isFamilyPlan");
   const billingMode = watch("billingMode") ?? "calendar";
   const isCalendarBilling = billingMode === "calendar";
+  const allowedClassIds = watch("allowedClassIds") ?? [];
+  const classesEnabled = watch("classesEnabled") ?? true;
+
+  const toggleAllowedClass = (classId: string, checked: boolean) => {
+    const next = checked
+      ? [...allowedClassIds, classId]
+      : allowedClassIds.filter((id) => id !== classId);
+    setValue("allowedClassIds", next, { shouldValidate: true });
+  };
+
+  const handleClassSelectionMode = (mode: "all" | "custom") => {
+    setClassSelectionMode(mode);
+    if (mode === "all") {
+      setValue("allowedClassIds", [], { shouldValidate: true });
+    }
+  };
 
   // Sorted absolute days for all tiers — used to compute per-tier date ranges
   const sortedTierDays = [...(watchedTiers ?? [])]
@@ -128,6 +156,9 @@ export default function PlanFormDialog({
     if (existingPlan) {
       const unlimited = existingPlan.weeklyClassLimit >= UNLIMITED_SENTINEL;
       setIsUnlimited(unlimited);
+      setClassSelectionMode(
+        existingPlan.allowedClassIds?.length ? "custom" : "all",
+      );
       setPriceDisplay(existingPlan.priceArs.toLocaleString("es-AR"));
       reset({
         name: existingPlan.name,
@@ -142,9 +173,12 @@ export default function PlanFormDialog({
           []) as MembershipPlanForm["interestTiers"],
         advancePaymentDiscounts: (existingPlan.advancePaymentDiscounts ??
           []) as MembershipPlanForm["advancePaymentDiscounts"],
+        classesEnabled: existingPlan.classesEnabled ?? true,
+        allowedClassIds: existingPlan.allowedClassIds ?? [],
       });
     } else if (!isEditing) {
       setIsUnlimited(false);
+      setClassSelectionMode("all");
       setPriceDisplay("0");
       reset({
         name: "",
@@ -157,6 +191,8 @@ export default function PlanFormDialog({
         paymentWindowEndDay: 10,
         interestTiers: [],
         advancePaymentDiscounts: [],
+        classesEnabled: true,
+        allowedClassIds: [],
       });
     }
   }, [open, existingPlan, isEditing, reset]);
@@ -176,6 +212,15 @@ export default function PlanFormDialog({
   };
 
   const onSubmit = async (data: MembershipPlanForm) => {
+    if (
+      data.classesEnabled &&
+      classSelectionMode === "custom" &&
+      (data.allowedClassIds ?? []).length === 0
+    ) {
+      toast.error("Seleccioná al menos una clase o elegí 'Todas'");
+      return;
+    }
+
     try {
       const interestTiers = data.interestTiers?.length
         ? data.interestTiers
@@ -183,6 +228,13 @@ export default function PlanFormDialog({
       const advancePaymentDiscounts = data.advancePaymentDiscounts?.length
         ? data.advancePaymentDiscounts
         : undefined;
+      // Empty selection means "every class"; the backend stores that as undefined.
+      const classAccessArgs = {
+        classesEnabled: data.classesEnabled,
+        allowedClassIds: data.classesEnabled
+          ? ((data.allowedClassIds ?? []) as Id<"classes">[])
+          : [],
+      };
       if (isEditing && planId) {
         await updatePlan({
           planId,
@@ -196,6 +248,7 @@ export default function PlanFormDialog({
           paymentWindowEndDay: data.paymentWindowEndDay,
           interestTiers,
           advancePaymentDiscounts,
+          ...classAccessArgs,
         });
         toast.success("Plan actualizado");
       } else {
@@ -210,6 +263,7 @@ export default function PlanFormDialog({
           paymentWindowEndDay: data.paymentWindowEndDay,
           interestTiers,
           advancePaymentDiscounts,
+          ...classAccessArgs,
         });
         toast.success("Plan creado");
       }
@@ -293,32 +347,182 @@ export default function PlanFormDialog({
             )}
           </Field>
 
-          <Field>
-            <FieldLabel>Límite semanal de clases</FieldLabel>
-            <div className="flex items-center gap-3">
-              <Input
-                type="number"
-                {...register("weeklyClassLimit", { valueAsNumber: true })}
-                placeholder="2"
-                disabled={isUnlimited}
-                className={isUnlimited ? "opacity-40" : ""}
+          {/* Class access: master switch, weekly limit, and class selection */}
+          <div className="space-y-3 rounded-xl border p-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <Checkbox
+                checked={classesEnabled}
+                onCheckedChange={(checked) =>
+                  setValue("classesEnabled", Boolean(checked), {
+                    shouldValidate: true,
+                  })
+                }
+                className="mt-0.5"
               />
-              <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
-                <Checkbox
-                  checked={isUnlimited}
-                  onCheckedChange={handleUnlimitedToggle}
-                />
-                Sin límite
-              </label>
-            </div>
-            <FieldDescription>
-              Cantidad máxima de clases que el miembro puede reservar por semana
-              (lunes a domingo).
-            </FieldDescription>
-            {errors.weeklyClassLimit && (
-              <FieldError>{errors.weeklyClassLimit.message}</FieldError>
-            )}
-          </Field>
+              <div className="space-y-1">
+                <FieldLabel className="cursor-pointer text-sm font-semibold">
+                  Habilitar clases
+                </FieldLabel>
+                <FieldDescription>
+                  {classesEnabled
+                    ? "El miembro puede reservar clases con este plan."
+                    : "El miembro no tendrá acceso a ninguna clase con este plan."}
+                </FieldDescription>
+              </div>
+            </label>
+
+            {classesEnabled ? (
+              <div className="space-y-5 border-t pt-4">
+                <Field>
+                  <FieldLabel>Límite semanal de clases</FieldLabel>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="number"
+                      {...register("weeklyClassLimit", { valueAsNumber: true })}
+                      placeholder="2"
+                      disabled={isUnlimited}
+                      className={isUnlimited ? "opacity-40" : ""}
+                    />
+                    <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={isUnlimited}
+                        onCheckedChange={handleUnlimitedToggle}
+                      />
+                      Sin límite
+                    </label>
+                  </div>
+                  <FieldDescription>
+                    Máximo de clases que puede reservar por semana (lunes a
+                    domingo).
+                  </FieldDescription>
+                  {errors.weeklyClassLimit && (
+                    <FieldError>{errors.weeklyClassLimit.message}</FieldError>
+                  )}
+                </Field>
+
+                <Field>
+                  <FieldLabel>Clases habilitadas</FieldLabel>
+
+                  {/* Segmented: all classes vs. a specific selection */}
+                  <div className="bg-muted grid grid-cols-2 gap-1 rounded-lg p-1">
+                    {(
+                      [
+                        { mode: "all", label: "Todas" },
+                        { mode: "custom", label: "Elegir clases" },
+                      ] as const
+                    ).map(({ mode, label }) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => handleClassSelectionMode(mode)}
+                        className={cn(
+                          "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                          classSelectionMode === mode
+                            ? "bg-background shadow-sm"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {classSelectionMode === "all" ? (
+                    <FieldDescription>
+                      El plan habilita cualquier clase del gimnasio, incluidas
+                      las que se creen más adelante.
+                    </FieldDescription>
+                  ) : orgClasses === undefined ? (
+                    <p className="text-muted-foreground text-xs">
+                      Cargando clases...
+                    </p>
+                  ) : orgClasses.length === 0 ? (
+                    <p className="text-muted-foreground text-xs">
+                      Todavía no hay clases creadas en el gimnasio.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground text-xs">
+                          {allowedClassIds.length} de {orgClasses.length}{" "}
+                          seleccionadas
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() =>
+                            setValue(
+                              "allowedClassIds",
+                              allowedClassIds.length === orgClasses.length
+                                ? []
+                                : orgClasses.map((c) => c._id as string),
+                              { shouldValidate: true },
+                            )
+                          }
+                        >
+                          {allowedClassIds.length === orgClasses.length
+                            ? "Limpiar"
+                            : "Seleccionar todas"}
+                        </Button>
+                      </div>
+
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {orgClasses.map((classItem) => {
+                          const isSelected = allowedClassIds.includes(
+                            classItem._id,
+                          );
+                          return (
+                            <button
+                              key={classItem._id}
+                              type="button"
+                              onClick={() =>
+                                toggleAllowedClass(classItem._id, !isSelected)
+                              }
+                              className={cn(
+                                "flex items-center gap-2 rounded-lg border p-3 text-left text-sm transition-colors",
+                                isSelected
+                                  ? "border-primary bg-primary/5"
+                                  : "hover:bg-muted/50",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "flex size-4 shrink-0 items-center justify-center rounded-full border",
+                                  isSelected
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-muted-foreground/40",
+                                )}
+                              >
+                                {isSelected ? (
+                                  <Check className="size-3" />
+                                ) : null}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate">
+                                {classItem.name}
+                              </span>
+                              {!classItem.isActive && (
+                                <span className="text-muted-foreground shrink-0 text-[11px]">
+                                  inactiva
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {allowedClassIds.length === 0 && (
+                        <FieldError>
+                          Seleccioná al menos una clase o elegí &quot;Todas&quot;
+                        </FieldError>
+                      )}
+                    </>
+                  )}
+                </Field>
+              </div>
+            ) : null}
+          </div>
 
           <Field>
             <FieldLabel>Tipo de cobro</FieldLabel>

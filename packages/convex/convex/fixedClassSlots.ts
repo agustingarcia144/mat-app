@@ -9,6 +9,7 @@ import {
   tryActiveOrgContext,
 } from "./permissions";
 import { getMonthlyClassUsageForSchedule } from "./classQuota";
+import { assertClassAllowed, getClassAccessForUser } from "./classAccess";
 
 /**
  * Create a fixed slot for a member (admin/trainer only).
@@ -68,6 +69,15 @@ export const create = mutation({
     if (membership.role !== "member") {
       throw new Error("Fixed slots can only be assigned to members");
     }
+
+    // The member's plan must include this class
+    await assertClassAllowed(
+      ctx,
+      classTemplate.organizationId,
+      args.userId,
+      args.classId,
+      "staff",
+    );
 
     const duplicate = await ctx.db
       .query("fixedClassSlots")
@@ -303,6 +313,16 @@ async function assignFixedSlotToMatchingSchedules(
       ? organization.timezone
       : "UTC";
 
+  // Plan enforcement: nothing to assign if the plan doesn't include this class.
+  // Per-member, so it's resolved once instead of per schedule.
+  const { classesEnabled, allowedClassIds } = await getClassAccessForUser(
+    ctx,
+    slot.organizationId,
+    slot.userId,
+  );
+  if (!classesEnabled) return;
+  if (allowedClassIds && !allowedClassIds.includes(slot.classId)) return;
+
   const now = Date.now();
   const schedules = await ctx.db
     .query("classSchedules")
@@ -331,7 +351,7 @@ async function assignFixedSlotToMatchingSchedules(
 
     if (schedule.currentReservations >= schedule.capacity) continue;
 
-    // Plan enforcement: skip if member is suspended or over monthly limit
+    // Monthly class limit is evaluated per schedule (it depends on the month)
     const memberSub = await ctx.db
       .query("memberPlanSubscriptions")
       .withIndex("by_organization_user", (q) =>
@@ -624,7 +644,18 @@ export async function assignFixedSlotsToSchedule(
 
     if (existing) continue;
 
-    // Plan enforcement: skip if member is suspended or over monthly limit
+    // Plan enforcement: skip if the plan doesn't include this class, the member
+    // is suspended, or they are over the monthly limit
+    const { classesEnabled, allowedClassIds } = await getClassAccessForUser(
+      ctx,
+      schedule.organizationId,
+      slot.userId,
+    );
+    if (!classesEnabled) continue;
+    if (allowedClassIds && !allowedClassIds.includes(schedule.classId)) {
+      continue;
+    }
+
     const memberSub = await ctx.db
       .query("memberPlanSubscriptions")
       .withIndex("by_organization_user", (q) =>

@@ -1,22 +1,22 @@
-'use client'
+"use client";
 
-import { ColumnDef } from '@tanstack/react-table'
-import { MoreHorizontal, Trash2, Wallet } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import RoleBadge from '@/components/shared/badges/role-badge'
-import StatusBadge from '@/components/shared/badges/status-badge'
-import { useState } from 'react'
-import { useUser } from '@clerk/nextjs'
-import { useMutation } from 'convex/react'
-import { toast } from 'sonner'
+import { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontal, Trash2, Wallet } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import RoleBadge from "@/components/shared/badges/role-badge";
+import StatusBadge from "@/components/shared/badges/status-badge";
+import { useState } from "react";
+import { useUser } from "@clerk/nextjs";
+import { useMutation } from "convex/react";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import StaffCompensationDialog from '@/components/features/team/staff-compensation-dialog'
+} from "@/components/ui/dropdown-menu";
+import StaffCompensationDialog from "@/components/features/team/staff-compensation-dialog";
 import {
   Dialog,
   DialogContent,
@@ -24,20 +24,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import type { Member } from '@repo/core'
-import { api } from '@/convex/_generated/api'
+} from "@/components/ui/dialog";
+import type { Member } from "@repo/core";
+import { api } from "@/convex/_generated/api";
 
 function UserNameCell({ member }: { member: Member }) {
   const initials =
     member.fullName
-      ?.split(' ')
+      ?.split(" ")
       .map((n) => n[0])
-      .join('')
+      .join("")
       .toUpperCase()
       .slice(0, 2) ||
     member.email?.[0]?.toUpperCase() ||
-    '?'
+    "?";
   return (
     <div className="flex items-center gap-3">
       <Avatar className="h-8 w-8">
@@ -46,37 +46,37 @@ function UserNameCell({ member }: { member: Member }) {
       </Avatar>
       <span className="font-medium">{member.name}</span>
     </div>
-  )
+  );
 }
 
 function UserActionsCell({ member }: { member: Member }) {
-  const { user: currentUser } = useUser()
-  const removeMember = useMutation(api.organizationMemberships.removeMember)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [compOpen, setCompOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const isSelf = currentUser?.id === member.id
+  const { user: currentUser } = useUser();
+  const removeMember = useMutation(api.organizationMemberships.removeMember);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [compOpen, setCompOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const isSelf = currentUser?.id === member.id;
 
   const handleDelete = async () => {
-    setIsDeleting(true)
+    setIsDeleting(true);
     try {
       const result = await removeMember({
         userId: member.id,
-      })
+      });
       if (!result?.updated) {
-        toast.error('No se pudo eliminar el usuario')
-        return
+        toast.error("No se pudo eliminar el usuario");
+        return;
       }
-      toast.success('Usuario eliminado del equipo')
-      setConfirmOpen(false)
+      toast.success("Usuario eliminado del equipo");
+      setConfirmOpen(false);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : 'Error al eliminar el usuario'
-      )
+        error instanceof Error ? error.message : "Error al eliminar el usuario",
+      );
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   return (
     <>
@@ -98,7 +98,7 @@ function UserActionsCell({ member }: { member: Member }) {
             onClick={() => !isSelf && setConfirmOpen(true)}
           >
             <Trash2 className="h-4 w-4" />
-            {isSelf ? 'No puedes eliminarte' : 'Eliminar del equipo'}
+            {isSelf ? "No puedes eliminarte" : "Eliminar del equipo"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -112,6 +112,7 @@ function UserActionsCell({ member }: { member: Member }) {
           pricePerHour: member.pricePerHour,
           pricePerClass: member.pricePerClass,
           pricePerMonth: member.pricePerMonth,
+          commissionPercentage: member.commissionPercentage,
         }}
       />
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -137,75 +138,77 @@ function UserActionsCell({ member }: { member: Member }) {
               onClick={handleDelete}
               disabled={isDeleting}
             >
-              {isDeleting ? 'Eliminando…' : 'Eliminar'}
+              {isDeleting ? "Eliminando…" : "Eliminar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }
 
 const nameColumn: ColumnDef<Member> = {
-  accessorKey: 'name',
+  accessorKey: "name",
   header: () => <div className="pl-1">Nombre</div>,
   cell: ({ row }) => <UserNameCell member={row.original} />,
-}
+};
 
 export const getColumns = (): ColumnDef<Member>[] => [
   nameColumn,
   {
-    accessorKey: 'email',
-    header: 'Email',
+    accessorKey: "email",
+    header: "Email",
   },
   {
-    accessorKey: 'role',
-    header: 'Rol',
-    cell: ({ row }) => <RoleBadge role={row.original.role ?? ''} />,
+    accessorKey: "role",
+    header: "Rol",
+    cell: ({ row }) => <RoleBadge role={row.original.role ?? ""} />,
   },
   {
-    id: 'prices',
-    header: 'Precios',
+    id: "prices",
+    header: "Precios",
     cell: ({ row }) => {
-      const { payrollType, pricePerHour, pricePerClass, pricePerMonth } =
-        row.original
+      const {
+        payrollType,
+        pricePerHour,
+        pricePerClass,
+        pricePerMonth,
+        commissionPercentage,
+      } = row.original;
 
-      if (payrollType === 'monthly') {
-        return pricePerMonth !== undefined ? (
-          <div className="text-sm text-muted-foreground">
-            ${pricePerMonth}/mes
-          </div>
-        ) : (
-          <span className="text-sm text-muted-foreground">—</span>
-        )
+      const parts: string[] = [];
+      if (payrollType === "monthly") {
+        if (pricePerMonth !== undefined) parts.push(`$${pricePerMonth}/mes`);
+      } else {
+        if (pricePerHour !== undefined) parts.push(`$${pricePerHour}/h`);
+        if (pricePerClass !== undefined) parts.push(`$${pricePerClass}/clase`);
+      }
+      if (commissionPercentage) {
+        parts.push(`${commissionPercentage}% comisión`);
       }
 
-      if (pricePerHour === undefined && pricePerClass === undefined) {
-        return <span className="text-sm text-muted-foreground">—</span>
+      if (parts.length === 0) {
+        return <span className="text-sm text-muted-foreground">—</span>;
       }
       return (
-        <div className="text-sm text-muted-foreground">
-          {pricePerHour !== undefined && <span>${pricePerHour}/h</span>}
-          {pricePerHour !== undefined && pricePerClass !== undefined && ' · '}
-          {pricePerClass !== undefined && <span>${pricePerClass}/clase</span>}
-        </div>
-      )
+        <div className="text-sm text-muted-foreground">{parts.join(" · ")}</div>
+      );
     },
   },
   {
-    accessorKey: 'status',
-    header: 'Estado',
+    accessorKey: "status",
+    header: "Estado",
     cell: ({ row }) => (
-      <StatusBadge status={row.original.status?.toLowerCase() ?? 'inactive'} />
+      <StatusBadge status={row.original.status?.toLowerCase() ?? "inactive"} />
     ),
   },
   {
-    accessorKey: 'createdAt',
-    header: 'Creado el',
+    accessorKey: "createdAt",
+    header: "Creado el",
   },
   {
-    id: 'actions',
-    header: '',
+    id: "actions",
+    header: "",
     cell: ({ row }) => <UserActionsCell member={row.original} />,
   },
-]
+];

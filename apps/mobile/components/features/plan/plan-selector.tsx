@@ -35,7 +35,13 @@ export default function PlanSelector() {
   const plans = useQuery(api.membershipPlans.getByOrganization, {
     activeOnly: true,
   });
+  const classes = useQuery(api.classes.getByOrganization, { activeOnly: true });
   const activate = useMutation(api.memberPlanSubscriptions.activate);
+
+  // Used to name the classes a restricted plan includes
+  const classNameById = new Map<string, string>(
+    (classes ?? []).map((c) => [c._id as string, c.name]),
+  );
 
   // Track selected advance months per plan
   const [selectedMonths, setSelectedMonths] = useState<Record<string, number>>(
@@ -234,11 +240,34 @@ export default function PlanSelector() {
                               { color: isDark ? "#d4d4d8" : "#3f3f46" },
                             ]}
                           >
-                            {plan.weeklyClassLimit >= 9999
-                              ? "Clases sin límite"
-                              : `${plan.weeklyClassLimit} clases por semana`}
+                            {plan.classesEnabled === false
+                              ? "Sin acceso a clases"
+                              : plan.weeklyClassLimit >= 9999
+                                ? "Clases sin límite"
+                                : `${plan.weeklyClassLimit} clases por semana`}
                           </Text>
                         </View>
+                        {plan.classesEnabled !== false &&
+                        plan.allowedClassIds?.length ? (
+                          <View style={styles.featureRow}>
+                            <IconSymbol
+                              name="checkmark"
+                              size={16}
+                              color={isDark ? "#4ade80" : "#16a34a"}
+                            />
+                            <Text
+                              style={[
+                                styles.planDetail,
+                                { color: isDark ? "#d4d4d8" : "#3f3f46" },
+                              ]}
+                            >
+                              Incluye:{" "}
+                              {plan.allowedClassIds
+                                .map((id) => classNameById.get(id) ?? "Clase")
+                                .join(", ")}
+                            </Text>
+                          </View>
+                        ) : null}
                         <View style={styles.featureRow}>
                           <IconSymbol
                             name="checkmark"

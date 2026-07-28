@@ -31,6 +31,7 @@ import {
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useSubscriptionGate } from "@/hooks/use-subscription-gate";
+import { useClassAccess } from "@/hooks/use-class-access";
 import { ThemedView } from "@/components/ui/themed-view";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { CalendarWeekView } from "@/components/features/home/calendar-week-view";
@@ -171,6 +172,8 @@ export default function ClassesContent() {
   const isDark = colorScheme === "dark";
   const { userId } = useAuth();
   const { canAccess: hasActiveSubscription } = useSubscriptionGate();
+  const { classesEnabled: planIncludesClasses, allowedClassIds } =
+    useClassAccess();
 
   const classes = useQuery(api.classes.getByOrganization, { activeOnly: true });
   const schedules = useQuery(api.classSchedules.getUpcoming, { limit: 25 });
@@ -239,11 +242,18 @@ export default function ClassesContent() {
   type MyInWindowItemElement =
     NonNullable<typeof myInWindow> extends readonly (infer R)[] ? R : never;
 
+  // Classes outside the member's plan are hidden from the calendar and list.
+  // Already-booked classes still show up through the reservation queries, so a
+  // member never loses sight of a reservation they hold.
   const activeClassById = useMemo(() => {
     const map = new Map<string, ClassItem>();
-    classes?.forEach((c) => map.set(c._id, c));
+    if (!planIncludesClasses) return map;
+    classes?.forEach((c) => {
+      if (allowedClassIds && !allowedClassIds.includes(c._id)) return;
+      map.set(c._id, c);
+    });
     return map;
-  }, [classes]);
+  }, [classes, allowedClassIds, planIncludesClasses]);
 
   const reservationByScheduleId = useMemo(() => {
     const map = new Map<string, MyUpcomingItemElement>();
@@ -599,7 +609,11 @@ export default function ClassesContent() {
 
       return { canReserve, isReserved, helperText, isFull };
     },
-    [reservationByScheduleId, weekReservationByScheduleId, hasActiveSubscription],
+    [
+      reservationByScheduleId,
+      weekReservationByScheduleId,
+      hasActiveSubscription,
+    ],
   );
 
   const getCancellationState = useCallback((r: ListRowReservation) => {
@@ -986,8 +1000,16 @@ export default function ClassesContent() {
             </View>
           ) : calendarDayItems.length === 0 ? (
             <ClassesEmptyStateCard
-              title="No hay clases este día"
-              subtext="Seleccioná otro día para ver las clases disponibles"
+              title={
+                planIncludesClasses
+                  ? "No hay clases este día"
+                  : "Tu plan no incluye clases"
+              }
+              subtext={
+                planIncludesClasses
+                  ? "Seleccioná otro día para ver las clases disponibles"
+                  : "Consultá con el gimnasio para cambiar de plan"
+              }
             />
           ) : (
             calendarDayItems.map((row) => (

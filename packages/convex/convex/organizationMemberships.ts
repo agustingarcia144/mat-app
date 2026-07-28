@@ -136,6 +136,7 @@ export const getOrganizationMemberships = query({
           pricePerHour: membership.pricePerHour,
           pricePerClass: membership.pricePerClass,
           pricePerMonth: membership.pricePerMonth,
+          commissionPercentage: membership.commissionPercentage,
           createdAt: membership.createdAt,
           joinedAt: membership.joinedAt,
           updatedAt: membership.updatedAt,
@@ -651,12 +652,11 @@ export const setMemberResponsible = mutation({
 export const updateStaffCompensation = mutation({
   args: {
     userId: v.string(),
-    payrollType: v.optional(
-      v.union(v.literal("hourly"), v.literal("monthly")),
-    ),
+    payrollType: v.optional(v.union(v.literal("hourly"), v.literal("monthly"))),
     pricePerHour: v.optional(v.union(v.number(), v.null())),
     pricePerClass: v.optional(v.union(v.number(), v.null())),
     pricePerMonth: v.optional(v.union(v.number(), v.null())),
+    commissionPercentage: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
     const currentMembership = await requireCurrentOrganizationMembership(ctx);
@@ -689,6 +689,15 @@ export const updateStaffCompensation = mutation({
     }
     if (args.pricePerMonth !== undefined) {
       patch.pricePerMonth = args.pricePerMonth ?? undefined;
+    }
+    if (args.commissionPercentage !== undefined) {
+      if (
+        args.commissionPercentage !== null &&
+        (args.commissionPercentage < 0 || args.commissionPercentage > 100)
+      ) {
+        throw new Error("La comisión debe estar entre 0 y 100.");
+      }
+      patch.commissionPercentage = args.commissionPercentage ?? undefined;
     }
 
     await ctx.db.patch(targetMembership._id, patch);

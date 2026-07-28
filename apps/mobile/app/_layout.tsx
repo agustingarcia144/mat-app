@@ -36,7 +36,8 @@ function getNotificationHref(
 
   if (
     href.startsWith("/home/workout/") ||
-    href === "/(tabs)/plan/payment-history"
+    href === "/(tabs)/plan/payment-history" ||
+    href === "/(tabs)/plan"
   ) {
     return href as Href;
   }
@@ -261,12 +262,7 @@ function RootLayoutNav() {
     };
 
     if (!isAuthenticated) {
-      if (
-        inAuthGroup ||
-        inOnboarding ||
-        inOrgSelection ||
-        inJoinConfirm
-      ) {
+      if (inAuthGroup || inOnboarding || inOrgSelection || inJoinConfirm) {
         replaceIfNeeded("/");
       }
       return;

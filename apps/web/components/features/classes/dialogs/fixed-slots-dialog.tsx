@@ -108,6 +108,10 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
     api.organizationMemberships.getOrganizationMemberships,
     open && canQueryCurrentOrganization ? {} : "skip",
   );
+  const subscriptions = useQuery(
+    api.memberPlanSubscriptions.getByOrganization,
+    open && canQueryCurrentOrganization ? {} : "skip",
+  );
   const createFixedSlot = useMutation(api.fixedClassSlots.create);
   const removeFixedSlot = useMutation(api.fixedClassSlots.remove);
   const backfillToExisting = useMutation(
@@ -125,6 +129,26 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
         : [],
     [memberships],
   );
+
+  // Members whose plan does not include the class being assigned. The backend
+  // rejects these too; flagging them here avoids a failed bulk add.
+  const membersNotAllowedForClass = useMemo(() => {
+    const blocked = new Set<string>();
+    if (!addClassId || !subscriptions) return blocked;
+
+    for (const sub of subscriptions) {
+      if (sub.status === "cancelled") continue;
+      if (sub.plan?.classesEnabled === false) {
+        blocked.add(sub.userId);
+        continue;
+      }
+      const allowed = sub.plan?.allowedClassIds;
+      if (allowed?.length && !allowed.includes(addClassId as Id<"classes">)) {
+        blocked.add(sub.userId);
+      }
+    }
+    return blocked;
+  }, [subscriptions, addClassId]);
 
   const filteredFixedSlots = useMemo(() => {
     if (!fixedSlots) return fixedSlots;
@@ -158,9 +182,14 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
         ? Intl.DateTimeFormat().resolvedOptions().timeZone
         : undefined;
 
-    try {
-      for (const userId of selectedUserIds) {
-        for (const dayOfWeek of addDaysOfWeek) {
+    // One member failing (e.g. their plan doesn't include the class) must not
+    // abort the rest of the bulk add.
+    let totalCreated = 0;
+    const failures: string[] = [];
+
+    for (const userId of selectedUserIds) {
+      for (const dayOfWeek of addDaysOfWeek) {
+        try {
           await createFixedSlot({
             userId,
             classId: addClassId as Id<"classes">,
@@ -168,28 +197,37 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
             startTimeMinutes,
             timezone,
           });
+          totalCreated += 1;
+        } catch (e: unknown) {
+          const memberName =
+            members.find((m) => m.id === userId)?.name ?? userId;
+          const reason =
+            e instanceof Error ? e.message : "Error al agregar turno fijo";
+          failures.push(`${memberName}: ${reason}`);
         }
       }
+    }
 
-      const totalCreated = selectedUserIds.length * addDaysOfWeek.length;
-
+    if (totalCreated > 0) {
       toast.success(
         totalCreated === 1
           ? "Turno fijo agregado"
           : `${totalCreated} turnos fijos agregados`,
       );
-      setAddOpen(false);
-      setSelectedUserIds([]);
-      setMemberSearchOpen(false);
-      setAddClassId("");
-      setAddDaysOfWeek([1]);
-      setAddHour(9);
-      setAddMinute(0);
-    } catch (e: unknown) {
-      toast.error(
-        e instanceof Error ? e.message : "Error al agregar turno fijo",
-      );
     }
+
+    if (failures.length > 0) {
+      toast.error(failures.join(" · "));
+      return;
+    }
+
+    setAddOpen(false);
+    setSelectedUserIds([]);
+    setMemberSearchOpen(false);
+    setAddClassId("");
+    setAddDaysOfWeek([1]);
+    setAddHour(9);
+    setAddMinute(0);
   };
 
   const handleRemove = async (id: Id<"fixedClassSlots">) => {
@@ -478,12 +516,17 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                           const isSelected = selectedUserIds.includes(
                             member.id,
                           );
+                          const isNotAllowed = membersNotAllowedForClass.has(
+                            member.id,
+                          );
 
                           return (
                             <CommandItem
                               key={member.id}
                               value={`${member.name} ${member.email ?? ""}`}
+                              disabled={isNotAllowed}
                               onSelect={() => {
+                                if (isNotAllowed) return;
                                 setSelectedUserIds((prev) =>
                                   isSelected
                                     ? prev.filter((id) => id !== member.id)
@@ -499,10 +542,16 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                                 <span className="truncate font-medium">
                                   {member.name}
                                 </span>
-                                {member.email && (
+                                {isNotAllowed ? (
                                   <span className="truncate text-xs text-muted-foreground">
-                                    {member.email}
+                                    Su plan no habilita esta clase
                                   </span>
+                                ) : (
+                                  member.email && (
+                                    <span className="truncate text-xs text-muted-foreground">
+                                      {member.email}
+                                    </span>
+                                  )
                                 )}
                               </div>
                               <Check
@@ -524,7 +573,27 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
               <Label>Clase</Label>
               <Select
                 value={addClassId}
-                onValueChange={(v) => setAddClassId(v as Id<"classes">)}
+                onValueChange={(v) => {
+                  const nextClassId = v as Id<"classes">;
+                  setAddClassId(nextClassId);
+                  // Drop members whose plan doesn't include the new class
+                  const blocked = new Set(
+                    (subscriptions ?? [])
+                      .filter(
+                        (sub) =>
+                          sub.status !== "cancelled" &&
+                          (sub.plan?.classesEnabled === false ||
+                            (sub.plan?.allowedClassIds?.length &&
+                              !sub.plan.allowedClassIds.includes(
+                                nextClassId,
+                              ))),
+                      )
+                      .map((sub) => sub.userId),
+                  );
+                  setSelectedUserIds((prev) =>
+                    prev.filter((id) => !blocked.has(id)),
+                  );
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar clase" />

@@ -29,6 +29,7 @@ type Props = {
     pricePerHour?: number;
     pricePerClass?: number;
     pricePerMonth?: number;
+    commissionPercentage?: number;
   } | null;
 };
 
@@ -48,6 +49,7 @@ export default function StaffCompensationDialog({
   const [pricePerHour, setPricePerHour] = useState("");
   const [pricePerClass, setPricePerClass] = useState("");
   const [pricePerMonth, setPricePerMonth] = useState("");
+  const [commissionPercentage, setCommissionPercentage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -56,6 +58,7 @@ export default function StaffCompensationDialog({
       setPricePerHour(toInput(staff.pricePerHour));
       setPricePerClass(toInput(staff.pricePerClass));
       setPricePerMonth(toInput(staff.pricePerMonth));
+      setCommissionPercentage(toInput(staff.commissionPercentage));
     }
   }, [open, staff]);
 
@@ -73,6 +76,14 @@ export default function StaffCompensationDialog({
     const hour = parseRate(pricePerHour);
     const cls = parseRate(pricePerClass);
     const month = parseRate(pricePerMonth);
+    const commission = parseRate(commissionPercentage);
+
+    if (commissionPercentage.trim() !== "") {
+      if (commission === null || commission > 100) {
+        toast.error("Ingresá una comisión entre 0 y 100.");
+        return;
+      }
+    }
 
     if (payrollType === "hourly") {
       if (pricePerHour.trim() !== "" && hour === null) {
@@ -96,6 +107,7 @@ export default function StaffCompensationDialog({
         pricePerHour: hour,
         pricePerClass: cls,
         pricePerMonth: month,
+        commissionPercentage: commission,
       });
       toast.success("Precios actualizados");
       onOpenChange(false);
@@ -113,6 +125,7 @@ export default function StaffCompensationDialog({
           <DialogTitle>Precios de {staff?.name}</DialogTitle>
           <DialogDescription>
             Elegí cómo se le paga: por hora (y clases) o un sueldo mensual fijo.
+            La comisión se suma aparte.
           </DialogDescription>
         </DialogHeader>
 
@@ -128,7 +141,9 @@ export default function StaffCompensationDialog({
 
             <TabsContent value="hourly" className="mt-4 grid gap-4">
               <Field>
-                <FieldLabel htmlFor="price-per-hour">Precio por hora</FieldLabel>
+                <FieldLabel htmlFor="price-per-hour">
+                  Precio por hora
+                </FieldLabel>
                 <Input
                   id="price-per-hour"
                   type="number"
@@ -168,7 +183,9 @@ export default function StaffCompensationDialog({
 
             <TabsContent value="monthly" className="mt-4 grid gap-4">
               <Field>
-                <FieldLabel htmlFor="price-per-month">Sueldo mensual</FieldLabel>
+                <FieldLabel htmlFor="price-per-month">
+                  Sueldo mensual
+                </FieldLabel>
                 <Input
                   id="price-per-month"
                   type="number"
@@ -186,6 +203,28 @@ export default function StaffCompensationDialog({
               </Field>
             </TabsContent>
           </Tabs>
+
+          <Field>
+            <FieldLabel htmlFor="commission-percentage">
+              Comisión sobre planes (%)
+            </FieldLabel>
+            <Input
+              id="commission-percentage"
+              type="number"
+              min={0}
+              max={100}
+              step="0.1"
+              inputMode="decimal"
+              placeholder="0"
+              value={commissionPercentage}
+              onChange={(e) => setCommissionPercentage(e.target.value)}
+              disabled={isSubmitting}
+            />
+            <FieldDescription>
+              Porcentaje de lo que pagan los miembros asignados a este empleado.
+              Se suma al sueldo por hora o mensual.
+            </FieldDescription>
+          </Field>
 
           <DialogFooter>
             <Button

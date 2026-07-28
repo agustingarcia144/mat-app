@@ -384,23 +384,14 @@ export async function checkSubscriptionStatus(
 
 /**
  * Throw an error if the member does not have an active subscription.
- * Admins and trainers bypass this check.
- *
- * ⚠️  HOTFIX 2026-04-13: Subscription enforcement temporarily disabled.
- *     The mobile app build with plan subscription support is in App Store
- *     review. Until it goes live, members cannot subscribe to plans and
- *     would be locked out of workouts. Re-enable enforcement once the
- *     mobile build is approved and available in production.
- *     TODO: Remove the early return below to restore enforcement.
+ * Admins and trainers bypass this check, as do organizations with no active
+ * plans configured (see checkSubscriptionStatus).
  */
 export async function requireActiveSubscription(
   ctx: Ctx,
   organizationId: Id<"organizations">,
   userId: string,
 ): Promise<void> {
-  // HOTFIX: bypass subscription enforcement until mobile app is live
-  return;
-
   // Only members are subject to the subscription requirement. Staff
   // (admins, trainers) don't hold plan subscriptions and must not be
   // blocked from starting workouts or reserving classes.
@@ -420,11 +411,11 @@ export async function requireActiveSubscription(
   if (!hasActiveSubscription) {
     if (subscriptionStatus === "suspended") {
       throw new Error(
-        "Tu plan está suspendido por falta de pago. Realizá el pago para poder acceder a los entrenamientos.",
+        "Tu plan está suspendido por falta de pago. Realizá el pago para volver a acceder.",
       );
     }
     throw new Error(
-      "Necesitás un plan activo para acceder a los entrenamientos. Activá un plan desde la pestaña Plan.",
+      "Necesitás un plan activo para acceder. Activá un plan desde la pestaña Pagos.",
     );
   }
 }

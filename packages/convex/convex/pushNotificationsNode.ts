@@ -38,11 +38,14 @@ export const sendExpoPushForEvent: ReturnType<typeof internalAction> =
         v.literal("workout_completion_reminder"),
         v.literal("payment_review_approved"),
         v.literal("payment_review_declined"),
+        v.literal("plan_due_soon"),
+        v.literal("plan_due_today"),
       ),
       userId: v.string(),
       scheduleId: v.optional(v.id("classSchedules")),
       workoutSessionId: v.optional(v.id("workoutDaySessions")),
       paymentId: v.optional(v.id("planPayments")),
+      subscriptionId: v.optional(v.id("memberPlanSubscriptions")),
       title: v.string(),
       body: v.string(),
       data: v.optional(v.any()),
@@ -74,6 +77,7 @@ export const sendExpoPushForEvent: ReturnType<typeof internalAction> =
           scheduleId: args.scheduleId,
           workoutSessionId: args.workoutSessionId,
           paymentId: args.paymentId,
+          subscriptionId: args.subscriptionId,
         },
       );
 

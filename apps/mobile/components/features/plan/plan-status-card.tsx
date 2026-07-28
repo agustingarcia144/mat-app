@@ -37,6 +37,10 @@ interface PlanStatusCardProps {
   status: string;
   monthlyUsed: number;
   monthlyLimit: number;
+  /** Names of the classes the plan includes; empty means every class */
+  includedClassNames?: string[];
+  /** False when the plan grants no class access at all */
+  classesEnabled?: boolean;
 }
 
 export default function PlanStatusCard({
@@ -44,6 +48,8 @@ export default function PlanStatusCard({
   status,
   monthlyUsed,
   monthlyLimit,
+  includedClassNames = [],
+  classesEnabled = true,
 }: PlanStatusCardProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -91,7 +97,19 @@ export default function PlanStatusCard({
         ]}
       />
 
-      {/* Monthly class usage */}
+      {/* Monthly class usage — hidden when the plan has no class access */}
+      {!classesEnabled ? (
+        <View style={styles.usageSection}>
+          <Text
+            style={[
+              styles.usageLabel,
+              { color: isDark ? "#a1a1aa" : "#52525b" },
+            ]}
+          >
+            Este plan no incluye clases
+          </Text>
+        </View>
+      ) : (
       <View style={styles.usageSection}>
         <View style={styles.usageHeader}>
           <Text
@@ -131,6 +149,22 @@ export default function PlanStatusCard({
               : `${remaining} clase${remaining === 1 ? "" : "s"} disponible${remaining === 1 ? "" : "s"}`}
         </Text>
       </View>
+      )}
+
+      {includedClassNames.length > 0 ? (
+        <View style={styles.windowRow}>
+          <IconSymbol
+            name="checkmark"
+            size={14}
+            color={isDark ? "#71717a" : "#a1a1aa"}
+          />
+          <Text
+            style={[styles.windowText, { color: isDark ? "#71717a" : "#71717a" }]}
+          >
+            Clases incluidas: {includedClassNames.join(", ")}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.windowRow}>
         <IconSymbol

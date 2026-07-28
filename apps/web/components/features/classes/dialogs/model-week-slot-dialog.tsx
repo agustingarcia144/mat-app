@@ -247,8 +247,12 @@ export default function ModelWeekSlotDialog({
         : undefined;
 
     setAddingMembers(true);
-    try {
-      for (const userId of selectedMemberIds) {
+    // A member whose plan doesn't include this class must not abort the rest
+    let added = 0;
+    const failures: string[] = [];
+
+    for (const userId of selectedMemberIds) {
+      try {
         await createFixedSlot({
           userId,
           classId: slot.classId,
@@ -256,18 +260,27 @@ export default function ModelWeekSlotDialog({
           startTimeMinutes: slot.startTimeMinutes,
           timezone,
         });
+        added += 1;
+      } catch (err) {
+        const memberName =
+          allMembers.find((m) => m.id === userId)?.name ?? userId;
+        failures.push(
+          `${memberName}: ${err instanceof Error ? err.message : "Error al agregar"}`,
+        );
       }
+    }
+    setAddingMembers(false);
+
+    if (added > 0) {
       toast.success(
-        selectedMemberIds.length === 1
-          ? "Miembro agregado"
-          : `${selectedMemberIds.length} miembros agregados`,
+        added === 1 ? "Miembro agregado" : `${added} miembros agregados`,
       );
       setSelectedMemberIds([]);
       setMemberSearchOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al agregar");
-    } finally {
-      setAddingMembers(false);
+    }
+
+    if (failures.length > 0) {
+      toast.error(failures.join(" · "));
     }
   };
 
