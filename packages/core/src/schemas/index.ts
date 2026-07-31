@@ -252,6 +252,11 @@ export const membershipPlanSchema = z
       .max(28, "El día debe ser entre 1 y 28"),
     interestTiers: z.array(interestTierSchema).default([]),
     advancePaymentDiscounts: z.array(advancePaymentDiscountSchema).default([]),
+    // Convex ids are opaque strings here — they get cast at the call site.
+    // An empty array means "every class is included".
+    // Master switch: when false the plan grants no class access at all
+    classesEnabled: z.boolean().default(true),
+    allowedClassIds: z.array(z.string()).default([]),
   })
   .refine((data) => data.paymentWindowEndDay >= data.paymentWindowStartDay, {
     message: "El día de cierre debe ser igual o posterior al día de apertura",

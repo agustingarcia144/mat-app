@@ -150,6 +150,7 @@ async function getPaymentCoverage(
     userId: string;
     familyParentSubscriptionId?: Id<"memberPlanSubscriptions">;
   },
+  precomputedActiveMemberUserIds?: Set<string>,
 ) {
   const billingSubscription = subscription.familyParentSubscriptionId
     ? await ctx.db.get(subscription.familyParentSubscriptionId)
@@ -170,10 +171,9 @@ async function getPaymentCoverage(
     billingSubscription,
     ...childSubscriptions,
   ].filter((item) => item.status !== "cancelled");
-  const activeMemberUserIds = await getActiveMemberUserIds(
-    ctx,
-    billingSubscription.organizationId,
-  );
+  const activeMemberUserIds =
+    precomputedActiveMemberUserIds ??
+    (await getActiveMemberUserIds(ctx, billingSubscription.organizationId));
   const chargeableSubscriptions = coveredSubscriptions.filter((item) =>
     activeMemberUserIds.has(item.userId),
   );
@@ -684,7 +684,7 @@ export const getPendingByOrganization = query({
         .collect()
     ).filter((payment) => isChargeablePayment(payment, activeMemberUserIds));
 
-    return await enrichPayments(ctx, payments);
+    return await enrichPayments(ctx, payments, activeMemberUserIds);
   },
 });
 
@@ -729,7 +729,7 @@ export const getByOrganization = query({
             .collect()
     ).filter((payment) => isChargeablePayment(payment, activeMemberUserIds));
 
-    const enriched = await enrichPayments(ctx, payments);
+    const enriched = await enrichPayments(ctx, payments, activeMemberUserIds);
     return enriched.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
@@ -1754,12 +1754,16 @@ export const recordPayment = mutation({
 /**
  * Enrich payments with user and plan details.
  */
-async function enrichPayments(ctx: { db: any }, payments: any[]) {
+async function enrichPayments(
+  ctx: { db: any },
+  payments: any[],
+  activeMemberUserIds?: Set<string>,
+) {
   return await Promise.all(
     payments.map(async (payment) => {
       const subscription = await ctx.db.get(payment.subscriptionId);
       const coverage = subscription
-        ? await getPaymentCoverage(ctx, subscription)
+        ? await getPaymentCoverage(ctx, subscription, activeMemberUserIds)
         : null;
       const [plan, user] = await Promise.all([
         ctx.db.get(payment.planId as Id<"membershipPlans">),

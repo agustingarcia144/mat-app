@@ -31,6 +31,7 @@ export function mapMembershipToMember(membership: MembershipData): Member {
     pricePerHour: membership.pricePerHour,
     pricePerClass: membership.pricePerClass,
     pricePerMonth: membership.pricePerMonth,
+    commissionPercentage: membership.commissionPercentage,
     createdAt: new Date(membership.createdAt).toLocaleDateString(),
     birthday: membership.birthday,
     phone: membership.phone,

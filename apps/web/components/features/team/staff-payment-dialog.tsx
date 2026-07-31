@@ -75,6 +75,11 @@ export default function StaffPaymentDialog({
     open ? { userId, period } : "skip",
   );
 
+  const commission = useQuery(
+    api.payroll.getCommissionDetail,
+    open ? { userId, startDate, endDate } : "skip",
+  );
+
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -225,6 +230,39 @@ export default function StaffPaymentDialog({
           ) : (
             <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-center text-sm text-emerald-600">
               Sueldo pagado por completo.
+            </div>
+          )}
+
+          {/* Commission breakdown */}
+          {commission && commission.items.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-sm font-medium">
+                  Comisiones del período ({commission.commissionPercentage}%)
+                </p>
+                <p className="text-sm font-semibold tabular-nums">
+                  {formatMoney(commission.commissionAmount)}
+                </p>
+              </div>
+              <ul className="max-h-48 space-y-1.5 overflow-y-auto">
+                {commission.items.map((item, index) => (
+                  <li
+                    key={`${item.memberUserId}-${item.paidAt}-${index}`}
+                    className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{item.memberName}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {item.planName} · {formatMoney(item.amountArs)} ·{" "}
+                        {format(new Date(item.paidAt), "d MMM", { locale: es })}
+                      </p>
+                    </div>
+                    <p className="shrink-0 tabular-nums">
+                      {formatMoney(item.commissionAmount)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

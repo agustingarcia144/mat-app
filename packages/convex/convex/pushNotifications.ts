@@ -8,6 +8,16 @@ import {
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { requireAuth } from "./permissions";
+import { computeBonificationAmount } from "./planBonifications";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_PAYMENT_TIMEZONE = "America/Argentina/Buenos_Aires";
+
+/** Local hour of the day (org timezone) at which plan expiration reminders go out. */
+const PLAN_DUE_REMINDER_LOCAL_HOUR = 10;
+
+/** How many days before the due date the early reminder is sent. */
+const PLAN_DUE_SOON_DAYS = 3;
 
 function buildPreClassReminderCopy(className: string) {
   return {
@@ -27,6 +37,115 @@ function buildWorkoutCompletionReminderCopy() {
   return {
     title: "Termina tu entrenamiento",
     body: "Pasaron 2 horas desde que empezaste. Completalo para guardar tu progreso.",
+  };
+}
+
+function buildPlanDueSoonCopy(planName: string, dueLabel: string) {
+  return {
+    title: "Tu abono vence pronto",
+    body: `Tu plan ${planName} vence el ${dueLabel}. Registrá tu pago para no perder el acceso.`,
+  };
+}
+
+function buildPlanDueTodayCopy(planName: string) {
+  return {
+    title: "Tu abono vence hoy",
+    body: `Hoy vence el pago de tu plan ${planName}. Subí tu comprobante para mantener tu acceso activo.`,
+  };
+}
+
+function getPaymentTimezone(timezone?: string) {
+  return timezone && timezone.trim() !== ""
+    ? timezone.trim()
+    : DEFAULT_PAYMENT_TIMEZONE;
+}
+
+function getZonedDateParts(timestamp: number, timezone: string) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+  });
+  const partMap = Object.fromEntries(
+    formatter.formatToParts(new Date(timestamp)).map((p) => [p.type, p.value]),
+  );
+
+  return {
+    year: parseInt(partMap.year!, 10),
+    month: parseInt(partMap.month!, 10),
+    day: parseInt(partMap.day!, 10),
+    // Intl renders midnight as "24" in the h23-adjacent "hour12: false" mode.
+    hour: parseInt(partMap.hour!, 10) % 24,
+  };
+}
+
+function daysInMonth(year: number, month: number) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function addMonths(year: number, month: number, monthsToAdd: number) {
+  const date = new Date(Date.UTC(year, month - 1 + monthsToAdd, 1));
+  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+}
+
+/**
+ * First date a `join_date` subscription actually owes money: one month after
+ * activation. Mirrors the grace rule in `memberPlanSubscriptions.autoSuspendUnpaid`
+ * so we never warn a member about the cycle they just paid on sign-up.
+ */
+function getFirstJoinDateBillingDueAt(activatedAt: number, timezone: string) {
+  const activated = getZonedDateParts(activatedAt, timezone);
+  const firstDueMonth = addMonths(activated.year, activated.month, 1);
+  const firstDueDay = Math.min(
+    activated.day,
+    daysInMonth(firstDueMonth.year, firstDueMonth.month),
+  );
+  return Date.UTC(firstDueMonth.year, firstDueMonth.month - 1, firstDueDay);
+}
+
+/**
+ * Next due date at or after `today`, plus the billing period it belongs to.
+ *
+ * Due dates come from the same rules the billing cycle uses in `planPayments`:
+ * `calendar` plans are due on `paymentWindowEndDay` of each month, `join_date`
+ * plans on the member's activation-day anniversary. Dates are UTC-midnight
+ * date-only values so day arithmetic never drifts across timezones.
+ */
+function getUpcomingDueDate(
+  plan: {
+    billingMode?: "calendar" | "join_date";
+    paymentWindowEndDay?: number;
+  },
+  activatedAt: number,
+  today: { year: number; month: number; day: number },
+  timezone: string,
+) {
+  const mode = plan.billingMode ?? "calendar";
+  const anchorDay =
+    mode === "join_date"
+      ? getZonedDateParts(activatedAt, timezone).day
+      : (plan.paymentWindowEndDay ?? 28);
+
+  const thisMonthDueDay = Math.min(
+    anchorDay,
+    daysInMonth(today.year, today.month),
+  );
+  const dueMonth =
+    today.day <= thisMonthDueDay
+      ? { year: today.year, month: today.month }
+      : addMonths(today.year, today.month, 1);
+  const dueDay = Math.min(
+    anchorDay,
+    daysInMonth(dueMonth.year, dueMonth.month),
+  );
+
+  return {
+    dueAt: Date.UTC(dueMonth.year, dueMonth.month - 1, dueDay),
+    billingPeriod: `${dueMonth.year}-${String(dueMonth.month).padStart(2, "0")}`,
+    dueLabel: `${String(dueDay).padStart(2, "0")}/${String(dueMonth.month).padStart(2, "0")}`,
   };
 }
 
@@ -140,11 +259,14 @@ export const createNotificationEventIfMissing = internalMutation({
       v.literal("workout_completion_reminder"),
       v.literal("payment_review_approved"),
       v.literal("payment_review_declined"),
+      v.literal("plan_due_soon"),
+      v.literal("plan_due_today"),
     ),
     userId: v.string(),
     scheduleId: v.optional(v.id("classSchedules")),
     workoutSessionId: v.optional(v.id("workoutDaySessions")),
     paymentId: v.optional(v.id("planPayments")),
+    subscriptionId: v.optional(v.id("memberPlanSubscriptions")),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -167,6 +289,7 @@ export const createNotificationEventIfMissing = internalMutation({
       scheduleId: args.scheduleId,
       workoutSessionId: args.workoutSessionId,
       paymentId: args.paymentId,
+      subscriptionId: args.subscriptionId,
       status: "pending",
       attempts: 0,
       createdAt: now,
@@ -611,6 +734,199 @@ export const sendCancelledToAlertSubscribers = internalMutation({
     }
 
     return { enqueued };
+  },
+});
+
+/**
+ * Hourly fan-out for plan expiration reminders. Only organizations whose local
+ * time just hit `PLAN_DUE_REMINDER_LOCAL_HOUR` get a worker enqueued, so each
+ * gym is notified at 10:00 in its own timezone.
+ */
+export const sendPlanExpirationReminders = internalMutation({
+  args: {
+    subscriptionLimit: v.optional(v.number()),
+    forceHour: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const orgs = await ctx.db.query("organizations").collect();
+
+    let enqueuedOrganizations = 0;
+    for (const org of orgs) {
+      const timezone = getPaymentTimezone(org.timezone);
+      const local = getZonedDateParts(now, timezone);
+      if (!args.forceHour && local.hour !== PLAN_DUE_REMINDER_LOCAL_HOUR) {
+        continue;
+      }
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.pushNotifications.sendPlanExpirationRemindersForOrg,
+        {
+          orgId: org._id,
+          subscriptionLimit: args.subscriptionLimit,
+        },
+      );
+      enqueuedOrganizations += 1;
+    }
+
+    return { processedOrganizations: orgs.length, enqueuedOrganizations };
+  },
+});
+
+/**
+ * Per-organization worker: walks active subscriptions in pages and enqueues a
+ * push for every member whose plan is due in `PLAN_DUE_SOON_DAYS` days or today.
+ *
+ * Skipped: family associates (only the titular is billed), members without an
+ * active membership, fully bonified subscriptions, and periods already paid.
+ */
+export const sendPlanExpirationRemindersForOrg = internalMutation({
+  args: {
+    orgId: v.id("organizations"),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    subscriptionLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const org = await ctx.db.get(args.orgId);
+    if (!org) return { processedSubscriptions: 0, enqueued: 0, isDone: true };
+
+    const timezone = getPaymentTimezone(org.timezone);
+    const now = Date.now();
+    const today = getZonedDateParts(now, timezone);
+    const todayDateMs = Date.UTC(today.year, today.month - 1, today.day);
+    const subscriptionLimit = args.subscriptionLimit ?? 50;
+
+    const page = await ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization_status", (q) =>
+        q.eq("organizationId", org._id).eq("status", "active"),
+      )
+      .paginate({
+        cursor: args.cursor ?? null,
+        numItems: subscriptionLimit,
+      });
+
+    let enqueued = 0;
+
+    for (const sub of page.page) {
+      // Family associates are covered by the titular's payment.
+      if (sub.familyParentSubscriptionId) continue;
+
+      const membership = await ctx.db
+        .query("organizationMemberships")
+        .withIndex("by_organization_user", (q) =>
+          q.eq("organizationId", sub.organizationId).eq("userId", sub.userId),
+        )
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("role"), "member"),
+            q.eq(q.field("status"), "active"),
+          ),
+        )
+        .first();
+      if (!membership) continue;
+
+      const plan = await ctx.db.get(sub.planId);
+      if (!plan) continue;
+
+      const { dueAt, billingPeriod, dueLabel } = getUpcomingDueDate(
+        plan,
+        sub.activatedAt,
+        today,
+        timezone,
+      );
+
+      const daysUntilDue = Math.round((dueAt - todayDateMs) / DAY_MS);
+      const isDueSoon = daysUntilDue === PLAN_DUE_SOON_DAYS;
+      const isDueToday = daysUntilDue === 0;
+      if (!isDueSoon && !isDueToday) continue;
+
+      // A join_date member pays on activation, so their first anniversary is the
+      // first date they actually owe. Anything earlier is already covered.
+      if (
+        (plan.billingMode ?? "calendar") === "join_date" &&
+        dueAt < getFirstJoinDateBillingDueAt(sub.activatedAt, timezone)
+      ) {
+        continue;
+      }
+
+      // Fully bonified subscriptions never owe anything.
+      const activeBonification = await ctx.db
+        .query("planBonifications")
+        .withIndex("by_subscription_status", (q) =>
+          q.eq("subscriptionId", sub._id).eq("status", "active"),
+        )
+        .first();
+      if (
+        activeBonification &&
+        computeBonificationAmount(
+          plan.priceArs,
+          activeBonification.discountType,
+          activeBonification.discountValue,
+        ) === 0
+      ) {
+        continue;
+      }
+
+      // Already settled for this period (includes months paid in advance).
+      const existingPayment = await ctx.db
+        .query("planPayments")
+        .withIndex("by_subscription_period", (q) =>
+          q.eq("subscriptionId", sub._id).eq("billingPeriod", billingPeriod),
+        )
+        .filter((q) =>
+          q.or(
+            q.eq(q.field("status"), "approved"),
+            q.eq(q.field("status"), "in_review"),
+          ),
+        )
+        .first();
+      if (existingPayment) continue;
+
+      const type = isDueToday ? "plan_due_today" : "plan_due_soon";
+      const copy = isDueToday
+        ? buildPlanDueTodayCopy(plan.name)
+        : buildPlanDueSoonCopy(plan.name, dueLabel);
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.pushNotificationsNode.sendExpoPushForEvent,
+        {
+          eventKey: `${type}:${sub._id}:${billingPeriod}`,
+          type,
+          userId: sub.userId,
+          subscriptionId: sub._id,
+          title: copy.title,
+          body: copy.body,
+          data: {
+            type,
+            subscriptionId: sub._id,
+            billingPeriod,
+            href: "/(tabs)/plan",
+          },
+        },
+      );
+      enqueued += 1;
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.pushNotifications.sendPlanExpirationRemindersForOrg,
+        {
+          orgId: args.orgId,
+          cursor: page.continueCursor,
+          subscriptionLimit,
+        },
+      );
+    }
+
+    return {
+      processedSubscriptions: page.page.length,
+      enqueued,
+      isDone: page.isDone,
+    };
   },
 });
 

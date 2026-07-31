@@ -139,6 +139,7 @@ export type Member = {
   pricePerHour?: number;
   pricePerClass?: number;
   pricePerMonth?: number;
+  commissionPercentage?: number;
   createdAt: Date | string | number;
   birthday?: string;
   phone?: string;
@@ -158,6 +159,7 @@ export type MembershipData = {
   pricePerHour?: number;
   pricePerClass?: number;
   pricePerMonth?: number;
+  commissionPercentage?: number;
   createdAt: number;
   joinedAt: number;
   // User fields from users table

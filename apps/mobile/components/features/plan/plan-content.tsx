@@ -34,7 +34,18 @@ export default function PlanContent() {
   );
   const currentPayment = useQuery(api.planPayments.getMyCurrentPeriodPayment);
   const bonification = useQuery(api.planBonifications.getMyActiveBonification);
+  const classes = useQuery(api.classes.getByOrganization, { activeOnly: true });
   const cancelSubscription = useMutation(api.memberPlanSubscriptions.cancel);
+
+  // Empty means the plan includes every class, so the card omits the row
+  const planIncludesClasses = subscription?.plan?.classesEnabled !== false;
+  const allowedClassIds = subscription?.plan?.allowedClassIds ?? null;
+  const includedClassNames =
+    planIncludesClasses && allowedClassIds
+      ? (classes ?? [])
+          .filter((c) => allowedClassIds.includes(c._id))
+          .map((c) => c.name)
+      : [];
 
   const BONIFICATION_REASON_LABELS: Record<string, string> = {
     friend_and_family: "Familiar/Amigo",
@@ -116,6 +127,8 @@ export default function PlanContent() {
             status={subscription.status}
             monthlyUsed={monthlyUsage?.used ?? 0}
             monthlyLimit={monthlyUsage?.limit ?? 0}
+            includedClassNames={includedClassNames}
+            classesEnabled={planIncludesClasses}
           />
 
           {/* Bonification banner */}

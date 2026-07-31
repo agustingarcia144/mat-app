@@ -20,6 +20,7 @@ import { es } from 'date-fns/locale'
 import * as Haptics from 'expo-haptics'
 import { useColorScheme } from '@/hooks/use-color-scheme'
 import { useSubscriptionGate } from '@/hooks/use-subscription-gate'
+import { useClassAccess } from '@/hooks/use-class-access'
 import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
 import { ThemedPressable } from '@/components/ui/themed-pressable'
@@ -30,6 +31,16 @@ import { ReservationBadge } from '@/components/features/classes/reservation-badg
 import { UnavailableBadge } from '@/components/features/classes/unavailable-badge'
 
 const SPACING = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const
+
+/**
+ * Convex wraps server errors in a stack-trace blob. Pull out the actual
+ * message so the member sees "Tu cuota está vencida…" and not the whole trace.
+ */
+function friendlyConvexError(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : ''
+  const match = raw.match(/Uncaught Error:\s*(.+?)(?:\n|$)/)
+  return match?.[1]?.trim() ?? (raw.includes('\n') ? fallback : raw || fallback)
+}
 
 export default function ClassDetailContent() {
   const { scheduleId } = useLocalSearchParams<{ scheduleId: string }>()
@@ -61,9 +72,20 @@ export default function ClassDetailContent() {
 
   const { status: subscriptionStatus, canAccess: hasActiveSubscription } =
     useSubscriptionGate()
+  const { classesEnabled: planIncludesClasses, allowedClassIds } =
+    useClassAccess()
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  /** Set when the member's plan does not grant access to this class */
+  const accessBlockMessage = useMemo(() => {
+    if (!planIncludesClasses) return 'Tu plan no incluye acceso a clases.'
+    if (!allowedClassIds || !scheduleWithDetails) return null
+    return allowedClassIds.includes(scheduleWithDetails.classId)
+      ? null
+      : 'Esta clase no está incluida en tu plan.'
+  }, [planIncludesClasses, allowedClassIds, scheduleWithDetails])
 
   const reservation = useMemo(() => {
     if (!scheduleId || !myUpcoming || !myPast) return null
@@ -75,6 +97,7 @@ export default function ClassDetailContent() {
 
   const canReserve = useMemo(() => {
     if (!hasActiveSubscription) return false
+    if (accessBlockMessage) return false
     if (!scheduleWithDetails || isReserved) return false
     const { currentReservations, capacity, startTime } = scheduleWithDetails
     const now = Date.now()
@@ -86,7 +109,12 @@ export default function ClassDetailContent() {
       classTemplate.bookingWindowDays * 24 * 60 * 60 * 1000
     if (now < startTime - bookingWindowMs) return false
     return true
-  }, [scheduleWithDetails, isReserved, hasActiveSubscription])
+  }, [
+    scheduleWithDetails,
+    isReserved,
+    hasActiveSubscription,
+    accessBlockMessage,
+  ])
 
   const canCancel = useMemo(() => {
     if (!reservation?.schedule || !reservation?.class) return false
@@ -126,14 +154,18 @@ export default function ClassDetailContent() {
 
   const handleToggleAlert = useCallback(async () => {
     if (!scheduleId) return
-    if (myAlert) {
-      await unsubscribeAlert({ scheduleId: scheduleId as any })
-    } else {
-      await subscribeAlert({ scheduleId: scheduleId as any })
-      Alert.alert(
-        'Alertas activadas',
-        'Te avisaremos si se libera un lugar o si la clase es cancelada.'
-      )
+    try {
+      if (myAlert) {
+        await unsubscribeAlert({ scheduleId: scheduleId as any })
+      } else {
+        await subscribeAlert({ scheduleId: scheduleId as any })
+        Alert.alert(
+          'Alertas activadas',
+          'Te avisaremos si se libera un lugar o si la clase es cancelada.'
+        )
+      }
+    } catch (e: unknown) {
+      setError(friendlyConvexError(e, 'No se pudo actualizar la alerta'))
     }
   }, [scheduleId, myAlert, subscribeAlert, unsubscribeAlert])
 
@@ -149,8 +181,8 @@ export default function ClassDetailContent() {
           setBusy(true)
           try {
             await reserve({ scheduleId: scheduleId as any })
-          } catch (e: any) {
-            setError(e?.message ?? 'No se pudo reservar la clase')
+          } catch (e: unknown) {
+            setError(friendlyConvexError(e, 'No se pudo reservar la clase'))
           } finally {
             setBusy(false)
           }
@@ -172,8 +204,8 @@ export default function ClassDetailContent() {
           setBusy(true)
           try {
             await cancelReservation({ id: reservation._id as any })
-          } catch (e: any) {
-            setError(e?.message ?? 'No se pudo cancelar la reserva')
+          } catch (e: unknown) {
+            setError(friendlyConvexError(e, 'No se pudo cancelar la reserva'))
           } finally {
             setBusy(false)
           }
@@ -194,8 +226,10 @@ export default function ClassDetailContent() {
           setBusy(true)
           try {
             await checkInSelf({ id: reservation._id as any })
-          } catch (e: any) {
-            setError(e?.message ?? 'No se pudo confirmar la asistencia')
+          } catch (e: unknown) {
+            setError(
+              friendlyConvexError(e, 'No se pudo confirmar la asistencia')
+            )
           } finally {
             setBusy(false)
           }
@@ -518,6 +552,17 @@ export default function ClassDetailContent() {
               {subscriptionStatus === 'suspended'
                 ? 'Tu plan está suspendido. Regularizá tu pago para reservar.'
                 : 'Necesitás un plan activo para reservar clases.'}
+            </Text>
+          </View>
+        ) : accessBlockMessage && !isReserved && isUpcoming ? (
+          <View style={styles.subscriptionNotice}>
+            <Text
+              style={[
+                styles.subscriptionNoticeText,
+                { color: isDark ? '#fca5a5' : '#dc2626' },
+              ]}
+            >
+              {accessBlockMessage}
             </Text>
           </View>
         ) : canReserve ? (

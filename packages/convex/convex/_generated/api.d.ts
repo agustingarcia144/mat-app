@@ -9,6 +9,7 @@
  */
 
 import type * as appBillingPlans from "../appBillingPlans.js";
+import type * as classAccess from "../classAccess.js";
 import type * as classAlerts from "../classAlerts.js";
 import type * as classMetrics from "../classMetrics.js";
 import type * as classQuota from "../classQuota.js";
@@ -72,6 +73,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   appBillingPlans: typeof appBillingPlans;
+  classAccess: typeof classAccess;
   classAlerts: typeof classAlerts;
   classMetrics: typeof classMetrics;
   classQuota: typeof classQuota;

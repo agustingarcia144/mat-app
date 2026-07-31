@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   AlertTriangle,
+  Ban,
   CreditCard,
   Edit,
   Eye,
@@ -60,6 +61,16 @@ export default function PlanList() {
   const plans = useQuery(
     api.membershipPlans.getByOrganization,
     canQuery ? { activeOnly: false } : "skip",
+  );
+  const orgClasses = useQuery(
+    api.classes.getByOrganization,
+    canQuery ? { activeOnly: false } : "skip",
+  );
+  const classNameById = new Map(
+    (orgClasses ?? []).map((classItem) => [
+      classItem._id as string,
+      classItem.name,
+    ]),
   );
   const toggleActive = useMutation(api.membershipPlans.toggleActive);
   const toggleVisibility = useMutation(api.membershipPlans.toggleVisibility);
@@ -231,6 +242,22 @@ export default function PlanList() {
                               Oculto
                             </Badge>
                           ) : null}
+                          {plan.classesEnabled === false ? (
+                            <Badge variant="outline" className="gap-1">
+                              <Ban className="size-3" />
+                              Sin clases
+                            </Badge>
+                          ) : plan.allowedClassIds?.length ? (
+                            <Badge
+                              variant="outline"
+                              title={plan.allowedClassIds
+                                .map((id) => classNameById.get(id) ?? id)
+                                .join(", ")}
+                            >
+                              {plan.allowedClassIds.length} clase
+                              {plan.allowedClassIds.length === 1 ? "" : "s"}
+                            </Badge>
+                          ) : null}
                         </div>
                         {plan.description && (
                           <p className="text-xs text-muted-foreground">
@@ -243,9 +270,11 @@ export default function PlanList() {
                       ${plan.priceArs.toLocaleString("es-AR")}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {plan.weeklyClassLimit >= 9999
-                        ? "Sin límite"
-                        : plan.weeklyClassLimit}
+                      {plan.classesEnabled === false
+                        ? "—"
+                        : plan.weeklyClassLimit >= 9999
+                          ? "Sin límite"
+                          : plan.weeklyClassLimit}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       {(plan.billingMode ?? "calendar") === "join_date"

@@ -1,5 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import {
   isStaffRole,
   requireAuth,
@@ -85,6 +86,30 @@ const advancePaymentDiscountV = v.object({
 
 const billingModeV = v.union(v.literal("calendar"), v.literal("join_date"));
 
+/**
+ * Validate that every selected class belongs to the organization and drop
+ * duplicates. An empty selection means "all classes", stored as undefined.
+ */
+async function normalizeAllowedClassIds(
+  ctx: MutationCtx,
+  organizationId: Id<"organizations">,
+  allowedClassIds: Id<"classes">[] | undefined,
+): Promise<Id<"classes">[] | undefined> {
+  if (!allowedClassIds || allowedClassIds.length === 0) return undefined;
+
+  const unique = Array.from(new Set(allowedClassIds));
+  for (const classId of unique) {
+    const classTemplate = await ctx.db.get(classId);
+    if (!classTemplate || classTemplate.organizationId !== organizationId) {
+      throw new Error(
+        "Una de las clases seleccionadas no pertenece a esta organización",
+      );
+    }
+  }
+
+  return unique;
+}
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -97,6 +122,8 @@ export const create = mutation({
     paymentWindowEndDay: v.number(),
     interestTiers: v.optional(v.array(interestTierV)),
     advancePaymentDiscounts: v.optional(v.array(advancePaymentDiscountV)),
+    classesEnabled: v.optional(v.boolean()),
+    allowedClassIds: v.optional(v.array(v.id("classes"))),
   },
   handler: async (ctx, args) => {
     const identity = await requireAuth(ctx);
@@ -104,6 +131,15 @@ export const create = mutation({
     await requireAdmin(ctx, membership.organizationId);
 
     validatePlanFields(args);
+
+    const classesEnabled = args.classesEnabled ?? true;
+    const allowedClassIds = classesEnabled
+      ? await normalizeAllowedClassIds(
+          ctx,
+          membership.organizationId,
+          args.allowedClassIds,
+        )
+      : undefined;
 
     const now = Date.now();
     return await ctx.db.insert("membershipPlans", {
@@ -122,6 +158,8 @@ export const create = mutation({
       advancePaymentDiscounts: args.advancePaymentDiscounts?.length
         ? args.advancePaymentDiscounts
         : undefined,
+      classesEnabled,
+      allowedClassIds,
       isActive: true,
       createdBy: identity.subject,
       createdAt: now,
@@ -146,6 +184,8 @@ export const update = mutation({
     paymentWindowEndDay: v.optional(v.number()),
     interestTiers: v.optional(v.array(interestTierV)),
     advancePaymentDiscounts: v.optional(v.array(advancePaymentDiscountV)),
+    classesEnabled: v.optional(v.boolean()),
+    allowedClassIds: v.optional(v.array(v.id("classes"))),
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
@@ -196,6 +236,20 @@ export const update = mutation({
       patch.advancePaymentDiscounts = args.advancePaymentDiscounts.length
         ? args.advancePaymentDiscounts
         : undefined;
+    if (args.classesEnabled !== undefined)
+      patch.classesEnabled = args.classesEnabled;
+
+    // A plan without class access keeps no class selection
+    const classesEnabled = args.classesEnabled ?? plan.classesEnabled ?? true;
+    if (!classesEnabled) {
+      patch.allowedClassIds = undefined;
+    } else if (args.allowedClassIds !== undefined) {
+      patch.allowedClassIds = await normalizeAllowedClassIds(
+        ctx,
+        membership.organizationId,
+        args.allowedClassIds,
+      );
+    }
 
     await ctx.db.patch(args.planId, patch);
   },

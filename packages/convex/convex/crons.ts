@@ -34,6 +34,15 @@ crons.interval(
   },
 );
 
+// Runs every hour on the hour; the handler only acts on organizations whose
+// local time is the configured reminder hour.
+crons.hourly(
+  "send-plan-expiration-reminders",
+  { minuteUTC: 0 },
+  internal.pushNotifications.sendPlanExpirationReminders,
+  {},
+);
+
 crons.interval(
   "auto-suspend-unpaid-subscriptions",
   { hours: 1 },

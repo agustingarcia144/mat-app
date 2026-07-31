@@ -196,6 +196,24 @@ export const remove = mutation({
       await ctx.db.delete(schedule._id);
     }
 
+    // Drop the class from any plan that restricted access to it, so plans
+    // don't keep dangling ids in allowedClassIds.
+    const plans = await ctx.db
+      .query("membershipPlans")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", classTemplate.organizationId),
+      )
+      .collect();
+
+    for (const plan of plans) {
+      if (!plan.allowedClassIds?.includes(args.id)) continue;
+      const remaining = plan.allowedClassIds.filter((id) => id !== args.id);
+      await ctx.db.patch(plan._id, {
+        allowedClassIds: remaining.length > 0 ? remaining : undefined,
+        updatedAt: now,
+      });
+    }
+
     await ctx.db.delete(args.id);
   },
 });

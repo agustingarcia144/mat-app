@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import {
@@ -64,24 +65,117 @@ function computeUsage(
   return { hours, classesInCharge };
 }
 
+/**
+ * Base pay (hours/classes or fixed monthly) plus the commission earned on what
+ * the staff member's assigned members paid during the period.
+ */
 function computeTotal(
   membership: {
     payrollType?: "hourly" | "monthly";
     pricePerHour?: number;
     pricePerClass?: number;
     pricePerMonth?: number;
+    commissionPercentage?: number;
   },
   hours: number,
   classesInCharge: number,
+  commissionBase: number,
 ) {
   const payrollType = membership.payrollType ?? "hourly";
-  if (payrollType === "monthly") {
-    return membership.pricePerMonth ?? 0;
+  const baseTotal =
+    payrollType === "monthly"
+      ? (membership.pricePerMonth ?? 0)
+      : hours * (membership.pricePerHour ?? 0) +
+        classesInCharge * (membership.pricePerClass ?? 0);
+  const commissionPercentage = membership.commissionPercentage ?? 0;
+  const commissionAmount = commissionBase * (commissionPercentage / 100);
+  return {
+    baseTotal,
+    commissionBase,
+    commissionAmount,
+    total: baseTotal + commissionAmount,
+  };
+}
+
+type CommissionItem = {
+  memberUserId: string;
+  planId: Id<"membershipPlans">;
+  amountArs: number;
+  paidAt: number;
+};
+
+/**
+ * Commission base per staff member for a period.
+ *
+ * A member is tied to a staff member through `responsibleUserId`. Every plan
+ * payment approved inside the period counts toward the responsible staff
+ * member's base, using the amount actually collected (interest included).
+ *
+ * Zero-amount payments are skipped: a full bonification is recorded as an
+ * approved $0 payment, so no money came in. A partial bonification keeps the
+ * discounted amount the member did pay, and counts for that amount.
+ */
+function computeCommissions(
+  payments: Array<{
+    userId: string;
+    planId: Id<"membershipPlans">;
+    status: string;
+    amountArs: number;
+    totalAmountArs?: number;
+    reviewedAt?: number;
+    createdAt: number;
+  }>,
+  memberships: Array<{
+    role: string;
+    userId: string;
+    responsibleUserId?: string;
+  }>,
+  startDate: number,
+  endDate: number,
+) {
+  const responsibleByMember = new Map<string, string>();
+  for (const m of memberships) {
+    if (m.role !== "member" || !m.responsibleUserId) continue;
+    responsibleByMember.set(m.userId, m.responsibleUserId);
   }
-  return (
-    hours * (membership.pricePerHour ?? 0) +
-    classesInCharge * (membership.pricePerClass ?? 0)
-  );
+
+  const byStaff = new Map<string, { base: number; items: CommissionItem[] }>();
+  for (const payment of payments) {
+    if (payment.status !== "approved") continue;
+    // Legacy approved rows may predate reviewedAt.
+    const paidAt = payment.reviewedAt ?? payment.createdAt;
+    if (paidAt < startDate || paidAt > endDate) continue;
+
+    const staffUserId = responsibleByMember.get(payment.userId);
+    if (!staffUserId) continue;
+
+    const amountArs = payment.totalAmountArs ?? payment.amountArs;
+    if (amountArs <= 0) continue;
+    const entry = byStaff.get(staffUserId) ?? { base: 0, items: [] };
+    entry.base += amountArs;
+    entry.items.push({
+      memberUserId: payment.userId,
+      planId: payment.planId,
+      amountArs,
+      paidAt,
+    });
+    byStaff.set(staffUserId, entry);
+  }
+
+  return byStaff;
+}
+
+/** Approved plan payments for the organization (filtered by date downstream). */
+async function loadApprovedPlanPayments(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: Id<"organizations">,
+) {
+  return await ctx.db
+    .query("planPayments")
+    .withIndex("by_organization_status", (q) =>
+      q.eq("organizationId", organizationId).eq("status", "approved"),
+    )
+    .collect();
 }
 
 /**
@@ -101,15 +195,18 @@ export const getPayrollSummary = query({
     const organizationId = membership.organizationId;
     await requireAdmin(ctx, organizationId);
 
+    // All memberships: staff rows are limited to active ones below, but a member
+    // who went inactive after paying still earned a commission for the period.
     const memberships = await ctx.db
       .query("organizationMemberships")
       .withIndex("by_organization", (q) =>
         q.eq("organizationId", organizationId),
       )
-      .filter((q) => q.eq(q.field("status"), "active"))
       .collect();
 
-    const staffMemberships = memberships.filter((m) => isStaffRole(m.role));
+    const staffMemberships = memberships.filter(
+      (m) => m.status === "active" && isStaffRole(m.role),
+    );
 
     const shifts = await ctx.db
       .query("staffShifts")
@@ -146,6 +243,13 @@ export const getPayrollSummary = query({
       );
     }
 
+    const commissions = computeCommissions(
+      await loadApprovedPlanPayments(ctx, organizationId),
+      memberships,
+      args.startDate,
+      args.endDate,
+    );
+
     const rows = await Promise.all(
       staffMemberships.map(async (m) => {
         const user = await ctx.db
@@ -165,7 +269,13 @@ export const getPayrollSummary = query({
           m.userId,
         );
         const payrollType = m.payrollType ?? "hourly";
-        const total = computeTotal(m, hours, classesInCharge);
+        const { baseTotal, commissionBase, commissionAmount, total } =
+          computeTotal(
+            m,
+            hours,
+            classesInCharge,
+            commissions.get(m.userId)?.base ?? 0,
+          );
         const paidAmount = paidByUser.get(m.userId) ?? 0;
 
         return {
@@ -178,8 +288,12 @@ export const getPayrollSummary = query({
           pricePerHour: m.pricePerHour,
           pricePerClass: m.pricePerClass,
           pricePerMonth: m.pricePerMonth,
+          commissionPercentage: m.commissionPercentage,
           hours,
           classesInCharge,
+          baseTotal,
+          commissionBase,
+          commissionAmount,
           total,
           paidAmount,
           remaining: Math.max(0, total - paidAmount),
@@ -227,6 +341,89 @@ export const getPeriodPayments = query({
         paymentMethod: p.paymentMethod,
         transactionId: p.transactionId,
       }));
+  },
+});
+
+/**
+ * Breakdown of the commission a staff member earned in a period (admin only):
+ * one row per approved plan payment made by a member they are responsible for.
+ */
+export const getCommissionDetail = query({
+  args: {
+    userId: v.string(),
+    startDate: v.number(),
+    endDate: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    const organizationId = membership.organizationId;
+    await requireAdmin(ctx, organizationId);
+
+    const memberships = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect();
+
+    const targetMembership = memberships.find((m) => m.userId === args.userId);
+    const commissionPercentage = targetMembership?.commissionPercentage ?? 0;
+
+    const entry = computeCommissions(
+      await loadApprovedPlanPayments(ctx, organizationId),
+      memberships,
+      args.startDate,
+      args.endDate,
+    ).get(args.userId);
+
+    if (!entry) {
+      return { commissionPercentage, base: 0, commissionAmount: 0, items: [] };
+    }
+
+    const planNames = new Map<Id<"membershipPlans">, string>();
+    const memberNames = new Map<string, string>();
+
+    const items = await Promise.all(
+      entry.items.map(async (item) => {
+        if (!planNames.has(item.planId)) {
+          const plan = await ctx.db.get(item.planId);
+          planNames.set(item.planId, plan?.name ?? "Plan");
+        }
+        if (!memberNames.has(item.memberUserId)) {
+          const user = await ctx.db
+            .query("users")
+            .withIndex("by_externalId", (q) =>
+              q.eq("externalId", item.memberUserId),
+            )
+            .first();
+          memberNames.set(
+            item.memberUserId,
+            user?.fullName ||
+              [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+              user?.email ||
+              item.memberUserId,
+          );
+        }
+
+        return {
+          memberUserId: item.memberUserId,
+          memberName: memberNames.get(item.memberUserId)!,
+          planName: planNames.get(item.planId)!,
+          amountArs: item.amountArs,
+          commissionAmount: item.amountArs * (commissionPercentage / 100),
+          paidAt: item.paidAt,
+        };
+      }),
+    );
+
+    items.sort((a, b) => b.paidAt - a.paidAt);
+
+    return {
+      commissionPercentage,
+      base: entry.base,
+      commissionAmount: entry.base * (commissionPercentage / 100),
+      items,
+    };
   },
 });
 
@@ -302,9 +499,25 @@ export const registerPayment = mutation({
       schedules,
       args.userId,
     );
+
+    const memberships = await ctx.db
+      .query("organizationMemberships")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect();
+    const commissionBase =
+      computeCommissions(
+        await loadApprovedPlanPayments(ctx, organizationId),
+        memberships,
+        args.startDate,
+        args.endDate,
+      ).get(args.userId)?.base ?? 0;
+
     const payrollType = targetMembership.payrollType ?? "hourly";
     const total = Math.round(
-      computeTotal(targetMembership, hours, classesInCharge),
+      computeTotal(targetMembership, hours, classesInCharge, commissionBase)
+        .total,
     );
 
     const existingPayments = await ctx.db
@@ -371,6 +584,8 @@ export const registerPayment = mutation({
       payrollType,
       hours,
       classesInCharge,
+      commissionPercentage: targetMembership.commissionPercentage,
+      commissionBaseArs: commissionBase,
       amountArs: args.amountArs,
       occurredOn: args.occurredOn,
       paymentMethod: args.paymentMethod,

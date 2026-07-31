@@ -14,6 +14,7 @@ import {
 } from "./permissions";
 import { getDayAndMinutesInZone } from "./fixedClassSlots";
 import { getMonthlyClassUsageForSchedule } from "./classQuota";
+import { assertClassAllowed } from "./classAccess";
 
 /**
  * Reserve a spot in a class
@@ -81,11 +82,20 @@ export const reserve = mutation({
       throw new Error("You have already reserved this class");
     }
 
-    // Plan enforcement: require active subscription and check monthly class limit
+    // Plan enforcement: require active subscription, a plan that includes this
+    // class, and room in the monthly class limit
     await requireActiveSubscription(
       ctx,
       schedule.organizationId,
       identity.subject,
+    );
+
+    await assertClassAllowed(
+      ctx,
+      schedule.organizationId,
+      identity.subject,
+      schedule.classId,
+      "member",
     );
 
     const subscription = await ctx.db
