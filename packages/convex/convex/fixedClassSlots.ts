@@ -1,6 +1,6 @@
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   requireAuth,
   isStaffRole,
@@ -9,7 +9,11 @@ import {
   tryActiveOrgContext,
 } from "./permissions";
 import { getMonthlyClassUsageForSchedule } from "./classQuota";
-import { assertClassAllowed, getClassAccessForUser } from "./classAccess";
+import {
+  assertClassAllowed,
+  getClassAccessForUser,
+  type ClassAccess,
+} from "./classAccess";
 
 /**
  * Create a fixed slot for a member (admin/trainer only).
@@ -594,19 +598,47 @@ export const listBySlot = query({
  * Derives dayOfWeek and startTimeMinutes from the schedule's startTime in the
  * organization's timezone (so they match the admin's local time when creating fixed slots).
  */
+/**
+ * Per-batch cache for bulk enrollment (e.g. applying the model week). Holds data
+ * that is constant for the whole operation so it is read once instead of once
+ * per created schedule: the org timezone and, per member, their plan access /
+ * subscription / plan. The monthly-usage count is deliberately NOT cached — it
+ * changes as reservations are inserted during the batch and must stay live.
+ */
+export type FixedSlotEnrollmentCache = {
+  timezone?: string;
+  classAccessByUser: Map<string, ClassAccess>;
+  subscriptionByUser: Map<string, Doc<"memberPlanSubscriptions"> | null>;
+  planById: Map<string, Doc<"membershipPlans"> | null>;
+};
+
+export function createFixedSlotEnrollmentCache(): FixedSlotEnrollmentCache {
+  return {
+    classAccessByUser: new Map(),
+    subscriptionByUser: new Map(),
+    planById: new Map(),
+  };
+}
+
 export async function assignFixedSlotsToSchedule(
   ctx: MutationCtx,
   scheduleId: Id<"classSchedules">,
+  cache?: FixedSlotEnrollmentCache,
 ): Promise<void> {
   const schedule = await ctx.db.get(scheduleId);
   if (!schedule) return;
   if (schedule.status !== "scheduled") return;
 
-  const organization = await ctx.db.get(schedule.organizationId);
-  const timezone =
-    organization?.timezone && organization.timezone.trim() !== ""
-      ? organization.timezone
-      : "UTC";
+  // Org timezone is constant across a batch — resolve once and reuse.
+  let timezone = cache?.timezone;
+  if (timezone === undefined) {
+    const organization = await ctx.db.get(schedule.organizationId);
+    timezone =
+      organization?.timezone && organization.timezone.trim() !== ""
+        ? organization.timezone
+        : "UTC";
+    if (cache) cache.timezone = timezone;
+  }
 
   const { dayOfWeek, startTimeMinutes } = getDayAndMinutesInZone(
     schedule.startTime,
@@ -646,36 +678,56 @@ export async function assignFixedSlotsToSchedule(
 
     // Plan enforcement: skip if the plan doesn't include this class, the member
     // is suspended, or they are over the monthly limit
-    const { classesEnabled, allowedClassIds } = await getClassAccessForUser(
-      ctx,
-      schedule.organizationId,
-      slot.userId,
-    );
+    // Plan access is per member and constant during the batch — cache it.
+    let classAccess = cache?.classAccessByUser.get(slot.userId);
+    if (!classAccess) {
+      classAccess = await getClassAccessForUser(
+        ctx,
+        schedule.organizationId,
+        slot.userId,
+      );
+      cache?.classAccessByUser.set(slot.userId, classAccess);
+    }
+    const { classesEnabled, allowedClassIds } = classAccess;
     if (!classesEnabled) continue;
     if (allowedClassIds && !allowedClassIds.includes(schedule.classId)) {
       continue;
     }
 
-    const memberSub = await ctx.db
-      .query("memberPlanSubscriptions")
-      .withIndex("by_organization_user", (q) =>
-        q
-          .eq("organizationId", schedule.organizationId)
-          .eq("userId", slot.userId),
-      )
-      .filter((q) => q.neq(q.field("status"), "cancelled"))
-      .first();
+    // Subscription + plan are per member and constant during the batch — cache.
+    let memberSub = cache?.subscriptionByUser.get(slot.userId);
+    if (memberSub === undefined) {
+      memberSub =
+        (await ctx.db
+          .query("memberPlanSubscriptions")
+          .withIndex("by_organization_user", (q) =>
+            q
+              .eq("organizationId", schedule.organizationId)
+              .eq("userId", slot.userId),
+          )
+          .filter((q) => q.neq(q.field("status"), "cancelled"))
+          .first()) ?? null;
+      cache?.subscriptionByUser.set(slot.userId, memberSub);
+    }
 
     if (memberSub) {
       if (memberSub.status === "suspended") continue;
-      const memberPlan = await ctx.db.get(memberSub.planId);
+      const planKey = String(memberSub.planId);
+      let memberPlan = cache?.planById.get(planKey);
+      if (memberPlan === undefined) {
+        memberPlan = await ctx.db.get(memberSub.planId);
+        cache?.planById.set(planKey, memberPlan);
+      }
       if (memberPlan) {
+        // Monthly usage stays live (it reflects reservations added earlier in
+        // this same batch); only the timezone is reused to skip an org read.
         const monthlyUsage = await getMonthlyClassUsageForSchedule(
           ctx,
           schedule.organizationId,
           slot.userId,
           memberPlan,
           schedule.startTime,
+          timezone,
         );
         if (monthlyUsage.hasReachedLimit) continue;
       }
