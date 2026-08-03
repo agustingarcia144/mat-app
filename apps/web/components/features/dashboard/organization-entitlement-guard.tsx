@@ -22,6 +22,8 @@ function moduleForPath(pathname: string) {
   if (pathname.startsWith("/dashboard/metrics")) return "metrics";
   if (pathname.startsWith("/dashboard/users")) return "users";
   if (pathname.startsWith("/dashboard/settings")) return "settings";
+  // Super-admin-only platform view: gated by isSuperAdmin, not by billing.
+  if (pathname.startsWith("/dashboard/platform")) return "dashboard";
   return "dashboard";
 }
 

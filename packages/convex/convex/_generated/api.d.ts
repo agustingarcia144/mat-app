@@ -48,6 +48,7 @@ import type * as planPayments from "../planPayments.js";
 import type * as planificationAssignments from "../planificationAssignments.js";
 import type * as planificationRevisionHelpers from "../planificationRevisionHelpers.js";
 import type * as planifications from "../planifications.js";
+import type * as platformInsights from "../platformInsights.js";
 import type * as pushNotifications from "../pushNotifications.js";
 import type * as pushNotificationsNode from "../pushNotificationsNode.js";
 import type * as scheduleBatchUtils from "../scheduleBatchUtils.js";
@@ -112,6 +113,7 @@ declare const fullApi: ApiFromModules<{
   planificationAssignments: typeof planificationAssignments;
   planificationRevisionHelpers: typeof planificationRevisionHelpers;
   planifications: typeof planifications;
+  platformInsights: typeof platformInsights;
   pushNotifications: typeof pushNotifications;
   pushNotificationsNode: typeof pushNotificationsNode;
   scheduleBatchUtils: typeof scheduleBatchUtils;

@@ -109,6 +109,22 @@ function buildSyntheticSuperAdminMembership(
 }
 
 /**
+ * Require the caller to be a platform-level super admin (users.isSuperAdmin).
+ * Unlike the org helpers below this is not scoped to any organization.
+ */
+export async function requireSuperAdmin(ctx: Ctx) {
+  const { identity, user } = await getCurrentUserRecord(ctx);
+  if (user?.isSuperAdmin !== true) {
+    throw new OrgAccessError(
+      "ORG_FORBIDDEN",
+      "Unauthorized: Super admin role required",
+    );
+  }
+
+  return { identity, user };
+}
+
+/**
  * Require membership in a specific organization.
  */
 export async function requireOrganizationMembership(

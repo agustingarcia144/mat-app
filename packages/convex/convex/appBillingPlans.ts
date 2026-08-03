@@ -1,6 +1,6 @@
 import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireAuth } from "./permissions";
+import { requireSuperAdmin } from "./permissions";
 
 const LITE_MODULES = ["dashboard", "members", "exercises", "planifications"];
 const LITE_DASHBOARD_CARDS = ["members", "planifications"];
@@ -22,22 +22,6 @@ const PRO_DASHBOARD_CARDS = [
   "payments",
   "classes",
 ];
-
-async function requireSuperAdmin(ctx: any) {
-  const identity = await requireAuth(ctx);
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_externalId", (q: any) =>
-      q.eq("externalId", identity.subject),
-    )
-    .first();
-
-  if (user?.isSuperAdmin !== true) {
-    throw new Error("Unauthorized: Super admin role required");
-  }
-
-  return identity;
-}
 
 export const listActive = query({
   args: {},

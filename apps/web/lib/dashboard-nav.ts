@@ -9,6 +9,7 @@ import {
   UserCog,
   Settings,
   Landmark,
+  ShieldCheck,
 } from "lucide-react";
 
 export type FeatureFlag =
@@ -33,6 +34,8 @@ export type DashboardNavItem = {
   url: string;
   billingModule: BillingModule;
   adminOnly?: boolean;
+  /** Only visible to platform super admins (users.isSuperAdmin). */
+  superAdminOnly?: boolean;
   featureFlag?: FeatureFlag;
 };
 
@@ -89,5 +92,12 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
     url: "/users",
     billingModule: "users",
     adminOnly: true,
+  },
+  {
+    label: "Plataforma",
+    icon: ShieldCheck,
+    url: "/platform",
+    billingModule: "dashboard",
+    superAdminOnly: true,
   },
 ];
