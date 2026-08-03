@@ -11,6 +11,7 @@ import { useUnsavedNavigationGuard } from "@/contexts/unsaved-changes-context";
 import { isOrgAdminRole } from "@/lib/security/roles";
 import { useOrgSettings } from "@/hooks/use-org-settings";
 import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
+import { useIsSuperAdmin } from "@/hooks/use-is-super-admin";
 import { api } from "@/convex/_generated/api";
 
 export default function ContentNavItems() {
@@ -19,6 +20,7 @@ export default function ContentNavItems() {
   const membership = useQuery(api.organizationMemberships.getCurrentMembership);
   const settings = useOrgSettings();
   const entitlement = useOrganizationEntitlement();
+  const { isSuperAdmin } = useIsSuperAdmin();
   const { requestNavigation } = useUnsavedNavigationGuard();
   const [optimisticPath, setOptimisticPath] = useOptimistic(pathname);
   const [, startTransition] = useTransition();
@@ -27,6 +29,7 @@ export default function ContentNavItems() {
     const isAdmin = isOrgAdminRole(membership?.role);
     const allowedModules = new Set(entitlement?.modules ?? []);
     return DASHBOARD_NAV_ITEMS.filter((item) => {
+      if (item.superAdminOnly) return isSuperAdmin;
       if (item.adminOnly && !isAdmin) return false;
       if (entitlement && !allowedModules.has(item.billingModule)) return false;
       if (item.featureFlag && settings) {
@@ -34,7 +37,7 @@ export default function ContentNavItems() {
       }
       return true;
     });
-  }, [entitlement, membership?.role, settings]);
+  }, [entitlement, isSuperAdmin, membership?.role, settings]);
 
   const handleNavigation = (url: string) => {
     const dashboardUrl = `/dashboard${url}`;

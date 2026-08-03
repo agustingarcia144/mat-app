@@ -10,6 +10,7 @@ import { v } from "convex/values";
 import {
   requireActiveOrgContext,
   requireAdmin,
+  requireSuperAdmin,
   tryActiveOrgContext,
 } from "./permissions";
 
@@ -48,7 +49,7 @@ const manualBillingPlanKeyV = v.optional(
   v.union(v.literal("pro"), v.literal("lite")),
 );
 
-type BillingStatus =
+export type BillingStatus =
   | "active"
   | "inactive"
   | "grace_period"
@@ -84,26 +85,6 @@ function getMercadoPagoPayerEmail(checkoutPayerEmail: string) {
   return sandboxPayer.includes("@")
     ? sandboxPayer
     : `${sandboxPayer}@testuser.com`;
-}
-
-async function requireSuperAdmin(ctx: any) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) {
-    throw new Error("Unauthorized");
-  }
-
-  const user = await ctx.db
-    .query("users")
-    .withIndex("by_externalId", (q: any) =>
-      q.eq("externalId", identity.subject),
-    )
-    .first();
-
-  if (user?.isSuperAdmin !== true) {
-    throw new Error("Unauthorized: Super admin role required");
-  }
-
-  return identity;
 }
 
 function getLitePriceArsFromEnv() {
@@ -171,7 +152,7 @@ function nowWithinTrial(subscription: any, now = Date.now()) {
   );
 }
 
-function toBillingStatus(subscription: any | null): BillingStatus {
+export function toBillingStatus(subscription: any | null): BillingStatus {
   if (!subscription) return "inactive";
   if (subscription.entitlementStatus === "active") return "active";
   if (nowWithinTrial(subscription)) return "trial";
@@ -766,7 +747,7 @@ export const activateOrganizationManually = mutation({
     source: manualBillingSourceV,
   },
   handler: async (ctx, args) => {
-    const identity = await requireSuperAdmin(ctx);
+    const { identity } = await requireSuperAdmin(ctx);
     return await activateOrganizationAccess(ctx, args, identity.subject);
   },
 });
