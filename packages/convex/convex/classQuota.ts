@@ -111,39 +111,13 @@ export async function countMonthlyClassReservations(
     .filter((q) => q.neq(q.field("status"), "cancelled"))
     .collect();
 
-  const countedReservationIds = new Set(
-    indexedReservations.map((reservation) => reservation._id),
-  );
-  let count = indexedReservations.length;
-
-  // Legacy rows created before scheduleStartTime existed are still counted
-  // until the backfill migration has fully populated them.
-  const legacyCandidates = await ctx.db
-    .query("classReservations")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("organizationId"), organizationId),
-        q.neq(q.field("status"), "cancelled"),
-      ),
-    )
-    .collect();
-
-  for (const reservation of legacyCandidates) {
-    if (countedReservationIds.has(reservation._id)) continue;
-    if (reservation.scheduleStartTime !== undefined) continue;
-
-    const schedule = await ctx.db.get(reservation.scheduleId);
-    if (
-      schedule &&
-      schedule.startTime >= cycleStartMs &&
-      schedule.startTime < cycleEndMs
-    ) {
-      count += 1;
-    }
-  }
-
-  return count;
+  // Every reservation now carries `scheduleStartTime` (backfilled 2026-07-31 and
+  // set on every insert path), so the indexed range above already covers the
+  // whole month. The previous fallback that scanned a member's ENTIRE
+  // reservation history ran on every call and grew without bound; in bulk paths
+  // (e.g. applying the model week) it pushed large orgs past Convex's 32k
+  // document-read limit. It is no longer needed.
+  return indexedReservations.length;
 }
 
 export async function getMonthlyClassUsageForSchedule(
@@ -152,8 +126,11 @@ export async function getMonthlyClassUsageForSchedule(
   userId: string,
   plan: PlanWithClassLimit,
   scheduleStartTime: number,
+  precomputedTimezone?: string,
 ): Promise<MonthlyClassUsage> {
-  const timezone = await getTimezoneForOrganization(ctx, organizationId);
+  const timezone =
+    precomputedTimezone ??
+    (await getTimezoneForOrganization(ctx, organizationId));
   const cycle = getCalendarMonthCycle(scheduleStartTime, timezone);
   const weeksTouched = getWeeksTouchedByCalendarMonth(
     cycle.year,

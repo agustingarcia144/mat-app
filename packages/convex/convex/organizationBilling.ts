@@ -1,5 +1,6 @@
 import {
   action,
+  internalAction,
   internalMutation,
   internalQuery,
   mutation,
@@ -898,6 +899,263 @@ async function suspendOrganizationAccess(ctx: any, organizationId: any) {
 
   return { subscriptionId: subscription._id };
 }
+
+// --- Off-platform (legacy / manual) conversion -----------------------------
+//
+// Moving an org that pays through MercadoPago to a price agreed outside the
+// platform needs two things to happen together:
+//   1. the recurring MercadoPago charge is cancelled, and
+//   2. the preapproval is DETACHED from the subscription row.
+// Without (2) the row stays reachable through `by_mercadoPagoPreapprovalId` /
+// `by_externalReference`, so the cancellation webhook MercadoPago fires right
+// after (1) would flip `entitlementStatus` back to "inactive" and silently
+// revoke the access we just granted.
+
+type ManualConversionSource = "legacy" | "manual";
+type MercadoPagoCancelOutcome =
+  | "none"
+  | "cancelled"
+  | "already_cancelled"
+  | "not_found";
+
+async function cancelMercadoPagoPreapproval(
+  preapprovalId: string,
+): Promise<MercadoPagoCancelOutcome> {
+  const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  if (!accessToken) {
+    throw new Error("Missing MERCADOPAGO_ACCESS_TOKEN");
+  }
+
+  const url = `${MP_API_BASE}/preapproval/${encodeURIComponent(preapprovalId)}`;
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status: "cancelled" }),
+  });
+
+  if (response.ok) return "cancelled";
+
+  // MercadoPago answers 4xx for an already-cancelled or unknown preapproval, so
+  // read the live resource before failing. That keeps the conversion safe to
+  // re-run after a partial failure.
+  const payload = await response.json().catch(() => null);
+  const check = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (check.status === 404) return "not_found";
+
+  const current = await check.json().catch(() => null);
+  if (String(current?.status ?? "").toLowerCase() === "cancelled") {
+    return "already_cancelled";
+  }
+
+  throw new Error(
+    `MercadoPago cancellation failed: ${response.status} ${JSON.stringify(payload)}`,
+  );
+}
+
+export const getOrganizationBillingContextInternal = internalQuery({
+  args: {
+    organizationId: v.optional(v.id("organizations")),
+    organizationSlug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const organization = args.organizationId
+      ? await ctx.db.get(args.organizationId)
+      : args.organizationSlug
+        ? await ctx.db
+            .query("organizations")
+            .withIndex("by_slug", (q) => q.eq("slug", args.organizationSlug!))
+            .first()
+        : null;
+
+    if (!organization) {
+      throw new Error(
+        "Organization not found. Pass a valid organizationId or organizationSlug.",
+      );
+    }
+
+    const subscription = await ctx.db
+      .query("organizationBillingSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organization._id),
+      )
+      .order("desc")
+      .first();
+
+    return {
+      organizationId: organization._id,
+      organizationName: organization.name,
+      organizationSlug: organization.slug,
+      subscription,
+    };
+  },
+});
+
+export const assertSuperAdminInternal = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const { identity } = await requireSuperAdmin(ctx);
+    return { subject: identity.subject };
+  },
+});
+
+export const applyManualConversionInternal = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    planKey: v.union(v.literal("pro"), v.literal("lite")),
+    source: v.union(v.literal("legacy"), v.literal("manual")),
+    paidThroughMs: v.optional(v.number()),
+    createdBy: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Resolve the plan without `ensure*PlanInternal`: those upsert the plan doc
+    // and would rewrite the platform-wide price for every org on that plan.
+    const plan = await ctx.db
+      .query("appBillingPlans")
+      .withIndex("by_key", (q) => q.eq("key", args.planKey))
+      .first();
+
+    if (!plan || !plan.isActive) {
+      throw new Error(
+        `No active "${args.planKey}" billing plan found. Create it first (appBillingPlans:setProPriceArs / setLitePriceArs).`,
+      );
+    }
+
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("organizationBillingSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("desc")
+      .first();
+
+    // A new external reference is what makes the row unreachable for late
+    // MercadoPago webhooks carrying the old `external_reference`.
+    const externalReference = `${args.source}:${args.organizationId}:${now}`;
+    const fields = {
+      billingPlanId: plan._id,
+      source: args.source,
+      mercadoPagoPreapprovalId: undefined,
+      mercadoPagoPayerEmail: undefined,
+      lastPaymentId: undefined,
+      externalReference,
+      status: "authorized" as const,
+      entitlementStatus: "active" as const,
+      lastPaymentStatus: "approved" as const,
+      trialEndsAt: undefined,
+      currentPeriodStart: now,
+      currentPeriodEnd: args.paidThroughMs,
+      graceUntil: undefined,
+      updatedAt: now,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, fields);
+      return { subscriptionId: existing._id, planName: plan.name, updated: true };
+    }
+
+    const subscriptionId = await ctx.db.insert(
+      "organizationBillingSubscriptions",
+      {
+        organizationId: args.organizationId,
+        ...fields,
+        createdBy: args.createdBy,
+        createdAt: now,
+      },
+    );
+
+    return { subscriptionId, planName: plan.name, updated: false };
+  },
+});
+
+async function runManualConversion(
+  ctx: any,
+  args: {
+    organizationId?: any;
+    organizationSlug?: string;
+    planKey?: "pro" | "lite";
+    source?: ManualConversionSource;
+    paidThroughMs?: number;
+  },
+  createdBy: string,
+) {
+  const context = await ctx.runQuery(
+    unsafeInternal.organizationBilling.getOrganizationBillingContextInternal,
+    {
+      organizationId: args.organizationId,
+      organizationSlug: args.organizationSlug,
+    },
+  );
+
+  const preapprovalId = context.subscription?.mercadoPagoPreapprovalId;
+  // Cancel at MercadoPago first: if the DB write below fails the org is simply
+  // left as-is and the call can be retried, instead of losing the charge stop.
+  const mercadoPago: MercadoPagoCancelOutcome = preapprovalId
+    ? await cancelMercadoPagoPreapproval(String(preapprovalId))
+    : "none";
+
+  const result = await ctx.runMutation(
+    unsafeInternal.organizationBilling.applyManualConversionInternal,
+    {
+      organizationId: context.organizationId,
+      planKey: args.planKey ?? "pro",
+      source: args.source ?? "legacy",
+      paidThroughMs: args.paidThroughMs,
+      createdBy,
+    },
+  );
+
+  return {
+    organizationId: context.organizationId,
+    organizationName: context.organizationName,
+    organizationSlug: context.organizationSlug,
+    planKey: args.planKey ?? "pro",
+    planName: result.planName,
+    source: args.source ?? "legacy",
+    mercadoPago,
+    subscriptionId: result.subscriptionId,
+  };
+}
+
+/**
+ * Super-admin: cancel an organization's MercadoPago subscription and re-grant
+ * access through an off-platform ("legacy") or manually-billed plan.
+ */
+export const convertOrganizationToManualPlan = action({
+  args: {
+    organizationId: v.optional(v.id("organizations")),
+    organizationSlug: v.optional(v.string()),
+    planKey: manualBillingPlanKeyV,
+    source: v.optional(v.union(v.literal("legacy"), v.literal("manual"))),
+    paidThroughMs: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { subject } = await ctx.runQuery(
+      unsafeInternal.organizationBilling.assertSuperAdminInternal,
+      {},
+    );
+    return await runManualConversion(ctx, args, subject);
+  },
+});
+
+/** Same conversion, runnable from the Convex dashboard / CLI for one-off cases. */
+export const convertOrganizationToManualPlanInternal = internalAction({
+  args: {
+    organizationId: v.optional(v.id("organizations")),
+    organizationSlug: v.optional(v.string()),
+    planKey: manualBillingPlanKeyV,
+    source: v.optional(v.union(v.literal("legacy"), v.literal("manual"))),
+    paidThroughMs: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    return await runManualConversion(ctx, args, "convex-dashboard");
+  },
+});
 
 export const markCheckoutCreatedInternal = internalMutation({
   args: {

@@ -44,6 +44,14 @@ function getValidationMessage(
   return "El codigo de invitacion ya fue utilizado";
 }
 
+// Only used to bootstrap the appBillingPlans row when it does not exist yet.
+// If the plan already exists its stored price wins, so a missing env var here
+// is harmless for orgs created from an invite code.
+function readPriceArsFromEnv(name: string): number | undefined {
+  const price = Number(process.env[name]);
+  return Number.isFinite(price) && price >= 1 ? Math.round(price) : undefined;
+}
+
 function slugifyOrganizationName(name: string): string {
   const withoutAccents = name
     .normalize("NFKD")
@@ -236,21 +244,23 @@ export const redeemCodeAndCreateOrganizationInternal = internalMutation({
       updatedAt: now,
     });
 
-    const billingAccess = (
-      code as Doc<"organizationCreationInviteCodes"> & {
-        billingAccess?: OrgCreationBillingAccess;
-      }
-    ).billingAccess;
-    if (billingAccess) {
-      await ctx.runMutation(
-        internal.organizationBilling.activateOrganizationManuallyInternal,
-        {
-          organizationId,
-          planKey: billingAccess === "lite" ? "lite" : "pro",
-          source: billingAccess === "legacy" ? "legacy" : "manual",
-        },
-      );
-    }
+    // Invite-code orgs bypass MercadoPago entirely, so they must always end up
+    // with an active subscription. Codes created without `billingAccess` used to
+    // skip this step, producing an org with no subscription row at all -> the
+    // entitlements query reports "inactive" and grants zero modules, so the
+    // admin cannot enter the org they just created. Default to full (pro) access.
+    const billingAccess: OrgCreationBillingAccess =
+      code!.billingAccess ?? "legacy";
+    await ctx.runMutation(
+      internal.organizationBilling.activateOrganizationManuallyInternal,
+      {
+        organizationId,
+        planKey: billingAccess === "lite" ? "lite" : "pro",
+        source: billingAccess === "legacy" ? "legacy" : "manual",
+        litePriceArs: readPriceArsFromEnv("MERCADOPAGO_LITE_PRICE_ARS"),
+        proPriceArs: readPriceArsFromEnv("MERCADOPAGO_PRO_PRICE_ARS"),
+      },
+    );
 
     return {
       organizationId,
@@ -354,6 +364,8 @@ export const createOrgCreationCodeInternal = internalMutation({
  * validate successfully.
  * Do NOT pass the raw code to createOrgCreationCodeInternal as codeHash — that
  * stores the plain string and validation will fail (it looks up by hash).
+ * `billingAccess` is optional: omitting it redeems as "legacy" (full pro access
+ * without MercadoPago). Pass "lite" to restrict the new org to the lite modules.
  */
 export const createOrgCreationCodeFromPlainCodeInternal: ReturnType<
   typeof internalAction
@@ -406,6 +418,7 @@ export const issueOrgCreationCode: ReturnType<typeof internalAction> =
     args: {
       maxUses: v.optional(v.number()),
       expiresInDays: v.optional(v.number()),
+      billingAccess: billingAccessV,
       createdBy: v.optional(v.string()),
       metadata: v.optional(
         v.object({
@@ -437,6 +450,7 @@ export const issueOrgCreationCode: ReturnType<typeof internalAction> =
           codeHash,
           maxUses: args.maxUses ?? 1,
           expiresAt,
+          billingAccess: args.billingAccess,
           createdBy: args.createdBy,
           metadata: args.metadata,
         },

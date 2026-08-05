@@ -1,6 +1,9 @@
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { assignFixedSlotsToSchedule } from "./fixedClassSlots";
+import {
+  assignFixedSlotsToSchedule,
+  createFixedSlotEnrollmentCache,
+} from "./fixedClassSlots";
 
 export type SingleBatchSourceConfig = {
   mode: "single";
@@ -127,12 +130,15 @@ export async function createBatchWithSchedules(
     updatedAt: now,
   });
 
+  // One shared cache for the whole batch so per-member plan data and the org
+  // timezone are read once, not once per created schedule.
+  const enrollmentCache = createFixedSlotEnrollmentCache();
   for (const schedule of sortedSchedules) {
     const scheduleId = await ctx.db.insert("classSchedules", {
       ...schedule,
       batchId,
     });
-    await assignFixedSlotsToSchedule(ctx, scheduleId);
+    await assignFixedSlotsToSchedule(ctx, scheduleId, enrollmentCache);
   }
 
   return {
