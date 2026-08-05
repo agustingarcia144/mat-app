@@ -305,6 +305,23 @@ export default defineSchema({
     .index("by_mercadoPagoPreapprovalId", ["mercadoPagoPreapprovalId"])
     .index("by_status", ["status"]),
 
+  // Manual (off-MercadoPago) payments an organization makes to the platform.
+  // Legacy clients pay by transfer/cash, so a super admin records each month
+  // here and the matching `organizationBillingSubscriptions` period advances.
+  // Not to be confused with `planPayments`, which is member -> gym.
+  organizationBillingPayments: defineTable({
+    organizationId: v.id("organizations"),
+    billingPlanId: v.id("appBillingPlans"),
+    amountArs: v.number(),
+    paidAt: v.number(),
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    billingPeriod: v.string(), // "YYYY-MM", derived from periodStart
+    notes: v.optional(v.string()),
+    recordedBy: v.string(),
+    createdAt: v.number(),
+  }).index("by_organization_paidAt", ["organizationId", "paidAt"]),
+
   mercadoPagoWebhookEvents: defineTable({
     eventId: v.string(),
     requestId: v.string(),

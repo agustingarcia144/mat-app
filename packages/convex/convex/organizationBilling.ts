@@ -252,7 +252,11 @@ function mapMercadoPagoPaymentStatus(resource: any, existing: any | null) {
     };
   }
 
-  if (status === "pending" || status === "in_process" || status === "authorized") {
+  if (
+    status === "pending" ||
+    status === "in_process" ||
+    status === "authorized"
+  ) {
     return {
       status: "pending" as const,
       // Don't revoke access an active subscription already has while a renewal
@@ -682,7 +686,11 @@ export const prepareCheckoutInternal = internalMutation({
     }
 
     // Reuse an in-flight MercadoPago checkout as-is to avoid duplicate preapprovals.
-    if (existing && existing.source === "mercadopago" && existing.status === "pending") {
+    if (
+      existing &&
+      existing.source === "mercadopago" &&
+      existing.status === "pending"
+    ) {
       if (existing.billingPlanId !== args.billingPlanId) {
         await ctx.db.patch(existing._id, {
           billingPlanId: args.billingPlanId,
@@ -906,6 +914,167 @@ async function suspendOrganizationAccess(ctx: any, organizationId: any) {
   return { subscriptionId: subscription._id };
 }
 
+// --- Manual payments for off-MercadoPago organizations ---------------------
+//
+// Legacy / manually billed orgs pay by transfer or cash, so nothing advances
+// their `currentPeriodEnd` (the MercadoPago webhook is what does it for
+// everyone else, by copying MP's `next_payment_date`). A super admin records
+// each payment here: it writes an `organizationBillingPayments` row and pushes
+// the subscription period forward by one plan cycle.
+
+/** Advance `from` by `count` units of `unit`, clamping day-of-month overflow. */
+function addBillingFrequency(
+  from: number,
+  count: number,
+  unit: "months" | "weeks" | "years",
+): number {
+  const date = new Date(from);
+  if (unit === "weeks") {
+    date.setUTCDate(date.getUTCDate() + count * 7);
+    return date.getTime();
+  }
+
+  const months = unit === "years" ? count * 12 : count;
+  const day = date.getUTCDate();
+  // Setting the day to 1 first stops e.g. Jan 31 + 1 month from rolling into
+  // March; we clamp back to the target month's last day afterwards.
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  const lastDay = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  date.setUTCDate(Math.min(day, lastDay));
+  return date.getTime();
+}
+
+function toBillingPeriod(timestamp: number): string {
+  const date = new Date(timestamp);
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${month}`;
+}
+
+export const recordManualPayment = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    amountArs: v.number(),
+    paidAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { identity } = await requireSuperAdmin(ctx);
+
+    if (!Number.isFinite(args.amountArs) || args.amountArs < 1) {
+      throw new Error("El monto debe ser un valor en ARS mayor a 0");
+    }
+
+    const now = Date.now();
+    const paidAt = args.paidAt ?? now;
+    if (!Number.isFinite(paidAt) || paidAt > now) {
+      throw new Error("La fecha de pago no puede ser futura");
+    }
+
+    const organization = await ctx.db.get(args.organizationId);
+    if (!organization) {
+      throw new Error("La organizacion no existe");
+    }
+
+    const subscription = await ctx.db
+      .query("organizationBillingSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("desc")
+      .first();
+
+    if (!subscription) {
+      throw new Error(
+        "La organizacion no tiene una suscripcion. Activala manualmente primero.",
+      );
+    }
+
+    // A manual write on a MercadoPago-backed row would be overwritten by the
+    // next webhook (it re-syncs the period from MP), so refuse it outright.
+    if (subscription.source !== "legacy" && subscription.source !== "manual") {
+      throw new Error(
+        "Solo se pueden registrar pagos manuales en organizaciones legacy o manuales",
+      );
+    }
+
+    const plan = await ctx.db.get(subscription.billingPlanId);
+    if (!plan) {
+      throw new Error("El plan de la suscripcion no existe");
+    }
+
+    // Stack on top of the current period so paying early never loses days; if
+    // the period already lapsed, restart from today.
+    const periodStart = Math.max(now, subscription.currentPeriodEnd ?? now);
+    const periodEnd = addBillingFrequency(
+      periodStart,
+      Math.max(1, plan.frequency),
+      plan.frequencyType,
+    );
+
+    await ctx.db.patch(subscription._id, {
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+      status: "authorized",
+      entitlementStatus: "active",
+      lastPaymentStatus: "approved",
+      graceUntil: undefined,
+      updatedAt: now,
+    });
+
+    const paymentId = await ctx.db.insert("organizationBillingPayments", {
+      organizationId: args.organizationId,
+      billingPlanId: plan._id,
+      amountArs: Math.round(args.amountArs),
+      paidAt,
+      periodStart,
+      periodEnd,
+      billingPeriod: toBillingPeriod(periodStart),
+      notes: args.notes?.trim() || undefined,
+      recordedBy: identity.subject,
+      createdAt: now,
+    });
+
+    return { paymentId, periodStart, periodEnd };
+  },
+});
+
+export const listOrganizationPayments = query({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
+
+    const payments = await ctx.db
+      .query("organizationBillingPayments")
+      .withIndex("by_organization_paidAt", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("desc")
+      .collect();
+
+    return await Promise.all(
+      payments.map(async (payment) => {
+        const plan = await ctx.db.get(payment.billingPlanId);
+        return {
+          paymentId: payment._id,
+          amountArs: payment.amountArs,
+          paidAt: payment.paidAt,
+          periodStart: payment.periodStart,
+          periodEnd: payment.periodEnd,
+          billingPeriod: payment.billingPeriod,
+          notes: payment.notes ?? null,
+          planName: plan?.name ?? null,
+          recordedBy: payment.recordedBy,
+        };
+      }),
+    );
+  },
+});
+
 // --- Off-platform (legacy / manual) conversion -----------------------------
 //
 // Moving an org that pays through MercadoPago to a price agreed outside the
@@ -1062,7 +1231,11 @@ export const applyManualConversionInternal = internalMutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, fields);
-      return { subscriptionId: existing._id, planName: plan.name, updated: true };
+      return {
+        subscriptionId: existing._id,
+        planName: plan.name,
+        updated: true,
+      };
     }
 
     const subscriptionId = await ctx.db.insert(
@@ -1196,7 +1369,8 @@ export const inspectMercadoPagoPreapprovalInternal = internalAction({
       lastChargedDate: resource?.summarized?.last_charged_date ?? null,
       // `reactivatable` is a guess until the PUT is actually attempted —
       // MercadoPago documents no status-transition matrix.
-      looksReactivatable: String(resource?.status ?? "").toLowerCase() === "paused",
+      looksReactivatable:
+        String(resource?.status ?? "").toLowerCase() === "paused",
     };
   },
 });
@@ -1262,14 +1436,17 @@ export const restoreMercadoPagoSubscriptionInternal = internalAction({
     // MercadoPago accepted it: re-attach, restoring the preapproval's own
     // external_reference so future webhooks resolve to this row again.
     await ctx.runMutation(
-      unsafeInternal.organizationBilling.reattachMercadoPagoSubscriptionInternal,
+      unsafeInternal.organizationBilling
+        .reattachMercadoPagoSubscriptionInternal,
       {
         organizationId: context.organizationId,
         preapprovalId: args.preapprovalId,
         externalReference: payload?.external_reference
           ? String(payload.external_reference)
           : undefined,
-        payerEmail: payload?.payer_email ? String(payload.payer_email) : undefined,
+        payerEmail: payload?.payer_email
+          ? String(payload.payer_email)
+          : undefined,
         planKey: args.planKey ?? "lite",
       },
     );
@@ -1322,8 +1499,10 @@ export const reattachMercadoPagoSubscriptionInternal = internalMutation({
       billingPlanId: plan._id,
       source: "mercadopago",
       mercadoPagoPreapprovalId: args.preapprovalId,
-      mercadoPagoPayerEmail: args.payerEmail ?? subscription.mercadoPagoPayerEmail,
-      externalReference: args.externalReference ?? subscription.externalReference,
+      mercadoPagoPayerEmail:
+        args.payerEmail ?? subscription.mercadoPagoPayerEmail,
+      externalReference:
+        args.externalReference ?? subscription.externalReference,
       updatedAt: Date.now(),
     });
 

@@ -4,9 +4,12 @@ import {
   internalAction,
   internalMutation,
   internalQuery,
+  mutation,
+  query,
 } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
+import { requireSuperAdmin } from "./permissions";
 
 type CodeValidationReason = "invalid" | "expired" | "revoked" | "consumed";
 type OrgCreationBillingAccess = "legacy" | "lite";
@@ -410,6 +413,163 @@ export const createOrgCreationCodeFromPlainCodeInternal: ReturnType<
       code: normalizedCode,
       billingAccess: args.billingAccess ?? null,
     };
+  },
+});
+
+// --- Super admin surface (dashboard/plataforma) ----------------------------
+
+const unsafeInternal = internal as any;
+
+/**
+ * Issue an org creation code from the platform dashboard.
+ *
+ * Codes are stored hashed, so the plain value returned here is the ONLY time it
+ * is ever readable — the listing below can never show it again.
+ * `billingAccess` decides what the redeemed org gets: "legacy" (default) grants
+ * full PRO access off MercadoPago, "lite" restricts it to the lite modules.
+ */
+export const createOrgCreationCode: ReturnType<typeof action> = action({
+  args: {
+    code: v.optional(v.string()),
+    maxUses: v.optional(v.number()),
+    expiresInDays: v.optional(v.number()),
+    billingAccess: billingAccessV,
+    label: v.optional(v.string()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { subject } = await ctx.runQuery(
+      unsafeInternal.organizationBilling.assertSuperAdminInternal,
+      {},
+    );
+
+    const maxUses = Math.max(1, Math.round(args.maxUses ?? 1));
+    const expiresAt =
+      typeof args.expiresInDays === "number"
+        ? Date.now() + Math.max(1, args.expiresInDays) * 24 * 60 * 60 * 1000
+        : undefined;
+    const metadata = {
+      label: args.label?.trim() || undefined,
+      notes: args.notes?.trim() || undefined,
+    };
+
+    const customCode = args.code ? normalizeInviteCode(args.code) : "";
+    if (args.code && !customCode) {
+      throw new Error("El codigo personalizado debe tener letras o numeros");
+    }
+
+    if (customCode) {
+      const codeHash = await ctx.runAction(
+        internal.orgCreationCodesNode.hashInviteCode,
+        { code: customCode },
+      );
+      const existing = await ctx.runQuery(
+        internal.orgCreationCodes.getOrgCreationCodeByHashInternal,
+        { codeHash },
+      );
+      if (existing) {
+        throw new Error("Ya existe un codigo con ese valor");
+      }
+
+      const created = await ctx.runAction(
+        internal.orgCreationCodes.createOrgCreationCodeFromPlainCodeInternal,
+        {
+          code: customCode,
+          maxUses,
+          expiresAt,
+          billingAccess: args.billingAccess,
+          createdBy: subject,
+          metadata,
+        },
+      );
+
+      return {
+        codeId: created.codeId,
+        code: created.code,
+        expiresAt: expiresAt ?? null,
+        billingAccess: args.billingAccess ?? null,
+      };
+    }
+
+    const issued = await ctx.runAction(
+      internal.orgCreationCodes.issueOrgCreationCode,
+      {
+        maxUses,
+        expiresInDays: args.expiresInDays,
+        billingAccess: args.billingAccess,
+        createdBy: subject,
+        metadata,
+      },
+    );
+
+    return {
+      codeId: issued.codeId,
+      code: issued.code,
+      expiresAt: issued.expiresAt,
+      billingAccess: args.billingAccess ?? null,
+    };
+  },
+});
+
+/** Super admin listing. Never returns `codeHash` — the code value is not recoverable. */
+export const listOrgCreationCodes = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireSuperAdmin(ctx);
+
+    const codes = await ctx.db
+      .query("organizationCreationInviteCodes")
+      .collect();
+
+    const rows = await Promise.all(
+      codes.map(async (code) => {
+        const organization = code.consumedOrganizationId
+          ? await ctx.db.get(code.consumedOrganizationId)
+          : null;
+
+        return {
+          codeId: code._id,
+          status: code.status,
+          billingAccess: code.billingAccess ?? null,
+          maxUses: code.maxUses,
+          usedCount: code.usedCount,
+          expiresAt: code.expiresAt ?? null,
+          createdAt: code.createdAt,
+          createdBy: code.createdBy ?? null,
+          label: code.metadata?.label ?? null,
+          notes: code.metadata?.notes ?? null,
+          consumedAt: code.consumedAt ?? null,
+          consumedOrganizationName: organization?.name ?? null,
+          consumedOrganizationSlug: organization?.slug ?? null,
+        };
+      }),
+    );
+
+    return rows.sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+export const revokeOrgCreationCode = mutation({
+  args: {
+    codeId: v.id("organizationCreationInviteCodes"),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
+
+    const code = await ctx.db.get(args.codeId);
+    if (!code) {
+      throw new Error("El codigo no existe");
+    }
+    if (code.status !== "active") {
+      throw new Error("Solo se pueden revocar codigos activos");
+    }
+
+    await ctx.db.patch(code._id, {
+      status: "revoked",
+      updatedAt: Date.now(),
+    });
+
+    return { codeId: code._id };
   },
 });
 
