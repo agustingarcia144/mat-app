@@ -1,13 +1,22 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontal } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   BILLING_STATUS_LABELS,
   BILLING_STATUS_VARIANTS,
   EMPTY_VALUE,
   SOURCE_VARIANTS,
+  canRecordManualPayment,
   formatDay,
   formatRelative,
   getExpiresAt,
@@ -16,6 +25,11 @@ import {
   getSourceLabel,
   type PlatformOrgRow,
 } from "@/components/features/platform/platform-labels";
+
+export interface PlatformOrgActions {
+  onRecordPayment: (org: PlatformOrgRow) => void;
+  onViewPayments: (org: PlatformOrgRow) => void;
+}
 
 export function getOrganizationInitials(name: string): string {
   return (
@@ -28,7 +42,9 @@ export function getOrganizationInitials(name: string): string {
   );
 }
 
-export const getColumns = (): ColumnDef<PlatformOrgRow>[] => [
+export const getColumns = (
+  actions: PlatformOrgActions,
+): ColumnDef<PlatformOrgRow>[] => [
   {
     accessorKey: "name",
     header: "Organización",
@@ -70,7 +86,9 @@ export const getColumns = (): ColumnDef<PlatformOrgRow>[] => [
         return <span className="text-muted-foreground">{EMPTY_VALUE}</span>;
       }
       return (
-        <Badge variant={SOURCE_VARIANTS[source]}>{getSourceLabel(source)}</Badge>
+        <Badge variant={SOURCE_VARIANTS[source]}>
+          {getSourceLabel(source)}
+        </Badge>
       );
     },
   },
@@ -136,6 +154,21 @@ export const getColumns = (): ColumnDef<PlatformOrgRow>[] => [
     ),
   },
   {
+    id: "lastManualPaymentAt",
+    header: "Últ. pago",
+    cell: ({ row }) => {
+      const org = row.original;
+      if (!canRecordManualPayment(org)) {
+        return <span className="text-muted-foreground">{EMPTY_VALUE}</span>;
+      }
+      return (
+        <span className="whitespace-nowrap">
+          {formatDay(org.lastManualPaymentAt)}
+        </span>
+      );
+    },
+  },
+  {
     id: "contact",
     header: "Contacto",
     cell: ({ row }) => {
@@ -153,6 +186,37 @@ export const getColumns = (): ColumnDef<PlatformOrgRow>[] => [
             </span>
           )}
         </div>
+      );
+    },
+  },
+  {
+    id: "actions",
+    header: "",
+    cell: ({ row }) => {
+      const org = row.original;
+      const canRecord = canRecordManualPayment(org);
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Acciones</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              disabled={!canRecord}
+              onSelect={() => actions.onRecordPayment(org)}
+            >
+              {canRecord
+                ? "Registrar pago"
+                : "Registrar pago (solo legacy/manual)"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => actions.onViewPayments(org)}>
+              Ver pagos
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       );
     },
   },

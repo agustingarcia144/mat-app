@@ -25,7 +25,10 @@ type Props = {
   onOpenChange: (open: boolean) => void;
 };
 
-export default function ApplyShiftModelWeekDialog({ open, onOpenChange }: Props) {
+export default function ApplyShiftModelWeekDialog({
+  open,
+  onOpenChange,
+}: Props) {
   const canQueryOrgData = useCanQueryCurrentOrganization();
   const [targetRange, setTargetRange] = useState<DateRange | undefined>(
     undefined,

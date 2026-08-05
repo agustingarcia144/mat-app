@@ -98,6 +98,11 @@ function formatBillingPeriod(period: string): string {
   return `${monthNames[monthIndex]} ${year}`;
 }
 
+function getCurrentBillingPeriod(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("es-AR", {
     day: "numeric",
@@ -109,7 +114,8 @@ function formatDate(timestamp: number): string {
 export default function PaymentHistoryList() {
   const canQuery = useCanQueryCurrentOrganization();
   const [statusFilter, setStatusFilter] = useState<PaymentStatusFilter>("all");
-  const [periodFilter, setPeriodFilter] = useState<string>("all");
+  const currentPeriod = useMemo(() => getCurrentBillingPeriod(), []);
+  const [periodFilter, setPeriodFilter] = useState<string>(currentPeriod);
 
   const payments = useQuery(
     api.planPayments.getByOrganization,
@@ -120,16 +126,18 @@ export default function PaymentHistoryList() {
       : "skip",
   );
 
-  // Distinct billing periods present in the results, most recent first.
+  // Distinct billing periods present in the results, most recent first. The
+  // current month is always included so the default filter has a matching
+  // option even when there are no payments for it yet.
   const periodOptions = useMemo(() => {
     const periods = Array.from(
-      new Set((payments ?? []).map((p) => p.billingPeriod)),
+      new Set([currentPeriod, ...(payments ?? []).map((p) => p.billingPeriod)]),
     ).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
     return periods.map((value) => ({
       value,
       label: formatBillingPeriod(value),
     }));
-  }, [payments]);
+  }, [payments, currentPeriod]);
 
   const visiblePayments = useMemo(() => {
     if (!payments) return payments;

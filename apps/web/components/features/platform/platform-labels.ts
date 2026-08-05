@@ -8,6 +8,15 @@ export type PlatformOrgRow = FunctionReturnType<
   typeof api.platformInsights.listOrganizations
 >[number];
 
+export type PlatformCodeRow = FunctionReturnType<
+  typeof api.orgCreationCodes.listOrgCreationCodes
+>[number];
+
+export type PlatformCodeStatus = PlatformCodeRow["status"];
+export type PlatformBillingAccess = NonNullable<
+  PlatformCodeRow["billingAccess"]
+>;
+
 export type PlatformSource = NonNullable<PlatformOrgRow["source"]>;
 export type PlatformBillingStatus = PlatformOrgRow["billingStatus"];
 export type PlatformPlanKey = "pro" | "lite";
@@ -75,6 +84,55 @@ export const PLAN_VARIANTS: Record<PlatformPlanKey, BadgeVariant> = {
 };
 
 export const PLAN_ORDER: PlatformPlanKey[] = ["pro", "lite"];
+
+export const CODE_STATUS_LABELS: Record<PlatformCodeStatus, string> = {
+  active: "Activo",
+  consumed: "Usado",
+  revoked: "Revocado",
+};
+
+export const CODE_STATUS_VARIANTS: Record<PlatformCodeStatus, BadgeVariant> = {
+  active: "success",
+  consumed: "muted",
+  revoked: "destructive",
+};
+
+export const CODE_STATUS_ORDER: PlatformCodeStatus[] = [
+  "active",
+  "consumed",
+  "revoked",
+];
+
+/**
+ * `billingAccess` collapses plan + origen into one field: a "legacy" code
+ * redeems as PRO with source "legacy", a "lite" code as LITE with source
+ * "manual". A code without the field behaves like "legacy".
+ */
+export const BILLING_ACCESS_LABELS: Record<PlatformBillingAccess, string> = {
+  legacy: "Legacy (PRO)",
+  lite: "Lite",
+};
+
+export const BILLING_ACCESS_VARIANTS: Record<
+  PlatformBillingAccess,
+  BadgeVariant
+> = {
+  legacy: "secondary",
+  lite: "outline",
+};
+
+export const BILLING_ACCESS_ORDER: PlatformBillingAccess[] = ["legacy", "lite"];
+
+export function getBillingAccessLabel(
+  billingAccess: PlatformCodeRow["billingAccess"],
+): string {
+  return BILLING_ACCESS_LABELS[billingAccess ?? "legacy"];
+}
+
+/** Manual payments are refused server-side for MercadoPago-backed orgs. */
+export function canRecordManualPayment(row: PlatformOrgRow): boolean {
+  return row.source === "legacy" || row.source === "manual";
+}
 
 export function getSourceLabel(source: PlatformOrgRow["source"]): string {
   return source ? SOURCE_LABELS[source] : EMPTY_VALUE;

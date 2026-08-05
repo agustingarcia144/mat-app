@@ -83,7 +83,10 @@ export default function PlatformSummaryCards({
       if (org.source) {
         bySource.set(org.source, (bySource.get(org.source) ?? 0) + 1);
       }
-      if (org.billingStatus === "active" || org.billingStatus === "grace_period")
+      if (
+        org.billingStatus === "active" ||
+        org.billingStatus === "grace_period"
+      )
         activeAccess += 1;
       if (org.billingStatus === "trial") onTrial += 1;
       if (org.createdAt >= since) newLast30Days += 1;

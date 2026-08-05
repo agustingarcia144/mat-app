@@ -33,6 +33,14 @@ export const listOrganizations = query({
           .order("desc")
           .first();
 
+        const lastManualPayment = await ctx.db
+          .query("organizationBillingPayments")
+          .withIndex("by_organization_paidAt", (q) =>
+            q.eq("organizationId", organization._id),
+          )
+          .order("desc")
+          .first();
+
         const memberships = await ctx.db
           .query("organizationMemberships")
           .withIndex("by_organization", (q) =>
@@ -84,6 +92,11 @@ export const listOrganizations = query({
           currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
           lastPaymentStatus: subscription?.lastPaymentStatus ?? null,
           payerEmail: subscription?.mercadoPagoPayerEmail ?? null,
+          planPriceArs: plan?.priceArs ?? null,
+          planFrequency: plan?.frequency ?? null,
+          planFrequencyType: plan?.frequencyType ?? null,
+          lastManualPaymentAt: lastManualPayment?.paidAt ?? null,
+          lastManualPaymentAmountArs: lastManualPayment?.amountArs ?? null,
 
           totalMembers,
           activeMembers,
