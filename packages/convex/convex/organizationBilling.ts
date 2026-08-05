@@ -671,7 +671,13 @@ export const prepareCheckoutInternal = internalMutation({
       .order("desc")
       .first();
 
-    if (existing?.entitlementStatus === "active") {
+    // Only an active *MercadoPago* subscription is a double-charge risk. An org
+    // on manual/legacy/trial access must still be able to start a real checkout
+    // (e.g. recovering from a conversion, or a legacy deal moving to self-serve).
+    if (
+      existing?.entitlementStatus === "active" &&
+      existing.source === "mercadopago"
+    ) {
       throw new Error("Organization already has active billing");
     }
 
@@ -1154,6 +1160,174 @@ export const convertOrganizationToManualPlanInternal = internalAction({
   },
   handler: async (ctx, args) => {
     return await runManualConversion(ctx, args, "convex-dashboard");
+  },
+});
+
+// --- Recovery from an unintended conversion --------------------------------
+
+/** Read-only: report what MercadoPago currently thinks of a preapproval. */
+export const inspectMercadoPagoPreapprovalInternal = internalAction({
+  args: { preapprovalId: v.string() },
+  handler: async (_ctx, args) => {
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    if (!accessToken) {
+      throw new Error("Missing MERCADOPAGO_ACCESS_TOKEN");
+    }
+
+    const response = await fetch(
+      `${MP_API_BASE}/preapproval/${encodeURIComponent(args.preapprovalId)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const resource = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(
+        `MercadoPago lookup failed: ${response.status} ${JSON.stringify(resource)}`,
+      );
+    }
+
+    return {
+      preapprovalId: args.preapprovalId,
+      status: resource?.status ?? null,
+      externalReference: resource?.external_reference ?? null,
+      payerEmail: resource?.payer_email ?? null,
+      reason: resource?.reason ?? null,
+      transactionAmount: resource?.auto_recurring?.transaction_amount ?? null,
+      nextPaymentDate: resource?.next_payment_date ?? null,
+      lastChargedDate: resource?.summarized?.last_charged_date ?? null,
+      // `reactivatable` is a guess until the PUT is actually attempted —
+      // MercadoPago documents no status-transition matrix.
+      looksReactivatable: String(resource?.status ?? "").toLowerCase() === "paused",
+    };
+  },
+});
+
+/**
+ * Undo a conversion: try to put the preapproval back to `authorized` at
+ * MercadoPago and re-attach it to the organization's subscription row.
+ *
+ * If MercadoPago refuses the transition (a cancelled preapproval is expected to
+ * be terminal) this throws WITHOUT touching the database, so the organization
+ * keeps the access it currently has instead of being left with a dead
+ * subscription and no entitlement.
+ */
+export const restoreMercadoPagoSubscriptionInternal = internalAction({
+  args: {
+    organizationId: v.optional(v.id("organizations")),
+    organizationSlug: v.optional(v.string()),
+    preapprovalId: v.string(),
+    planKey: manualBillingPlanKeyV,
+  },
+  handler: async (ctx, args): Promise<any> => {
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    if (!accessToken) {
+      throw new Error("Missing MERCADOPAGO_ACCESS_TOKEN");
+    }
+
+    const context = await ctx.runQuery(
+      unsafeInternal.organizationBilling.getOrganizationBillingContextInternal,
+      {
+        organizationId: args.organizationId,
+        organizationSlug: args.organizationSlug,
+      },
+    );
+
+    const url = `${MP_API_BASE}/preapproval/${encodeURIComponent(args.preapprovalId)}`;
+    const reactivate = await fetch(url, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: "authorized" }),
+    });
+
+    const payload = await reactivate.json().catch(() => null);
+    // On an error MercadoPago reuses `status` for the HTTP code, so it is only a
+    // subscription status when the request actually succeeded.
+    const resultingStatus = reactivate.ok
+      ? String(payload?.status ?? "").toLowerCase()
+      : null;
+
+    if (!reactivate.ok || resultingStatus !== "authorized") {
+      throw new Error(
+        `MercadoPago refused to reactivate preapproval ${args.preapprovalId} ` +
+          `(HTTP ${reactivate.status}${resultingStatus ? `, status "${resultingStatus}"` : ""}): ` +
+          `${payload?.message ?? "unknown error"}. ` +
+          `The organization was left untouched — it keeps its current access. ` +
+          `A cancelled preapproval is terminal, so recovery requires a NEW ` +
+          `subscription authorized by the customer.`,
+      );
+    }
+
+    // MercadoPago accepted it: re-attach, restoring the preapproval's own
+    // external_reference so future webhooks resolve to this row again.
+    await ctx.runMutation(
+      unsafeInternal.organizationBilling.reattachMercadoPagoSubscriptionInternal,
+      {
+        organizationId: context.organizationId,
+        preapprovalId: args.preapprovalId,
+        externalReference: payload?.external_reference
+          ? String(payload.external_reference)
+          : undefined,
+        payerEmail: payload?.payer_email ? String(payload.payer_email) : undefined,
+        planKey: args.planKey ?? "lite",
+      },
+    );
+
+    // Let the normal sync path set status/period from MercadoPago's own truth.
+    const synced = await ctx.runMutation(
+      unsafeInternal.organizationBilling.syncFromMercadoPagoInternal,
+      { resource: payload, resourceType: "preapproval" },
+    );
+
+    return {
+      organizationId: context.organizationId,
+      organizationName: context.organizationName,
+      preapprovalId: args.preapprovalId,
+      mercadoPagoStatus: resultingStatus,
+      resynced: Boolean(synced?.synced),
+    };
+  },
+});
+
+export const reattachMercadoPagoSubscriptionInternal = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    preapprovalId: v.string(),
+    externalReference: v.optional(v.string()),
+    payerEmail: v.optional(v.string()),
+    planKey: v.union(v.literal("pro"), v.literal("lite")),
+  },
+  handler: async (ctx, args) => {
+    const plan = await ctx.db
+      .query("appBillingPlans")
+      .withIndex("by_key", (q) => q.eq("key", args.planKey))
+      .first();
+    if (!plan || !plan.isActive) {
+      throw new Error(`No active "${args.planKey}" billing plan found.`);
+    }
+
+    const subscription = await ctx.db
+      .query("organizationBillingSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("desc")
+      .first();
+    if (!subscription) {
+      throw new Error("Organization has no billing subscription to re-attach");
+    }
+
+    await ctx.db.patch(subscription._id, {
+      billingPlanId: plan._id,
+      source: "mercadopago",
+      mercadoPagoPreapprovalId: args.preapprovalId,
+      mercadoPagoPayerEmail: args.payerEmail ?? subscription.mercadoPagoPayerEmail,
+      externalReference: args.externalReference ?? subscription.externalReference,
+      updatedAt: Date.now(),
+    });
+
+    return { subscriptionId: subscription._id };
   },
 });
 

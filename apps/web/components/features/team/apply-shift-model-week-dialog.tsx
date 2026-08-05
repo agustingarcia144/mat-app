@@ -38,13 +38,19 @@ export default function ApplyShiftModelWeekDialog({ open, onOpenChange }: Props)
   );
   const applyModelWeek = useMutation(api.staffShiftModelSlots.applyToDateRange);
 
-  const todayStart = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.getTime();
-  }, []);
-
   const hasSlots = (modelSlots?.length ?? 0) > 0;
+
+  // Applying to past weeks is allowed on purpose: si el admin se olvidó de
+  // generar los turnos, necesita cargarlos retroactivamente para poder liquidar
+  // los sueldos de ese período.
+  const includesPastWeeks = useMemo(() => {
+    if (!targetRange?.from) return false;
+    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    return (
+      startOfWeek(targetRange.from, { weekStartsOn: 1 }).getTime() <
+      currentWeekStart.getTime()
+    );
+  }, [targetRange]);
 
   const handleSubmit = async () => {
     if (!hasSlots) {
@@ -123,9 +129,16 @@ export default function ApplyShiftModelWeekDialog({ open, onOpenChange }: Props)
             numberOfMonths={2}
             showOutsideDays={false}
             locale={es}
-            disabled={(date) => date.getTime() < todayStart || actionLoading}
+            disabled={actionLoading}
             className="rounded-md border"
           />
+          {includesPastWeeks && (
+            <FieldDescription className="text-amber-600 dark:text-amber-500">
+              El rango incluye semanas pasadas. Los turnos se generarán
+              igualmente para que puedas liquidar sueldos atrasados; si ese
+              período ya fue pagado, revisá los montos después de aplicar.
+            </FieldDescription>
+          )}
         </Field>
 
         <DialogFooter>
