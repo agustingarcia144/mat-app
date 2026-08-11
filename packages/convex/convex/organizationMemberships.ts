@@ -80,6 +80,8 @@ export const getOrganizationMemberships = query({
   args: {
     organizationId: v.optional(v.id("organizations")),
     includeInactive: v.optional(v.boolean()),
+    // Only return members assigned to this staff member (see responsibleUserId).
+    responsibleUserId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const currentMembership = await requireCurrentOrganizationMembership(ctx);
@@ -103,11 +105,19 @@ export const getOrganizationMemberships = query({
     }
 
     // Get all memberships for this organization
-    const membershipsQuery = ctx.db
-      .query("organizationMemberships")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", requestedOrganizationId),
-      );
+    const membershipsQuery = args.responsibleUserId
+      ? ctx.db
+          .query("organizationMemberships")
+          .withIndex("by_organization_responsible", (q) =>
+            q
+              .eq("organizationId", requestedOrganizationId)
+              .eq("responsibleUserId", args.responsibleUserId),
+          )
+      : ctx.db
+          .query("organizationMemberships")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", requestedOrganizationId),
+          );
 
     const allMemberships = args.includeInactive
       ? await membershipsQuery.collect()

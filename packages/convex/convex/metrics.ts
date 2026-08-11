@@ -1039,6 +1039,8 @@ export const getExerciseMetricsByMembers = query({
 export const getActiveMembersHistory = query({
   args: {
     monthsCount: v.optional(v.number()),
+    // Only count members assigned to this staff member (responsibleUserId).
+    responsibleUserId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
@@ -1050,7 +1052,7 @@ export const getActiveMembersHistory = query({
       12,
     );
 
-    const [subscriptions, approvedPayments] = await Promise.all([
+    const [allSubscriptions, approvedPayments] = await Promise.all([
       ctx.db
         .query("memberPlanSubscriptions")
         .withIndex("by_organization", (q) =>
@@ -1064,6 +1066,26 @@ export const getActiveMembersHistory = query({
         )
         .collect(),
     ]);
+
+    // Restrict to the members this staff member is responsible for. Filtering
+    // the subscriptions (not the payments) keeps the family billing grouping
+    // below intact.
+    const subscriptions = args.responsibleUserId
+      ? await (async () => {
+          const assigned = await ctx.db
+            .query("organizationMemberships")
+            .withIndex("by_organization_responsible", (q) =>
+              q
+                .eq("organizationId", organizationId)
+                .eq("responsibleUserId", args.responsibleUserId),
+            )
+            .collect();
+          const assignedUserIds = new Set(assigned.map((m) => m.userId));
+          return allSubscriptions.filter((subscription) =>
+            assignedUserIds.has(subscription.userId),
+          );
+        })()
+      : allSubscriptions;
 
     const approvedByPeriod = buildApprovedBillingSubsByPeriod(approvedPayments);
 
