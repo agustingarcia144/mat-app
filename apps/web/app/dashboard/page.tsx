@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { type Id } from "@/convex/_generated/dataModel";
 import wolfiBg from "../../assets/mat-wolf-looking.png";
@@ -11,21 +10,34 @@ import ActiveMembers from "../../components/features/dashboard/ActiveMembers";
 import PlanificationStatus from "@/components/features/dashboard/PlanificationStatus";
 import NextClassCard from "@/components/features/dashboard/NextClassCard";
 import PaymentsOverview from "@/components/features/dashboard/PaymentsOverview";
+import PendingActionsCard from "@/components/features/dashboard/PendingActionsCard";
+import TodayClassesCard from "@/components/features/dashboard/TodayClassesCard";
+import MyCommissionCard from "@/components/features/dashboard/MyCommissionCard";
+import DashboardHeader from "@/components/features/dashboard/dashboard-header";
+import QuickActions from "@/components/features/dashboard/quick-actions";
+import {
+  DashboardScopeProvider,
+  useDashboardScope,
+} from "@/components/features/dashboard/dashboard-scope-context";
 import ScheduleDetailDialog from "@/components/features/classes/dialogs/schedule-detail-dialog";
 import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
+import { isOrgAdminRole } from "@/lib/security/roles";
 
-export default function Page() {
+const GRID_CLASSES =
+  "relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.1fr)] xl:items-stretch xl:[&>*]:h-full";
+
+function DashboardContent() {
   const [scheduleDetailOpen, setScheduleDetailOpen] = useState(false);
   const [selectedScheduleId, setSelectedScheduleId] = useState<
     Id<"classSchedules"> | undefined
   >();
-  const membership = useQuery(api.organizationMemberships.getCurrentMembership);
+  const { role, scope, myUserId } = useDashboardScope();
   const entitlement = useOrganizationEntitlement();
+
   const showPaymentsOverview =
-    membership !== undefined &&
-    membership?.role === "admin" &&
-    entitlement?.dashboardCards.includes("payments");
-  const showClasses = entitlement?.dashboardCards.includes("classes");
+    isOrgAdminRole(role) &&
+    (entitlement?.dashboardCards.includes("payments") ?? false);
+  const showClasses = entitlement?.dashboardCards.includes("classes") ?? false;
   const showMembers = entitlement?.dashboardCards.includes("members") ?? false;
   const showPlanifications =
     entitlement?.dashboardCards.includes("planifications") ?? false;
@@ -52,13 +64,23 @@ export default function Page() {
       </div>
 
       <div className="relative z-10">
-        <h1 className="text-2xl font-bold md:text-3xl">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Resumen general de la organización
-        </p>
+        <DashboardHeader />
       </div>
 
-      <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.1fr)] xl:items-stretch xl:[&>*]:h-full">
+      <div className="relative z-10">
+        <QuickActions />
+      </div>
+
+      <div className={GRID_CLASSES}>
+        <PendingActionsCard />
+        {showClasses ? (
+          <TodayClassesCard onOpenDetail={handleOpenScheduleDetail} />
+        ) : (
+          <div aria-hidden="true" />
+        )}
+      </div>
+
+      <div className={GRID_CLASSES}>
         {showMembers ? <ActiveMembers /> : <div aria-hidden="true" />}
         {showPaymentsOverview ? (
           <PaymentsOverview />
@@ -67,13 +89,23 @@ export default function Page() {
         )}
       </div>
 
-      <div className="relative z-10 grid gap-4 md:gap-6 xl:grid-cols-[minmax(320px,0.9fr)_minmax(520px,1.1fr)] xl:items-stretch xl:[&>*]:h-full">
-        {showPlanifications ? <PlanificationStatus /> : <div aria-hidden="true" />}
+      {/* Hidden entirely when the staff member has no commission configured. */}
+      <div className={`${GRID_CLASSES} empty:hidden`}>
+        <MyCommissionCard />
+      </div>
+
+      <div className={GRID_CLASSES}>
+        {showPlanifications ? (
+          <PlanificationStatus />
+        ) : (
+          <div aria-hidden="true" />
+        )}
         {showClasses ? (
           <NextClassCard
             onOpenDetail={handleOpenScheduleDetail}
             pageSize={2}
             className="min-h-[460px] bg-background/60"
+            inChargeUserId={scope === "mine" ? myUserId : undefined}
           />
         ) : (
           <div aria-hidden="true" />
@@ -88,5 +120,13 @@ export default function Page() {
         />
       )}
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <DashboardScopeProvider>
+      <DashboardContent />
+    </DashboardScopeProvider>
   );
 }

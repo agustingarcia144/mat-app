@@ -16,12 +16,15 @@ type Props = {
   onOpenDetail: (id: Id<"classSchedules">) => void;
   pageSize?: number;
   className?: string;
+  /** When set, only occurrences this staff member is in charge of. */
+  inChargeUserId?: string;
 };
 
 export default function NextClassCard({
   onOpenDetail,
   pageSize = 3,
   className,
+  inChargeUserId,
 }: Props) {
   const upcomingWindowMs = 7 * 24 * 60 * 60 * 1000;
   const canQuery = useCanQueryCurrentOrganization();
@@ -48,7 +51,8 @@ export default function NextClassCard({
         (schedule: Doc<"classSchedules">) =>
           schedule.startTime >= nowTimestamp &&
           schedule.startTime <= next7Days &&
-          schedule.status !== "cancelled",
+          schedule.status !== "cancelled" &&
+          (!inChargeUserId || schedule.inChargeUserId === inChargeUserId),
       )
       .map((schedule: Doc<"classSchedules">) => ({
         ...schedule,
@@ -60,7 +64,7 @@ export default function NextClassCard({
         (a: { startTime: number }, b: { startTime: number }) =>
           a.startTime - b.startTime,
       );
-  }, [classes, nowTimestamp, schedules, upcomingWindowMs]);
+  }, [classes, inChargeUserId, nowTimestamp, schedules, upcomingWindowMs]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {

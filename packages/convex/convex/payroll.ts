@@ -428,6 +428,77 @@ export const getCommissionDetail = query({
 });
 
 /**
+ * The caller's own commission for a period (defaults to the current month).
+ *
+ * Self-scoped counterpart of `getCommissionDetail`, which is admin only: any
+ * staff member can see what their assigned members brought in. Returns `null`
+ * when the caller has no commission configured, so the dashboard card can be
+ * hidden entirely.
+ */
+export const getMyCommissionSummary = query({
+  args: {
+    startDate: v.optional(v.number()),
+    endDate: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    if (!isStaffRole(membership.role)) return null;
+
+    const now = new Date();
+    const startDate =
+      args.startDate ?? new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const endDate =
+      args.endDate ??
+      new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime() - 1;
+
+    const organizationId = membership.organizationId;
+
+    const [memberships, payments] = await Promise.all([
+      ctx.db
+        .query("organizationMemberships")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect(),
+      loadApprovedPlanPayments(ctx, organizationId),
+    ]);
+
+    // Read from the stored membership: super admins get a synthetic one that
+    // carries no compensation fields.
+    const commissionPercentage =
+      memberships.find((m) => m.userId === membership.userId)
+        ?.commissionPercentage ?? 0;
+    if (commissionPercentage <= 0) return null;
+
+    const entry = computeCommissions(
+      payments,
+      memberships,
+      startDate,
+      endDate,
+    ).get(membership.userId);
+
+    const base = entry?.base ?? 0;
+    const assignedMemberCount = memberships.filter(
+      (m) =>
+        m.role === "member" &&
+        m.status === "active" &&
+        m.responsibleUserId === membership.userId,
+    ).length;
+
+    const startAt = new Date(startDate);
+    const period = `${startAt.getFullYear()}-${String(startAt.getMonth() + 1).padStart(2, "0")}`;
+
+    return {
+      commissionPercentage,
+      base,
+      commissionAmount: base * (commissionPercentage / 100),
+      assignedMemberCount,
+      periodLabel: periodLabel(period),
+    };
+  },
+});
+
+/**
  * Register a payment (full or partial) toward a staff member's payroll for a
  * period (admin only). Creates a finance expense in the "Empleados" category
  * and a payment record. The amount cannot exceed what is still pending.

@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { useDashboardScope } from "./dashboard-scope-context";
 
 function monthLabelFromPeriod(period: string) {
   const [year, month] = period.split("-").map(Number);
@@ -18,9 +19,16 @@ function monthLabelFromPeriod(period: string) {
 
 export default function ActiveMembers() {
   const canQueryCurrentOrganization = useCanQueryCurrentOrganization();
+  const {
+    responsibleUserId,
+    scope,
+    isLoading: isScopeLoading,
+  } = useDashboardScope();
   const data = useQuery(
     api.metrics.getActiveMembersHistory,
-    canQueryCurrentOrganization ? {} : "skip",
+    canQueryCurrentOrganization && !isScopeLoading
+      ? { responsibleUserId }
+      : "skip",
   );
 
   if (!data) return null;
@@ -32,7 +40,7 @@ export default function ActiveMembers() {
     <Card className="flex min-h-[220px] w-full max-w-none flex-col rounded-2xl border bg-background/60 p-4 md:h-[220px] md:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="text-lg font-semibold text-foreground">
-          Miembros activos
+          {scope === "mine" ? "Mis miembros activos" : "Miembros activos"}
         </div>
         <Link
           href="/dashboard/metrics/churn"
