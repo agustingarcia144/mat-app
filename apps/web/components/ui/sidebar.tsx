@@ -250,11 +250,7 @@ const Sidebar = React.forwardRef<
                     width:
                       state === "collapsed" && collapsible === "icon"
                         ? "calc(var(--sidebar-width-icon) + 1rem)"
-                        : // Must match the fixed panel's own width (below), which
-                          // is --sidebar-width for every variant. Reserving an
-                          // extra 1rem here left dead space to the right of the
-                          // sidebar that reads as unused sidebar background.
-                          "var(--sidebar-width)",
+                        : "calc(var(--sidebar-width) + 1rem)",
                   }
                 : {
                     width:
@@ -274,9 +270,17 @@ const Sidebar = React.forwardRef<
             side === "left"
               ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
               : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
-            // Adjust the padding for floating and inset variants.
+            // Adjust the padding for floating and inset variants. The width also
+            // picks up the same +1rem the spacer above reserves for these
+            // variants, so the panel fills its column instead of leaving a 1rem
+            // strip of bare background to its right.
             variant === "floating" || variant === "inset"
-              ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
+              ? cn(
+                  "w-[calc(var(--sidebar-width)+1rem)] p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]",
+                  side === "left"
+                    ? "group-data-[collapsible=offcanvas]:left-[calc((var(--sidebar-width)+1rem)*-1)]"
+                    : "group-data-[collapsible=offcanvas]:right-[calc((var(--sidebar-width)+1rem)*-1)]",
+                )
               : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
             className,
           )}
