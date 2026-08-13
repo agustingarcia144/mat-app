@@ -10,6 +10,11 @@ import {
   Settings,
   Landmark,
   ShieldCheck,
+  CreditCard,
+  TrendingUp,
+  UserCheck,
+  UserMinus,
+  Wallet,
 } from "lucide-react";
 
 export type FeatureFlag =
@@ -28,6 +33,19 @@ export type BillingModule =
   | "users"
   | "settings";
 
+/**
+ * A child entry of a nav item. Its `url` is a full dashboard-relative path and
+ * does not have to live under the parent's `url` — e.g. "Pagos" hangs under
+ * "Finanzas" in the menu but is routed at /dashboard/payments.
+ */
+export type DashboardNavSubItem = {
+  label: string;
+  icon: LucideIcon;
+  url: string;
+  adminOnly?: boolean;
+  featureFlag?: FeatureFlag;
+};
+
 export type DashboardNavItem = {
   label: string;
   icon: LucideIcon;
@@ -37,6 +55,7 @@ export type DashboardNavItem = {
   /** Only visible to platform super admins (users.isSuperAdmin). */
   superAdminOnly?: boolean;
   featureFlag?: FeatureFlag;
+  children?: readonly DashboardNavSubItem[];
 };
 
 export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
@@ -79,12 +98,54 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
     url: "/finance",
     billingModule: "finance",
     adminOnly: true,
+    children: [
+      {
+        label: "Pagos",
+        icon: CreditCard,
+        url: "/payments",
+      },
+      {
+        label: "Ingresos y egresos",
+        icon: Wallet,
+        url: "/income-expenses",
+        featureFlag: "financeEnabled",
+      },
+      {
+        label: "Balance financiero",
+        icon: TrendingUp,
+        url: "/metrics/payments",
+      },
+    ],
   },
   {
     label: "Metricas",
     icon: BarChart3,
     url: "/metrics",
     billingModule: "metrics",
+    children: [
+      {
+        label: "Ejercicios",
+        icon: Dumbbell,
+        url: "/metrics/exercises",
+      },
+      {
+        label: "Clases",
+        icon: CalendarDays,
+        url: "/metrics/classes",
+        adminOnly: true,
+      },
+      {
+        label: "Asistencia",
+        icon: UserCheck,
+        url: "/metrics/attendance",
+      },
+      {
+        label: "Churn",
+        icon: UserMinus,
+        url: "/metrics/churn",
+        adminOnly: true,
+      },
+    ],
   },
   {
     label: "Mi Equipo",

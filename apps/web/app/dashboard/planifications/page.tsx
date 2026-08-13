@@ -251,13 +251,15 @@ export default function PlanificationsPage() {
   );
 
   const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
-  const filteredPlanifications = (planifications || []).filter((planification) => {
-    if (!normalizedSearch) return true;
+  const filteredPlanifications = (planifications || []).filter(
+    (planification) => {
+      if (!normalizedSearch) return true;
 
-    return `${planification.name} ${planification.description ?? ""}`
-      .toLowerCase()
-      .includes(normalizedSearch);
-  });
+      return `${planification.name} ${planification.description ?? ""}`
+        .toLowerCase()
+        .includes(normalizedSearch);
+    },
+  );
 
   if (orgSettings && !orgSettings.planificationsEnabled) {
     return <FeatureDisabledPage featureName="Planificaciones" />;
@@ -288,7 +290,7 @@ export default function PlanificationsPage() {
     listView === "grid" ? (
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className="flex-1 min-h-0 p-4 pt-2 overflow-auto">
+          <div className="flex-1 min-h-0 overflow-auto p-4">
             {planificationsGrid}
           </div>
         </ContextMenuTrigger>
@@ -304,7 +306,7 @@ export default function PlanificationsPage() {
         </ContextMenuContent>
       </ContextMenu>
     ) : (
-      <div className="flex-1 min-h-0 p-4 pt-2 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-auto p-4">
         <PlanificationListTable
           planifications={filteredPlanifications}
           isLoading={planifications === undefined}
@@ -408,15 +410,15 @@ export default function PlanificationsPage() {
   }
 
   return (
-    <DashboardPageContainer className="py-6">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
+    <DashboardPageContainer className="flex h-[calc(100svh-6rem)] flex-col py-6">
+      <div className="flex shrink-0 items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-3xl font-bold">Planificaciones</h1>
           <p className="mt-1 text-muted-foreground">
             Gestiona programas de entrenamiento
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <ResponsiveActionButton
             variant="outline"
             onClick={() => setTemplatesDialogOpen(true)}
@@ -436,17 +438,19 @@ export default function PlanificationsPage() {
         </div>
       </div>
 
-      <div className="mb-4">{searchInput}</div>
-
       {dialogs}
 
       <TypedDragDropProvider>
         <PlanificationsDragEndMonitor onDragEnd={handleDragEnd}>
           <ResizablePanelGroup
             orientation="horizontal"
-            className="rounded-lg border min-h-[calc(100vh-320px)]"
+            className="mt-6 min-h-0 flex-1 overflow-hidden rounded-lg border"
           >
-            <ResizablePanel defaultSize={25} className="p-4 bg-card">
+            <ResizablePanel
+              defaultSize={25}
+              minSize={15}
+              className="overflow-y-auto bg-card p-4"
+            >
               <FolderTreeSidebar
                 folders={folders || []}
                 selectedId={selectedFolderId}
@@ -455,23 +459,44 @@ export default function PlanificationsPage() {
                 enableDnd
               />
             </ResizablePanel>
-            <ResizableHandle />
-            <ResizablePanel defaultSize={75} className="relative">
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={75} minSize={40} className="relative">
               <div className="absolute inset-0 flex flex-col">
-                <div className="shrink-0 flex justify-end p-4 pb-2 items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Vista:</span>
-                  <Select
-                    value={listView}
-                    onValueChange={(v) => setListView(v as "grid" | "table")}
-                  >
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue placeholder="Vista" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="grid">Cuadrícula</SelectItem>
-                      <SelectItem value="table">Tabla</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex shrink-0 items-center gap-4 border-b px-4 py-3">
+                  <div className="min-w-0 shrink-0">
+                    <p className="truncate text-sm font-medium">
+                      {selectedFolderName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {planifications === undefined
+                        ? "Cargando..."
+                        : `${filteredPlanifications.length} ${
+                            filteredPlanifications.length === 1
+                              ? "planificación"
+                              : "planificaciones"
+                          }`}
+                    </p>
+                  </div>
+
+                  <div className="min-w-0 flex-1">{searchInput}</div>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      Vista:
+                    </span>
+                    <Select
+                      value={listView}
+                      onValueChange={(v) => setListView(v as "grid" | "table")}
+                    >
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Vista" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="grid">Cuadrícula</SelectItem>
+                        <SelectItem value="table">Tabla</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 {desktopListContent}
               </div>
