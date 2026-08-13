@@ -250,7 +250,11 @@ const Sidebar = React.forwardRef<
                     width:
                       state === "collapsed" && collapsible === "icon"
                         ? "calc(var(--sidebar-width-icon) + 1rem)"
-                        : "calc(var(--sidebar-width) + 1rem)",
+                        : // Must match the fixed panel's own width (below), which
+                          // is --sidebar-width for every variant. Reserving an
+                          // extra 1rem here left dead space to the right of the
+                          // sidebar that reads as unused sidebar background.
+                          "var(--sidebar-width)",
                   }
                 : {
                     width:

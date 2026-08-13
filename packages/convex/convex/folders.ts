@@ -257,14 +257,25 @@ export const remove = mutation({
       throw new Error("Cannot delete folder: it contains subfolders");
     }
 
-    // Check for planifications
-    const hasPlanifications = await ctx.db
+    // Check for planifications. Archived ones don't block deletion — they are
+    // hidden from the folder listing, so the folder reads as empty to the user.
+    const planificationsInFolder = await ctx.db
       .query("planifications")
       .withIndex("by_folder", (q) => q.eq("folderId", args.id))
-      .first();
+      .collect();
 
-    if (hasPlanifications) {
+    if (planificationsInFolder.some((p) => p.isArchived !== true)) {
       throw new Error("Cannot delete folder: it contains planifications");
+    }
+
+    // Detach the archived ones first, otherwise unarchiving later would restore
+    // them into a folder that no longer exists and they'd disappear from the tree.
+    const now = Date.now();
+    for (const planification of planificationsInFolder) {
+      await ctx.db.patch(planification._id, {
+        folderId: undefined,
+        updatedAt: now,
+      });
     }
 
     await ctx.db.delete(args.id);
@@ -290,8 +301,12 @@ export const getTree = query({
 });
 
 /**
- * Get folder IDs that can be deleted (no subfolders, no planifications).
+ * Get folder IDs that can be deleted (no subfolders, no visible planifications).
  * Used to show "Eliminar" only for empty folders.
+ *
+ * Archived planifications are ignored here so this stays consistent with
+ * `planifications.getByFolder`, which hides them: a folder that only holds
+ * archived plans looks empty in the UI and must be deletable.
  */
 export const getDeletableFolderIds = query({
   args: {},
@@ -321,6 +336,7 @@ export const getDeletableFolderIds = query({
       const hasPlanifications = await ctx.db
         .query("planifications")
         .withIndex("by_folder", (q) => q.eq("folderId", folder._id))
+        .filter((q) => q.neq(q.field("isArchived"), true))
         .first();
       if (hasPlanifications) continue;
 
