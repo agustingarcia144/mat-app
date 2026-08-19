@@ -14,8 +14,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { ArrowRight, Check, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 
 const currency = new Intl.NumberFormat("es-AR", {
@@ -68,6 +84,9 @@ function daysLeft(trialEndsAt: number | undefined) {
 export default function BillingPage() {
   const params = useSearchParams();
   const [startingPlan, setStartingPlan] = useState<"lite" | "pro" | null>(null);
+  const [planPendingChange, setPlanPendingChange] = useState<
+    "lite" | "pro" | null
+  >(null);
   const billing = useQuery(api.organizationBilling.getCurrentBilling);
   const entitlement = useQuery(api.organizationBilling.getCurrentEntitlement);
   const litePlan = useQuery(api.appBillingPlans.getLite);
@@ -91,6 +110,7 @@ export default function BillingPage() {
   const trialDays = daysLeft(entitlement?.trialEndsAt);
 
   const handleStartCheckout = async (plan: "lite" | "pro") => {
+    setPlanPendingChange(null);
     setStartingPlan(plan);
     try {
       const result = await createCheckout({ planKey: plan });
@@ -144,13 +164,11 @@ export default function BillingPage() {
         </p>
       );
     }
-    if (isActivePaid && !isMercadoPagoSubscription) {
-      return (
-        <p className="text-sm text-muted-foreground">
-          Para cambiar de plan, contactá a MAT.
-        </p>
-      );
-    }
+    // Falling through here means the org is on a *different* plan than this
+    // card. A legacy/manual org may still start a self-serve MercadoPago
+    // checkout: prepareCheckoutInternal only blocks orgs that already have an
+    // active MercadoPago subscription, and it keeps entitlementStatus active
+    // until the webhook authorizes the payment.
     if (!mercadoPagoCheckoutEnabled) {
       return (
         <p className="text-sm text-muted-foreground">
@@ -158,9 +176,16 @@ export default function BillingPage() {
         </p>
       );
     }
+    // Switching an already-active org to another plan applies immediately,
+    // before MercadoPago collects anything, so confirm it first.
+    const needsConfirmation = isActivePaid && planKey !== plan;
     return (
       <Button
-        onClick={() => handleStartCheckout(plan)}
+        onClick={() =>
+          needsConfirmation
+            ? setPlanPendingChange(plan)
+            : handleStartCheckout(plan)
+        }
         disabled={startingPlan !== null}
         className={plan === "pro" ? accentButtonClassName : "w-full gap-2"}
         variant={plan === "pro" ? "default" : "outline"}
@@ -339,6 +364,61 @@ export default function BillingPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={planPendingChange !== null}
+        onOpenChange={(open) => {
+          if (!open) setPlanPendingChange(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-4 text-amber-500" />
+              {planPendingChange === "lite"
+                ? "Cambiar a LITE"
+                : "Cambiar a PRO"}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  El cambio de plan se aplica ahora, antes de que MercadoPago
+                  cobre. Si no completás el pago, la organización queda igual en{" "}
+                  {planPendingChange === "lite" ? "LITE" : "PRO"}.
+                </p>
+                {planPendingChange === "lite" && planKey === "pro" ? (
+                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400">
+                    <p className="font-medium">
+                      Vas a perder el acceso a las funciones PRO:
+                    </p>
+                    <ul className="mt-1 list-disc pl-5">
+                      {PRO_FEATURES.filter(
+                        (feature) => feature !== "Todo lo de LITE",
+                      ).map((feature) => (
+                        <li key={feature}>{feature}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                <p>
+                  Tu acceso sigue activo mientras MercadoPago procesa el primer
+                  pago. Para volver al plan anterior, contactá a MAT.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (planPendingChange) handleStartCheckout(planPendingChange);
+              }}
+            >
+              Continuar a MercadoPago
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardPageContainer>
   );
 }
