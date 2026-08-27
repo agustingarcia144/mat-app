@@ -30,6 +30,7 @@ export type BillingModule =
   | "classes"
   | "finance"
   | "metrics"
+  | "metrics_exercises"
   | "users"
   | "settings";
 
@@ -44,6 +45,8 @@ export type DashboardNavSubItem = {
   url: string;
   adminOnly?: boolean;
   featureFlag?: FeatureFlag;
+  /** Defaults to the parent item's module when omitted. */
+  billingModule?: BillingModule;
 };
 
 export type DashboardNavItem = {
@@ -127,6 +130,7 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
         label: "Ejercicios",
         icon: Dumbbell,
         url: "/metrics/exercises",
+        billingModule: "metrics_exercises",
       },
       {
         label: "Clases",

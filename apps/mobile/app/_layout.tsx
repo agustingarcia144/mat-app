@@ -253,7 +253,8 @@ function RootLayoutNav() {
       topSegment === undefined ||
       topSegment === "" ||
       topSegment === "sign-in" ||
-      topSegment === "sign-up";
+      topSegment === "sign-up" ||
+      topSegment === "forgot-password";
 
     const replaceIfNeeded = (href: Href) => {
       if (pathname !== getPathnameForHref(href)) {
@@ -392,6 +393,7 @@ function RootLayoutNav() {
         <Stack.Screen name="index" />
         <Stack.Screen name="sign-in" />
         <Stack.Screen name="sign-up" />
+        <Stack.Screen name="forgot-password" />
         <Stack.Screen name="sso-callback" />
         <Stack.Screen name="onboarding-notifications" />
         <Stack.Screen name="onboarding" />

@@ -23,6 +23,7 @@ const ALLOWED_LITE_MODULES = [
   "members",
   "exercises",
   "planifications",
+  "metrics_exercises",
 ];
 const ALLOWED_LITE_DASHBOARD_CARDS = ["members", "planifications"];
 const ALL_MODULES = [
@@ -34,6 +35,7 @@ const ALL_MODULES = [
   "payments",
   "finance",
   "metrics",
+  "metrics_exercises",
   "users",
   "settings",
 ];

@@ -19,6 +19,11 @@ function moduleForPath(pathname: string) {
   if (pathname.startsWith("/dashboard/payments")) return "payments";
   if (pathname.startsWith("/dashboard/finance")) return "finance";
   if (pathname.startsWith("/dashboard/income-expenses")) return "finance";
+  // Exercise metrics has its own module so LITE orgs can reach it without
+  // unlocking the rest of /dashboard/metrics.
+  if (pathname.startsWith("/dashboard/metrics/exercises")) {
+    return "metrics_exercises";
+  }
   if (pathname.startsWith("/dashboard/metrics")) return "metrics";
   if (pathname.startsWith("/dashboard/users")) return "users";
   if (pathname.startsWith("/dashboard/settings")) return "settings";
