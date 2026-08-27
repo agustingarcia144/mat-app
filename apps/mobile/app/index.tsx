@@ -479,6 +479,12 @@ function SignInForm() {
             </ThemedPressable>
           ) : null}
 
+          <ThemedPressable onPress={() => router.push('/forgot-password')}>
+            <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
+              ¿Olvidaste tu contraseña?
+            </Text>
+          </ThemedPressable>
+
           <ThemedPressable onPress={() => router.push('/sign-up')}>
             <Text style={[styles.link, { color: isDark ? '#fff' : '#000' }]}>
               ¿No tienes cuenta? <Text style={styles.linkBold}>Regístrate</Text>

@@ -17,7 +17,10 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { DASHBOARD_NAV_ITEMS } from "@/lib/dashboard-nav";
-import type { DashboardNavSubItem } from "@/lib/dashboard-nav";
+import type {
+  DashboardNavItem,
+  DashboardNavSubItem,
+} from "@/lib/dashboard-nav";
 import { useUnsavedNavigationGuard } from "@/contexts/unsaved-changes-context";
 import { isOrgAdminRole } from "@/lib/security/roles";
 import { useOrgSettings } from "@/hooks/use-org-settings";
@@ -43,25 +46,45 @@ export default function ContentNavItems() {
   const visibleNavItems = useMemo(() => {
     const isAdmin = isOrgAdminRole(membership?.role);
     const allowedModules = new Set(entitlement?.modules ?? []);
-    const isSubItemVisible = (subItem: DashboardNavSubItem) => {
+    const isModuleAllowed = (module: string) =>
+      !entitlement || allowedModules.has(module);
+    const isSubItemVisible = (
+      subItem: DashboardNavSubItem,
+      parent: DashboardNavItem,
+    ) => {
       if (subItem.adminOnly && !isAdmin) return false;
       if (subItem.featureFlag && settings && !settings[subItem.featureFlag]) {
         return false;
       }
-      return true;
+      return isModuleAllowed(subItem.billingModule ?? parent.billingModule);
     };
-    return DASHBOARD_NAV_ITEMS.filter((item) => {
-      if (item.superAdminOnly) return isSuperAdmin;
-      if (item.adminOnly && !isAdmin) return false;
-      if (entitlement && !allowedModules.has(item.billingModule)) return false;
-      if (item.featureFlag && settings) {
-        if (!settings[item.featureFlag]) return false;
-      }
-      return true;
-    }).map((item) => ({
+    return DASHBOARD_NAV_ITEMS.map((item) => ({
       ...item,
-      children: item.children?.filter(isSubItemVisible) ?? [],
-    }));
+      children:
+        item.children?.filter((subItem) => isSubItemVisible(subItem, item)) ??
+        [],
+    }))
+      .filter((item) => {
+        if (item.superAdminOnly) return isSuperAdmin;
+        if (item.adminOnly && !isAdmin) return false;
+        // A group stays visible when a child has its own allowed module, so a
+        // plan that only unlocks part of a group (LITE + exercise metrics)
+        // still reaches it.
+        if (!isModuleAllowed(item.billingModule) && item.children.length === 0) {
+          return false;
+        }
+        if (item.featureFlag && settings) {
+          if (!settings[item.featureFlag]) return false;
+        }
+        return true;
+      })
+      .map((item) => ({
+        ...item,
+        // The group header would otherwise link to a page the plan blocks.
+        navigationUrl: isModuleAllowed(item.billingModule)
+          ? item.url
+          : (item.children[0]?.url ?? item.url),
+      }));
   }, [entitlement, isSuperAdmin, membership?.role, settings]);
 
   const handleNavigation = (url: string) => {
@@ -85,7 +108,7 @@ export default function ContentNavItems() {
             <SidebarMenuItem key={item.url}>
               <SidebarMenuButton
                 isActive={isActive}
-                onClick={() => handleNavigation(item.url)}
+                onClick={() => handleNavigation(item.navigationUrl)}
               >
                 <item.icon className="size-4" />
                 <span className="truncate">{item.label}</span>
@@ -112,7 +135,7 @@ export default function ContentNavItems() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 isActive={isActive}
-                onClick={() => handleNavigation(item.url)}
+                onClick={() => handleNavigation(item.navigationUrl)}
               >
                 <item.icon className="size-4" />
                 <span className="truncate">{item.label}</span>

@@ -2,7 +2,15 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireSuperAdmin } from "./permissions";
 
-const LITE_MODULES = ["dashboard", "members", "exercises", "planifications"];
+// "metrics_exercises" is the exercise-metrics screen only; the full "metrics"
+// module (classes, attendance, churn, finance balance) stays PRO-only.
+const LITE_MODULES = [
+  "dashboard",
+  "members",
+  "exercises",
+  "planifications",
+  "metrics_exercises",
+];
 const LITE_DASHBOARD_CARDS = ["members", "planifications"];
 const PRO_MODULES = [
   "dashboard",
@@ -13,6 +21,7 @@ const PRO_MODULES = [
   "payments",
   "finance",
   "metrics",
+  "metrics_exercises",
   "users",
   "settings",
 ];
@@ -106,7 +115,7 @@ async function upsertLitePlan(ctx: any, priceArs: number) {
     key: "lite",
     name: "LITE",
     description:
-      "Acceso a miembros, ejercicios y planificaciones para una organización.",
+      "Acceso a miembros, ejercicios, planificaciones y métricas de ejercicios para una organización.",
     referencePriceUsd: 10,
     priceCurrency: "ARS" as const,
     priceArs,
