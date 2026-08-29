@@ -45,6 +45,18 @@ export default function ProfileLayout() {
           }}
         />
         <Stack.Screen
+          name="wallet-pass"
+          options={{
+            headerShown: true,
+            headerTransparent: true,
+            headerTitle: "Mi credencial",
+            headerShadowVisible: false,
+            headerStyle: { backgroundColor },
+            headerTintColor,
+            headerLeft: () => <HeaderBackButton />,
+          }}
+        />
+        <Stack.Screen
           name="planifications/index"
           options={{
             headerShown: true,

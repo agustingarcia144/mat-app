@@ -18,6 +18,7 @@ import {
 import {
   getRewardSettings,
   resolveRewardSettings,
+  resolveWalletCardDesign,
   type RewardSettings,
 } from "./organizationSettings";
 import {
@@ -36,6 +37,12 @@ import {
   signApplePassAuthenticationToken,
   signMobileQr,
 } from "./rewardsQr";
+import {
+  buildJoinDateCycle,
+  getPaymentTimezone,
+  getZonedDateParts,
+  parseBillingPeriod,
+} from "./billingDomain";
 import { randomHex } from "./memberPaymentsCrypto";
 import { safeEqual } from "./memberPaymentsCrypto";
 
@@ -53,6 +60,132 @@ async function getSettingsDocument(
     .query("organizationSettings")
     .withIndex("by_organization", (q) => q.eq("organizationId", organizationId))
     .first();
+}
+
+async function getCurrentMemberPlanId(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: Id<"organizations">,
+  userId: string,
+): Promise<Id<"membershipPlans"> | undefined> {
+  const subscriptions = await ctx.db
+    .query("memberPlanSubscriptions")
+    .withIndex("by_organization_user", (q) =>
+      q.eq("organizationId", organizationId).eq("userId", userId),
+    )
+    .collect();
+  const current =
+    subscriptions.find((item) => item.status === "active") ??
+    subscriptions.find(
+      (item) =>
+        item.status === "cancelled" &&
+        item.accessEndsAt !== undefined &&
+        item.accessEndsAt > Date.now(),
+    ) ??
+    subscriptions.find((item) => item.status !== "cancelled");
+  return current?.planId;
+}
+
+async function resolveWalletDesignData(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: Id<"organizations">,
+  userId: string,
+  settings: RewardSettings,
+) {
+  const planId = await getCurrentMemberPlanId(ctx, organizationId, userId);
+  const design = resolveWalletCardDesign(settings.walletCard, planId);
+  const hasPlanOverride =
+    settings.walletCard.mode === "by_plan" &&
+    planId !== undefined &&
+    settings.walletCard.planDesigns.some((item) => item.planId === planId);
+  const organization = await ctx.db.get(organizationId);
+  const [customLogoUrl, organizationStoredLogoUrl, heroImageUrl] =
+    await Promise.all([
+      design.logoStorageId
+        ? ctx.storage.getUrl(design.logoStorageId)
+        : Promise.resolve(null),
+      organization?.logoStorageId
+        ? ctx.storage.getUrl(organization.logoStorageId)
+        : Promise.resolve(null),
+      design.heroImageStorageId
+        ? ctx.storage.getUrl(design.heroImageStorageId)
+        : Promise.resolve(null),
+    ]);
+  const organizationLogoUrl =
+    organizationStoredLogoUrl ?? organization?.logoUrl ?? null;
+  return {
+    ...design,
+    planId,
+    variantKey: hasPlanOverride ? String(planId) : "global",
+    logoUrl:
+      (design.useOrganizationLogo ?? true) && organizationLogoUrl
+        ? organizationLogoUrl
+        : customLogoUrl,
+    heroImageUrl,
+  };
+}
+
+/** The end of the latest paid plan cycle, including advance-payment coverage. */
+async function getMembershipExpiresAt(
+  ctx: QueryCtx | MutationCtx,
+  organizationId: Id<"organizations">,
+  userId: string,
+): Promise<number | undefined> {
+  const subscriptions = await ctx.db
+    .query("memberPlanSubscriptions")
+    .withIndex("by_organization_user", (q) =>
+      q.eq("organizationId", organizationId).eq("userId", userId),
+    )
+    .collect();
+  const subscription =
+    subscriptions.find((item) => item.status === "active") ??
+    subscriptions.find(
+      (item) =>
+        item.status === "cancelled" &&
+        item.accessEndsAt !== undefined &&
+        item.accessEndsAt > Date.now(),
+    ) ??
+    subscriptions.find((item) => item.status !== "cancelled");
+  if (!subscription) return undefined;
+  if (subscription.accessEndsAt !== undefined) return subscription.accessEndsAt;
+
+  const billingSubscription = subscription.familyParentSubscriptionId
+    ? await ctx.db.get(subscription.familyParentSubscriptionId)
+    : subscription;
+  if (!billingSubscription) return undefined;
+  const [plan, organization, payments] = await Promise.all([
+    ctx.db.get(billingSubscription.planId),
+    ctx.db.get(organizationId),
+    ctx.db
+      .query("planPayments")
+      .withIndex("by_subscription_period", (q) =>
+        q.eq("subscriptionId", billingSubscription._id),
+      )
+      .collect(),
+  ]);
+  if (!plan) return undefined;
+
+  const timezone = getPaymentTimezone(organization?.timezone);
+  const anchorAt =
+    billingSubscription.billingAnchorAt ?? billingSubscription.activatedAt;
+  const anchorDay = getZonedDateParts(anchorAt, timezone).day;
+  const cycleEndForPeriod = (billingPeriod: string) => {
+    const { year, month } = parseBillingPeriod(billingPeriod);
+    if ((plan.billingMode ?? "calendar") === "join_date") {
+      // Cycle ends are exclusive midnight boundaries; the pass should show the
+      // last calendar day on which the member still has access.
+      return buildJoinDateCycle(anchorDay, year, month).cycleEndAt - 1;
+    }
+    return Date.UTC(year, month, 1) - 1;
+  };
+  const now = getZonedDateParts(Date.now(), timezone);
+  let expiresAt = cycleEndForPeriod(
+    `${now.year}-${String(now.month).padStart(2, "0")}`,
+  );
+  for (const payment of payments) {
+    if (payment.status !== "approved") continue;
+    expiresAt = Math.max(expiresAt, cycleEndForPeriod(payment.billingPeriod));
+  }
+  return expiresAt;
 }
 
 async function requireRewardsEnabled(
@@ -494,6 +627,155 @@ export async function awardAttendanceReward(
   };
 }
 
+function membershipPeriodIndex(period: string): number | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(period);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  return year * 12 + month - 1;
+}
+
+export function countConsecutivePaidMonths(
+  billingPeriods: Iterable<string>,
+  endingAt: string,
+): number {
+  const endingIndex = membershipPeriodIndex(endingAt);
+  if (endingIndex === null) return 0;
+  const paidIndexes = new Set<number>();
+  for (const period of billingPeriods) {
+    const index = membershipPeriodIndex(period);
+    if (index !== null) paidIndexes.add(index);
+  }
+  let count = 0;
+  while (paidIndexes.has(endingIndex - count)) count += 1;
+  return count;
+}
+
+/** Awards one idempotent tenure entry for an approved, genuinely paid month. */
+export async function awardMembershipPaymentReward(
+  ctx: MutationCtx,
+  params: {
+    paymentId: Id<"planPayments">;
+    occurredAt: number;
+  },
+): Promise<{ pointsAwarded: number; consecutivePaidMonths: number }> {
+  const payment = await ctx.db.get(params.paymentId);
+  if (
+    !payment ||
+    payment.status !== "approved" ||
+    payment.isBonification ||
+    payment.paymentMethod === "bonification" ||
+    (payment.totalAmountArs ?? payment.amountArs) <= 0
+  ) {
+    return { pointsAwarded: 0, consecutivePaidMonths: 0 };
+  }
+  const settingsDocument = await getSettingsDocument(
+    ctx,
+    payment.organizationId,
+  );
+  if (
+    !rewardCapabilityEnabled(settingsDocument) ||
+    !isRewardSourceEligible(settingsDocument?.rewards, "membership_payment")
+  ) {
+    return { pointsAwarded: 0, consecutivePaidMonths: 0 };
+  }
+  const idempotencyKey = `reward:membership_payment:${payment._id}`;
+  const existingEntry = await ctx.db
+    .query("rewardLedger")
+    .withIndex("by_idempotency_key", (q) =>
+      q.eq("idempotencyKey", idempotencyKey),
+    )
+    .first();
+  if (existingEntry) {
+    return {
+      pointsAwarded: 0,
+      consecutivePaidMonths:
+        (
+          existingEntry.metadata as
+            | { consecutivePaidMonths?: number }
+            | undefined
+        )?.consecutivePaidMonths ?? 0,
+    };
+  }
+
+  const paidMonths = await ctx.db
+    .query("planPayments")
+    .withIndex("by_organization_user", (q) =>
+      q
+        .eq("organizationId", payment.organizationId)
+        .eq("userId", payment.userId),
+    )
+    .filter((q) => q.eq(q.field("status"), "approved"))
+    .collect();
+  const eligiblePeriods = paidMonths
+    .filter(
+      (item) =>
+        !item.isBonification &&
+        item.paymentMethod !== "bonification" &&
+        (item.totalAmountArs ?? item.amountArs) > 0,
+    )
+    .map((item) => item.billingPeriod);
+  const consecutivePaidMonths = countConsecutivePaidMonths(
+    eligiblePeriods,
+    payment.billingPeriod,
+  );
+  const settings = resolveRewardSettings(settingsDocument?.rewards);
+  const organization = await ctx.db.get(payment.organizationId);
+  const timezone = normalizeRewardTimezone(organization?.timezone);
+  const localDate = getLocalDate(params.occurredAt, timezone);
+  const account = await getOrCreateAccount(
+    ctx,
+    payment.organizationId,
+    payment.userId,
+  );
+  if (account.status !== "active") {
+    return { pointsAwarded: 0, consecutivePaidMonths };
+  }
+  const entry = await writeLedgerEntry(ctx, {
+    account,
+    points: settings.pointsPerMembershipMonth,
+    type: "earn",
+    reason: `Mes de antigüedad ${payment.billingPeriod}`,
+    sourceType: "membership_payment",
+    sourceId: String(payment._id),
+    idempotencyKey,
+    localDate,
+    metadata: {
+      billingPeriod: payment.billingPeriod,
+      consecutivePaidMonths,
+      pointsPerMembershipMonth: settings.pointsPerMembershipMonth,
+    },
+  });
+  return { pointsAwarded: entry.points, consecutivePaidMonths };
+}
+
+/** Compensates tenure points when an approved current payment is reversed. */
+export async function reverseMembershipPaymentReward(
+  ctx: MutationCtx,
+  paymentId: Id<"planPayments">,
+): Promise<void> {
+  const original = await ctx.db
+    .query("rewardLedger")
+    .withIndex("by_idempotency_key", (q) =>
+      q.eq("idempotencyKey", `reward:membership_payment:${paymentId}`),
+    )
+    .first();
+  if (!original || original.type !== "earn" || original.points <= 0) return;
+  const account = await ctx.db.get(original.accountId);
+  if (!account) return;
+  await writeLedgerEntry(ctx, {
+    account,
+    points: -original.points,
+    type: "reversal",
+    reason: "Reversión de puntos por pago devuelto",
+    sourceType: "membership_payment_reversal",
+    sourceId: String(paymentId),
+    idempotencyKey: `reward:membership_payment_reversal:${paymentId}`,
+    metadata: { reversedLedgerEntryId: original._id },
+  });
+}
+
 async function getMemberAccessDecision(
   ctx: QueryCtx | MutationCtx,
   organizationId: Id<"organizations">,
@@ -782,6 +1064,102 @@ export const issueMyMobileQr = mutation({
   },
 });
 
+/**
+ * Member-safe data used to render the Wallet card before creating a provider
+ * pass. Keeping this separate from pass creation means opening the preview has
+ * no side effects and does not issue a credential until the member taps Add.
+ */
+export const getMyWalletPassPreview = query({
+  args: {},
+  handler: async (ctx) => {
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    const settingsDocument = await getSettingsDocument(
+      ctx,
+      membership.organizationId,
+    );
+    const settings = resolveRewardSettings(settingsDocument?.rewards);
+    const organization = await ctx.db.get(membership.organizationId);
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_externalId", (q) => q.eq("externalId", membership.userId))
+      .first();
+    const account = await ctx.db
+      .query("rewardAccounts")
+      .withIndex("by_organization_user", (q) =>
+        q
+          .eq("organizationId", membership.organizationId)
+          .eq("userId", membership.userId),
+      )
+      .first();
+    const access = await getMemberAccessDecision(
+      ctx,
+      membership.organizationId,
+      membership.userId,
+    );
+    const walletDesign = await resolveWalletDesignData(
+      ctx,
+      membership.organizationId,
+      membership.userId,
+      settings,
+    );
+    const membershipExpiresAt = await getMembershipExpiresAt(
+      ctx,
+      membership.organizationId,
+      membership.userId,
+    );
+
+    return {
+      available:
+        membership.role === "member" &&
+        rewardCapabilityEnabled(settingsDocument) &&
+        Boolean(getRewardsQrSecret()),
+      providers: {
+        apple: Boolean(
+          process.env.APPLE_WALLET_PASS_TYPE_ID &&
+          process.env.APPLE_WALLET_TEAM_ID &&
+          process.env.APPLE_WALLET_WEB_SERVICE_URL &&
+          process.env.APPLE_WALLET_WWDR_CERT &&
+          process.env.APPLE_WALLET_SIGNER_CERT &&
+          process.env.APPLE_WALLET_SIGNER_KEY,
+        ),
+        google: Boolean(
+          process.env.GOOGLE_WALLET_ISSUER_ID &&
+          process.env.GOOGLE_WALLET_SERVICE_ACCOUNT_EMAIL &&
+          process.env.GOOGLE_WALLET_PRIVATE_KEY,
+        ),
+      },
+      organizationName: organization?.name ?? "Tu gimnasio",
+      memberName:
+        user?.fullName ??
+        (`${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
+          "Socio MAT"),
+      balance: account?.balance ?? 0,
+      pointsName: settings.pointsName,
+      membershipStatus: access.allowed
+        ? "Activa"
+        : access.code === REWARD_ACCESS_CODES.subscriptionSuspended
+          ? "Suspendida"
+          : "Sin acceso",
+      membershipExpiresAt,
+      design: {
+        programName: walletDesign.programName,
+        backgroundColor: walletDesign.backgroundColor,
+        backgroundStyle: walletDesign.backgroundStyle,
+        gradientStartColor: walletDesign.gradientStartColor,
+        gradientEndColor: walletDesign.gradientEndColor,
+        gradientAngle: walletDesign.gradientAngle,
+        showPoints: walletDesign.showPoints,
+        logoText: walletDesign.apple?.logoText,
+        foregroundColor: walletDesign.apple?.foregroundColor,
+        labelColor: walletDesign.apple?.labelColor,
+        googleProgramName: walletDesign.google?.programName,
+        logoUrl: walletDesign.logoUrl,
+        heroImageUrl: walletDesign.heroImageUrl,
+      },
+    };
+  },
+});
+
 export const prepareMyWalletPass = internalMutation({
   args: { provider: v.union(v.literal("apple"), v.literal("google")) },
   handler: async (ctx, args) => {
@@ -862,6 +1240,17 @@ export const prepareMyWalletPass = internalMutation({
       membership.organizationId,
       membership.userId,
     );
+    const walletDesign = await resolveWalletDesignData(
+      ctx,
+      membership.organizationId,
+      membership.userId,
+      settings,
+    );
+    const membershipExpiresAt = await getMembershipExpiresAt(
+      ctx,
+      membership.organizationId,
+      membership.userId,
+    );
     return {
       organizationId: membership.organizationId,
       organizationName: organization.name,
@@ -879,8 +1268,10 @@ export const prepareMyWalletPass = internalMutation({
           ? "Suspendida"
           : "Sin acceso",
       pointsName: settings.pointsName,
+      membershipExpiresAt,
       credentialId: credential.credentialId,
       providerObjectId,
+      walletDesign,
     };
   },
 });
@@ -927,7 +1318,19 @@ export const getWalletPassDataInternal = internalQuery({
       ]);
     if (!organization || !credential || credential.status !== "active")
       return null;
+    const resolvedSettings = resolveRewardSettings(settingsDocument?.rewards);
     const access = await getMemberAccessDecision(
+      ctx,
+      walletPass.organizationId,
+      walletPass.userId,
+    );
+    const walletDesign = await resolveWalletDesignData(
+      ctx,
+      walletPass.organizationId,
+      walletPass.userId,
+      resolvedSettings,
+    );
+    const membershipExpiresAt = await getMembershipExpiresAt(
       ctx,
       walletPass.organizationId,
       walletPass.userId,
@@ -941,13 +1344,15 @@ export const getWalletPassDataInternal = internalQuery({
         (`${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
           "Socio MAT"),
       balance: account?.balance ?? 0,
-      pointsName: resolveRewardSettings(settingsDocument?.rewards).pointsName,
+      pointsName: resolvedSettings.pointsName,
+      membershipExpiresAt,
       membershipStatus: access.allowed
         ? "Activa"
         : access.code === REWARD_ACCESS_CODES.subscriptionSuspended
           ? "Suspendida"
           : "Sin acceso",
       credentialId: credential.credentialId,
+      walletDesign,
     };
   },
 });
@@ -992,7 +1397,19 @@ export const getWalletPassForMemberInternal = internalQuery({
       ]);
     if (!organization || !credential || credential.status !== "active")
       return null;
+    const resolvedSettings = resolveRewardSettings(settingsDocument?.rewards);
     const access = await getMemberAccessDecision(
+      ctx,
+      args.organizationId,
+      args.userId,
+    );
+    const walletDesign = await resolveWalletDesignData(
+      ctx,
+      args.organizationId,
+      args.userId,
+      resolvedSettings,
+    );
+    const membershipExpiresAt = await getMembershipExpiresAt(
       ctx,
       args.organizationId,
       args.userId,
@@ -1005,13 +1422,15 @@ export const getWalletPassForMemberInternal = internalQuery({
         (`${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
           "Socio MAT"),
       balance: account?.balance ?? 0,
-      pointsName: resolveRewardSettings(settingsDocument?.rewards).pointsName,
+      pointsName: resolvedSettings.pointsName,
+      membershipExpiresAt,
       membershipStatus: access.allowed
         ? "Activa"
         : access.code === REWARD_ACCESS_CODES.subscriptionSuspended
           ? "Suspendida"
           : "Sin acceso",
       credentialId: credential.credentialId,
+      walletDesign,
     };
   },
 });
@@ -1434,14 +1853,13 @@ export const scanQr = mutation({
         decisionExpiresAt: now + ACCESS_DECISION_TTL_MS,
       };
     }
-    const duplicateSince = now - settings.duplicateWindowMinutes * MINUTE_MS;
     const previous = await ctx.db
       .query("memberCheckIns")
-      .withIndex("by_organization_user_time", (q) =>
+      .withIndex("by_organization_user_local_date", (q) =>
         q
           .eq("organizationId", staff.organizationId)
           .eq("userId", credential.userId)
-          .gte("checkedInAt", duplicateSince),
+          .eq("localDate", localDate),
       )
       .filter((q) => q.eq(q.field("status"), "allowed"))
       .order("desc")
@@ -1641,34 +2059,65 @@ export const getAdminDashboard = query({
       ctx,
       membership.organizationId,
     );
-    const [definitions, redemptions, checkIns, accounts] = await Promise.all([
-      ctx.db
-        .query("rewardDefinitions")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .collect(),
-      ctx.db
-        .query("rewardRedemptions")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .order("desc")
-        .take(100),
-      ctx.db
-        .query("memberCheckIns")
-        .withIndex("by_organization_time", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .order("desc")
-        .take(100),
-      ctx.db
-        .query("rewardAccounts")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .collect(),
-    ]);
+    const organization = await ctx.db.get(membership.organizationId);
+    const [definitions, redemptions, checkIns, accounts, membershipPlans] =
+      await Promise.all([
+        ctx.db
+          .query("rewardDefinitions")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .collect(),
+        ctx.db
+          .query("rewardRedemptions")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .order("desc")
+          .take(100),
+        ctx.db
+          .query("memberCheckIns")
+          .withIndex("by_organization_time", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .order("desc")
+          .take(100),
+        ctx.db
+          .query("rewardAccounts")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .collect(),
+        ctx.db
+          .query("membershipPlans")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", membership.organizationId),
+          )
+          .collect(),
+      ]);
+    const settings = resolveRewardSettings(settingsDocument?.rewards);
+    const designAssets = async (
+      design: typeof settings.walletCard.defaultDesign,
+    ) => ({
+      logoUrl: design.logoStorageId
+        ? await ctx.storage.getUrl(design.logoStorageId)
+        : null,
+      heroImageUrl: design.heroImageStorageId
+        ? await ctx.storage.getUrl(design.heroImageStorageId)
+        : null,
+    });
+    const defaultDesignAssets = await designAssets(
+      settings.walletCard.defaultDesign,
+    );
+    const organizationLogoUrl = organization?.logoStorageId
+      ? await ctx.storage.getUrl(organization.logoStorageId)
+      : (organization?.logoUrl ?? null);
+    const planDesignAssets = await Promise.all(
+      settings.walletCard.planDesigns.map(async (item) => ({
+        planId: item.planId,
+        ...(await designAssets(item.design)),
+      })),
+    );
     const definitionById = new Map(
       definitions.map((definition) => [String(definition._id), definition]),
     );
@@ -1699,7 +2148,20 @@ export const getAdminDashboard = query({
       );
     };
     return {
-      settings: resolveRewardSettings(settingsDocument?.rewards),
+      settings,
+      organizationName: organization?.name ?? "Tu gimnasio",
+      organizationLogoUrl,
+      membershipPlans: membershipPlans
+        .filter((plan) => plan.deletedAt === undefined)
+        .map((plan) => ({
+          _id: plan._id,
+          name: plan.name,
+          isActive: plan.isActive,
+        })),
+      walletDesignAssets: {
+        default: defaultDesignAssets,
+        plans: planDesignAssets,
+      },
       definitions,
       accounts: accounts.map((item) => ({
         ...item,
@@ -1734,6 +2196,15 @@ export const getAdminDashboard = query({
         ),
       },
     };
+  },
+});
+
+export const generateWalletAssetUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const membership = await requireCurrentOrganizationMembership(ctx);
+    await requireAdmin(ctx, membership.organizationId);
+    return await ctx.storage.generateUploadUrl();
   },
 });
 

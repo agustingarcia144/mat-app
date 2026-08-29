@@ -9,8 +9,9 @@ billing integration point is `rewardCapabilityEnabled` in
 
 The current release includes:
 
-- Configurable points per attendance, daily limits, duplicate window, eligible
-  sources, streak bonuses, weekly goals, point naming, terms, and gym timezone.
+- Configurable points per attendance and paid membership month, daily limits,
+  eligible sources, streak bonuses, weekly goals, point naming, terms, and gym
+  timezone.
 - A normalized gym entrance independent from class reservations.
 - Automatic class linking when exactly one reservation is eligible; reception
   can select when multiple classes match.
@@ -23,12 +24,70 @@ The current release includes:
 - Member streak/weekly progress and membership-access state in the mobile app.
 - Apple Wallet pass generation and pass-update web-service endpoints.
 - Google Wallet save JWTs and loyalty-object updates.
+- A gym-admin Wallet card designer in the web dashboard with global or
+  membership-plan-specific branding and live Apple/Google previews.
 - A durable Wallet update queue with retry/backoff. Wallet failures never roll
   back a check-in, reward entry, or redemption.
 - A short-lived machine-readable access decision suitable for a future trusted
   turnstile controller.
 
-No points expire. Existing attendance is not backfilled automatically.
+No points expire. Existing attendance and already-approved payments are not
+backfilled automatically.
+
+## Wallet card customization
+
+Gym admins configure membership cards from **Recompensas > Tarjetas Wallet**
+in the web dashboard. A gym can use one global card design for every member or
+enable per-plan designs. The global design remains the fallback when a member
+has no current plan or their plan has no override.
+
+The first customization release supports:
+
+- A card/program name and solid background color.
+- Reuse of the gym logo from organization settings, or a separate PNG/JPG logo.
+- Native visual backgrounds using a solid color, generated linear gradient, or
+  uploaded PNG/JPG image, up to 5 MB per image.
+- Apple-specific logo text, foreground color, and label color.
+- An optional Google-specific program name.
+- Side-by-side Apple Wallet and Google Wallet previews using sample member,
+  balance, status, and QR data.
+- A preview switch between Apple's Poster Generic layout and its Generic
+  fallback. This switch is for inspection only: issued Apple passes contain
+  both layouts so iOS can choose the compatible one.
+
+The browser previews reproduce the providers' native layouts without claiming
+pixel parity. Apple and Google own the final rendering and can change it by OS,
+device, or Wallet release. Neither platform accepts a CSS gradient over the
+whole card, so MAT renders gradients to an image and places visual backgrounds
+in each provider's native artwork area. Issued Apple cards use the membership-
+appropriate `posterGeneric` style on iOS 27 and later, with full `artwork.png`,
+primary logo, membership fields, and QR code. The same pass includes a standard
+`generic` layout, logo, and optional thumbnail as Apple's recommended fallback
+for iOS 26 and earlier. Google uses loyalty-class branding, program logo, hero
+image, loyalty points, and barcode.
+
+Apple owns the Poster Generic barcode layout. MAT omits optional barcode text
+so Wallet can render the smallest native white QR tile over the artwork and
+footer material. Member and points fields sit in the lower material region to
+preserve contrast over detailed artwork; Apple controls the final translucency
+and blur. Google loyalty passes always retain their native card-title
+section: its logo, issuer/program name, position, and header background cannot
+be removed through a template override. A Google hero image therefore begins
+below that title section rather than becoming full-card artwork.
+
+Apple artwork is embedded in the signed `.pkpass`. Google artwork is delivered
+from the gym's stored assets over HTTPS. Saving a design queues updates for all
+active Wallet passes. Apple devices retrieve a newly signed pass after APNs
+notification; Google loyalty classes and objects are patched through the Wallet
+API. Provider failures use the existing retry queue and never affect check-in or
+rewards accounting.
+
+When per-plan mode is enabled, MAT resolves the design from the member's current
+active subscription, then a scheduled cancellation that still grants access,
+then another non-cancelled subscription. Google uses a separate loyalty class
+for each customized plan because Google stores shared visual branding at class
+level. See the official [Apple Wallet pass format](https://developer.apple.com/documentation/walletpasses/pass)
+and [Google Wallet loyalty template](https://developers.google.com/wallet/retail/loyalty-cards/resources/template).
 
 ## Domain rules
 
@@ -36,8 +95,15 @@ No points expire. Existing attendance is not backfilled automatically.
 - The gym-local calendar date is used for daily and weekly rules.
 - A general entrance is valid attendance without a class reservation.
 - Class attendance and entrance scans use the same daily award operation.
-- The default is 10 points once per day and a 30-minute duplicate window, but
-  the gym can change these values.
+- Attendance can award points at most once per gym-local calendar day. This is
+  intentionally not a rolling 24-hour window and is not configurable.
+- When **Meses de antigüedad** is enabled, each newly approved, non-bonified
+  paid billing month awards the configured points once. Consecutive unique
+  `YYYY-MM` billing periods are counted across the member's plans; a missing
+  paid month resets the consecutive-month count.
+- Payment rewards are idempotent per payment. A refund or chargeback of the
+  current payment adds a compensating ledger reversal instead of editing
+  history.
 - Rule changes are prospective. Each attendance ledger entry stores the rule,
   local date, timezone, and source applied at the time.
 - The ledger is the accounting source of truth. Cached balances are updated in
@@ -54,7 +120,8 @@ No points expire. Existing attendance is not backfilled automatically.
 2. The USB scanner types the payload into the authenticated reception page and
    sends Enter.
 3. The backend verifies the signature, credential state, organization, replay,
-   staff role, membership, subscription, and duplicate window.
+   staff role, membership, subscription, and whether an allowed entrance was
+   already recorded on that gym-local calendar date.
 4. MAT returns an `allowed` decision, safe reason code, decision ID, and short
    decision expiration.
 5. An allowed entrance is recorded and a matching class is linked when
@@ -63,10 +130,11 @@ No points expire. Existing attendance is not backfilled automatically.
 7. Wallet synchronization is queued after balance changes.
 
 QR payloads are never stored in check-in history or intentionally logged.
-An exact dynamic-token replay is denied even inside the duplicate window. A
-new QR scanned shortly after a valid entrance is shown as a duplicate for
-reception UX, but returns `actuateAccess: false` and cannot authorize a second
-physical actuation.
+An exact dynamic-token replay is always denied. A new QR scanned after a valid
+entrance on the same gym-local calendar date is shown as a duplicate for
+reception UX, returns `actuateAccess: false`, and cannot authorize a second
+physical actuation. The first valid scan after local midnight starts a new day,
+even when fewer than 24 hours have elapsed.
 
 ## Compatible USB scanner configuration
 
@@ -156,9 +224,13 @@ Automated tests do not need provider credentials.
    pass.
 8. Suspend access and confirm the pass eventually displays the updated status;
    the scanner must deny access regardless of displayed Wallet state.
+9. Change the global design and a plan-specific design, then verify existing
+   passes refresh and new passes use the correct plan fallback.
 
-Replace the generated solid placeholder pass icons with approved MAT/gym pass
-artwork before the public launch.
+Configure an approved PNG logo in the Wallet card designer. Until then Apple
+uses generated solid fallback artwork. Verify both the Poster Generic layout on
+iOS 27 or later and the Generic fallback on an iOS 26-or-earlier device or
+simulator.
 
 ## Google Wallet manual verification
 
@@ -170,6 +242,8 @@ artwork before the public launch.
 6. Earn and redeem points, then verify the object balance is patched.
 7. Suspend access and verify the object becomes inactive while backend access
    remains authoritative.
+8. Change the global design and a plan-specific design, then verify the Wallet
+   class/object update and correct fallback for each plan.
 
 ## Operations
 
@@ -200,6 +274,6 @@ artwork before the public launch.
 - Google Wallet issuer approval, service-account credentials, and an Android
   device.
 - A real USB 2D area-imager scanner.
-- Final Wallet pass artwork.
+- Final Wallet card artwork for each gym or membership plan.
 - A future turnstile controller and relay integration are deliberately not part
   of this release.

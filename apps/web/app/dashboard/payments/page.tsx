@@ -18,13 +18,11 @@ import {
 import {
   ChevronDown,
   Clock,
-  CreditCard,
   Gift,
   Plus,
   UserPlus,
 } from "lucide-react";
 import PaymentReviewQueue from "@/components/features/payments/payment-review-queue";
-import PlanList from "@/components/features/payments/plan-list";
 import PaymentHistoryList from "@/components/features/payments/payment-history-list";
 import BonificationList from "@/components/features/payments/bonification-list";
 import RecordPaymentDialog from "@/components/features/payments/dialogs/record-payment-dialog";
@@ -36,7 +34,6 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   "pendientes",
-  "planes",
   "bonificaciones",
   "debitos",
   "historial",
@@ -54,17 +51,12 @@ export default function PagosPage() {
     api.planPayments.getPendingByOrganization,
     canQuery ? {} : "skip",
   );
-  const plans = useQuery(
-    api.membershipPlans.getByOrganization,
-    canQuery ? { activeOnly: false } : "skip",
-  );
   const bonifications = useQuery(
     api.planBonifications.getByOrganization,
     canQuery ? { status: "active" } : "skip",
   );
 
   const pendingCount = pendingPayments?.length;
-  const activePlansCount = plans?.filter((plan) => plan.isActive).length;
   const bonificationCount = bonifications?.length;
 
   const stats = [
@@ -76,18 +68,6 @@ export default function PagosPage() {
       icon: Clock,
       iconClassName: "border-amber-500/25 bg-amber-500/10 text-amber-600",
       valueClassName: pendingCount ? "text-amber-600" : "text-foreground",
-    },
-    {
-      key: "planes" as const,
-      title: "Planes activos",
-      value: activePlansCount,
-      detail:
-        plans === undefined
-          ? "Disponibles para miembros"
-          : `${plans.length} plan${plans.length === 1 ? "" : "es"} en total`,
-      icon: CreditCard,
-      iconClassName: "border-blue-500/25 bg-blue-500/10 text-blue-600",
-      valueClassName: "text-foreground",
     },
     {
       key: "bonificaciones" as const,
@@ -109,8 +89,8 @@ export default function PagosPage() {
             Pagos
           </h1>
           <p className="max-w-3xl text-sm text-muted-foreground">
-            Gestioná planes de membresía, revisá comprobantes y llevá el
-            historial de pagos.
+            Revisá comprobantes, gestioná bonificaciones y llevá el historial
+            de pagos.
           </p>
         </div>
         <DropdownMenu>
@@ -179,7 +159,7 @@ export default function PagosPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         {stats.map((stat) => (
           <Card
             key={stat.key}
@@ -247,14 +227,6 @@ export default function PagosPage() {
               </span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="planes" className="gap-2">
-            Planes
-            {activePlansCount ? (
-              <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
-                {activePlansCount}
-              </span>
-            ) : null}
-          </TabsTrigger>
           <TabsTrigger value="bonificaciones" className="gap-2">
             Bonificaciones
             {bonificationCount ? (
@@ -269,10 +241,6 @@ export default function PagosPage() {
 
         <TabsContent value="pendientes">
           <PaymentReviewQueue />
-        </TabsContent>
-
-        <TabsContent value="planes">
-          <PlanList />
         </TabsContent>
 
         <TabsContent value="bonificaciones">

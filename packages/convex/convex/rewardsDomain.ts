@@ -62,7 +62,7 @@ export function previousLocalDate(localDate: string, days = 1): string {
 
 export function isRewardSourceEligible(
   settings: Doc<"organizationSettings">["rewards"] | undefined,
-  source: "qr_check_in" | "class_attendance" | "manual",
+  source: "qr_check_in" | "class_attendance" | "manual" | "membership_payment",
 ): boolean {
   if (!settings?.enabled) return false;
   return settings.eligibleSources.includes(source);

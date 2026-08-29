@@ -19,21 +19,64 @@ export const REWARD_DEFAULTS = {
   programName: "Recompensas MAT",
   pointsName: "puntos",
   pointsPerAttendance: 10,
+  pointsPerMembershipMonth: 10,
   maxRewardedAttendancesPerDay: 1,
-  duplicateWindowMinutes: 30,
   eligibleSources: ["qr_check_in", "class_attendance"] as const,
   streaksEnabled: false,
   weeklyBonusEnabled: false,
 } as const;
+
+export const DEFAULT_WALLET_CARD_DESIGN = {
+  programName: "Membresía y recompensas",
+  showCardName: true,
+  backgroundColor: "#121826",
+  backgroundStyle: "solid" as const,
+  gradientStartColor: "#121826",
+  gradientEndColor: "#216ACF",
+  gradientAngle: 135,
+  showPoints: true,
+  useOrganizationLogo: true,
+} as const;
+
+export type WalletCardDesign = {
+  programName: string;
+  showCardName?: boolean;
+  backgroundColor: string;
+  backgroundStyle?: "solid" | "gradient" | "image";
+  gradientStartColor?: string;
+  gradientEndColor?: string;
+  gradientAngle?: number;
+  showPoints?: boolean;
+  useOrganizationLogo?: boolean;
+  logoStorageId?: Id<"_storage">;
+  heroImageStorageId?: Id<"_storage">;
+  apple?: {
+    logoText?: string;
+    foregroundColor?: string;
+    labelColor?: string;
+  };
+  google?: { programName?: string };
+};
+
+export type WalletCardSettings = {
+  mode: "global" | "by_plan";
+  defaultDesign: WalletCardDesign;
+  planDesigns: Array<{
+    planId: Id<"membershipPlans">;
+    design: WalletCardDesign;
+  }>;
+};
 
 export type RewardSettings = {
   enabled: boolean;
   programName: string;
   pointsName: string;
   pointsPerAttendance: number;
+  pointsPerMembershipMonth: number;
   maxRewardedAttendancesPerDay: number;
-  duplicateWindowMinutes: number;
-  eligibleSources: Array<"qr_check_in" | "class_attendance" | "manual">;
+  eligibleSources: Array<
+    "qr_check_in" | "class_attendance" | "manual" | "membership_payment"
+  >;
   streaksEnabled: boolean;
   streakIntervalDays?: number;
   streakBonusPoints?: number;
@@ -41,16 +84,48 @@ export type RewardSettings = {
   weeklyAttendanceTarget?: number;
   weeklyBonusPoints?: number;
   terms?: string;
+  walletCard: WalletCardSettings;
 };
 
 export function resolveRewardSettings(
   stored: Doc<"organizationSettings">["rewards"] | undefined,
 ): RewardSettings {
+  const { duplicateWindowMinutes: _legacyDuplicateWindow, ...storedSettings } =
+    stored ?? {};
   return {
     ...REWARD_DEFAULTS,
     eligibleSources: [...REWARD_DEFAULTS.eligibleSources],
-    ...(stored ?? {}),
+    ...storedSettings,
+    walletCard: resolveWalletCardSettings(stored?.walletCard),
   };
+}
+
+export function resolveWalletCardSettings(
+  stored:
+    | NonNullable<Doc<"organizationSettings">["rewards"]>["walletCard"]
+    | undefined,
+): WalletCardSettings {
+  return {
+    mode: stored?.mode ?? "global",
+    defaultDesign: {
+      ...DEFAULT_WALLET_CARD_DESIGN,
+      ...(stored?.defaultDesign ?? {}),
+    },
+    planDesigns: [...(stored?.planDesigns ?? [])],
+  };
+}
+
+export function resolveWalletCardDesign(
+  settings: WalletCardSettings,
+  planId?: Id<"membershipPlans">,
+): WalletCardDesign {
+  if (settings.mode === "by_plan" && planId) {
+    const override = settings.planDesigns.find(
+      (item) => item.planId === planId,
+    );
+    if (override) return override.design;
+  }
+  return settings.defaultDesign;
 }
 
 export async function getRewardSettings(
@@ -124,18 +199,50 @@ const memberPaymentsValidator = v.object({
   initialPaymentRequiresApproval: v.boolean(),
 });
 
+const walletCardDesignValidator = v.object({
+  programName: v.string(),
+  showCardName: v.optional(v.boolean()),
+  backgroundColor: v.string(),
+  backgroundStyle: v.optional(
+    v.union(v.literal("solid"), v.literal("gradient"), v.literal("image")),
+  ),
+  gradientStartColor: v.optional(v.string()),
+  gradientEndColor: v.optional(v.string()),
+  gradientAngle: v.optional(v.number()),
+  showPoints: v.optional(v.boolean()),
+  useOrganizationLogo: v.optional(v.boolean()),
+  logoStorageId: v.optional(v.id("_storage")),
+  heroImageStorageId: v.optional(v.id("_storage")),
+  apple: v.optional(
+    v.object({
+      logoText: v.optional(v.string()),
+      foregroundColor: v.optional(v.string()),
+      labelColor: v.optional(v.string()),
+    }),
+  ),
+  google: v.optional(
+    v.object({
+      programName: v.optional(v.string()),
+    }),
+  ),
+});
+
 const rewardsValidator = v.object({
   enabled: v.boolean(),
   programName: v.string(),
   pointsName: v.string(),
   pointsPerAttendance: v.number(),
+  pointsPerMembershipMonth: v.optional(v.number()),
   maxRewardedAttendancesPerDay: v.number(),
-  duplicateWindowMinutes: v.number(),
+  // Accepted only so settings saved before daily duplicate detection remain
+  // readable. It is intentionally ignored and no longer returned to clients.
+  duplicateWindowMinutes: v.optional(v.number()),
   eligibleSources: v.array(
     v.union(
       v.literal("qr_check_in"),
       v.literal("class_attendance"),
       v.literal("manual"),
+      v.literal("membership_payment"),
     ),
   ),
   streaksEnabled: v.boolean(),
@@ -145,13 +252,86 @@ const rewardsValidator = v.object({
   weeklyAttendanceTarget: v.optional(v.number()),
   weeklyBonusPoints: v.optional(v.number()),
   terms: v.optional(v.string()),
+  walletCard: v.optional(
+    v.object({
+      mode: v.union(v.literal("global"), v.literal("by_plan")),
+      defaultDesign: walletCardDesignValidator,
+      planDesigns: v.array(
+        v.object({
+          planId: v.id("membershipPlans"),
+          design: walletCardDesignValidator,
+        }),
+      ),
+    }),
+  ),
 });
 
-function validateRewardSettings(settings: RewardSettings): RewardSettings {
+function normalizeWalletCardDesign(design: WalletCardDesign): WalletCardDesign {
+  const colorFields = [
+    design.backgroundColor,
+    design.gradientStartColor,
+    design.gradientEndColor,
+    design.apple?.foregroundColor,
+    design.apple?.labelColor,
+  ].filter((value): value is string => Boolean(value));
+  if (colorFields.some((value) => !/^#[0-9a-f]{6}$/i.test(value))) {
+    throw new Error("Los colores de Wallet deben usar el formato #RRGGBB");
+  }
+  const programName = design.programName.trim();
+  if (!programName || programName.length > 40) {
+    throw new Error(
+      "El nombre de la tarjeta debe tener entre 1 y 40 caracteres",
+    );
+  }
+  const gradientAngle = design.gradientAngle ?? 135;
+  if (
+    !Number.isFinite(gradientAngle) ||
+    gradientAngle < 0 ||
+    gradientAngle > 360
+  ) {
+    throw new Error("El ángulo del degradado debe estar entre 0 y 360 grados");
+  }
+  return {
+    ...design,
+    programName,
+    showCardName: design.showCardName ?? true,
+    backgroundColor: design.backgroundColor.toUpperCase(),
+    backgroundStyle: design.backgroundStyle ?? "solid",
+    gradientStartColor: (
+      design.gradientStartColor ?? design.backgroundColor
+    ).toUpperCase(),
+    gradientEndColor: (design.gradientEndColor ?? "#216ACF").toUpperCase(),
+    gradientAngle,
+    showPoints: design.showPoints ?? true,
+    useOrganizationLogo: design.useOrganizationLogo ?? true,
+    apple: design.apple
+      ? {
+          logoText: design.apple.logoText?.trim().slice(0, 40) || undefined,
+          foregroundColor: design.apple.foregroundColor?.toUpperCase(),
+          labelColor: design.apple.labelColor?.toUpperCase(),
+        }
+      : undefined,
+    google: design.google
+      ? {
+          programName:
+            design.google.programName?.trim().slice(0, 40) || undefined,
+        }
+      : undefined,
+  };
+}
+
+function validateRewardSettings(
+  settings: Omit<RewardSettings, "walletCard" | "pointsPerMembershipMonth"> & {
+    pointsPerMembershipMonth?: number;
+    duplicateWindowMinutes?: number;
+    walletCard?: WalletCardSettings;
+  },
+): RewardSettings {
   const integerFields = [
     settings.pointsPerAttendance,
+    settings.pointsPerMembershipMonth ??
+      REWARD_DEFAULTS.pointsPerMembershipMonth,
     settings.maxRewardedAttendancesPerDay,
-    settings.duplicateWindowMinutes,
   ];
   if (
     integerFields.some((value) => !Number.isSafeInteger(value) || value < 0)
@@ -164,11 +344,8 @@ function validateRewardSettings(settings: RewardSettings): RewardSettings {
   if (settings.maxRewardedAttendancesPerDay > 20) {
     throw new Error("El máximo diario no puede superar 20 asistencias");
   }
-  if (settings.duplicateWindowMinutes > 24 * 60) {
-    throw new Error("La ventana de duplicados no puede superar 24 horas");
-  }
   if (settings.eligibleSources.length === 0) {
-    throw new Error("Seleccioná al menos una fuente de asistencia");
+    throw new Error("Seleccioná al menos una fuente de puntos");
   }
   if (settings.streaksEnabled) {
     if (
@@ -195,11 +372,32 @@ function validateRewardSettings(settings: RewardSettings): RewardSettings {
       throw new Error("Configurá una meta y puntos semanales válidos");
     }
   }
+  const walletCard = resolveWalletCardSettings(settings.walletCard);
+  const seenPlans = new Set<string>();
+  for (const item of walletCard.planDesigns) {
+    if (seenPlans.has(String(item.planId))) {
+      throw new Error("Cada plan puede tener una sola tarjeta de Wallet");
+    }
+    seenPlans.add(String(item.planId));
+  }
+  const { duplicateWindowMinutes: _legacyDuplicateWindow, ...cleanSettings } =
+    settings;
   return {
-    ...settings,
+    ...cleanSettings,
     programName: settings.programName.trim(),
     pointsName: settings.pointsName.trim(),
+    pointsPerMembershipMonth:
+      settings.pointsPerMembershipMonth ??
+      REWARD_DEFAULTS.pointsPerMembershipMonth,
     terms: settings.terms?.trim() || undefined,
+    walletCard: {
+      ...walletCard,
+      defaultDesign: normalizeWalletCardDesign(walletCard.defaultDesign),
+      planDesigns: walletCard.planDesigns.map((item) => ({
+        ...item,
+        design: normalizeWalletCardDesign(item.design),
+      })),
+    },
   };
 }
 
@@ -289,7 +487,19 @@ export const update = mutation({
     const rewards = args.rewards
       ? validateRewardSettings(args.rewards)
       : undefined;
+    if (rewards) {
+      for (const item of rewards.walletCard.planDesigns) {
+        const plan = await ctx.db.get(item.planId);
+        if (!plan || plan.organizationId !== membership.organizationId) {
+          throw new Error("Una tarjeta referencia un plan de otro gimnasio");
+        }
+      }
+    }
 
+    const walletDesignChanged =
+      rewards !== undefined &&
+      JSON.stringify(resolveRewardSettings(existing?.rewards).walletCard) !==
+        JSON.stringify(rewards.walletCard);
     const now = Date.now();
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -313,6 +523,29 @@ export const update = mutation({
         createdAt: now,
         updatedAt: now,
       });
+    }
+    if (walletDesignChanged) {
+      const passes = await ctx.db
+        .query("walletPasses")
+        .withIndex("by_organization_user", (q) =>
+          q.eq("organizationId", membership.organizationId),
+        )
+        .collect();
+      for (const pass of passes.filter((item) => item.status === "active")) {
+        const idempotencyKey = `wallet:${pass.provider}:${pass._id}:design:${now}`;
+        await ctx.db.insert("walletSyncOperations", {
+          organizationId: membership.organizationId,
+          userId: pass.userId,
+          provider: pass.provider,
+          operationType: "update",
+          idempotencyKey,
+          status: "pending",
+          attemptCount: 0,
+          nextAttemptAt: now,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
     }
   },
 });

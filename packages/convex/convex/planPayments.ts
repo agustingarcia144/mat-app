@@ -18,6 +18,7 @@ import {
   type AppliedInterestTier,
   type InterestTier,
 } from "./billingDomain";
+import { awardMembershipPaymentReward } from "./rewards";
 
 type AppliedTier = AppliedInterestTier;
 
@@ -1097,8 +1098,7 @@ export const getOrganizationMetrics = query({
           return {
             avgIncomeArs: Math.round(avg),
             periodCount: otherPeriods.length,
-            trendPct:
-              Math.round(((selectedIncomeArs - avg) / avg) * 1000) / 10,
+            trendPct: Math.round(((selectedIncomeArs - avg) / avg) * 1000) / 10,
           };
         })(),
         expenseByCategory: Object.entries(
@@ -1422,6 +1422,7 @@ export const approve = mutation({
     // them. Deciding month by month would charge the member again for periods
     // the same receipt already covered.
     const groupPayments = await getAdvanceGroupPayments(ctx, payment);
+    const approvedPaymentIds: Id<"planPayments">[] = [];
     for (const row of groupPayments) {
       if (row.status !== "in_review") continue;
       const interest = await computePaymentInterest(
@@ -1436,6 +1437,13 @@ export const approve = mutation({
         reviewedAt: now,
         reviewNotes: args.notes?.trim() || undefined,
         updatedAt: now,
+      });
+      approvedPaymentIds.push(row._id);
+    }
+    for (const paymentId of approvedPaymentIds) {
+      await awardMembershipPaymentReward(ctx, {
+        paymentId,
+        occurredAt: now,
       });
     }
 
@@ -1607,6 +1615,7 @@ export const recordPayment = mutation({
     const now = Date.now();
     const defaultAmountArs = plan.priceArs * coveredMemberCount;
     const amountArs = args.amountArs ?? defaultAmountArs;
+    let approvedPaymentId: Id<"planPayments">;
 
     if (existing) {
       // Update the existing pending/declined/in_review payment
@@ -1625,8 +1634,9 @@ export const recordPayment = mutation({
         proofUploadedAt: args.proofStorageId ? now : undefined,
         updatedAt: now,
       });
+      approvedPaymentId = existing._id;
     } else {
-      await ctx.db.insert("planPayments", {
+      approvedPaymentId = await ctx.db.insert("planPayments", {
         organizationId: membership.organizationId,
         userId: subscription.userId,
         subscriptionId: subscription._id,
@@ -1648,6 +1658,11 @@ export const recordPayment = mutation({
         updatedAt: now,
       });
     }
+
+    await awardMembershipPaymentReward(ctx, {
+      paymentId: approvedPaymentId,
+      occurredAt: now,
+    });
 
     await setFamilySubscriptionsStatus(ctx, subscription, "active", now);
   },

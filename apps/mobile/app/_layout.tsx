@@ -243,10 +243,12 @@ function RootLayoutNav() {
 
     const [topSegment] = segmentKey.split("/");
     const inAuthGroup = topSegment === "(tabs)";
+    const inWalletOnboarding = topSegment === "onboarding-wallet";
     const inOnboarding =
       topSegment === "onboarding-notifications" ||
       topSegment === "onboarding" ||
-      topSegment === "onboarding-2";
+      topSegment === "onboarding-2" ||
+      inWalletOnboarding;
     const inOrgSelection = topSegment === "select-organization";
     const inJoinConfirm = topSegment === "join-gym-confirm";
     const inAuthPage =
@@ -309,6 +311,13 @@ function RootLayoutNav() {
           step1Done ? "/onboarding-2" : "/onboarding-notifications",
         );
       }
+      return;
+    }
+
+    // The Wallet preview is the final onboarding step. Step 2 has already
+    // marked onboarding complete, so keep this route visible until the member
+    // explicitly finishes or adds the pass.
+    if (inWalletOnboarding) {
       return;
     }
 
@@ -398,6 +407,7 @@ function RootLayoutNav() {
         <Stack.Screen name="onboarding-notifications" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="onboarding-2" />
+        <Stack.Screen name="onboarding-wallet" />
         <Stack.Screen name="select-organization" />
         <Stack.Screen name="join-gym-confirm" />
         <Stack.Screen name="payments/return" />

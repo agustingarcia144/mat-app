@@ -52,7 +52,7 @@ function Onboarding2Content() {
         weight: weightKg ?? WEIGHT_KG[40],
         description: description.trim() || undefined,
       });
-      router.replace("/");
+      router.replace("/onboarding-wallet");
     } catch (err: unknown) {
       setError(
         err instanceof Error ? err.message : "Error al guardar la información",
@@ -67,7 +67,7 @@ function Onboarding2Content() {
     setError("");
     try {
       await completeOnboarding2({});
-      router.replace("/");
+      router.replace("/onboarding-wallet");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al omitir");
     } finally {

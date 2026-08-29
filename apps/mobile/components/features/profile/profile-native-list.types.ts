@@ -32,6 +32,7 @@ export type ProfileNativeListProps = {
   actions: {
     onEditPersonalInfo: () => void;
     onEditPhysicalInfo: () => void;
+    onOpenWalletPass: () => void;
     onSignOut: () => void;
     onManageAccount: () => void;
   };

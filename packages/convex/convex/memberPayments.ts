@@ -8,7 +8,12 @@
  * are internal and exist so an action can decrypt a token in memory.
  */
 
-import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -31,6 +36,10 @@ import {
 import { getMemberPaymentSettings } from "./organizationSettings";
 import { getOrganizationMemberPaymentPolicy } from "./appBillingPlans";
 import { logMemberPaymentEvent } from "./memberPaymentNotifications";
+import {
+  awardMembershipPaymentReward,
+  reverseMembershipPaymentReward,
+} from "./rewards";
 import {
   canApplyTransactionStatus,
   decideOperationOutcome,
@@ -62,7 +71,9 @@ export const getMercadoPagoConnection = query({
     const connection = await ctx.db
       .query("organizationPaymentProviderConnections")
       .withIndex("by_organization_provider", (q) =>
-        q.eq("organizationId", orgCtx.organizationId).eq("provider", "mercadopago"),
+        q
+          .eq("organizationId", orgCtx.organizationId)
+          .eq("provider", "mercadopago"),
       )
       .first();
 
@@ -80,7 +91,9 @@ export const getMercadoPagoConnection = query({
  */
 export const requireAdminOrganization = internalQuery({
   args: {},
-  handler: async (ctx): Promise<{ organizationId: Id<"organizations">; userId: string }> => {
+  handler: async (
+    ctx,
+  ): Promise<{ organizationId: Id<"organizations">; userId: string }> => {
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdmin(ctx, membership.organizationId);
     return {
@@ -102,7 +115,9 @@ export const getConnectionByOrganizationInternal = internalQuery({
     await ctx.db
       .query("organizationPaymentProviderConnections")
       .withIndex("by_organization_provider", (q) =>
-        q.eq("organizationId", args.organizationId).eq("provider", "mercadopago"),
+        q
+          .eq("organizationId", args.organizationId)
+          .eq("provider", "mercadopago"),
       )
       .first(),
 });
@@ -240,7 +255,9 @@ export const upsertConnectionInternal = internalMutation({
     const sameAccount = await ctx.db
       .query("organizationPaymentProviderConnections")
       .withIndex("by_provider_account", (q) =>
-        q.eq("provider", "mercadopago").eq("providerAccountId", args.providerAccountId),
+        q
+          .eq("provider", "mercadopago")
+          .eq("providerAccountId", args.providerAccountId),
       )
       .collect();
 
@@ -256,7 +273,9 @@ export const upsertConnectionInternal = internalMutation({
     const existing = await ctx.db
       .query("organizationPaymentProviderConnections")
       .withIndex("by_organization_provider", (q) =>
-        q.eq("organizationId", args.organizationId).eq("provider", "mercadopago"),
+        q
+          .eq("organizationId", args.organizationId)
+          .eq("provider", "mercadopago"),
       )
       .first();
 
@@ -408,8 +427,9 @@ export const countLiveAgreementsInternal = internalQuery({
       )
       .collect();
 
-    return agreements.filter((agreement) => isLiveAgreementStatus(agreement.status))
-      .length;
+    return agreements.filter((agreement) =>
+      isLiveAgreementStatus(agreement.status),
+    ).length;
   },
 });
 
@@ -429,7 +449,9 @@ export const disconnectMercadoPago = mutation({
     const connection = await ctx.db
       .query("organizationPaymentProviderConnections")
       .withIndex("by_organization_provider", (q) =>
-        q.eq("organizationId", membership.organizationId).eq("provider", "mercadopago"),
+        q
+          .eq("organizationId", membership.organizationId)
+          .eq("provider", "mercadopago"),
       )
       .first();
 
@@ -546,7 +568,8 @@ export async function enqueueProviderOperation(
 
     const supersedable = queued.find(
       (operation: any) =>
-        operation.status === "queued" && operation.operation === params.operation,
+        operation.status === "queued" &&
+        operation.operation === params.operation,
     );
 
     if (supersedable) {
@@ -717,7 +740,9 @@ export const completeOperationInternal = internalMutation({
       attempts,
       lastError: args.succeeded ? undefined : args.error,
       executeAfter:
-        outcome.status === "queued" ? outcome.executeAfter : operation.executeAfter,
+        outcome.status === "queued"
+          ? outcome.executeAfter
+          : operation.executeAfter,
       completedAt: outcome.status === "succeeded" ? now : undefined,
       updatedAt: now,
     });
@@ -897,7 +922,10 @@ export const retryProviderOperation = mutation({
     if (!operation || operation.organizationId !== membership.organizationId) {
       throw new Error("Operación no encontrada");
     }
-    if (operation.status !== "permanently_failed" && operation.status !== "failed") {
+    if (
+      operation.status !== "permanently_failed" &&
+      operation.status !== "failed"
+    ) {
       throw new Error("Solo se pueden reintentar operaciones que fallaron");
     }
 
@@ -1113,12 +1141,18 @@ export const applyProviderEventInternal = internalMutation({
   },
   handler: async (ctx, args) => {
     const connection = await ctx.db.get(args.connectionId);
-    if (!connection) return { applied: false as const, reason: "no_connection" };
+    if (!connection)
+      return { applied: false as const, reason: "no_connection" };
 
     const now = Date.now();
 
     if (args.preapproval) {
-      return await applyPreapprovalEvent(ctx, connection, args.preapproval, now);
+      return await applyPreapprovalEvent(
+        ctx,
+        connection,
+        args.preapproval,
+        now,
+      );
     }
     if (args.authorizedPayment) {
       return await applyAuthorizedPaymentEvent(
@@ -1160,7 +1194,8 @@ async function applyPreapprovalEvent(
     externalReference: preapproval.externalReference,
   });
 
-  if (!agreement) return { applied: false as const, reason: "unknown_agreement" };
+  if (!agreement)
+    return { applied: false as const, reason: "unknown_agreement" };
   if (agreement.organizationId !== connection.organizationId) {
     return { applied: false as const, reason: "organization_mismatch" };
   }
@@ -1169,7 +1204,10 @@ async function applyPreapprovalEvent(
     // A checkout created locally before the provider responded may not have
     // recorded the preapproval id yet; the first notification supplies it.
     providerPreapprovalId: agreement.providerPreapprovalId ?? preapproval.id,
-    status: mapPreapprovalStatusToAgreement(preapproval.status, agreement.status),
+    status: mapPreapprovalStatusToAgreement(
+      preapproval.status,
+      agreement.status,
+    ),
     nextChargeAt: preapproval.nextChargeAt ?? agreement.nextChargeAt,
     updatedAt: now,
   });
@@ -1198,7 +1236,8 @@ async function applyAuthorizedPaymentEvent(
     externalReference: event.externalReference,
   });
 
-  if (!agreement) return { applied: false as const, reason: "unknown_agreement" };
+  if (!agreement)
+    return { applied: false as const, reason: "unknown_agreement" };
   if (agreement.organizationId !== connection.organizationId) {
     return { applied: false as const, reason: "organization_mismatch" };
   }
@@ -1474,9 +1513,11 @@ async function upsertTransaction(
       status: params.status,
       statusDetail: params.statusDetail ?? existing.statusDetail,
       providerFeeArs: params.providerFeeArs ?? existing.providerFeeArs,
-      providerApprovedAt: params.providerApprovedAt ?? existing.providerApprovedAt,
+      providerApprovedAt:
+        params.providerApprovedAt ?? existing.providerApprovedAt,
       providerAuthorizedPaymentId:
-        params.providerAuthorizedPaymentId ?? existing.providerAuthorizedPaymentId,
+        params.providerAuthorizedPaymentId ??
+        existing.providerAuthorizedPaymentId,
       reconciliationSource: params.source,
       lastReconciledAt: params.now,
       updatedAt: params.now,
@@ -1714,7 +1755,8 @@ async function applyApprovedRecurringPayment(
   };
 
   const planPaymentId = existingPayment
-    ? (await ctx.db.patch(existingPayment._id, paymentFields), existingPayment._id)
+    ? (await ctx.db.patch(existingPayment._id, paymentFields),
+      existingPayment._id)
     : await ctx.db.insert("planPayments", {
         organizationId: agreement.organizationId,
         userId: subscription.userId,
@@ -1731,6 +1773,10 @@ async function applyApprovedRecurringPayment(
     platformFeeArs,
     gymNetAmountArs,
     updatedAt: now,
+  });
+  await awardMembershipPaymentReward(ctx, {
+    paymentId: planPaymentId,
+    occurredAt: params.approvedAt ?? now,
   });
 
   // A scheduled change takes effect the moment the provider actually charges
@@ -1974,7 +2020,10 @@ async function applyFailedRecurringPayment(
     return;
   }
 
-  const settings = await getMemberPaymentSettings(ctx, agreement.organizationId);
+  const settings = await getMemberPaymentSettings(
+    ctx,
+    agreement.organizationId,
+  );
 
   // Anchor grace to the provider's own debit date, so a notification that
   // arrives late does not hand the member extra free days. Clamped to this
@@ -2051,7 +2100,10 @@ export const expireMemberPaymentGracePeriods = internalMutation({
     for (const agreement of due) {
       if (agreement.graceUntil === undefined) continue;
       if (agreement.status !== "retrying") {
-        await ctx.db.patch(agreement._id, { graceUntil: undefined, updatedAt: now });
+        await ctx.db.patch(agreement._id, {
+          graceUntil: undefined,
+          updatedAt: now,
+        });
         continue;
       }
 
@@ -2154,6 +2206,7 @@ async function applyPaymentReversal(
     reviewedAt: params.now,
     updatedAt: params.now,
   });
+  await reverseMembershipPaymentReward(ctx, payment._id);
 
   const subscription = await ctx.db.get(payment.subscriptionId);
   if (!subscription) return;
@@ -2256,7 +2309,9 @@ async function reverseCommissionSnapshot(
     )
     .collect();
   if (
-    alreadyReversed.some((entry: any) => entry.reversesLedgerId === original._id)
+    alreadyReversed.some(
+      (entry: any) => entry.reversesLedgerId === original._id,
+    )
   ) {
     return;
   }
@@ -2330,8 +2385,16 @@ async function applyApprovedAdvancePurchase(
     .withIndex("by_advance_group", (q: any) =>
       q.eq("advancePaymentGroupId", advancePaymentGroupId),
     )
-    .first();
-  if (alreadyApplied) return;
+    .collect();
+  if (alreadyApplied.length > 0) {
+    for (const payment of alreadyApplied) {
+      await awardMembershipPaymentReward(ctx, {
+        paymentId: payment._id,
+        occurredAt: approvedAt,
+      });
+    }
+    return;
+  }
 
   const cycles = await selectUncoveredCycles(ctx, {
     subscriptionId: subscription._id,
@@ -2394,6 +2457,12 @@ async function applyApprovedAdvancePurchase(
         }),
       );
     }
+  }
+  for (const paymentId of planPaymentIds) {
+    await awardMembershipPaymentReward(ctx, {
+      paymentId,
+      occurredAt: approvedAt,
+    });
   }
 
   const policyResult = await getOrganizationMemberPaymentPolicy(
@@ -2539,7 +2608,10 @@ export async function scheduleAgreementAmountSync(
   const plan = await ctx.db.get(billingSubscription.planId);
   if (!plan) return;
 
-  const memberCount = await countChargeableFamilyMembers(ctx, billingSubscription);
+  const memberCount = await countChargeableFamilyMembers(
+    ctx,
+    billingSubscription,
+  );
   const bonification = await ctx.db
     .query("planBonifications")
     .withIndex("by_subscription_status", (q: any) =>
@@ -2770,7 +2842,10 @@ export const notifyGraceDeadlines = internalMutation({
 
     let notified = 0;
     for (const agreement of agreements) {
-      if (agreement.status !== "retrying" || agreement.graceUntil === undefined) {
+      if (
+        agreement.status !== "retrying" ||
+        agreement.graceUntil === undefined
+      ) {
         continue;
       }
 

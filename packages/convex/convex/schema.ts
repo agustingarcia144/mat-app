@@ -154,13 +154,16 @@ export default defineSchema({
         programName: v.string(),
         pointsName: v.string(),
         pointsPerAttendance: v.number(),
+        pointsPerMembershipMonth: v.optional(v.number()),
         maxRewardedAttendancesPerDay: v.number(),
-        duplicateWindowMinutes: v.number(),
+        // Legacy only. Duplicate check-ins now use the gym-local calendar day.
+        duplicateWindowMinutes: v.optional(v.number()),
         eligibleSources: v.array(
           v.union(
             v.literal("qr_check_in"),
             v.literal("class_attendance"),
             v.literal("manual"),
+            v.literal("membership_payment"),
           ),
         ),
         streaksEnabled: v.boolean(),
@@ -170,6 +173,74 @@ export default defineSchema({
         weeklyAttendanceTarget: v.optional(v.number()),
         weeklyBonusPoints: v.optional(v.number()),
         terms: v.optional(v.string()),
+        walletCard: v.optional(
+          v.object({
+            mode: v.union(v.literal("global"), v.literal("by_plan")),
+            defaultDesign: v.object({
+              programName: v.string(),
+              showCardName: v.optional(v.boolean()),
+              backgroundColor: v.string(),
+              backgroundStyle: v.optional(
+                v.union(
+                  v.literal("solid"),
+                  v.literal("gradient"),
+                  v.literal("image"),
+                ),
+              ),
+              gradientStartColor: v.optional(v.string()),
+              gradientEndColor: v.optional(v.string()),
+              gradientAngle: v.optional(v.number()),
+              showPoints: v.optional(v.boolean()),
+              useOrganizationLogo: v.optional(v.boolean()),
+              logoStorageId: v.optional(v.id("_storage")),
+              heroImageStorageId: v.optional(v.id("_storage")),
+              apple: v.optional(
+                v.object({
+                  logoText: v.optional(v.string()),
+                  foregroundColor: v.optional(v.string()),
+                  labelColor: v.optional(v.string()),
+                }),
+              ),
+              google: v.optional(
+                v.object({ programName: v.optional(v.string()) }),
+              ),
+            }),
+            planDesigns: v.array(
+              v.object({
+                planId: v.id("membershipPlans"),
+                design: v.object({
+                  programName: v.string(),
+                  showCardName: v.optional(v.boolean()),
+                  backgroundColor: v.string(),
+                  backgroundStyle: v.optional(
+                    v.union(
+                      v.literal("solid"),
+                      v.literal("gradient"),
+                      v.literal("image"),
+                    ),
+                  ),
+                  gradientStartColor: v.optional(v.string()),
+                  gradientEndColor: v.optional(v.string()),
+                  gradientAngle: v.optional(v.number()),
+                  showPoints: v.optional(v.boolean()),
+                  useOrganizationLogo: v.optional(v.boolean()),
+                  logoStorageId: v.optional(v.id("_storage")),
+                  heroImageStorageId: v.optional(v.id("_storage")),
+                  apple: v.optional(
+                    v.object({
+                      logoText: v.optional(v.string()),
+                      foregroundColor: v.optional(v.string()),
+                      labelColor: v.optional(v.string()),
+                    }),
+                  ),
+                  google: v.optional(
+                    v.object({ programName: v.optional(v.string()) }),
+                  ),
+                }),
+              }),
+            ),
+          }),
+        ),
       }),
     ),
     // Timestamps

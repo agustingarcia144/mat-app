@@ -1,8 +1,9 @@
 import { convexTest } from "convex-test";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { getLocalDate, previousLocalDate } from "./rewardsDomain";
+import { awardMembershipPaymentReward } from "./rewards";
 
 const modules = import.meta.glob("./**/*.*s");
 const ADMIN = "reward_admin";
@@ -16,6 +17,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   delete process.env.REWARDS_QR_SIGNING_SECRET;
 });
 
@@ -25,6 +27,7 @@ async function seed(t: TestConvex, suffix = "a") {
     const organizationId = await ctx.db.insert("organizations", {
       name: `Gym ${suffix}`,
       slug: `reward-gym-${suffix}-${now}`,
+      logoUrl: "https://example.com/gym-logo.jpg",
       timezone: "America/Argentina/Buenos_Aires",
       createdAt: now,
       updatedAt: now,
@@ -114,6 +117,64 @@ async function issueAndScan(
 }
 
 describe("member rewards", () => {
+  it("resolves a plan-specific Wallet design and queues existing passes after edits", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await seed(t, "wallet-design");
+    const member = t.withIdentity({ subject: fixture.member });
+    await member.mutation(internal.rewards.prepareMyWalletPass, {
+      provider: "apple",
+    });
+
+    await t
+      .withIdentity({ subject: fixture.admin })
+      .mutation(api.organizationSettings.update, {
+        rewards: {
+          enabled: true,
+          programName: "Puntos del gym",
+          pointsName: "puntos",
+          pointsPerAttendance: 10,
+          maxRewardedAttendancesPerDay: 1,
+          duplicateWindowMinutes: 30,
+          eligibleSources: ["qr_check_in", "class_attendance"],
+          streaksEnabled: false,
+          weeklyBonusEnabled: false,
+          walletCard: {
+            mode: "by_plan",
+            defaultDesign: {
+              programName: "Membresía general",
+              backgroundColor: "#121826",
+            },
+            planDesigns: [
+              {
+                planId: fixture.planId,
+                design: {
+                  programName: "Membresía Mensual",
+                  backgroundColor: "#216ACF",
+                },
+              },
+            ],
+          },
+        },
+      });
+
+    const resolved = await member.mutation(
+      internal.rewards.prepareMyWalletPass,
+      { provider: "apple" },
+    );
+    expect(resolved.walletDesign.programName).toBe("Membresía Mensual");
+    expect(resolved.walletDesign.backgroundColor).toBe("#216ACF");
+    expect(resolved.walletDesign.variantKey).toBe(String(fixture.planId));
+    expect(resolved.walletDesign.logoUrl).toBe(
+      "https://example.com/gym-logo.jpg",
+    );
+
+    const operations = await t.run((ctx) =>
+      ctx.db.query("walletSyncOperations").collect(),
+    );
+    expect(operations).toHaveLength(1);
+    expect(operations[0]?.operationType).toBe("update");
+  });
+
   it("records a QR entrance and awards the configured daily points once", async () => {
     const t = convexTest(schema, modules);
     const fixture = await seed(t);
@@ -138,6 +199,102 @@ describe("member rewards", () => {
       1,
     );
     expect(state.account?.balance).toBe(10);
+  });
+
+  it("starts a fresh duplicate day at the gym's local midnight", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-31T02:59:00.000Z")); // 23:59 in Buenos Aires
+    const t = convexTest(schema, modules);
+    const fixture = await seed(t, "local-midnight");
+
+    const first = await issueAndScan(t, fixture);
+    expect(first.actuateAccess).toBe(true);
+
+    vi.setSystemTime(new Date("2026-08-31T03:01:00.000Z")); // 00:01 next local day
+    const nextDay = await issueAndScan(t, fixture);
+    expect(nextDay.actuateAccess).toBe(true);
+    expect(nextDay.duplicate).toBe(false);
+
+    const checkIns = await t.run((ctx) =>
+      ctx.db.query("memberCheckIns").collect(),
+    );
+    expect(checkIns.map((item) => item.localDate).sort()).toEqual([
+      "2026-08-30",
+      "2026-08-31",
+    ]);
+  });
+
+  it("awards paid membership months once and resets tenure after a gap", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await seed(t, "tenure");
+    const results = await t.run(async (ctx) => {
+      const settings = await ctx.db
+        .query("organizationSettings")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", fixture.organizationId),
+        )
+        .first();
+      await ctx.db.patch(settings!._id, {
+        rewards: {
+          ...settings!.rewards!,
+          pointsPerMembershipMonth: 7,
+          eligibleSources: [
+            ...settings!.rewards!.eligibleSources,
+            "membership_payment",
+          ],
+        },
+      });
+
+      const awardPeriod = async (billingPeriod: string) => {
+        const now = Date.now();
+        const paymentId = await ctx.db.insert("planPayments", {
+          organizationId: fixture.organizationId,
+          userId: fixture.member,
+          subscriptionId: fixture.subscriptionId,
+          planId: fixture.planId,
+          billingPeriod,
+          amountArs: 20_000,
+          totalAmountArs: 20_000,
+          paymentMethod: "cash",
+          status: "approved",
+          createdAt: now,
+          updatedAt: now,
+        });
+        return {
+          paymentId,
+          result: await awardMembershipPaymentReward(ctx, {
+            paymentId,
+            occurredAt: now,
+          }),
+        };
+      };
+
+      const january = await awardPeriod("2026-01");
+      const duplicate = await awardMembershipPaymentReward(ctx, {
+        paymentId: january.paymentId,
+        occurredAt: Date.now(),
+      });
+      const february = await awardPeriod("2026-02");
+      const april = await awardPeriod("2026-04");
+      return { january, duplicate, february, april };
+    });
+
+    expect(results.january.result).toEqual({
+      pointsAwarded: 7,
+      consecutivePaidMonths: 1,
+    });
+    expect(results.duplicate.pointsAwarded).toBe(0);
+    expect(results.february.result.consecutivePaidMonths).toBe(2);
+    expect(results.april.result.consecutivePaidMonths).toBe(1);
+    const state = await t.run(async (ctx) => ({
+      account: await ctx.db.query("rewardAccounts").first(),
+      ledger: await ctx.db
+        .query("rewardLedger")
+        .filter((q) => q.eq(q.field("sourceType"), "membership_payment"))
+        .collect(),
+    }));
+    expect(state.account?.balance).toBe(21);
+    expect(state.ledger).toHaveLength(3);
   });
 
   it("rejects reuse of the exact same dynamic QR token", async () => {

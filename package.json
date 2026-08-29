@@ -43,7 +43,8 @@
     ],
     "patchedDependencies": {
       "@clerk/expo@3.1.4": "patches/@clerk__expo@3.1.4.patch",
-      "expo-dev-launcher@55.0.33": "patches/expo-dev-launcher@55.0.33.patch"
+      "expo-dev-launcher@55.0.33": "patches/expo-dev-launcher@55.0.33.patch",
+      "passkit-generator@3.5.8": "patches/passkit-generator@3.5.8.patch"
     }
   },
   "engines": {

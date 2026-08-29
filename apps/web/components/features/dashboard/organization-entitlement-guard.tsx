@@ -16,6 +16,7 @@ function moduleForPath(pathname: string) {
   if (pathname.startsWith("/dashboard/planifications")) return "planifications";
   if (pathname.startsWith("/dashboard/exercises")) return "exercises";
   if (pathname.startsWith("/dashboard/classes")) return "classes";
+  if (pathname.startsWith("/dashboard/memberships")) return "payments";
   if (pathname.startsWith("/dashboard/payments")) return "payments";
   if (pathname.startsWith("/dashboard/finance")) return "finance";
   if (pathname.startsWith("/dashboard/income-expenses")) return "finance";

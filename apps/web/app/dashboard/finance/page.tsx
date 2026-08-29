@@ -10,7 +10,7 @@ const FINANCE_CARDS = [
   {
     title: "Pagos",
     description:
-      "Gestiona planes, pagos pendientes, comprobantes y el historial de cobros.",
+      "Gestiona pagos pendientes, comprobantes, bonificaciones y el historial de cobros.",
     href: "/dashboard/payments",
     icon: CreditCard,
   },

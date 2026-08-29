@@ -9,6 +9,8 @@ import { createSign } from "node:crypto";
 import { deflateSync } from "node:zlib";
 import { PKPass } from "passkit-generator";
 import { Notification, Provider } from "@parse/node-apn";
+import jpeg from "jpeg-js";
+import { PNG } from "pngjs";
 import { signApplePassAuthenticationToken, signWalletQr } from "./rewardsQr";
 
 function crc32(buffer: Buffer): number {
@@ -31,7 +33,11 @@ function pngChunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([length, typeBuffer, data, checksum]);
 }
 
-function solidPng(width: number, height: number): Buffer {
+function solidPng(width: number, height: number, color = "#121826"): Buffer {
+  const value = color.replace("#", "");
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);
@@ -42,9 +48,9 @@ function solidPng(width: number, height: number): Buffer {
     const row = Buffer.alloc(1 + width * 4);
     for (let x = 0; x < width; x += 1) {
       const offset = 1 + x * 4;
-      row[offset] = 18;
-      row[offset + 1] = 24;
-      row[offset + 2] = 38;
+      row[offset] = red;
+      row[offset + 1] = green;
+      row[offset + 2] = blue;
       row[offset + 3] = 255;
     }
     rows.push(row);
@@ -55,6 +61,90 @@ function solidPng(width: number, height: number): Buffer {
     pngChunk("IDAT", deflateSync(Buffer.concat(rows))),
     pngChunk("IEND", Buffer.alloc(0)),
   ]);
+}
+
+function hexToRgb(color: string): string {
+  const value = color.replace("#", "");
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  return `rgb(${red}, ${green}, ${blue})`;
+}
+
+function formatWalletDate(timestamp: number): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(timestamp));
+}
+
+async function fetchPng(
+  url: string | null | undefined,
+  dimensions: { width: number; height: number; fit: "contain" | "cover" },
+): Promise<Buffer | null> {
+  if (!url) return null;
+  const response = await fetch(url);
+  if (!response.ok) return null;
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > 5_000_000) return null;
+  try {
+    const isPng = buffer
+      .subarray(0, 8)
+      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    const decoded = isPng
+      ? PNG.sync.read(buffer)
+      : jpeg.decode(buffer, { useTArray: true });
+    if (
+      !decoded.width ||
+      !decoded.height ||
+      decoded.width * decoded.height > 25_000_000
+    ) {
+      return null;
+    }
+    const source = Buffer.from(decoded.data);
+    const target = Buffer.alloc(dimensions.width * dimensions.height * 4);
+    const scale =
+      dimensions.fit === "cover"
+        ? Math.max(
+            dimensions.width / decoded.width,
+            dimensions.height / decoded.height,
+          )
+        : Math.min(
+            dimensions.width / decoded.width,
+            dimensions.height / decoded.height,
+          );
+    const renderedWidth = decoded.width * scale;
+    const renderedHeight = decoded.height * scale;
+    const offsetX = (dimensions.width - renderedWidth) / 2;
+    const offsetY = (dimensions.height - renderedHeight) / 2;
+    for (let y = 0; y < dimensions.height; y += 1) {
+      for (let x = 0; x < dimensions.width; x += 1) {
+        const sourceX = Math.floor((x - offsetX) / scale);
+        const sourceY = Math.floor((y - offsetY) / scale);
+        if (
+          sourceX < 0 ||
+          sourceX >= decoded.width ||
+          sourceY < 0 ||
+          sourceY >= decoded.height
+        ) {
+          continue;
+        }
+        const sourceOffset = (sourceY * decoded.width + sourceX) * 4;
+        const targetOffset = (y * dimensions.width + x) * 4;
+        source.copy(target, targetOffset, sourceOffset, sourceOffset + 4);
+      }
+    }
+    const output = new PNG({
+      width: dimensions.width,
+      height: dimensions.height,
+    });
+    output.data = target;
+    return PNG.sync.write(output);
+  } catch {
+    return null;
+  }
 }
 
 function requireEnv(name: string): string {
@@ -126,14 +216,92 @@ function signGoogleOAuthAssertion(): string {
   return `${unsigned}.${base64Url(signer.sign(privateKey))}`;
 }
 
+function googleClassId(
+  issuerId: string,
+  organizationId: string,
+  variantKey: string,
+): string {
+  const organizationSuffix = organizationId.replace(/[^A-Za-z0-9_.-]/g, "_");
+  if (variantKey === "global") {
+    return `${issuerId}.mat_gym_${organizationSuffix}`;
+  }
+  const designSuffix = variantKey.replace(/[^A-Za-z0-9_.-]/g, "_");
+  return `${issuerId}.mat_gym_${organizationSuffix}_${designSuffix}`;
+}
+
+function googleImage(url: string, description: string) {
+  return {
+    sourceUri: { uri: url },
+    contentDescription: {
+      defaultValue: { language: "es", value: description },
+    },
+  };
+}
+
+function googleClassPayload(data: {
+  classId: string;
+  organizationName: string;
+  walletDesign: {
+    programName: string;
+    showCardName?: boolean;
+    backgroundColor: string;
+    backgroundStyle?: "solid" | "gradient" | "image";
+    logoUrl?: string | null;
+    heroImageUrl?: string | null;
+    google?: { programName?: string };
+  };
+}) {
+  return {
+    id: data.classId,
+    issuerName: data.organizationName,
+    programName: (data.walletDesign.showCardName ?? true)
+      ? data.walletDesign.google?.programName || data.walletDesign.programName
+      : data.organizationName,
+    hexBackgroundColor: data.walletDesign.backgroundColor,
+    ...(data.walletDesign.logoUrl
+      ? {
+          programLogo: googleImage(
+            data.walletDesign.logoUrl,
+            `Logo de ${data.organizationName}`,
+          ),
+        }
+      : {}),
+    ...(data.walletDesign.backgroundStyle !== "solid" &&
+    data.walletDesign.heroImageUrl
+      ? {
+          heroImage: googleImage(
+            data.walletDesign.heroImageUrl,
+            `Imagen de ${data.organizationName}`,
+          ),
+        }
+      : {}),
+    reviewStatus: "UNDER_REVIEW",
+  };
+}
+
 async function generateApplePass(data: {
   organizationName: string;
   memberName: string;
   balance: number;
   pointsName: string;
+  membershipExpiresAt?: number;
   membershipStatus: string;
   credentialId: string;
   providerObjectId: string;
+  walletDesign: {
+    programName: string;
+    showCardName?: boolean;
+    backgroundColor: string;
+    backgroundStyle?: "solid" | "gradient" | "image";
+    showPoints?: boolean;
+    logoUrl?: string | null;
+    heroImageUrl?: string | null;
+    apple?: {
+      logoText?: string;
+      foregroundColor?: string;
+      labelColor?: string;
+    };
+  };
 }) {
   const passTypeIdentifier = requireEnv("APPLE_WALLET_PASS_TYPE_ID");
   const teamIdentifier = requireEnv("APPLE_WALLET_TEAM_ID");
@@ -145,6 +313,149 @@ async function generateApplePass(data: {
   const authenticationToken = await signApplePassAuthenticationToken(
     data.providerObjectId,
   );
+  const artworkUrl =
+    data.walletDesign.backgroundStyle !== "solid"
+      ? data.walletDesign.heroImageUrl
+      : null;
+  const [
+    customLogo,
+    customLogo2x,
+    customLogo3x,
+    primaryLogo,
+    primaryLogo2x,
+    primaryLogo3x,
+    artwork,
+    artwork2x,
+    artwork3x,
+    thumbnail,
+    thumbnail2x,
+    thumbnail3x,
+    customIcon,
+    customIcon2x,
+    customIcon3x,
+  ] = await Promise.all([
+    fetchPng(data.walletDesign.logoUrl, {
+      width: 160,
+      height: 50,
+      fit: "contain",
+    }),
+    fetchPng(data.walletDesign.logoUrl, {
+      width: 320,
+      height: 100,
+      fit: "contain",
+    }),
+    fetchPng(data.walletDesign.logoUrl, {
+      width: 480,
+      height: 150,
+      fit: "contain",
+    }),
+    fetchPng(data.walletDesign.logoUrl, {
+      width: 126,
+      height: 30,
+      fit: "contain",
+    }),
+    fetchPng(data.walletDesign.logoUrl, {
+      width: 252,
+      height: 60,
+      fit: "contain",
+    }),
+    fetchPng(data.walletDesign.logoUrl, {
+      width: 378,
+      height: 90,
+      fit: "contain",
+    }),
+    fetchPng(artworkUrl, { width: 358, height: 448, fit: "cover" }),
+    fetchPng(artworkUrl, { width: 716, height: 896, fit: "cover" }),
+    fetchPng(artworkUrl, { width: 1074, height: 1344, fit: "cover" }),
+    fetchPng(artworkUrl, { width: 90, height: 90, fit: "cover" }),
+    fetchPng(artworkUrl, { width: 180, height: 180, fit: "cover" }),
+    fetchPng(artworkUrl, { width: 270, height: 270, fit: "cover" }),
+    fetchPng(data.walletDesign.logoUrl, {
+      width: 38,
+      height: 38,
+      fit: "contain",
+    }),
+    fetchPng(data.walletDesign.logoUrl, {
+      width: 76,
+      height: 76,
+      fit: "contain",
+    }),
+    fetchPng(data.walletDesign.logoUrl, {
+      width: 114,
+      height: 114,
+      fit: "contain",
+    }),
+  ]);
+  const posterFields = {
+    headerFields: [
+      {
+        key: "status",
+        label: "MEMBRESÍA",
+        value: data.membershipStatus,
+      },
+    ],
+    primaryFields: [
+      { key: "member", label: "SOCIO", value: data.memberName },
+      ...(data.membershipExpiresAt
+        ? [
+            {
+              key: "expires",
+              label: "VENCE",
+              value: formatWalletDate(data.membershipExpiresAt),
+            },
+          ]
+        : []),
+    ],
+    secondaryFields:
+      data.walletDesign.showPoints ?? true
+        ? [
+            {
+              key: "points",
+              label: data.pointsName.toUpperCase(),
+              value: data.balance,
+            },
+          ]
+        : [],
+    auxiliaryFields: [],
+    footerFields: data.walletDesign.showCardName ?? true
+      ? [{ key: "program", value: data.walletDesign.programName }]
+      : [],
+    backFields: [
+      {
+        key: "security",
+        label: "SEGURIDAD",
+        value:
+          "La autorización se valida en MAT al momento del ingreso. Esta tarjeta es personal.",
+      },
+    ],
+  };
+  const genericFallbackFields = {
+    primaryFields: [{ key: "member", label: "SOCIO", value: data.memberName }],
+    secondaryFields: [
+      { key: "status", label: "MEMBRESÍA", value: data.membershipStatus },
+      ...(data.membershipExpiresAt
+        ? [
+            {
+              key: "expires",
+              label: "VENCE",
+              value: formatWalletDate(data.membershipExpiresAt),
+            },
+          ]
+        : []),
+      ...((data.walletDesign.showPoints ?? true)
+        ? [
+            {
+              key: "points",
+              label: data.pointsName.toUpperCase(),
+              value: data.balance,
+            },
+          ]
+        : []),
+    ],
+    auxiliaryFields: [],
+    headerFields: [],
+    backFields: posterFields.backFields,
+  };
   const passJson = {
     formatVersion: 1,
     passTypeIdentifier,
@@ -152,59 +463,63 @@ async function generateApplePass(data: {
     serialNumber: data.providerObjectId,
     organizationName: data.organizationName,
     description: `Membresía de ${data.organizationName}`,
-    logoText: data.organizationName,
+    logoText: data.walletDesign.apple?.logoText || data.organizationName,
     sharingProhibited: true,
     webServiceURL,
     authenticationToken,
-    backgroundColor: "rgb(18, 24, 38)",
-    foregroundColor: "rgb(255, 255, 255)",
-    labelColor: "rgb(190, 200, 220)",
+    backgroundColor: hexToRgb(data.walletDesign.backgroundColor),
+    foregroundColor: hexToRgb(
+      data.walletDesign.apple?.foregroundColor ?? "#FFFFFF",
+    ),
+    labelColor: hexToRgb(data.walletDesign.apple?.labelColor ?? "#BEC8DC"),
     barcodes: [
       {
         format: "PKBarcodeFormatQR",
         message: walletQr,
         messageEncoding: "iso-8859-1",
-        altText: "Presentá este código en recepción",
       },
     ],
-    generic: {
-      primaryFields: [
-        { key: "member", label: "SOCIO", value: data.memberName },
-      ],
-      secondaryFields: [
-        { key: "status", label: "MEMBRESÍA", value: data.membershipStatus },
-        {
-          key: "points",
-          label: data.pointsName.toUpperCase(),
-          value: data.balance,
-        },
-      ],
-      auxiliaryFields: [],
-      headerFields: [],
-      backFields: [
-        {
-          key: "security",
-          label: "SEGURIDAD",
-          value:
-            "La autorización se valida en MAT al momento del ingreso. Esta tarjeta es personal.",
-        },
-      ],
-    },
+    // iOS 27+ uses the full-art membership layout. Keeping `generic` beside it
+    // is Apple's documented fallback for iOS 26 and earlier.
+    posterGeneric: posterFields,
+    generic: genericFallbackFields,
   };
-  const pass = new PKPass(
-    {
-      "icon.png": solidPng(29, 29),
-      "icon@2x.png": solidPng(58, 58),
-      "logo.png": solidPng(160, 50),
-      "pass.json": Buffer.from(JSON.stringify(passJson)),
-    },
-    {
-      wwdr: certificateValue("APPLE_WALLET_WWDR_CERT"),
-      signerCert: certificateValue("APPLE_WALLET_SIGNER_CERT"),
-      signerKey: certificateValue("APPLE_WALLET_SIGNER_KEY"),
-      signerKeyPassphrase: process.env.APPLE_WALLET_SIGNER_KEY_PASSPHRASE,
-    },
-  );
+  const assets: Record<string, Buffer> = {
+    "icon.png":
+      customIcon ?? solidPng(38, 38, data.walletDesign.backgroundColor),
+    "icon@2x.png":
+      customIcon2x ?? solidPng(76, 76, data.walletDesign.backgroundColor),
+    "icon@3x.png":
+      customIcon3x ?? solidPng(114, 114, data.walletDesign.backgroundColor),
+    "logo.png":
+      customLogo ?? solidPng(160, 50, data.walletDesign.backgroundColor),
+    "logo@2x.png":
+      customLogo2x ?? solidPng(320, 100, data.walletDesign.backgroundColor),
+    "logo@3x.png":
+      customLogo3x ?? solidPng(480, 150, data.walletDesign.backgroundColor),
+    "primaryLogo.png":
+      primaryLogo ?? solidPng(126, 30, data.walletDesign.backgroundColor),
+    "primaryLogo@2x.png":
+      primaryLogo2x ?? solidPng(252, 60, data.walletDesign.backgroundColor),
+    "primaryLogo@3x.png":
+      primaryLogo3x ?? solidPng(378, 90, data.walletDesign.backgroundColor),
+    "artwork.png":
+      artwork ?? solidPng(358, 448, data.walletDesign.backgroundColor),
+    "artwork@2x.png":
+      artwork2x ?? solidPng(716, 896, data.walletDesign.backgroundColor),
+    "artwork@3x.png":
+      artwork3x ?? solidPng(1074, 1344, data.walletDesign.backgroundColor),
+    "pass.json": Buffer.from(JSON.stringify(passJson)),
+  };
+  if (thumbnail) assets["thumbnail.png"] = thumbnail;
+  if (thumbnail2x) assets["thumbnail@2x.png"] = thumbnail2x;
+  if (thumbnail3x) assets["thumbnail@3x.png"] = thumbnail3x;
+  const pass = new PKPass(assets, {
+    wwdr: certificateValue("APPLE_WALLET_WWDR_CERT"),
+    signerCert: certificateValue("APPLE_WALLET_SIGNER_CERT"),
+    signerKey: certificateValue("APPLE_WALLET_SIGNER_KEY"),
+    signerKeyPassphrase: process.env.APPLE_WALLET_SIGNER_KEY_PASSPHRASE,
+  });
   return pass.getAsBuffer();
 }
 
@@ -249,11 +564,11 @@ export const createMyGoogleWalletPass = action({
       provider: "google",
     });
     const issuerId = requireEnv("GOOGLE_WALLET_ISSUER_ID");
-    const classSuffix = String(data.organizationId).replace(
-      /[^A-Za-z0-9_.-]/g,
-      "_",
+    const classId = googleClassId(
+      issuerId,
+      String(data.organizationId),
+      data.walletDesign.variantKey,
     );
-    const classId = `${issuerId}.mat_gym_${classSuffix}`;
     const objectId = `${issuerId}.mat_member_${data.providerObjectId}`;
     const walletQr = await signWalletQr(data.credentialId);
     try {
@@ -266,12 +581,11 @@ export const createMyGoogleWalletPass = action({
           .filter(Boolean),
         payload: {
           loyaltyClasses: [
-            {
-              id: classId,
-              issuerName: data.organizationName,
-              programName: "Membresía y recompensas",
-              reviewStatus: "UNDER_REVIEW",
-            },
+            googleClassPayload({
+              classId,
+              organizationName: data.organizationName,
+              walletDesign: data.walletDesign,
+            }),
           ],
           loyaltyObjects: [
             {
@@ -280,10 +594,14 @@ export const createMyGoogleWalletPass = action({
               state: "ACTIVE",
               accountId: data.providerObjectId,
               accountName: data.memberName,
-              loyaltyPoints: {
-                label: data.pointsName,
-                balance: { int: data.balance },
-              },
+              ...((data.walletDesign.showPoints ?? true)
+                ? {
+                    loyaltyPoints: {
+                      label: data.pointsName,
+                      balance: { int: data.balance },
+                    },
+                  }
+                : {}),
               barcode: {
                 type: "QR_CODE",
                 value: walletQr,
@@ -295,6 +613,15 @@ export const createMyGoogleWalletPass = action({
                   header: "Membresía",
                   body: data.membershipStatus,
                 },
+                ...(data.membershipExpiresAt
+                  ? [
+                      {
+                        id: "expires",
+                        header: "Vence",
+                        body: formatWalletDate(data.membershipExpiresAt),
+                      },
+                    ]
+                  : []),
               ],
             },
           ],
@@ -335,9 +662,11 @@ export const generateApplePassForSerial = internalAction({
       memberName: data.memberName,
       balance: data.balance,
       pointsName: data.pointsName,
+      membershipExpiresAt: data.membershipExpiresAt,
       membershipStatus: data.membershipStatus,
       credentialId: data.credentialId,
       providerObjectId: args.serialNumber,
+      walletDesign: data.walletDesign,
     });
     return buffer.toString("base64");
   },
@@ -386,11 +715,23 @@ async function pushApplePassUpdate(
 
 async function updateGoogleWalletObject(data: {
   organizationId: string;
+  organizationName: string;
   providerObjectId: string;
   credentialId: string;
   balance: number;
   pointsName: string;
+  membershipExpiresAt?: number;
   membershipStatus: string;
+  walletDesign: {
+    variantKey: string;
+    programName: string;
+    backgroundColor: string;
+    backgroundStyle?: "solid" | "gradient" | "image";
+    showPoints?: boolean;
+    logoUrl?: string | null;
+    heroImageUrl?: string | null;
+    google?: { programName?: string };
+  };
 }) {
   const assertion = signGoogleOAuthAssertion();
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
@@ -406,6 +747,41 @@ async function updateGoogleWalletObject(data: {
   const tokenBody = (await tokenResponse.json()) as { access_token?: string };
   if (!tokenBody.access_token) throw new Error("GOOGLE_OAUTH_TOKEN_MISSING");
   const issuerId = requireEnv("GOOGLE_WALLET_ISSUER_ID");
+  const classId = googleClassId(
+    issuerId,
+    data.organizationId,
+    data.walletDesign.variantKey,
+  );
+  const classPayload = googleClassPayload({
+    classId,
+    organizationName: data.organizationName,
+    walletDesign: data.walletDesign,
+  });
+  const classUrl = `https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/${encodeURIComponent(classId)}`;
+  let classResponse = await fetch(classUrl, {
+    method: "PATCH",
+    headers: {
+      authorization: `Bearer ${tokenBody.access_token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(classPayload),
+  });
+  if (classResponse.status === 404) {
+    classResponse = await fetch(
+      "https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass",
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${tokenBody.access_token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(classPayload),
+      },
+    );
+  }
+  if (!classResponse.ok) {
+    throw new Error(`GOOGLE_WALLET_CLASS_${classResponse.status}`);
+  }
   const objectId = `${issuerId}.mat_member_${data.providerObjectId}`;
   const walletQr = await signWalletQr(data.credentialId);
   const response = await fetch(
@@ -417,11 +793,16 @@ async function updateGoogleWalletObject(data: {
         "content-type": "application/json",
       },
       body: JSON.stringify({
+        classId,
         state: data.membershipStatus === "Activa" ? "ACTIVE" : "INACTIVE",
-        loyaltyPoints: {
-          label: data.pointsName,
-          balance: { int: data.balance },
-        },
+        ...((data.walletDesign.showPoints ?? true)
+          ? {
+              loyaltyPoints: {
+                label: data.pointsName,
+                balance: { int: data.balance },
+              },
+            }
+          : { loyaltyPoints: null }),
         barcode: {
           type: "QR_CODE",
           value: walletQr,
@@ -433,6 +814,15 @@ async function updateGoogleWalletObject(data: {
             header: "Membresía",
             body: data.membershipStatus,
           },
+          ...(data.membershipExpiresAt
+            ? [
+                {
+                  id: "expires",
+                  header: "Vence",
+                  body: formatWalletDate(data.membershipExpiresAt),
+                },
+              ]
+            : []),
         ],
       }),
     },
@@ -482,11 +872,14 @@ export const runWalletSyncOperations = internalAction({
         } else {
           await updateGoogleWalletObject({
             organizationId: String(operation.organizationId),
+            organizationName: resolved.organizationName,
             providerObjectId: resolved.walletPass.providerObjectId,
             credentialId: resolved.credentialId,
             balance: resolved.balance,
             pointsName: resolved.pointsName,
+            membershipExpiresAt: resolved.membershipExpiresAt,
             membershipStatus: resolved.membershipStatus,
+            walletDesign: resolved.walletDesign,
           });
         }
         await ctx.runMutation(internal.rewards.finishWalletSyncOperation, {

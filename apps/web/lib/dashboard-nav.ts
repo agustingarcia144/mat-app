@@ -17,6 +17,7 @@ import {
   Wallet,
   QrCode,
   Gift,
+  BadgeCheck,
 } from "lucide-react";
 
 export type FeatureFlag =
@@ -30,6 +31,7 @@ export type BillingModule =
   | "planifications"
   | "exercises"
   | "classes"
+  | "payments"
   | "finance"
   | "metrics"
   | "metrics_exercises"
@@ -45,6 +47,7 @@ export type DashboardNavSubItem = {
   label: string;
   icon: LucideIcon;
   url: string;
+  /** Defaults to the parent item's admin restriction when omitted. */
   adminOnly?: boolean;
   featureFlag?: FeatureFlag;
   /** Defaults to the parent item's module when omitted. */
@@ -98,17 +101,24 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
     featureFlag: "classesEnabled",
   },
   {
-    label: "Ingreso QR",
-    icon: QrCode,
-    url: "/check-in",
-    billingModule: "dashboard",
-  },
-  {
-    label: "Recompensas",
-    icon: Gift,
-    url: "/rewards",
-    billingModule: "dashboard",
+    label: "Membresías",
+    icon: BadgeCheck,
+    url: "/memberships",
+    billingModule: "payments",
     adminOnly: true,
+    children: [
+      {
+        label: "Recompensas",
+        icon: Gift,
+        url: "/rewards",
+      },
+      {
+        label: "Ingreso QR",
+        icon: QrCode,
+        url: "/check-in",
+        adminOnly: false,
+      },
+    ],
   },
   {
     label: "Finanzas",

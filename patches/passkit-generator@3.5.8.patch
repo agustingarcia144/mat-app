@@ -1,0 +1,72 @@
+diff --git a/lib/cjs/schemas/PassFields.js b/lib/cjs/schemas/PassFields.js
+index bac069b705b5a21d5d5e81b40a39379f20c438e6..04bce1719b852518338f1e905aab0c1143d35bef 100644
+--- a/lib/cjs/schemas/PassFields.js
++++ b/lib/cjs/schemas/PassFields.js
+@@ -11,6 +11,7 @@ exports.PassFields = joi_1.default.object().keys({
+     headerFields: joi_1.default.array().items(PassFieldContent_js_1.PassFieldContent),
+     primaryFields: joi_1.default.array().items(PassFieldContent_js_1.PassFieldContent),
+     secondaryFields: joi_1.default.array().items(PassFieldContent_js_1.PassFieldContent),
++    footerFields: joi_1.default.array().items(PassFieldContent_js_1.PassFieldContent),
+     transitType: exports.TransitType,
+     /**
+      * @iOSVersion 18
+diff --git a/lib/cjs/schemas/index.js b/lib/cjs/schemas/index.js
+index 40902801e3fa4a6f5148d1b0d0e6750b87df8b3b..cdb2442cec6a0dd749a73716a6f79fd550843314 100644
+--- a/lib/cjs/schemas/index.js
++++ b/lib/cjs/schemas/index.js
+@@ -421,6 +421,7 @@ exports.PassProps = exports.OverridablePassProps
+     .append({
+     coupon: PassFields_js_1.PassFields.disallow("transitType"),
+     generic: PassFields_js_1.PassFields.disallow("transitType"),
++    posterGeneric: PassFields_js_1.PassFields.disallow("transitType"),
+     storeCard: PassFields_js_1.PassFields.disallow("transitType"),
+     eventTicket: PassFields_js_1.PassFields.disallow("transitType"),
+     boardingPass: PassFields_js_1.PassFields,
+diff --git a/lib/esm/schemas/PassFields.js b/lib/esm/schemas/PassFields.js
+index 5a09b383a1fc30ab2edc65b6bb07eefbef3a5707..95045675991af99e9e360e598f7d22ef2efd5045 100644
+--- a/lib/esm/schemas/PassFields.js
++++ b/lib/esm/schemas/PassFields.js
+@@ -7,6 +7,7 @@ export const PassFields = Joi.object().keys({
+     headerFields: Joi.array().items(PassFieldContent),
+     primaryFields: Joi.array().items(PassFieldContent),
+     secondaryFields: Joi.array().items(PassFieldContent),
++    footerFields: Joi.array().items(PassFieldContent),
+     transitType: TransitType,
+     /**
+      * @iOSVersion 18
+diff --git a/lib/esm/schemas/index.js b/lib/esm/schemas/index.js
+index 4ef091a0948cbf28b642be92a9de826cb4bd68a2..bf5411bad6d44c7a79dc81a9eea7c660c3b4f755 100644
+--- a/lib/esm/schemas/index.js
++++ b/lib/esm/schemas/index.js
+@@ -414,6 +414,7 @@ export const PassProps = OverridablePassProps
+     .append({
+     coupon: PassFields.disallow("transitType"),
+     generic: PassFields.disallow("transitType"),
++    posterGeneric: PassFields.disallow("transitType"),
+     storeCard: PassFields.disallow("transitType"),
+     eventTicket: PassFields.disallow("transitType"),
+     boardingPass: PassFields,
+diff --git a/lib/types/schemas/PassFields.d.ts b/lib/types/schemas/PassFields.d.ts
+index 5f2566d1481142faa95d7630f5a80d1f6ba460be..37d335c74f8bfb04a3f7c906ba82aa13ce76d0f7 100644
+--- a/lib/types/schemas/PassFields.d.ts
++++ b/lib/types/schemas/PassFields.d.ts
+@@ -8,6 +8,7 @@ export interface PassFields {
+     headerFields: PassFieldContent[];
+     primaryFields: PassFieldContent[];
+     secondaryFields: PassFieldContent[];
++    footerFields?: PassFieldContent[];
+     transitType?: TransitType;
+     /**
+      * @iOSVersion 18
+diff --git a/lib/types/schemas/index.d.ts b/lib/types/schemas/index.d.ts
+index e68629bba46e01b46452d0e0b33db636f725b20c..6fe347ddb67a1f1b851c56626076662cbed8fdfc 100644
+--- a/lib/types/schemas/index.d.ts
++++ b/lib/types/schemas/index.d.ts
+@@ -120,6 +120,7 @@ export interface PassProps {
+     eventTicket?: PassFields;
+     coupon?: PassFields;
+     generic?: PassFields;
++    posterGeneric?: PassFields;
+     storeCard?: PassFields;
+     /**
+      * @iOSVersion 18

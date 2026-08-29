@@ -52,7 +52,7 @@ export default function ContentNavItems() {
       subItem: DashboardNavSubItem,
       parent: DashboardNavItem,
     ) => {
-      if (subItem.adminOnly && !isAdmin) return false;
+      if ((subItem.adminOnly ?? parent.adminOnly) && !isAdmin) return false;
       if (subItem.featureFlag && settings && !settings[subItem.featureFlag]) {
         return false;
       }
@@ -66,11 +66,12 @@ export default function ContentNavItems() {
     }))
       .filter((item) => {
         if (item.superAdminOnly) return isSuperAdmin;
-        if (item.adminOnly && !isAdmin) return false;
+        const canAccessParent =
+          (!item.adminOnly || isAdmin) && isModuleAllowed(item.billingModule);
         // A group stays visible when a child has its own allowed module, so a
-        // plan that only unlocks part of a group (LITE + exercise metrics)
-        // still reaches it.
-        if (!isModuleAllowed(item.billingModule) && item.children.length === 0) {
+        // user who cannot access its landing page can still reach an explicitly
+        // available child (for example, reception staff opening QR check-in).
+        if (!canAccessParent && item.children.length === 0) {
           return false;
         }
         if (item.featureFlag && settings) {
@@ -80,8 +81,9 @@ export default function ContentNavItems() {
       })
       .map((item) => ({
         ...item,
-        // The group header would otherwise link to a page the plan blocks.
-        navigationUrl: isModuleAllowed(item.billingModule)
+        // The group header must not link to a page blocked by role or plan.
+        navigationUrl:
+          (!item.adminOnly || isAdmin) && isModuleAllowed(item.billingModule)
           ? item.url
           : (item.children[0]?.url ?? item.url),
       }));

@@ -136,6 +136,12 @@ export function ProfileNativeList({
               onPress={actions.onEditPhysicalInfo}
               modifiers={[WHITE_TINT]}
             />
+            <Button
+              label="Mi credencial Wallet"
+              systemImage="wallet.pass.fill"
+              onPress={actions.onOpenWalletPass}
+              modifiers={[WHITE_TINT]}
+            />
           </Section>
 
           {/* Account */}

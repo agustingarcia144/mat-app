@@ -31,15 +31,19 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
-type Source = "qr_check_in" | "class_attendance" | "manual";
+type Source =
+  | "qr_check_in"
+  | "class_attendance"
+  | "manual"
+  | "membership_payment";
 
 type RewardForm = {
   enabled: boolean;
   programName: string;
   pointsName: string;
   pointsPerAttendance: number;
+  pointsPerMembershipMonth: number;
   maxRewardedAttendancesPerDay: number;
-  duplicateWindowMinutes: number;
   eligibleSources: Source[];
   streaksEnabled: boolean;
   streakIntervalDays?: number;
@@ -48,6 +52,29 @@ type RewardForm = {
   weeklyAttendanceTarget?: number;
   weeklyBonusPoints?: number;
   terms?: string;
+  walletCard: {
+    mode: "global" | "by_plan";
+    defaultDesign: WalletDesign;
+    planDesigns: Array<{ planId: string; design: WalletDesign }>;
+  };
+};
+
+type WalletDesign = {
+  programName: string;
+  backgroundColor: string;
+  backgroundStyle?: "solid" | "gradient" | "image";
+  gradientStartColor?: string;
+  gradientEndColor?: string;
+  gradientAngle?: number;
+  useOrganizationLogo?: boolean;
+  logoStorageId?: string;
+  heroImageStorageId?: string;
+  apple?: {
+    logoText?: string;
+    foregroundColor?: string;
+    labelColor?: string;
+  };
+  google?: { programName?: string };
 };
 
 const EMPTY_REWARD = {
@@ -105,7 +132,7 @@ export default function RewardsAdminPage() {
     if (!form) return;
     setSaving(true);
     try {
-      await updateSettings({ rewards: form });
+      await updateSettings({ rewards: form as never });
       toast.success("Programa de recompensas actualizado");
     } catch (error) {
       toast.error(
@@ -342,13 +369,6 @@ export default function RewardsAdminPage() {
                     setForm({ ...form, maxRewardedAttendancesPerDay })
                   }
                 />
-                <NumberField
-                  label="Ventana de duplicados (minutos)"
-                  value={form.duplicateWindowMinutes}
-                  onChange={(duplicateWindowMinutes) =>
-                    setForm({ ...form, duplicateWindowMinutes })
-                  }
-                />
                 <div className="space-y-2">
                   <Label>Fuentes que otorgan puntos</Label>
                   <div className="space-y-2 rounded-md border p-3">
@@ -356,6 +376,7 @@ export default function RewardsAdminPage() {
                       ["qr_check_in", "Ingreso por QR"],
                       ["class_attendance", "Asistencia a clase"],
                       ["manual", "Asistencia manual"],
+                      ["membership_payment", "Meses de antigüedad"],
                     ].map(([source, label]) => (
                       <label
                         key={source}
@@ -373,7 +394,21 @@ export default function RewardsAdminPage() {
                       </label>
                     ))}
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Los ingresos duplicados se detectan por día calendario del
+                    gimnasio, no en una ventana móvil de 24 horas.
+                  </p>
                 </div>
+
+                {form.eligibleSources.includes("membership_payment") && (
+                  <NumberField
+                    label="Puntos por mes de antigüedad"
+                    value={form.pointsPerMembershipMonth}
+                    onChange={(pointsPerMembershipMonth) =>
+                      setForm({ ...form, pointsPerMembershipMonth })
+                    }
+                  />
+                )}
 
                 <BonusConfiguration
                   title="Bono por racha"

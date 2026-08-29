@@ -186,6 +186,11 @@ export function ProfileNativeList({
           isDark={isDark}
           onPress={actions.onEditPhysicalInfo}
         />
+        <Row
+          title="Mi credencial Wallet"
+          isDark={isDark}
+          onPress={actions.onOpenWalletPass}
+        />
       </View>
 
       <View style={styles.section}>

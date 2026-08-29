@@ -207,6 +207,11 @@ export function ProfileNativeList({
             isDark={isDark}
             onPress={actions.onEditPhysicalInfo}
           />
+          <NativeRow
+            title="Mi credencial Wallet"
+            isDark={isDark}
+            onPress={actions.onOpenWalletPass}
+          />
         </Column>
 
         <Column verticalArrangement={{ spacedBy: 8 }}>

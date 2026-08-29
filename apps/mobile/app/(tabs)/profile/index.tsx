@@ -960,6 +960,7 @@ function ProfileContent() {
         actions={{
           onEditPersonalInfo: () => setPersonalInfoModalVisible(true),
           onEditPhysicalInfo: () => setPhysicalInfoModalVisible(true),
+          onOpenWalletPass: () => router.push("/profile/wallet-pass"),
           onSignOut: handleSignOut,
           onManageAccount: () => router.push("/profile/manage-account"),
         }}
@@ -988,7 +989,6 @@ function ProfileContent() {
           description: currentMembership?.description,
         }}
       />
-
     </View>
   );
 }
