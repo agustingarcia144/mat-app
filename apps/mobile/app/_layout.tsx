@@ -400,6 +400,7 @@ function RootLayoutNav() {
         <Stack.Screen name="onboarding-2" />
         <Stack.Screen name="select-organization" />
         <Stack.Screen name="join-gym-confirm" />
+        <Stack.Screen name="payments/return" />
         <Stack.Screen name="(tabs)" />
       </Stack>
       <StatusBar style="auto" />

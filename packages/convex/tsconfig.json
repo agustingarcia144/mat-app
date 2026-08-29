@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "types": ["vitest/globals"]
+  },
+  "include": ["convex/**/*.ts", "vitest.config.ts", "vitest-env.d.ts"],
+  "exclude": []
+}

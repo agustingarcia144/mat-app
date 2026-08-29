@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { isOrgAdminRole } from "@/lib/security/roles";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/convex/_generated/api";
+import MemberPaymentsSettings from "@/components/features/payments/member-payments/member-payments-settings";
 
 type FormState = {
   name: string;
@@ -358,6 +359,8 @@ export default function SettingsPage() {
           />
         </CardContent>
       </Card>
+
+      {canEdit ? <MemberPaymentsSettings canEdit={canEdit} /> : null}
 
       <Card>
         <CardHeader>

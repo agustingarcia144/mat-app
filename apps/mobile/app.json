@@ -17,7 +17,9 @@
         "NSCameraUsageDescription": "Mat necesita acceso a tu camara para escanear codigos QR de invitacion."
       },
       "icon": "./assets/app.icon",
-      "associatedDomains": ["applinks:matgestion.app"]
+      "associatedDomains": [
+        "applinks:matgestion.app"
+      ]
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -36,9 +38,17 @@
               "scheme": "https",
               "host": "matgestion.app",
               "pathPrefix": "/join"
+            },
+            {
+              "scheme": "https",
+              "host": "matgestion.app",
+              "pathPrefix": "/payments"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "permissions": [

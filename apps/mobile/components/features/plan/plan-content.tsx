@@ -20,6 +20,7 @@ import { ThemedPressable } from "@/components/ui/themed-pressable";
 import PlanSelector from "./plan-selector";
 import PlanStatusCard from "./plan-status-card";
 import PaymentStatusCard from "./payment-status-card";
+import RecurringStatusCard from "./recurring-status-card";
 
 export default function PlanContent() {
   const insets = useSafeAreaInsets();
@@ -36,6 +37,18 @@ export default function PlanContent() {
   const bonification = useQuery(api.planBonifications.getMyActiveBonification);
   const classes = useQuery(api.classes.getByOrganization, { activeOnly: true });
   const cancelSubscription = useMutation(api.memberPlanSubscriptions.cancel);
+  const cancelRecurring = useMutation(
+    api.memberPaymentsCheckout.cancelRecurringSubscription,
+  );
+  const switchToTransfer = useMutation(
+    api.memberPaymentsCheckout.switchToBankTransfer,
+  );
+  const cancellationPreview = useQuery(
+    api.memberPaymentsCheckout.previewCancellation,
+  );
+  const recurringState = useQuery(
+    api.memberPaymentsCheckout.getMyRecurringState,
+  );
 
   // Empty means the plan includes every class, so the card omits the row
   const planIncludesClasses = subscription?.plan?.classesEnabled !== false;
@@ -55,7 +68,57 @@ export default function PlanContent() {
     other: "Otro",
   };
 
+  const formatDay = (value: number | null | undefined) =>
+    value === null || value === undefined
+      ? ""
+      : new Date(value).toLocaleDateString("es-AR", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+
   const handleCancel = () => {
+    // A member paying by automatic debit keeps the access they already paid
+    // for. Telling them the exact date up front is the difference between a
+    // cancellation and a nasty surprise.
+    if (cancellationPreview?.isProviderManaged && !cancellationPreview.immediate) {
+      const endsAt = formatDay(cancellationPreview.accessEndsAt);
+      Alert.alert(
+        "Cancelar débito automático",
+        `Dejamos de cobrarte ahora mismo${
+          endsAt ? ` y mantenés el acceso hasta el ${endsAt}` : ""
+        }.${
+          (cancellationPreview.familyMemberCount ?? 1) > 1
+            ? " Tu grupo familiar mantiene el acceso hasta esa misma fecha."
+            : ""
+        }`,
+        [
+          { text: "No", style: "cancel" },
+          {
+            text: "Cancelar plan",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                const result = await cancelRecurring({});
+                Alert.alert(
+                  "Listo",
+                  result.accessEndsAt
+                    ? `No te vamos a cobrar más. Tenés acceso hasta el ${formatDay(result.accessEndsAt)}.`
+                    : "Cancelamos tu plan.",
+                );
+              } catch (err) {
+                Alert.alert(
+                  "Error",
+                  err instanceof Error ? err.message : "Error al cancelar",
+                );
+              }
+            },
+          },
+        ],
+      );
+      return;
+    }
+
     const message = bonification
       ? "¿Estás seguro de que querés cancelar tu plan? Perderás el acceso a las clases y tu bonificación será revocada."
       : "¿Estás seguro de que querés cancelar tu plan? Perderás el acceso a las clases.";
@@ -76,6 +139,43 @@ export default function PlanContent() {
         },
       },
     ]);
+  };
+
+  // Only offered while a debit is actually running: stopping it keeps the
+  // coverage already paid for and moves the next cycle to transfer.
+  const canSwitchToTransfer =
+    recurringState !== undefined &&
+    recurringState !== null &&
+    recurringState.isPayer &&
+    ["active", "retrying", "grace_expired", "pending_first_payment"].includes(
+      recurringState.billingState,
+    );
+
+  const handleSwitchToTransfer = () => {
+    Alert.alert(
+      "Pasar a transferencia",
+      "Dejamos de cobrarte automáticamente. Conservás lo que ya pagaste y el próximo período lo abonás por transferencia.",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Cambiar",
+          onPress: async () => {
+            try {
+              await switchToTransfer({});
+              Alert.alert(
+                "Listo",
+                "Ya no te vamos a cobrar automáticamente. Vas a poder subir el comprobante del próximo período.",
+              );
+            } catch (err) {
+              Alert.alert(
+                "Error",
+                err instanceof Error ? err.message : "Error al cambiar el método",
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (subscription === undefined) {
@@ -201,6 +301,8 @@ export default function PlanContent() {
             }
           />
 
+          <RecurringStatusCard />
+
           {/* Actions */}
           <View style={styles.actions}>
             <ThemedPressable
@@ -238,11 +340,56 @@ export default function PlanContent() {
               />
             </ThemedPressable>
 
+            {canSwitchToTransfer ? (
+              <ThemedPressable
+                style={[
+                  styles.actionRow,
+                  isDark ? styles.actionRowDark : styles.actionRowLight,
+                ]}
+                onPress={handleSwitchToTransfer}
+              >
+                <View
+                  style={[
+                    styles.actionIconTile,
+                    {
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(0,0,0,0.05)",
+                    },
+                  ]}
+                >
+                  <IconSymbol
+                    name="creditcard"
+                    size={20}
+                    color={isDark ? "#fff" : "#000"}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.actionText,
+                    { color: isDark ? "#fff" : "#000" },
+                  ]}
+                >
+                  Pasar a pago por transferencia
+                </Text>
+                <IconSymbol
+                  name="chevron.right"
+                  size={20}
+                  color={isDark ? "#52525b" : "#a1a1aa"}
+                />
+              </ThemedPressable>
+            ) : null}
+
             <ThemedPressable
               style={styles.cancelButton}
               onPress={handleCancel}
             >
-              <Text style={styles.cancelText}>Cancelar plan</Text>
+              <Text style={styles.cancelText}>
+                {cancellationPreview?.isProviderManaged &&
+                !cancellationPreview.immediate
+                  ? "Cancelar débito automático"
+                  : "Cancelar plan"}
+              </Text>
             </ThemedPressable>
           </View>
         </View>

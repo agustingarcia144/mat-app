@@ -97,6 +97,12 @@ export default function PaymentHistoryContent() {
           const statusInfo = isBonification
             ? STATUS_VISUALS.bonification
             : (STATUS_VISUALS[item.status] ?? STATUS_VISUALS.pending);
+          // One history for every way the member has paid, so they never have
+          // to remember which screen a given month lives on.
+          const methodLabel = describeMethod(
+            (item as any).paymentMethod,
+            (item as any).advancePaymentGroupId,
+          );
           const amountArs =
             (item as any).payableAmountArs ??
             (item as any).totalAmountArs ??
@@ -117,6 +123,7 @@ export default function PaymentHistoryContent() {
                 </Text>
                 <Text style={[styles.amount, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
                   ${amountArs.toLocaleString("es-AR")}
+                  {methodLabel ? ` · ${methodLabel}` : ""}
                 </Text>
               </View>
               <View style={[styles.statusPill, { backgroundColor: statusInfo.tint }]}>
@@ -132,6 +139,24 @@ export default function PaymentHistoryContent() {
       />
     </ThemedView>
   );
+}
+
+const METHOD_LABELS: Record<string, string> = {
+  cash: "Efectivo",
+  bank_transfer: "Transferencia",
+  proof_upload: "Transferencia",
+  bonification: "Bonificado",
+  mercadopago_recurring: "Débito automático",
+  mercadopago_checkout: "Mercado Pago",
+};
+
+function describeMethod(
+  paymentMethod: string | undefined,
+  advancePaymentGroupId: string | undefined,
+): string | null {
+  const base = paymentMethod ? METHOD_LABELS[paymentMethod] : null;
+  if (!base) return advancePaymentGroupId ? "Pago adelantado" : null;
+  return advancePaymentGroupId ? `${base} · pago adelantado` : base;
 }
 
 const styles = StyleSheet.create({

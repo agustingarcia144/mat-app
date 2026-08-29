@@ -2,6 +2,10 @@ import { httpRouter } from "convex/server";
 import { clerkWebhook } from "./webhooks";
 import { httpJoinPreview } from "./joinGym";
 import { mercadoPagoWebhook } from "./mercadoPagoWebhook";
+import {
+  mercadoPagoMemberWebhook,
+  mercadoPagoOAuthCallback,
+} from "./memberPaymentsHttp";
 
 const http = httpRouter();
 
@@ -12,10 +16,27 @@ http.route({
   handler: clerkWebhook,
 });
 
+// Organization -> MAT SaaS billing. Uses MAT's own global seller credential;
+// member payments must never be routed here.
 http.route({
   path: "/mercadopago-webhook",
   method: "POST",
   handler: mercadoPagoWebhook,
+});
+
+// Member -> gym payments: per-gym MercadoPago OAuth connection callback.
+http.route({
+  path: "/member-payments/oauth/callback",
+  method: "GET",
+  handler: mercadoPagoOAuthCallback,
+});
+
+// Member payment notifications. The path carries a per-connection random
+// routing key that selects the gym whose token fetches the resource.
+http.route({
+  pathPrefix: "/member-payments/webhook/",
+  method: "POST",
+  handler: mercadoPagoMemberWebhook,
 });
 
 // Public join preview for web fallback (GET /join/<token>)

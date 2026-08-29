@@ -11,136 +11,15 @@ import {
   tryActiveOrgContext,
 } from "./permissions";
 import { computeBonificationAmount } from "./planBonifications";
+import {
+  computeInterest,
+  getBillingCycle,
+  getPaymentTimezone,
+  type AppliedInterestTier,
+  type InterestTier,
+} from "./billingDomain";
 
-type InterestTier = {
-  daysAfterWindowEnd: number;
-  type: "percentage" | "fixed";
-  value: number;
-};
-
-type AppliedTier = InterestTier & { amountArs: number };
-type BillingMode = "calendar" | "join_date";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_PAYMENT_TIMEZONE = "America/Argentina/Buenos_Aires";
-
-function getPaymentTimezone(timezone?: string) {
-  return timezone && timezone.trim() !== ""
-    ? timezone.trim()
-    : DEFAULT_PAYMENT_TIMEZONE;
-}
-
-function getZonedDateParts(timestamp: number, timezone: string) {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(new Date(timestamp));
-  const partMap = Object.fromEntries(
-    parts.map((part) => [part.type, part.value]),
-  );
-
-  return {
-    year: parseInt(partMap.year!, 10),
-    month: parseInt(partMap.month!, 10),
-    day: parseInt(partMap.day!, 10),
-  };
-}
-
-function getDaysAfterPaymentWindow(
-  billingPeriod: string,
-  paymentWindowEndDay: number,
-  nowMs: number,
-  timezone: string,
-  dueAt?: number,
-) {
-  const [yearStr, monthStr] = billingPeriod.split("-");
-  const billingYear = parseInt(yearStr!, 10);
-  const billingMonth = parseInt(monthStr!, 10);
-  const nowParts = getZonedDateParts(nowMs, timezone);
-
-  // dueAt is stored as Date.UTC(year, month-1, day) so use UTC components directly.
-  // Using timezone-converted parts would shift the day in negative-offset timezones (e.g. ART UTC-3),
-  // making midnight UTC resolve to the previous local day and shortening the payment window by one day.
-  const windowEndDateMs = dueAt !== undefined
-    ? Date.UTC(
-        new Date(dueAt).getUTCFullYear(),
-        new Date(dueAt).getUTCMonth(),
-        new Date(dueAt).getUTCDate(),
-      )
-    : Date.UTC(billingYear, billingMonth - 1, paymentWindowEndDay);
-  const currentLocalDateMs = Date.UTC(
-    nowParts.year,
-    nowParts.month - 1,
-    nowParts.day,
-  );
-
-  return Math.max(
-    0,
-    Math.floor((currentLocalDateMs - windowEndDateMs) / DAY_MS),
-  );
-}
-
-function daysInMonth(year: number, month: number) {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-
-function addMonths(year: number, month: number, monthsToAdd: number) {
-  const date = new Date(Date.UTC(year, month - 1 + monthsToAdd, 1));
-  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
-}
-
-function getBillingCycle(
-  plan: { billingMode?: BillingMode; paymentWindowEndDay?: number },
-  activatedAt: number,
-  referenceAt: number,
-  timezone: string,
-) {
-  const mode = plan.billingMode ?? "calendar";
-  const ref = getZonedDateParts(referenceAt, timezone);
-
-  if (mode === "join_date") {
-    const activated = getZonedDateParts(activatedAt, timezone);
-    const anchorDay = activated.day;
-    const currentAnchorDay = Math.min(
-      anchorDay,
-      daysInMonth(ref.year, ref.month),
-    );
-    const startMonth =
-      ref.day >= currentAnchorDay
-        ? { year: ref.year, month: ref.month }
-        : addMonths(ref.year, ref.month, -1);
-    const endMonth = addMonths(startMonth.year, startMonth.month, 1);
-    const cycleStartDay = Math.min(
-      anchorDay,
-      daysInMonth(startMonth.year, startMonth.month),
-    );
-    const cycleEndDay = Math.min(
-      anchorDay,
-      daysInMonth(endMonth.year, endMonth.month),
-    );
-
-    return {
-      billingPeriod: `${startMonth.year}-${String(startMonth.month).padStart(2, "0")}`,
-      cycleStartAt: Date.UTC(
-        startMonth.year,
-        startMonth.month - 1,
-        cycleStartDay,
-      ),
-      cycleEndAt: Date.UTC(endMonth.year, endMonth.month - 1, cycleEndDay),
-      dueAt: Date.UTC(startMonth.year, startMonth.month - 1, cycleStartDay),
-    };
-  }
-
-  return {
-    billingPeriod: `${ref.year}-${String(ref.month).padStart(2, "0")}`,
-    cycleStartAt: Date.UTC(ref.year, ref.month - 1, 1),
-    cycleEndAt: Date.UTC(ref.year, ref.month, 1),
-    dueAt: Date.UTC(ref.year, ref.month - 1, plan.paymentWindowEndDay ?? 28),
-  };
-}
+type AppliedTier = AppliedInterestTier;
 
 async function getPaymentCoverage(
   ctx: { db: any },
@@ -185,6 +64,34 @@ async function getPaymentCoverage(
   };
 }
 
+/**
+ * Every payment row that belongs to the same advance purchase.
+ *
+ * An advance purchase is one payment for several months, so its rows are
+ * uploaded, reviewed and decided together. A row with no group is its own
+ * group of one, which keeps every caller on a single code path.
+ */
+async function getAdvanceGroupPayments(
+  ctx: { db: any },
+  payment: { _id: Id<"planPayments">; advancePaymentGroupId?: string },
+) {
+  if (!payment.advancePaymentGroupId) {
+    const single = await ctx.db.get(payment._id);
+    return single ? [single] : [];
+  }
+
+  const rows = await ctx.db
+    .query("planPayments")
+    .withIndex("by_advance_group", (q: any) =>
+      q.eq("advancePaymentGroupId", payment.advancePaymentGroupId),
+    )
+    .collect();
+
+  return rows.sort((a: any, b: any) =>
+    a.billingPeriod.localeCompare(b.billingPeriod),
+  );
+}
+
 async function setFamilySubscriptionsStatus(
   ctx: MutationCtx,
   subscription: {
@@ -215,44 +122,6 @@ async function setFamilySubscriptionsStatus(
       await reassignFixedSlotsForUser(ctx, item.organizationId, item.userId);
     }
   }
-}
-
-function computeInterest(
-  baseAmount: number,
-  tiers: InterestTier[],
-  billingPeriod: string,
-  paymentWindowEndDay: number,
-  nowMs: number,
-  timezone: string,
-  dueAt?: number,
-): { applied: AppliedTier[]; totalArs: number; totalAmount: number } {
-  const daysElapsed = getDaysAfterPaymentWindow(
-    billingPeriod,
-    paymentWindowEndDay,
-    nowMs,
-    timezone,
-    dueAt,
-  );
-
-  if (daysElapsed === 0 || tiers.length === 0) {
-    return { applied: [], totalArs: 0, totalAmount: baseAmount };
-  }
-
-  const applied: AppliedTier[] = [];
-  let totalArs = 0;
-
-  for (const tier of tiers) {
-    if (daysElapsed >= tier.daysAfterWindowEnd) {
-      const amountArs =
-        tier.type === "percentage"
-          ? Math.round(baseAmount * (tier.value / 100))
-          : Math.round(tier.value);
-      applied.push({ ...tier, amountArs });
-      totalArs += amountArs;
-    }
-  }
-
-  return { applied, totalArs, totalAmount: baseAmount + totalArs };
 }
 
 export function getInterestFields(interest: {
@@ -1475,32 +1344,49 @@ export const uploadProof = mutation({
       throw new Error("Pago no encontrado");
     }
 
-    // Delete old proof file if re-uploading
-    if (payment.proofStorageId) {
+    // An advance purchase is settled by one transfer, so the receipt is
+    // attached to every month it bought rather than asking the member to
+    // upload the same file once per month.
+    const groupPayments = await getAdvanceGroupPayments(ctx, payment);
+    const targets = groupPayments.filter(
+      (row: any) => row.status === "pending" || row.status === "declined",
+    );
+
+    // Rows in a group share one file; delete each distinct old proof once.
+    const oldStorageIds = new Set<Id<"_storage">>(
+      targets
+        .map((row: any) => row.proofStorageId)
+        .filter((storageId: any): storageId is Id<"_storage"> =>
+          Boolean(storageId),
+        ),
+    );
+    for (const storageId of oldStorageIds) {
       try {
-        await ctx.storage.delete(payment.proofStorageId);
+        await ctx.storage.delete(storageId);
       } catch {
         // Ignore if file already deleted
       }
     }
 
     const now = Date.now();
-    const interest = await computePaymentInterest(ctx, payment, now);
 
-    await ctx.db.patch(payment._id, {
-      proofStorageId: args.storageId,
-      proofFileName: args.fileName,
-      proofContentType: args.contentType,
-      proofUploadedAt: now,
-      status: "in_review",
-      paymentMethod: payment.paymentMethod ?? "proof_upload",
-      ...getInterestFields(interest),
-      // Clear previous review data on re-upload
-      reviewedBy: undefined,
-      reviewedAt: undefined,
-      reviewNotes: undefined,
-      updatedAt: now,
-    });
+    for (const row of targets) {
+      const interest = await computePaymentInterest(ctx, row, now);
+      await ctx.db.patch(row._id, {
+        proofStorageId: args.storageId,
+        proofFileName: args.fileName,
+        proofContentType: args.contentType,
+        proofUploadedAt: now,
+        status: "in_review",
+        paymentMethod: row.paymentMethod ?? "proof_upload",
+        ...getInterestFields(interest),
+        // Clear previous review data on re-upload
+        reviewedBy: undefined,
+        reviewedAt: undefined,
+        reviewNotes: undefined,
+        updatedAt: now,
+      });
+    }
   },
 });
 
@@ -1531,19 +1417,27 @@ export const approve = mutation({
     }
 
     const now = Date.now();
-    const interest = await computePaymentInterest(
-      ctx,
-      payment,
-      payment.proofUploadedAt ?? now,
-    );
-    await ctx.db.patch(args.paymentId, {
-      status: "approved",
-      ...getInterestFields(interest),
-      reviewedBy: identity.subject,
-      reviewedAt: now,
-      reviewNotes: args.notes?.trim() || undefined,
-      updatedAt: now,
-    });
+
+    // One transfer bought several months, so approving it approves all of
+    // them. Deciding month by month would charge the member again for periods
+    // the same receipt already covered.
+    const groupPayments = await getAdvanceGroupPayments(ctx, payment);
+    for (const row of groupPayments) {
+      if (row.status !== "in_review") continue;
+      const interest = await computePaymentInterest(
+        ctx,
+        row,
+        row.proofUploadedAt ?? now,
+      );
+      await ctx.db.patch(row._id, {
+        status: "approved",
+        ...getInterestFields(interest),
+        reviewedBy: identity.subject,
+        reviewedAt: now,
+        reviewNotes: args.notes?.trim() || undefined,
+        updatedAt: now,
+      });
+    }
 
     await setFamilySubscriptionsStatus(ctx, subscription, "active", now);
 
@@ -1580,13 +1474,21 @@ export const decline = mutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(args.paymentId, {
-      status: "declined",
-      reviewedBy: identity.subject,
-      reviewedAt: now,
-      reviewNotes: args.notes?.trim() || undefined,
-      updatedAt: now,
-    });
+
+    // Declining an advance transfer declines every month it was meant to buy;
+    // leaving the rest in review would show the member a partially-accepted
+    // payment they never made.
+    const groupPayments = await getAdvanceGroupPayments(ctx, payment);
+    for (const row of groupPayments) {
+      if (row.status !== "in_review") continue;
+      await ctx.db.patch(row._id, {
+        status: "declined",
+        reviewedBy: identity.subject,
+        reviewedAt: now,
+        reviewNotes: args.notes?.trim() || undefined,
+        updatedAt: now,
+      });
+    }
 
     await ctx.scheduler.runAfter(
       0,

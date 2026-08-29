@@ -14,8 +14,21 @@ import {
   tryActiveOrgContext,
 } from "./permissions";
 import { computeBonificationAmount } from "./planBonifications";
-
-type BillingMode = "calendar" | "join_date";
+import { isLiveAgreementStatus } from "./memberPaymentDomain";
+import {
+  enqueueProviderOperation,
+  scheduleAgreementAmountSync,
+} from "./memberPayments";
+import { randomHex } from "./memberPaymentsCrypto";
+import {
+  computeAdvanceTotalArs,
+  getAdvanceBillingCycles,
+  getBillingCycle,
+  getFirstJoinDateBillingDueAt,
+  getPaymentTimezone,
+  type BillingMode,
+  type MemberSubscriptionStatus,
+} from "./billingDomain";
 
 type PlanBillingConfig = {
   _id: Id<"membershipPlans">;
@@ -25,101 +38,13 @@ type PlanBillingConfig = {
   paymentWindowEndDay?: number;
 };
 
-function getZonedDateParts(timestamp: number, timezone: string) {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(new Date(timestamp));
-  const partMap = Object.fromEntries(
-    parts.map((part) => [part.type, part.value]),
-  );
-
-  return {
-    year: parseInt(partMap.year!, 10),
-    month: parseInt(partMap.month!, 10),
-    day: parseInt(partMap.day!, 10),
-  };
-}
-
-function daysInMonth(year: number, month: number) {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-
-function addMonths(year: number, month: number, monthsToAdd: number) {
-  const date = new Date(Date.UTC(year, month - 1 + monthsToAdd, 1));
-  return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
-}
-
-function getFirstJoinDateBillingDueAt(activatedAt: number, timezone: string) {
-  const activated = getZonedDateParts(activatedAt, timezone);
-  const firstDueMonth = addMonths(activated.year, activated.month, 1);
-  const firstDueDay = Math.min(
-    activated.day,
-    daysInMonth(firstDueMonth.year, firstDueMonth.month),
-  );
-  return Date.UTC(firstDueMonth.year, firstDueMonth.month - 1, firstDueDay);
-}
-
-function getBillingCycle(
-  plan: { billingMode?: BillingMode; paymentWindowEndDay?: number },
-  activatedAt: number,
-  referenceAt: number,
-  timezone: string,
-) {
-  const mode = plan.billingMode ?? "calendar";
-  const ref = getZonedDateParts(referenceAt, timezone);
-
-  if (mode === "join_date") {
-    const activated = getZonedDateParts(activatedAt, timezone);
-    const anchorDay = activated.day;
-    const currentAnchorDay = Math.min(
-      anchorDay,
-      daysInMonth(ref.year, ref.month),
-    );
-    const startMonth =
-      ref.day >= currentAnchorDay
-        ? { year: ref.year, month: ref.month }
-        : addMonths(ref.year, ref.month, -1);
-    const endMonth = addMonths(startMonth.year, startMonth.month, 1);
-    const cycleStartDay = Math.min(
-      anchorDay,
-      daysInMonth(startMonth.year, startMonth.month),
-    );
-    const cycleEndDay = Math.min(
-      anchorDay,
-      daysInMonth(endMonth.year, endMonth.month),
-    );
-
-    return {
-      billingPeriod: `${startMonth.year}-${String(startMonth.month).padStart(2, "0")}`,
-      cycleStartAt: Date.UTC(
-        startMonth.year,
-        startMonth.month - 1,
-        cycleStartDay,
-      ),
-      cycleEndAt: Date.UTC(endMonth.year, endMonth.month - 1, cycleEndDay),
-      dueAt: Date.UTC(startMonth.year, startMonth.month - 1, cycleStartDay),
-    };
-  }
-
-  return {
-    billingPeriod: `${ref.year}-${String(ref.month).padStart(2, "0")}`,
-    cycleStartAt: Date.UTC(ref.year, ref.month - 1, 1),
-    cycleEndAt: Date.UTC(ref.year, ref.month, 1),
-    dueAt: Date.UTC(ref.year, ref.month - 1, plan.paymentWindowEndDay ?? 28),
-  };
-}
-
 async function getFamilyGroupSubscriptions(
   ctx: { db: any },
   subscription: {
     _id: Id<"memberPlanSubscriptions">;
     organizationId: Id<"organizations">;
     familyParentSubscriptionId?: Id<"memberPlanSubscriptions">;
-    status: "active" | "suspended" | "cancelled";
+    status: MemberSubscriptionStatus;
   },
 ) {
   const primarySubscription = subscription.familyParentSubscriptionId
@@ -477,6 +402,7 @@ export const activate = mutation({
         organizationId: membership.organizationId,
         userId: identity.subject,
         subscriptionId,
+        activatedAt: now,
         plan,
         months: advanceMonths,
         discountPercentage: discountTier.discountPercentage,
@@ -730,6 +656,10 @@ export const associateToFamilyGroup = mutation({
       familyMemberUserIds: [...currentMemberIds, args.userId],
       updatedAt: now,
     });
+
+    // One more member on a family plan means a larger charge — from the payer's
+    // next cycle, not as a mid-month difference.
+    await scheduleAgreementAmountSync(ctx, parentSubscription._id);
   },
 });
 
@@ -777,6 +707,27 @@ export const cancel = mutation({
       throw new Error("No podés cancelar la suscripción de otro miembro");
     }
 
+    const liveAgreements = (
+      await ctx.db
+        .query("memberRecurringAgreements")
+        .withIndex("by_subscription", (q) =>
+          q.eq(
+            "subscriptionId",
+            subscription.familyParentSubscriptionId ?? subscription._id,
+          ),
+        )
+        .collect()
+    ).filter((agreement) => isLiveAgreementStatus(agreement.status));
+
+    // A member with automatic debit cancels through the flow that discloses
+    // when their access ends and stops the debit at Mercado Pago. Cancelling
+    // locally here would leave the card still being charged.
+    if (!args.subscriptionId && liveAgreements.length > 0) {
+      throw new Error(
+        "Tenés débito automático activo. Cancelalo desde la sección de pagos para ver hasta cuándo mantenés el acceso.",
+      );
+    }
+
     const now = Date.now();
     await ctx.db.patch(subscription._id, {
       status: "cancelled",
@@ -814,6 +765,35 @@ export const cancel = mutation({
         revokedBy: identity.subject,
         revokeReason: "Suscripción cancelada",
         updatedAt: now,
+      });
+    }
+
+    // Removing a member from a family group makes the payer's next charge
+    // smaller.
+    if (subscription.familyParentSubscriptionId) {
+      await scheduleAgreementAmountSync(
+        ctx,
+        subscription.familyParentSubscriptionId,
+      );
+      return;
+    }
+
+    // An admin cancelling a member who pays by automatic debit must also stop
+    // the debit; otherwise the gym keeps charging someone with no access.
+    for (const agreement of liveAgreements) {
+      await ctx.db.patch(agreement._id, {
+        status: "cancellation_scheduled",
+        cancellationRequestedAt: now,
+        pendingAmountArs: undefined,
+        pendingAmountEffectiveAt: undefined,
+        updatedAt: now,
+      });
+      await enqueueProviderOperation(ctx, {
+        organizationId: agreement.organizationId,
+        connectionId: agreement.connectionId,
+        agreementId: agreement._id,
+        operation: "cancel",
+        input: { reason: "cancelled_by_staff" },
       });
     }
   },
@@ -956,6 +936,20 @@ export const autoSuspendUnpaidForOrg = internalMutation({
         continue;
       }
 
+      // Mercado Pago subscriptions are owned by the provider-aware grace
+      // worker, which anchors the deadline to the first failed charge. This
+      // hourly pass only knows whether the current period is paid, so it would
+      // suspend a member who is still inside grace and whose card is about to
+      // be retried.
+      if (sub.paymentMode === "mercadopago_recurring") continue;
+      const agreements = await ctx.db
+        .query("memberRecurringAgreements")
+        .withIndex("by_subscription", (q) => q.eq("subscriptionId", sub._id))
+        .collect();
+      if (agreements.some((agreement) => isLiveAgreementStatus(agreement.status))) {
+        continue;
+      }
+
       const plan = await ctx.db.get(sub.planId);
       if (!plan) continue;
 
@@ -1094,68 +1088,74 @@ async function createAdvancePayments(
     organizationId: Id<"organizations">;
     userId: string;
     subscriptionId: Id<"memberPlanSubscriptions">;
+    activatedAt: number;
     plan: PlanBillingConfig;
     months: number;
     discountPercentage: number;
   },
 ) {
   const now = Date.now();
-  const d = new Date(now);
-  const { memberCount } = await getFamilyGroupSubscriptions(ctx, {
-    _id: params.subscriptionId,
-    organizationId: params.organizationId,
-    status: "active",
+  const subscription = await ctx.db.get(params.subscriptionId);
+  if (!subscription) return;
+
+  // The real document, not a synthetic stand-in: the family-count helper reads
+  // `userId` to check who is still an active member, and a stand-in without
+  // one resolved to a count of zero — which stored every advance month at an
+  // amount of 0 and silently discarded the discount the member chose.
+  const { memberCount } = await getFamilyGroupSubscriptions(ctx, subscription);
+  const organization = await ctx.db.get(params.organizationId);
+  const timezone = getPaymentTimezone(organization?.timezone);
+  const { perCycleArs } = computeAdvanceTotalArs({
+    planPriceArs: params.plan.priceArs,
+    memberCount,
+    months: params.months,
+    discountPercentage: params.discountPercentage,
   });
-  const discountedPricePerMember = Math.round(
-    params.plan.priceArs * (1 - params.discountPercentage / 100),
+
+  // One id across every generated month, so a single proof and a single
+  // admin review settle the whole purchase instead of the member having to
+  // upload the same receipt once per month.
+  const advancePaymentGroupId = randomHex(12);
+
+  // Join-date plans must use their anchored cycles here. Generating calendar
+  // months instead produced coverage that did not line up with the cycles
+  // renewals create, leaving gaps or duplicate periods at the anchor day.
+  const cycles = getAdvanceBillingCycles(
+    params.plan,
+    params.activatedAt,
+    now,
+    params.months,
+    timezone,
   );
-  const discountedPrice = discountedPricePerMember * memberCount;
 
-  for (let i = 0; i < params.months; i++) {
-    const monthDate = new Date(d.getFullYear(), d.getMonth() + i, 1);
-    const billingPeriod = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
-    const cycleStartAt = Date.UTC(
-      monthDate.getFullYear(),
-      monthDate.getMonth(),
-      1,
-    );
-    const cycleEndAt = Date.UTC(
-      monthDate.getFullYear(),
-      monthDate.getMonth() + 1,
-      1,
-    );
-    const dueAt = Date.UTC(
-      monthDate.getFullYear(),
-      monthDate.getMonth(),
-      params.plan.paymentWindowEndDay ?? 28,
-    );
-
+  for (const cycle of cycles) {
     // Check if a payment already exists for this period
     const existing = await ctx.db
       .query("planPayments")
       .withIndex("by_subscription_period", (q) =>
         q
           .eq("subscriptionId", params.subscriptionId)
-          .eq("billingPeriod", billingPeriod),
+          .eq("billingPeriod", cycle.billingPeriod),
       )
       .first();
 
-    if (!existing) {
-      await ctx.db.insert("planPayments", {
-        organizationId: params.organizationId,
-        userId: params.userId,
-        subscriptionId: params.subscriptionId,
-        planId: params.plan._id,
-        billingPeriod,
-        billingCycleStartAt: cycleStartAt,
-        billingCycleEndAt: cycleEndAt,
-        dueAt,
-        amountArs: discountedPrice,
-        totalAmountArs: discountedPrice,
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
+    if (existing) continue;
+
+    await ctx.db.insert("planPayments", {
+      organizationId: params.organizationId,
+      userId: params.userId,
+      subscriptionId: params.subscriptionId,
+      planId: params.plan._id,
+      billingPeriod: cycle.billingPeriod,
+      billingCycleStartAt: cycle.cycleStartAt,
+      billingCycleEndAt: cycle.cycleEndAt,
+      dueAt: cycle.dueAt,
+      amountArs: perCycleArs,
+      totalAmountArs: perCycleArs,
+      advancePaymentGroupId,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
   }
 }

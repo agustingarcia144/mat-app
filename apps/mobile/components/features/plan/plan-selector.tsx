@@ -5,11 +5,10 @@ import {
   View,
   Text,
   ActivityIndicator,
-  Alert,
   Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@repo/convex";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -17,6 +16,7 @@ import { ThemedView } from "@/components/ui/themed-view";
 import { ThemedText } from "@/components/ui/themed-text";
 import { ThemedPressable } from "@/components/ui/themed-pressable";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import PaymentMethodSheet from "./payment-method-sheet";
 
 type AdvanceDiscount = { months: number; discountPercentage: number };
 
@@ -36,7 +36,6 @@ export default function PlanSelector() {
     activeOnly: true,
   });
   const classes = useQuery(api.classes.getByOrganization, { activeOnly: true });
-  const activate = useMutation(api.memberPlanSubscriptions.activate);
 
   // Used to name the classes a restricted plan includes
   const classNameById = new Map<string, string>(
@@ -48,43 +47,13 @@ export default function PlanSelector() {
     {},
   );
 
-  const handleActivate = (
-    planId: string,
-    planName: string,
-    priceArs: number,
-    advanceMonths: number,
-    discount?: AdvanceDiscount,
-  ) => {
-    const discountedPrice = discount
-      ? Math.round(priceArs * (1 - discount.discountPercentage / 100))
-      : priceArs;
-    const totalPrice = discountedPrice * advanceMonths;
-
-    const message =
-      advanceMonths > 1
-        ? `¿Querés activar el plan "${planName}" pagando ${advanceMonths} meses por adelantado?\n\nPrecio por mes: $${discountedPrice.toLocaleString("es-AR")} (${discount!.discountPercentage}% dto.)\nTotal: $${totalPrice.toLocaleString("es-AR")}`
-        : `¿Querés activar el plan "${planName}"? Deberás realizar la transferencia bancaria y subir el comprobante.`;
-
-    Alert.alert("Activar plan", message, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Activar",
-        onPress: async () => {
-          try {
-            await activate({
-              planId: planId as any,
-              advanceMonths: advanceMonths > 1 ? advanceMonths : undefined,
-            });
-          } catch (err) {
-            Alert.alert(
-              "Error",
-              err instanceof Error ? err.message : "Error al activar",
-            );
-          }
-        },
-      },
-    ]);
-  };
+  // Choosing a plan no longer activates it. The member picks how they want to
+  // pay first, because the gym may accept transfer, automatic debit, an
+  // advance purchase, or only some of those — and only the server knows which.
+  const [checkoutPlan, setCheckoutPlan] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   return (
     <ThemedView style={styles.container}>
@@ -468,13 +437,7 @@ export default function PlanSelector() {
                         type="primary"
                         style={styles.activateButton}
                         onPress={() =>
-                          handleActivate(
-                            plan._id,
-                            plan.name,
-                            plan.priceArs,
-                            chosenMonths,
-                            chosenDiscount,
-                          )
+                          setCheckoutPlan({ id: plan._id, name: plan.name })
                         }
                       >
                         <ThemedText
@@ -483,9 +446,7 @@ export default function PlanSelector() {
                             { color: isDark ? "#000" : "#fff" },
                           ]}
                         >
-                          {chosenMonths > 1
-                            ? `Activar plan (${chosenMonths} meses)`
-                            : "Activar plan"}
+                          Elegir este plan
                         </ThemedText>
                       </ThemedPressable>
                     </View>
@@ -495,6 +456,13 @@ export default function PlanSelector() {
           )}
         </View>
       </ScrollView>
+
+      <PaymentMethodSheet
+        planId={checkoutPlan?.id ?? null}
+        planName={checkoutPlan?.name ?? ""}
+        visible={checkoutPlan !== null}
+        onClose={() => setCheckoutPlan(null)}
+      />
     </ThemedView>
   );
 }

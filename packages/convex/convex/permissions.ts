@@ -366,7 +366,12 @@ export async function checkSubscriptionStatus(
   userId: string,
 ): Promise<{
   hasActiveSubscription: boolean;
-  subscriptionStatus: "active" | "suspended" | "cancelled" | "none";
+  subscriptionStatus:
+    | "active"
+    | "suspended"
+    | "cancelled"
+    | "none"
+    | "pending_payment";
 }> {
   // Admins and trainers bypass subscription checks
   const isStaff = await isAdminOrTrainer(ctx, organizationId);

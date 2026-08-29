@@ -64,4 +64,81 @@ crons.interval(
   {},
 );
 
+// --- Member -> gym payments -------------------------------------------------
+
+// Rotate each gym's MercadoPago access token before it expires, so a webhook
+// or a scheduled charge never fails on an expired credential.
+crons.interval(
+  "refresh-member-payment-connections",
+  { hours: 12 },
+  internal.memberPaymentsActions.refreshExpiringConnections,
+  { limit: 25 },
+);
+
+// Safety net for the provider-operation outbox. Enqueueing schedules the
+// worker immediately; this catches backoff retries and anything that kick
+// missed.
+crons.interval(
+  "run-member-payment-provider-operations",
+  { minutes: 1 },
+  internal.memberPaymentsActions.runProviderOperations,
+  { limit: 20 },
+);
+
+// Warn members a day before their grace period closes, so a failed card is
+// something they can still fix rather than something they discover too late.
+crons.interval(
+  "notify-member-payment-grace-deadlines",
+  { hours: 6 },
+  internal.memberPayments.notifyGraceDeadlines,
+  {},
+);
+
+// Suspend members whose grace period ran out without a successful retry.
+// Separate from auto-suspend-unpaid-subscriptions, which owns manual
+// (transfer/cash) subscriptions only.
+crons.interval(
+  "expire-member-payment-grace-periods",
+  { hours: 1 },
+  internal.memberPayments.expireMemberPaymentGracePeriods,
+  { limit: 50 },
+);
+
+// End access for members whose cancellation date has arrived. Runs hourly so
+// access ends close to the date the member was shown.
+crons.interval(
+  "expire-scheduled-member-cancellations",
+  { hours: 1 },
+  internal.memberPayments.expireScheduledCancellations,
+  { limit: 50 },
+);
+
+// Webhooks get lost, delayed and dropped. Reconciliation asks Mercado Pago
+// what actually happened instead of waiting for a notification that may never
+// arrive, and clears out abandoned checkouts.
+crons.interval(
+  "reconcile-member-payments",
+  { minutes: 15 },
+  internal.memberPaymentsActions.reconcileMemberPayments,
+  { limit: 25 },
+);
+
+// Aggregate the previous month's member-payment commission per gym. Runs
+// daily and is idempotent: only accrued entries from a closed month are
+// settled, so repeat runs cannot invoice a gym twice.
+crons.interval(
+  "settle-member-payment-commissions",
+  { hours: 24 },
+  internal.platformCommissions.settleMonthlyCommissions,
+  {},
+);
+
+// OAuth states are single-use and short-lived; drop the ones never consumed.
+crons.interval(
+  "purge-expired-payment-oauth-states",
+  { hours: 24 },
+  internal.memberPayments.purgeExpiredOAuthStatesInternal,
+  { limit: 200 },
+);
+
 export default crons;

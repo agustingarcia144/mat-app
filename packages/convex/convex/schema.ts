@@ -130,6 +130,21 @@ export default defineSchema({
     financeEnabled: v.boolean(),
     // Membership
     memberAutoApproval: v.boolean(),
+    // Member -> gym payment configuration. Absent on rows created before the
+    // member-payments feature: those gyms behave as transfer-only with
+    // MercadoPago disabled (see organizationSettings.MEMBER_PAYMENT_DEFAULTS).
+    memberPayments: v.optional(
+      v.object({
+        bankTransferEnabled: v.boolean(),
+        mercadoPagoRecurringEnabled: v.boolean(),
+        mercadoPagoOneTimeEnabled: v.boolean(),
+        // Days of access kept after a renewal fails, before suspension.
+        gracePeriodDays: v.number(),
+        // When true, a MercadoPago subscription grants no access until its
+        // first underlying payment is approved.
+        initialPaymentRequiresApproval: v.boolean(),
+      }),
+    ),
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -245,6 +260,21 @@ export default defineSchema({
     entitlements: v.object({
       modules: v.array(v.string()),
       dashboardCards: v.array(v.string()),
+      // Member-payment policy for gyms on this MAT plan. Plans without this
+      // object behave as MercadoPago disabled with zero commission, so member
+      // payment code never has to branch on the plan name.
+      memberPayments: v.optional(
+        v.object({
+          mercadoPagoEnabled: v.boolean(),
+          // MAT's transaction commission, in basis points (100 bps = 1%).
+          platformFeeBps: v.number(),
+          feeCollectionMode: v.union(
+            v.literal("none"),
+            v.literal("marketplace_split"),
+            v.literal("monthly_gym_invoice"),
+          ),
+        }),
+      ),
     }),
     isActive: v.boolean(),
     createdAt: v.number(),
@@ -342,6 +372,349 @@ export default defineSchema({
     .index("by_eventId", ["eventId"])
     .index("by_requestId", ["requestId"])
     .index("by_resource", ["resourceType", "resourceId"]),
+
+  // ===========================================================================
+  // Member -> gym payments (MercadoPago per-gym seller connections).
+  //
+  // Deliberately separate from the organization -> MAT SaaS billing tables
+  // above (organizationBillingSubscriptions, mercadoPagoWebhookEvents, ...).
+  // Those use MAT's single global seller token; these use one OAuth connection
+  // per gym. The two must never share credentials, ledgers or webhook routes.
+  // ===========================================================================
+
+  // One row per organization + payment provider. Holds the gym's encrypted
+  // MercadoPago credentials; only internal backend functions may read them.
+  organizationPaymentProviderConnections: defineTable({
+    organizationId: v.id("organizations"),
+    provider: v.literal("mercadopago"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("active"),
+      v.literal("refresh_required"),
+      v.literal("error"),
+      v.literal("disconnected"),
+    ),
+    // Provider seller identity + non-sensitive display metadata, so admins can
+    // confirm which MercadoPago account is receiving their members' money.
+    providerAccountId: v.string(),
+    providerNickname: v.optional(v.string()),
+    providerEmail: v.optional(v.string()),
+    providerSiteId: v.optional(v.string()),
+    liveMode: v.optional(v.boolean()),
+    // Encrypted credentials. Never returned to a client, never logged.
+    accessTokenCiphertext: v.string(),
+    accessTokenIv: v.string(),
+    refreshTokenCiphertext: v.string(),
+    refreshTokenIv: v.string(),
+    encryptionKeyVersion: v.string(),
+    accessTokenExpiresAt: v.optional(v.number()),
+    lastRefreshedAt: v.optional(v.number()),
+    // Random per-connection key embedded in this seller's notification URL, so
+    // an incoming webhook selects the right gym token without exposing an
+    // organization id.
+    webhookRoutingKey: v.string(),
+    connectedBy: v.optional(v.string()),
+    connectedAt: v.optional(v.number()),
+    disconnectedBy: v.optional(v.string()),
+    disconnectedAt: v.optional(v.number()),
+    lastHealthCheckAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization_provider", ["organizationId", "provider"])
+    .index("by_provider_account", ["provider", "providerAccountId"])
+    .index("by_webhook_routing_key", ["webhookRoutingKey"])
+    .index("by_status", ["status"]),
+
+  // Single-use, short-lived OAuth state. Only the hash is stored, so a leaked
+  // row cannot be replayed against the provider.
+  paymentProviderOAuthStates: defineTable({
+    stateHash: v.string(),
+    organizationId: v.id("organizations"),
+    provider: v.literal("mercadopago"),
+    initiatedBy: v.string(),
+    // Allowlisted destination the callback may redirect back to.
+    returnPath: v.string(),
+    expiresAt: v.number(),
+    consumedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_state_hash", ["stateHash"])
+    .index("by_expires_at", ["expiresAt"]),
+
+  // Recurring billing lifecycle for one member (the family payer). Only a
+  // family parent subscription may own an agreement.
+  memberRecurringAgreements: defineTable({
+    organizationId: v.id("organizations"),
+    connectionId: v.id("organizationPaymentProviderConnections"),
+    subscriptionId: v.id("memberPlanSubscriptions"),
+    payerUserId: v.string(),
+    providerPreapprovalId: v.optional(v.string()),
+    externalReference: v.string(),
+    status: v.union(
+      v.literal("pending_authorization"),
+      v.literal("pending_first_payment"),
+      v.literal("active"),
+      v.literal("retrying"),
+      v.literal("paused_bonification"),
+      v.literal("cancellation_scheduled"),
+      v.literal("cancelled"),
+      v.literal("failed"),
+    ),
+    lastPaymentStatus: v.optional(
+      v.union(
+        v.literal("approved"),
+        v.literal("pending"),
+        v.literal("rejected"),
+        v.literal("refunded"),
+        v.literal("charged_back"),
+        v.literal("unknown"),
+      ),
+    ),
+    lastPaymentStatusDetail: v.optional(v.string()),
+    amountArs: v.number(),
+    currency: v.literal("ARS"),
+    // Family size the current amount was calculated from.
+    familyMemberCount: v.number(),
+    billingAnchorAt: v.number(),
+    currentPeriodStart: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    nextChargeAt: v.optional(v.number()),
+    // Grace is anchored to the FIRST failure. Provider retries must never move
+    // graceUntil forward.
+    firstFailureAt: v.optional(v.number()),
+    graceUntil: v.optional(v.number()),
+    // Price/family/bonification changes take effect at the next cycle only.
+    pendingAmountArs: v.optional(v.number()),
+    pendingAmountEffectiveAt: v.optional(v.number()),
+    latestAuthorizedPaymentId: v.optional(v.string()),
+    cancellationRequestedAt: v.optional(v.number()),
+    providerCancelledAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_subscription", ["subscriptionId"])
+    .index("by_provider_preapproval", ["providerPreapprovalId"])
+    .index("by_external_reference", ["externalReference"])
+    .index("by_status_next_charge", ["status", "nextChargeAt"])
+    .index("by_grace_until", ["graceUntil"]),
+
+  // Idempotent checkout creation. A repeated tap resumes the same session
+  // instead of creating a second provider resource.
+  memberPaymentCheckoutSessions: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+    planId: v.id("membershipPlans"),
+    subscriptionId: v.optional(v.id("memberPlanSubscriptions")),
+    agreementId: v.optional(v.id("memberRecurringAgreements")),
+    kind: v.union(
+      v.literal("recurring_setup"),
+      v.literal("advance_purchase"),
+    ),
+    months: v.number(),
+    amountArs: v.number(),
+    currency: v.literal("ARS"),
+    paymentMethod: v.union(
+      v.literal("mercadopago_recurring"),
+      v.literal("mercadopago_checkout"),
+      v.literal("bank_transfer"),
+    ),
+    providerPreferenceId: v.optional(v.string()),
+    providerPreapprovalId: v.optional(v.string()),
+    externalReference: v.string(),
+    // Persisted before the provider call so a retry reuses the same key.
+    idempotencyKey: v.string(),
+    checkoutUrl: v.optional(v.string()),
+    status: v.union(
+      v.literal("created"),
+      v.literal("opened"),
+      v.literal("processing"),
+      v.literal("approved"),
+      v.literal("failed"),
+      v.literal("expired"),
+      v.literal("cancelled"),
+    ),
+    failureReason: v.optional(v.string()),
+    expiresAt: v.number(),
+    openedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user_status", ["userId", "status"])
+    .index("by_external_reference", ["externalReference"])
+    .index("by_provider_preference", ["providerPreferenceId"])
+    .index("by_provider_preapproval", ["providerPreapprovalId"])
+    .index("by_idempotency_key", ["idempotencyKey"])
+    .index("by_organization", ["organizationId"])
+    .index("by_status_expires_at", ["status", "expiresAt"]),
+
+  // One row per provider charge attempt. Never stores card data or a raw
+  // provider payload.
+  memberPaymentTransactions: defineTable({
+    organizationId: v.id("organizations"),
+    connectionId: v.id("organizationPaymentProviderConnections"),
+    payerUserId: v.string(),
+    subscriptionId: v.optional(v.id("memberPlanSubscriptions")),
+    agreementId: v.optional(v.id("memberRecurringAgreements")),
+    checkoutSessionId: v.optional(v.id("memberPaymentCheckoutSessions")),
+    planPaymentId: v.optional(v.id("planPayments")),
+    kind: v.union(v.literal("recurring"), v.literal("advance")),
+    providerTransactionId: v.string(),
+    providerAuthorizedPaymentId: v.optional(v.string()),
+    externalReference: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("cancelled"),
+      v.literal("refunded"),
+      v.literal("charged_back"),
+      v.literal("unknown"),
+    ),
+    statusDetail: v.optional(v.string()),
+    grossAmountArs: v.number(),
+    currency: v.literal("ARS"),
+    providerFeeArs: v.optional(v.number()),
+    // Snapshot of MAT's fee at approval time; a later plan change must not
+    // rewrite it.
+    platformFeeArs: v.optional(v.number()),
+    gymNetAmountArs: v.optional(v.number()),
+    providerApprovedAt: v.optional(v.number()),
+    providerCreatedAt: v.optional(v.number()),
+    // Sanitized reconciliation metadata only — no payer PII, no raw payload.
+    reconciliationSource: v.optional(
+      v.union(v.literal("webhook"), v.literal("reconciliation"), v.literal("manual")),
+    ),
+    lastReconciledAt: v.optional(v.number()),
+    // Set when a transaction needs a human: a charge whose amount MAT never
+    // agreed to, or a reversal of a period that has already ended and must not
+    // be silently rewritten. Surfaced in the admin payment views.
+    requiresAttention: v.optional(v.boolean()),
+    attentionReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_provider_transaction", ["providerTransactionId"])
+    .index("by_provider_authorized_payment", ["providerAuthorizedPaymentId"])
+    .index("by_agreement", ["agreementId"])
+    .index("by_checkout_session", ["checkoutSessionId"])
+    .index("by_organization_created", ["organizationId", "createdAt"])
+    .index("by_status", ["status"]),
+
+  // Durable outbox for external side effects. Local mutations enqueue an
+  // operation transactionally; a scheduled action performs the provider call,
+  // so a failed network request can never leave a half-applied change.
+  memberPaymentProviderOperations: defineTable({
+    organizationId: v.id("organizations"),
+    connectionId: v.id("organizationPaymentProviderConnections"),
+    agreementId: v.optional(v.id("memberRecurringAgreements")),
+    operation: v.union(
+      v.literal("update_amount"),
+      v.literal("pause"),
+      v.literal("resume"),
+      v.literal("cancel"),
+      v.literal("resync"),
+    ),
+    idempotencyKey: v.string(),
+    // Sanitized inputs only (amounts, ids) — never tokens or payer contact data.
+    input: v.optional(
+      v.object({
+        amountArs: v.optional(v.number()),
+        effectiveAt: v.optional(v.number()),
+        reason: v.optional(v.string()),
+      }),
+    ),
+    executeAfter: v.number(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("succeeded"),
+      v.literal("failed"),
+      v.literal("permanently_failed"),
+    ),
+    attempts: v.number(),
+    lastError: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status_execute_after", ["status", "executeAfter"])
+    .index("by_agreement", ["agreementId"])
+    .index("by_idempotency_key", ["idempotencyKey"])
+    .index("by_organization", ["organizationId"]),
+
+  // Member-payment webhook ledger. Separate from mercadoPagoWebhookEvents,
+  // which belongs to organization -> MAT billing.
+  paymentProviderWebhookEvents: defineTable({
+    provider: v.literal("mercadopago"),
+    connectionId: v.optional(v.id("organizationPaymentProviderConnections")),
+    // Connection-scoped key used to deduplicate redelivered notifications.
+    eventKey: v.string(),
+    providerEventId: v.optional(v.string()),
+    providerRequestId: v.optional(v.string()),
+    topic: v.optional(v.string()),
+    action: v.optional(v.string()),
+    resourceType: v.optional(v.string()),
+    resourceId: v.optional(v.string()),
+    // Hash only: full payloads carry payer information and are never persisted.
+    payloadHash: v.optional(v.string()),
+    status: v.union(
+      v.literal("processing"),
+      v.literal("processed"),
+      v.literal("failed"),
+      v.literal("ignored"),
+    ),
+    attempts: v.number(),
+    error: v.optional(v.string()),
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
+  })
+    .index("by_event_key", ["eventKey"])
+    .index("by_connection", ["connectionId"])
+    .index("by_resource", ["resourceType", "resourceId"])
+    .index("by_status_received", ["status", "receivedAt"]),
+
+  // Immutable MAT commission snapshot per approved member transaction. A later
+  // gym plan change must never modify an existing row; corrections are added
+  // as compensating entries instead.
+  platformCommissionLedger: defineTable({
+    organizationId: v.id("organizations"),
+    billingPlanId: v.optional(v.id("appBillingPlans")),
+    transactionId: v.id("memberPaymentTransactions"),
+    grossAmountArs: v.number(),
+    feeBasisArs: v.number(),
+    platformFeeBps: v.number(),
+    feeAmountArs: v.number(),
+    collectionMode: v.union(
+      v.literal("none"),
+      v.literal("marketplace_split"),
+      v.literal("monthly_gym_invoice"),
+    ),
+    status: v.union(
+      v.literal("not_applicable"),
+      v.literal("accrued"),
+      v.literal("collected"),
+      v.literal("waived"),
+      v.literal("failed"),
+    ),
+    // Either the provider's application-fee id (split) or the MAT billing
+    // settlement this fee was invoiced on (monthly invoice).
+    providerFeeId: v.optional(v.string()),
+    settlementReference: v.optional(v.string()),
+    settlementPeriod: v.optional(v.string()), // "YYYY-MM"
+    // Compensating entry for a refund/chargeback, linked to the row it offsets.
+    reversesLedgerId: v.optional(v.id("platformCommissionLedger")),
+    collectedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization_created", ["organizationId", "createdAt"])
+    .index("by_transaction", ["transactionId"])
+    .index("by_status", ["status"])
+    .index("by_settlement_period", ["organizationId", "settlementPeriod"]),
 
   // Exercises - Exercise library per organization
   exercises: defineTable({
@@ -882,6 +1255,15 @@ export default defineSchema({
       v.literal("payment_review_declined"),
       v.literal("plan_due_soon"),
       v.literal("plan_due_today"),
+      v.literal("member_payment_approved"),
+      v.literal("member_payment_failed"),
+      v.literal("member_payment_grace_ending"),
+      v.literal("member_payment_suspended"),
+      v.literal("member_payment_recovered"),
+      v.literal("member_payment_amount_changed"),
+      v.literal("member_payment_cancellation_scheduled"),
+      v.literal("member_checkout_incomplete"),
+      v.literal("member_payment_admin_alert"),
     ),
     userId: v.string(),
     scheduleId: v.optional(v.id("classSchedules")),
@@ -966,7 +1348,11 @@ export default defineSchema({
     familyHeadUserId: v.optional(v.string()),
     familyParentSubscriptionId: v.optional(v.id("memberPlanSubscriptions")),
     familyMemberUserIds: v.optional(v.array(v.string())),
+    // "pending_payment": a plan was chosen but no first payment is approved
+    // yet, so the member has no access. Provider states never appear here —
+    // they live on memberRecurringAgreements / memberPaymentTransactions.
     status: v.union(
+      v.literal("pending_payment"),
       v.literal("active"),
       v.literal("suspended"),
       v.literal("cancelled"),
@@ -974,12 +1360,26 @@ export default defineSchema({
     activatedAt: v.number(),
     suspendedAt: v.optional(v.number()),
     cancelledAt: v.optional(v.number()),
+    // Anchor day for join-date billing, set when the first payment is approved.
+    billingAnchorAt: v.optional(v.number()),
+    // For a scheduled cancellation: when local access actually ends.
+    accessEndsAt: v.optional(v.number()),
+    cancellationRequestedAt: v.optional(v.number()),
+    // Absent on legacy rows, which are manual (transfer/cash) subscriptions.
+    paymentMode: v.optional(
+      v.union(
+        v.literal("manual"),
+        v.literal("mercadopago_recurring"),
+        v.literal("mercadopago_one_time"),
+      ),
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_organization", ["organizationId"])
     .index("by_organization_user", ["organizationId", "userId"])
     .index("by_organization_status", ["organizationId", "status"])
+    .index("by_access_ends_at", ["accessEndsAt"])
     .index("by_family_parent", ["familyParentSubscriptionId"])
     .index("by_family_head", ["organizationId", "familyHeadUserId"])
     .index("by_user", ["userId"]),
@@ -1002,6 +1402,8 @@ export default defineSchema({
         v.literal("bank_transfer"),
         v.literal("proof_upload"),
         v.literal("bonification"),
+        v.literal("mercadopago_recurring"),
+        v.literal("mercadopago_checkout"),
       ),
     ),
     // Clerk user ID of admin/trainer who recorded the payment (admin-created payments only)
@@ -1037,6 +1439,17 @@ export default defineSchema({
     reviewedBy: v.optional(v.string()), // Clerk user ID of reviewer
     reviewedAt: v.optional(v.number()),
     reviewNotes: v.optional(v.string()),
+    // Provider links. Absent on transfer/cash/bonification rows.
+    providerTransactionId: v.optional(v.id("memberPaymentTransactions")),
+    checkoutSessionId: v.optional(v.id("memberPaymentCheckoutSessions")),
+    // Groups the rows generated by one advance purchase (MercadoPago or a
+    // single transfer proof) so they are reviewed and finalized together.
+    advancePaymentGroupId: v.optional(v.string()),
+    // Money snapshot for an approved provider payment, in whole ARS.
+    grossAmountArs: v.optional(v.number()),
+    providerFeeArs: v.optional(v.number()),
+    platformFeeArs: v.optional(v.number()),
+    gymNetAmountArs: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -1044,7 +1457,9 @@ export default defineSchema({
     .index("by_organization_status", ["organizationId", "status"])
     .index("by_organization_user", ["organizationId", "userId"])
     .index("by_subscription", ["subscriptionId"])
-    .index("by_subscription_period", ["subscriptionId", "billingPeriod"]),
+    .index("by_subscription_period", ["subscriptionId", "billingPeriod"])
+    .index("by_advance_group", ["advancePaymentGroupId"])
+    .index("by_provider_transaction", ["providerTransactionId"]),
 
   // Finance recurring rules - monthly expenses generated into ledger rows
   financeRecurringRules: defineTable({

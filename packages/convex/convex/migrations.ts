@@ -460,6 +460,67 @@ export const deleteOldUnusedOrganizations = internalMutation({
         )
         .collect();
 
+      // Member -> gym payment data. Collected here so deleting an organization
+      // also removes its provider connection, credentials and payment ledgers.
+      const paymentProviderConnections = await ctx.db
+        .query("organizationPaymentProviderConnections")
+        .withIndex("by_organization_provider", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const paymentProviderWebhookEvents = (
+        await Promise.all(
+          paymentProviderConnections.map((connection) =>
+            ctx.db
+              .query("paymentProviderWebhookEvents")
+              .withIndex("by_connection", (q) =>
+                q.eq("connectionId", connection._id),
+              )
+              .collect(),
+          ),
+        )
+      ).flat();
+
+      const paymentProviderOAuthStates = (
+        await ctx.db.query("paymentProviderOAuthStates").collect()
+      ).filter((state) => state.organizationId === organizationId);
+
+      const memberRecurringAgreements = await ctx.db
+        .query("memberRecurringAgreements")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const memberPaymentCheckoutSessions = await ctx.db
+        .query("memberPaymentCheckoutSessions")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const memberPaymentTransactions = await ctx.db
+        .query("memberPaymentTransactions")
+        .withIndex("by_organization_created", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const memberPaymentProviderOperations = await ctx.db
+        .query("memberPaymentProviderOperations")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
+      const platformCommissionLedger = await ctx.db
+        .query("platformCommissionLedger")
+        .withIndex("by_organization_created", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect();
+
       const directOrgTables = {
         organizationMemberships: await ctx.db
           .query("organizationMemberships")
@@ -561,6 +622,32 @@ export const deleteOldUnusedOrganizations = internalMutation({
       await deleteRows(
         "organizationBillingSubscriptions",
         organizationBillingSubscriptions,
+      );
+      // Delete member-payment rows before the plan payments and
+      // subscriptions they reference, so no row is left pointing at a deleted
+      // parent partway through.
+      await deleteRows("platformCommissionLedger", platformCommissionLedger);
+      await deleteRows(
+        "memberPaymentProviderOperations",
+        memberPaymentProviderOperations,
+      );
+      await deleteRows("memberPaymentTransactions", memberPaymentTransactions);
+      await deleteRows(
+        "memberPaymentCheckoutSessions",
+        memberPaymentCheckoutSessions,
+      );
+      await deleteRows("memberRecurringAgreements", memberRecurringAgreements);
+      await deleteRows(
+        "paymentProviderWebhookEvents",
+        paymentProviderWebhookEvents,
+      );
+      await deleteRows(
+        "paymentProviderOAuthStates",
+        paymentProviderOAuthStates,
+      );
+      await deleteRows(
+        "organizationPaymentProviderConnections",
+        paymentProviderConnections,
       );
       await deleteRows("planPayments", planPayments);
       await deleteRows("planBonifications", planBonifications);

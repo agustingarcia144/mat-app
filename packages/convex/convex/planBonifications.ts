@@ -1,4 +1,5 @@
 import { internalMutation, mutation, query } from "./_generated/server";
+import { scheduleAgreementAmountSync } from "./memberPayments";
 import { v } from "convex/values";
 import {
   requireAuth,
@@ -344,6 +345,10 @@ export const create = mutation({
       });
     }
 
+    // A member paying by automatic debit needs the provider told about the new
+    // amount — scheduled for their next cycle, never charged mid-month.
+    await scheduleAgreementAmountSync(ctx, args.subscriptionId);
+
     return bonificationId;
   },
 });
@@ -380,6 +385,10 @@ export const revoke = mutation({
       revokeReason: args.reason?.trim() || undefined,
       updatedAt: now,
     });
+
+    // Back to the full amount from the next cycle. For a member whose debit
+    // was paused by a full bonification this also schedules the resume.
+    await scheduleAgreementAmountSync(ctx, bonification.subscriptionId);
   },
 });
 
@@ -448,6 +457,7 @@ export const update = mutation({
     if (args.notes !== undefined) patch.notes = args.notes.trim() || undefined;
 
     await ctx.db.patch(args.bonificationId, patch);
+    await scheduleAgreementAmountSync(ctx, bonification.subscriptionId);
   },
 });
 

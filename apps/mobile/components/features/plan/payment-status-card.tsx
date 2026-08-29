@@ -90,8 +90,16 @@ export default function PaymentStatusCard({
     payment.amountArs;
   const baseAmountArs =
     payment.amountArs > 0 ? payment.amountArs : payableAmountArs;
+  // A comprobante only makes sense for a payment the member makes by
+  // transfer. A Mercado Pago charge is verified with Mercado Pago, so offering
+  // an upload there would invite a receipt nobody reads — and imply the member
+  // has to do something when they do not.
+  const isProviderPayment =
+    payment.paymentMethod === "mercadopago_recurring" ||
+    payment.paymentMethod === "mercadopago_checkout";
   const canUpload =
     !isFullyBonified &&
+    !isProviderPayment &&
     (payment.status === "pending" || payment.status === "declined");
 
   return (
@@ -202,6 +210,12 @@ export default function PaymentStatusCard({
         </View>
       ) : null}
 
+      {isProviderPayment && payment.status !== "approved" ? (
+        <Text style={[styles.providerNote, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
+          Este período se cobra con Mercado Pago. No hace falta que subas nada.
+        </Text>
+      ) : null}
+
       {canUpload ? (
         <ThemedPressable
           type="primary"
@@ -222,6 +236,11 @@ export default function PaymentStatusCard({
 }
 
 const styles = StyleSheet.create({
+  providerNote: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 10,
+  },
   card: {
     borderRadius: 20,
     padding: 18,

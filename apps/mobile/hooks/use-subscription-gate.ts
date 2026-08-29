@@ -5,6 +5,7 @@ export type SubscriptionGateStatus =
   | "loading"
   | "active"
   | "suspended"
+  | "pending_payment"
   | "no_subscription";
 
 /**
@@ -19,6 +20,9 @@ export type SubscriptionGateStatus =
  * When the organization has no active membership plans configured,
  * the gate is bypassed so members are not locked out of features
  * they have no way to unlock.
+ *
+ * This gate is a convenience for the UI, not a security boundary: every
+ * query and mutation behind it re-checks access on the server.
  */
 export function useSubscriptionGate(): {
   status: SubscriptionGateStatus;
@@ -56,11 +60,20 @@ export function useSubscriptionGate(): {
     return { status: "no_subscription", canAccess: false };
   }
 
+  // A plan was chosen but never paid for. Choosing a plan — and even
+  // authorizing an automatic debit — grants nothing until the first payment
+  // is approved, so this is treated as locked, not as a lesser kind of active.
+  if (subscription.status === "pending_payment") {
+    return { status: "pending_payment", canAccess: false };
+  }
+
   // Suspended
   if (subscription.status === "suspended") {
     return { status: "suspended", canAccess: false };
   }
 
-  // Active (or any other non-cancelled status that getMySubscription returns)
+  // Active. This deliberately includes a member inside the grace period after
+  // a failed renewal: the server keeps them active until the grace deadline,
+  // and locking them out early would contradict what they were told.
   return { status: "active", canAccess: true };
 }

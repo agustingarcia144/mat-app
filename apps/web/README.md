@@ -3,7 +3,7 @@
 First, run the development server:
 
 ```bash
-yarn dev
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
@@ -26,3 +26,23 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_source=github.com&utm_medium=referral&utm_campaign=turborepo-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+
+## Sentry
+
+The app is configured with `@sentry/nextjs` for server, edge, and browser error reporting. The local test route is available at `/sentry-example-page`.
+
+For production, configure these environment variables in the hosting provider:
+
+```bash
+NEXT_PUBLIC_SENTRY_DSN=<public project DSN>
+SENTRY_DSN=<server project DSN, optional if it matches NEXT_PUBLIC_SENTRY_DSN>
+SENTRY_ORG=mat-app
+SENTRY_PROJECT=javascript-nextjs
+SENTRY_AUTH_TOKEN=<Sentry auth token for source map uploads>
+```
+
+`SENTRY_AUTH_TOKEN` is secret and should only be available at build time. Do not commit it; the wizard-created `.env.sentry-build-plugin` file is ignored for local source map upload testing.
+
+On Vercel, add `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`, `SENTRY_ORG`, and `SENTRY_PROJECT` to the runtime environments you deploy. Add `SENTRY_AUTH_TOKEN` as a protected build environment variable so production and preview builds can upload source maps.
+
+The Sentry DSN is not a secret, but the auth token is. If the auth token is exposed in logs, chat transcripts, or a shared terminal recording, revoke it in Sentry and generate a new token with project-scoped source map upload permissions.

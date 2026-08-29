@@ -30,10 +30,17 @@ import BonificationList from "@/components/features/payments/bonification-list";
 import RecordPaymentDialog from "@/components/features/payments/dialogs/record-payment-dialog";
 import AssignPlanDialog from "@/components/features/payments/dialogs/assign-plan-dialog";
 import BonificationDialog from "@/components/features/payments/dialogs/bonification-dialog";
+import MemberPaymentsPanel from "@/components/features/payments/member-payments/member-payments-panel";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 import { cn } from "@/lib/utils";
 
-const TABS = ["pendientes", "planes", "bonificaciones", "historial"] as const;
+const TABS = [
+  "pendientes",
+  "planes",
+  "bonificaciones",
+  "debitos",
+  "historial",
+] as const;
 type PaymentsTab = (typeof TABS)[number];
 
 export default function PagosPage() {
@@ -256,6 +263,7 @@ export default function PagosPage() {
               </span>
             ) : null}
           </TabsTrigger>
+          <TabsTrigger value="debitos">Mercado Pago</TabsTrigger>
           <TabsTrigger value="historial">Historial</TabsTrigger>
         </TabsList>
 
@@ -269,6 +277,10 @@ export default function PagosPage() {
 
         <TabsContent value="bonificaciones">
           <BonificationList />
+        </TabsContent>
+
+        <TabsContent value="debitos">
+          <MemberPaymentsPanel canQuery={canQuery} />
         </TabsContent>
 
         <TabsContent value="historial">

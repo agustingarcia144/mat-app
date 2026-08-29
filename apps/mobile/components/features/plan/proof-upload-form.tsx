@@ -54,9 +54,16 @@ export default function ProofUploadForm() {
     currentPayment?.canUploadProof ??
     (currentPayment?.status === "pending" ||
       currentPayment?.status === "declined");
+  // A Mercado Pago charge is settled with Mercado Pago. Accepting a
+  // comprobante for one would take a receipt nobody reviews and leave the
+  // member believing they had done something that mattered.
+  const isProviderPayment =
+    currentPayment?.paymentMethod === "mercadopago_recurring" ||
+    currentPayment?.paymentMethod === "mercadopago_checkout";
   const canUploadProof =
-    hasUploadableCurrentPayment ||
-    (hasActiveSubscription && currentPayment === null);
+    !isProviderPayment &&
+    (hasUploadableCurrentPayment ||
+      (hasActiveSubscription && currentPayment === null));
 
   const showPicker = () => {
     const options = [

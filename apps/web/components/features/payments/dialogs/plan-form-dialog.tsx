@@ -118,6 +118,15 @@ export default function PlanFormDialog({
   const isFamilyPlan = watch("isFamilyPlan");
   const billingMode = watch("billingMode") ?? "calendar";
   const isCalendarBilling = billingMode === "calendar";
+
+  // Why this plan can or cannot be paid by automatic debit. Mercado Pago
+  // charges the agreed recurring amount, which cannot express MAT's cumulative
+  // late-fee rules, and its subscriptions bill from a fixed anchor day.
+  const recurringBlocker = isCalendarBilling
+    ? "El débito automático sólo funciona con cobro por ingreso: Mercado Pago cobra en una fecha fija de cada mes, no en una ventana del calendario."
+    : (watchedTiers?.length ?? 0) > 0
+      ? "Los intereses por mora no son compatibles con el débito automático: Mercado Pago vuelve a intentar el mismo importe acordado y no puede sumar los recargos."
+      : null;
   const allowedClassIds = watch("allowedClassIds") ?? [];
   const classesEnabled = watch("classesEnabled") ?? true;
 
@@ -570,6 +579,30 @@ export default function PlanFormDialog({
               </label>
             </div>
           </Field>
+
+          <div
+            className={`rounded-lg border p-3 text-sm ${
+              recurringBlocker
+                ? "border-amber-500/30 bg-amber-500/5"
+                : "border-emerald-500/30 bg-emerald-500/5"
+            }`}
+          >
+            <p className="font-medium">
+              {recurringBlocker
+                ? "Este plan no admite débito automático"
+                : "Este plan admite débito automático"}
+            </p>
+            <p className="mt-0.5 text-muted-foreground">
+              {recurringBlocker ??
+                "Tus socios van a poder activar el cobro mensual con Mercado Pago, si lo tenés habilitado en Configuración."}
+            </p>
+            {recurringBlocker ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Los pagos por transferencia y los pagos adelantados siguen
+                funcionando con normalidad.
+              </p>
+            ) : null}
+          </div>
 
           {isCalendarBilling ? (
             <Field>

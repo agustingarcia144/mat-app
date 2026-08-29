@@ -9,6 +9,7 @@
  */
 
 import type * as appBillingPlans from "../appBillingPlans.js";
+import type * as billingDomain from "../billingDomain.js";
 import type * as classAccess from "../classAccess.js";
 import type * as classAlerts from "../classAlerts.js";
 import type * as classMetrics from "../classMetrics.js";
@@ -28,8 +29,20 @@ import type * as joinGym from "../joinGym.js";
 import type * as joinGymNode from "../joinGymNode.js";
 import type * as memberInviteCodes from "../memberInviteCodes.js";
 import type * as memberInviteCodesNode from "../memberInviteCodesNode.js";
+import type * as memberPaymentDomain from "../memberPaymentDomain.js";
+import type * as memberPaymentNotifications from "../memberPaymentNotifications.js";
+import type * as memberPayments from "../memberPayments.js";
+import type * as memberPaymentsActions from "../memberPaymentsActions.js";
+import type * as memberPaymentsAdmin from "../memberPaymentsAdmin.js";
+import type * as memberPaymentsCheckout from "../memberPaymentsCheckout.js";
+import type * as memberPaymentsCrypto from "../memberPaymentsCrypto.js";
+import type * as memberPaymentsEnv from "../memberPaymentsEnv.js";
+import type * as memberPaymentsHttp from "../memberPaymentsHttp.js";
+import type * as memberPaymentsOAuth from "../memberPaymentsOAuth.js";
 import type * as memberPlanSubscriptions from "../memberPlanSubscriptions.js";
 import type * as membershipPlans from "../membershipPlans.js";
+import type * as mercadoPagoClient from "../mercadoPagoClient.js";
+import type * as mercadoPagoTransport from "../mercadoPagoTransport.js";
 import type * as mercadoPagoWebhook from "../mercadoPagoWebhook.js";
 import type * as metrics from "../metrics.js";
 import type * as migrations from "../migrations.js";
@@ -48,6 +61,7 @@ import type * as planPayments from "../planPayments.js";
 import type * as planificationAssignments from "../planificationAssignments.js";
 import type * as planificationRevisionHelpers from "../planificationRevisionHelpers.js";
 import type * as planifications from "../planifications.js";
+import type * as platformCommissions from "../platformCommissions.js";
 import type * as platformInsights from "../platformInsights.js";
 import type * as pushNotifications from "../pushNotifications.js";
 import type * as pushNotificationsNode from "../pushNotificationsNode.js";
@@ -74,6 +88,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   appBillingPlans: typeof appBillingPlans;
+  billingDomain: typeof billingDomain;
   classAccess: typeof classAccess;
   classAlerts: typeof classAlerts;
   classMetrics: typeof classMetrics;
@@ -93,8 +108,20 @@ declare const fullApi: ApiFromModules<{
   joinGymNode: typeof joinGymNode;
   memberInviteCodes: typeof memberInviteCodes;
   memberInviteCodesNode: typeof memberInviteCodesNode;
+  memberPaymentDomain: typeof memberPaymentDomain;
+  memberPaymentNotifications: typeof memberPaymentNotifications;
+  memberPayments: typeof memberPayments;
+  memberPaymentsActions: typeof memberPaymentsActions;
+  memberPaymentsAdmin: typeof memberPaymentsAdmin;
+  memberPaymentsCheckout: typeof memberPaymentsCheckout;
+  memberPaymentsCrypto: typeof memberPaymentsCrypto;
+  memberPaymentsEnv: typeof memberPaymentsEnv;
+  memberPaymentsHttp: typeof memberPaymentsHttp;
+  memberPaymentsOAuth: typeof memberPaymentsOAuth;
   memberPlanSubscriptions: typeof memberPlanSubscriptions;
   membershipPlans: typeof membershipPlans;
+  mercadoPagoClient: typeof mercadoPagoClient;
+  mercadoPagoTransport: typeof mercadoPagoTransport;
   mercadoPagoWebhook: typeof mercadoPagoWebhook;
   metrics: typeof metrics;
   migrations: typeof migrations;
@@ -113,6 +140,7 @@ declare const fullApi: ApiFromModules<{
   planificationAssignments: typeof planificationAssignments;
   planificationRevisionHelpers: typeof planificationRevisionHelpers;
   planifications: typeof planifications;
+  platformCommissions: typeof platformCommissions;
   platformInsights: typeof platformInsights;
   pushNotifications: typeof pushNotifications;
   pushNotificationsNode: typeof pushNotificationsNode;

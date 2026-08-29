@@ -11,6 +11,39 @@ function isWebAppUrl(path: string) {
   }
 }
 
+/**
+ * The Mercado Pago return, as either a universal link or the custom scheme.
+ *
+ * Returns the in-app route with the local checkout session preserved, so the
+ * return screen can ask the backend what actually happened. The session id is
+ * only an identifier — nothing in the URL can grant access.
+ */
+function getPaymentReturnPath(path: string): string | null {
+  try {
+    const url = new URL(path);
+
+    const isUniversalLink =
+      url.protocol === "https:" &&
+      WEB_APP_HOSTS.has(url.hostname) &&
+      url.pathname.startsWith("/payments/return");
+
+    // Custom-scheme fallback for devices where the universal link does not
+    // resolve (app links not yet verified, or a browser that strips them).
+    const isCustomScheme =
+      url.protocol === "mat-app:" &&
+      (url.hostname === "payments" || url.pathname.startsWith("/payments"));
+
+    if (!isUniversalLink && !isCustomScheme) return null;
+
+    const session = url.searchParams.get("session");
+    return session
+      ? `/payments/return?session=${encodeURIComponent(session)}`
+      : "/payments/return";
+  } catch {
+    return null;
+  }
+}
+
 function getPathFromIncomingUrl(path: string) {
   try {
     const url = new URL(path);
@@ -45,6 +78,11 @@ export async function redirectSystemPath({
     if (token) {
       await setPendingJoinToken(token);
       return "/join-gym-confirm";
+    }
+
+    const paymentReturnPath = getPaymentReturnPath(path);
+    if (paymentReturnPath) {
+      return paymentReturnPath;
     }
 
     const nextPath = getPathFromIncomingUrl(path);
