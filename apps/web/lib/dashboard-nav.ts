@@ -15,6 +15,8 @@ import {
   UserCheck,
   UserMinus,
   Wallet,
+  QrCode,
+  Gift,
 } from "lucide-react";
 
 export type FeatureFlag =
@@ -94,6 +96,19 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
     url: "/classes",
     billingModule: "classes",
     featureFlag: "classesEnabled",
+  },
+  {
+    label: "Ingreso QR",
+    icon: QrCode,
+    url: "/check-in",
+    billingModule: "dashboard",
+  },
+  {
+    label: "Recompensas",
+    icon: Gift,
+    url: "/rewards",
+    billingModule: "dashboard",
+    adminOnly: true,
   },
   {
     label: "Finanzas",

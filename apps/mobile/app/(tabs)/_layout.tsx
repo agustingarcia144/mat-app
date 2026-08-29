@@ -1,39 +1,40 @@
 import {
   ThemeProvider,
   DarkTheme,
-  DefaultTheme
-} from '@react-navigation/native'
-import { NativeTabs } from 'expo-router/unstable-native-tabs'
-import React from 'react'
-import { Platform } from 'react-native'
-import { useColorScheme } from '@/hooks/use-color-scheme'
-import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+  DefaultTheme,
+} from "@react-navigation/native";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
+import React from "react";
+import { Platform } from "react-native";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
-import { Colors } from '@/constants/theme'
-import { ExerciseVideoProvider } from '@/contexts/exercise-video-context'
-import { useOrgSettings } from '@/hooks/use-org-settings'
-import { useAvatarIcon } from '@/contexts/avatar-icon-context'
-import { AVATAR_SCALE } from '@/components/features/profile/circular-avatar-rasterizer'
+import { Colors } from "@/constants/theme";
+import { ExerciseVideoProvider } from "@/contexts/exercise-video-context";
+import { useOrgSettings } from "@/hooks/use-org-settings";
+import { useAvatarIcon } from "@/contexts/avatar-icon-context";
+import { AVATAR_SCALE } from "@/components/features/profile/circular-avatar-rasterizer";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme()
-  const theme = colorScheme === 'dark' ? DarkTheme : DefaultTheme
-  const tintColor = Colors[colorScheme ?? 'light'].tint
-  const tabBarBg = Colors[colorScheme ?? 'light'].background
-  const orgSettings = useOrgSettings()
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const tintColor = Colors[colorScheme ?? "light"].tint;
+  const tabBarBg = Colors[colorScheme ?? "light"].background;
+  const orgSettings = useOrgSettings();
 
-  const showClasses = orgSettings?.classesEnabled !== false
+  const showClasses = orgSettings?.classesEnabled !== false;
+  const showRewards = orgSettings?.rewards?.enabled === true;
 
   // The circular avatar is rasterized in AvatarIconProvider. Until it is ready
   // we fall back to the (sized) square crop so the icon never renders full-bleed.
-  const { squareUri, circularDataUri } = useAvatarIcon()
-  const avatarIconUri = circularDataUri ?? squareUri
+  const { squareUri, circularDataUri } = useAvatarIcon();
+  const avatarIconUri = circularDataUri ?? squareUri;
   // Size is controlled purely by `scale`: the PNG is AVATAR_PX wide, so at
   // scale AVATAR_SCALE it renders at AVATAR_PX / AVATAR_SCALE pt. Passing
   // width/height here would override that and make iOS render it full-size.
   const avatarIconSource = avatarIconUri
     ? { uri: avatarIconUri, scale: AVATAR_SCALE }
-    : null
+    : null;
 
   return (
     <ThemeProvider value={theme}>
@@ -43,9 +44,9 @@ export default function TabLayout() {
           tintColor={tintColor}
           labelStyle={{ color: theme.colors.text }}
           backgroundColor={tabBarBg}
-          {...(Platform.OS === 'ios' && {
-            blurEffect: 'none' as const,
-            disableTransparentOnScrollEdge: true
+          {...(Platform.OS === "ios" && {
+            blurEffect: "none" as const,
+            disableTransparentOnScrollEdge: true,
           })}
         >
           <NativeTabs.Trigger name="home">
@@ -69,6 +70,20 @@ export default function TabLayout() {
                   <NativeTabs.Trigger.VectorIcon
                     family={MaterialIcons}
                     name="calendar-today"
+                  />
+                }
+              />
+            </NativeTabs.Trigger>
+          )}
+          {showRewards && (
+            <NativeTabs.Trigger name="rewards">
+              <NativeTabs.Trigger.Label>Premios</NativeTabs.Trigger.Label>
+              <NativeTabs.Trigger.Icon
+                sf="gift.fill"
+                src={
+                  <NativeTabs.Trigger.VectorIcon
+                    family={MaterialIcons}
+                    name="card-giftcard"
                   />
                 }
               />
@@ -110,5 +125,5 @@ export default function TabLayout() {
         </NativeTabs>
       </ExerciseVideoProvider>
     </ThemeProvider>
-  )
+  );
 }

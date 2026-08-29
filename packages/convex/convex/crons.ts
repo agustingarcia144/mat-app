@@ -141,4 +141,29 @@ crons.interval(
   { limit: 200 },
 );
 
+// Wallet balance/status updates are intentionally eventual: they must never
+// roll back a valid check-in or reward-ledger transaction.
+crons.interval(
+  "run-wallet-sync-operations",
+  { minutes: 1 },
+  internal.walletActions.runWalletSyncOperations,
+  { limit: 20 },
+);
+
+crons.interval(
+  "purge-expired-reward-qr-tokens",
+  { hours: 6 },
+  internal.rewards.purgeExpiredQrTokens,
+  { limit: 500 },
+);
+
+// Membership state can change outside the rewards domain. Hourly refreshes
+// keep Wallet status current without coupling payment mutations to providers.
+crons.interval(
+  "enqueue-wallet-membership-refresh",
+  { hours: 1 },
+  internal.rewards.enqueueStaleWalletPassUpdates,
+  { limit: 500 },
+);
+
 export default crons;

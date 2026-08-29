@@ -1,8 +1,4 @@
-import {
-  internalMutation,
-  mutation,
-  query,
-} from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
@@ -15,6 +11,7 @@ import {
 import { getDayAndMinutesInZone } from "./fixedClassSlots";
 import { getMonthlyClassUsageForSchedule } from "./classQuota";
 import { assertClassAllowed } from "./classAccess";
+import { awardAttendanceReward } from "./rewards";
 
 /**
  * Reserve a spot in a class
@@ -258,7 +255,7 @@ export const checkIn = mutation({
     id: v.id("classReservations"),
   },
   handler: async (ctx, args) => {
-    await requireAuth(ctx);
+    const identity = await requireAuth(ctx);
 
     const reservation = await ctx.db.get(args.id);
     if (!reservation) {
@@ -286,6 +283,14 @@ export const checkIn = mutation({
       status: "attended",
       checkedInAt: now,
       updatedAt: now,
+    });
+    await awardAttendanceReward(ctx, {
+      organizationId: reservation.organizationId,
+      userId: reservation.userId,
+      source: "class_attendance",
+      sourceId: String(reservation._id),
+      occurredAt: now,
+      actorUserId: identity.subject,
     });
   },
 });
@@ -337,6 +342,14 @@ export const checkInSelf = mutation({
       status: "attended",
       checkedInAt: now,
       updatedAt: now,
+    });
+    await awardAttendanceReward(ctx, {
+      organizationId: reservation.organizationId,
+      userId: reservation.userId,
+      source: "class_attendance",
+      sourceId: String(reservation._id),
+      occurredAt: now,
+      actorUserId: identity.subject,
     });
   },
 });

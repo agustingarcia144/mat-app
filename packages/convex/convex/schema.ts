@@ -145,6 +145,33 @@ export default defineSchema({
         initialPaymentRequiresApproval: v.boolean(),
       }),
     ),
+    // Isolated member rewards capability. This deliberately does not depend on
+    // an app billing plan yet; a future plan entitlement should guard the
+    // feature at the service boundary without changing the reward domain.
+    rewards: v.optional(
+      v.object({
+        enabled: v.boolean(),
+        programName: v.string(),
+        pointsName: v.string(),
+        pointsPerAttendance: v.number(),
+        maxRewardedAttendancesPerDay: v.number(),
+        duplicateWindowMinutes: v.number(),
+        eligibleSources: v.array(
+          v.union(
+            v.literal("qr_check_in"),
+            v.literal("class_attendance"),
+            v.literal("manual"),
+          ),
+        ),
+        streaksEnabled: v.boolean(),
+        streakIntervalDays: v.optional(v.number()),
+        streakBonusPoints: v.optional(v.number()),
+        weeklyBonusEnabled: v.boolean(),
+        weeklyAttendanceTarget: v.optional(v.number()),
+        weeklyBonusPoints: v.optional(v.number()),
+        terms: v.optional(v.string()),
+      }),
+    ),
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -509,10 +536,7 @@ export default defineSchema({
     planId: v.id("membershipPlans"),
     subscriptionId: v.optional(v.id("memberPlanSubscriptions")),
     agreementId: v.optional(v.id("memberRecurringAgreements")),
-    kind: v.union(
-      v.literal("recurring_setup"),
-      v.literal("advance_purchase"),
-    ),
+    kind: v.union(v.literal("recurring_setup"), v.literal("advance_purchase")),
     months: v.number(),
     amountArs: v.number(),
     currency: v.literal("ARS"),
@@ -586,7 +610,11 @@ export default defineSchema({
     providerCreatedAt: v.optional(v.number()),
     // Sanitized reconciliation metadata only — no payer PII, no raw payload.
     reconciliationSource: v.optional(
-      v.union(v.literal("webhook"), v.literal("reconciliation"), v.literal("manual")),
+      v.union(
+        v.literal("webhook"),
+        v.literal("reconciliation"),
+        v.literal("manual"),
+      ),
     ),
     lastReconciledAt: v.optional(v.number()),
     // Set when a transaction needs a human: a charge whose amount MAT never
@@ -1565,4 +1593,242 @@ export default defineSchema({
     .index("by_subscription", ["subscriptionId"])
     .index("by_subscription_status", ["subscriptionId", "status"])
     .index("by_organization_user", ["organizationId", "userId"]),
+
+  // Member rewards ---------------------------------------------------------
+
+  rewardAccounts: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+    balance: v.number(),
+    lifetimeEarned: v.number(),
+    lifetimeRedeemed: v.number(),
+    status: v.union(v.literal("active"), v.literal("frozen")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_user", ["organizationId", "userId"])
+    .index("by_user", ["userId"]),
+
+  rewardLedger: defineTable({
+    organizationId: v.id("organizations"),
+    accountId: v.id("rewardAccounts"),
+    userId: v.string(),
+    points: v.number(),
+    balanceAfter: v.number(),
+    type: v.union(
+      v.literal("earn"),
+      v.literal("redemption"),
+      v.literal("reversal"),
+      v.literal("adjustment"),
+      v.literal("expiration"),
+    ),
+    reason: v.string(),
+    sourceType: v.optional(v.string()),
+    sourceId: v.optional(v.string()),
+    idempotencyKey: v.string(),
+    localDate: v.optional(v.string()),
+    // Snapshot of the rule that produced an earning entry. Historical entries
+    // never change when an admin edits the program configuration.
+    ruleSnapshot: v.optional(
+      v.object({
+        pointsPerAttendance: v.number(),
+        maxRewardedAttendancesPerDay: v.number(),
+        localDate: v.string(),
+        timezone: v.string(),
+        eligibleSource: v.string(),
+      }),
+    ),
+    actorUserId: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    createdAt: v.number(),
+  })
+    .index("by_account", ["accountId"])
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_user", ["organizationId", "userId"])
+    .index("by_organization_user_local_date", [
+      "organizationId",
+      "userId",
+      "localDate",
+    ])
+    .index("by_idempotency_key", ["idempotencyKey"]),
+
+  memberCheckIns: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+    localDate: v.string(),
+    checkedInAt: v.number(),
+    source: v.union(
+      v.literal("wallet_qr"),
+      v.literal("mobile_qr"),
+      v.literal("manual"),
+    ),
+    status: v.union(
+      v.literal("allowed"),
+      v.literal("denied"),
+      v.literal("voided"),
+    ),
+    reasonCode: v.string(),
+    decisionId: v.string(),
+    actorUserId: v.optional(v.string()),
+    reservationId: v.optional(v.id("classReservations")),
+    duplicateOfId: v.optional(v.id("memberCheckIns")),
+    pointsAwarded: v.number(),
+    voidedAt: v.optional(v.number()),
+    voidedBy: v.optional(v.string()),
+    voidReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_time", ["organizationId", "checkedInAt"])
+    .index("by_organization_user", ["organizationId", "userId"])
+    .index("by_organization_user_local_date", [
+      "organizationId",
+      "userId",
+      "localDate",
+    ])
+    .index("by_organization_user_time", [
+      "organizationId",
+      "userId",
+      "checkedInAt",
+    ])
+    .index("by_decision_id", ["decisionId"]),
+
+  rewardDefinitions: defineTable({
+    organizationId: v.id("organizations"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    pointsCost: v.number(),
+    type: v.literal("manual_perk"),
+    fulfillmentInstructions: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+    availableQuantity: v.optional(v.number()),
+    perMemberLimit: v.optional(v.number()),
+    enabled: v.boolean(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_enabled", ["organizationId", "enabled"]),
+
+  rewardRedemptions: defineTable({
+    organizationId: v.id("organizations"),
+    accountId: v.id("rewardAccounts"),
+    rewardDefinitionId: v.id("rewardDefinitions"),
+    userId: v.string(),
+    pointsCost: v.number(),
+    status: v.union(
+      v.literal("requested"),
+      v.literal("ready"),
+      v.literal("fulfilled"),
+      v.literal("cancelled"),
+    ),
+    ledgerEntryId: v.id("rewardLedger"),
+    cancellationLedgerEntryId: v.optional(v.id("rewardLedger")),
+    fulfilledAt: v.optional(v.number()),
+    fulfilledBy: v.optional(v.string()),
+    cancelledAt: v.optional(v.number()),
+    cancelledBy: v.optional(v.string()),
+    cancellationReason: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_status", ["organizationId", "status"])
+    .index("by_organization_user", ["organizationId", "userId"])
+    .index("by_reward", ["rewardDefinitionId"]),
+
+  memberQrCredentials: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+    credentialId: v.string(),
+    version: v.number(),
+    status: v.union(v.literal("active"), v.literal("revoked")),
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    revokedBy: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_credential_id", ["credentialId"])
+    .index("by_organization_user", ["organizationId", "userId"]),
+
+  consumedQrTokens: defineTable({
+    tokenId: v.string(),
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+    consumedAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_token_id", ["tokenId"])
+    .index("by_expires_at", ["expiresAt"]),
+
+  rewardScanRateLimits: defineTable({
+    organizationId: v.id("organizations"),
+    actorUserId: v.string(),
+    windowStartedAt: v.number(),
+    attempts: v.number(),
+    updatedAt: v.number(),
+  }).index("by_organization_actor", ["organizationId", "actorUserId"]),
+
+  walletPasses: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+    credentialId: v.string(),
+    provider: v.union(v.literal("apple"), v.literal("google")),
+    providerObjectId: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("revoked"),
+      v.literal("configuration_required"),
+    ),
+    lastSyncedAt: v.optional(v.number()),
+    lastErrorCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_provider_object", ["provider", "providerObjectId"])
+    .index("by_organization_user", ["organizationId", "userId"]),
+
+  walletSyncOperations: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+    provider: v.union(v.literal("apple"), v.literal("google")),
+    operationType: v.union(
+      v.literal("create"),
+      v.literal("update"),
+      v.literal("revoke"),
+    ),
+    idempotencyKey: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("running"),
+      v.literal("succeeded"),
+      v.literal("failed"),
+    ),
+    attemptCount: v.number(),
+    nextAttemptAt: v.number(),
+    lastErrorCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_idempotency_key", ["idempotencyKey"])
+    .index("by_status_next_attempt", ["status", "nextAttemptAt"]),
+
+  appleWalletRegistrations: defineTable({
+    deviceLibraryIdentifier: v.string(),
+    passTypeIdentifier: v.string(),
+    serialNumber: v.string(),
+    pushToken: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_device_pass", [
+      "deviceLibraryIdentifier",
+      "passTypeIdentifier",
+      "serialNumber",
+    ])
+    .index("by_pass", ["passTypeIdentifier", "serialNumber"]),
 });

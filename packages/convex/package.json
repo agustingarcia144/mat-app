@@ -8,7 +8,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@parse/node-apn": "^8.1.0",
     "convex": "^1.38.0",
+    "passkit-generator": "^3.5.8",
     "svix": "^1.84.1"
   },
   "devDependencies": {
