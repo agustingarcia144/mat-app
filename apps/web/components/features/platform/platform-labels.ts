@@ -19,7 +19,7 @@ export type PlatformBillingAccess = NonNullable<
 
 export type PlatformSource = NonNullable<PlatformOrgRow["source"]>;
 export type PlatformBillingStatus = PlatformOrgRow["billingStatus"];
-export type PlatformPlanKey = "pro" | "lite";
+export type PlatformPlanKey = "ultra" | "pro" | "lite";
 
 type BadgeVariant = NonNullable<BadgeProps["variant"]>;
 
@@ -74,16 +74,18 @@ export const BILLING_STATUS_ORDER: PlatformBillingStatus[] = [
 ];
 
 export const PLAN_LABELS: Record<PlatformPlanKey, string> = {
+  ultra: "ULTRA",
   pro: "PRO",
   lite: "LITE",
 };
 
 export const PLAN_VARIANTS: Record<PlatformPlanKey, BadgeVariant> = {
-  pro: "default",
+  ultra: "default",
+  pro: "outline",
   lite: "secondary",
 };
 
-export const PLAN_ORDER: PlatformPlanKey[] = ["pro", "lite"];
+export const PLAN_ORDER: PlatformPlanKey[] = ["ultra", "pro", "lite"];
 
 export const CODE_STATUS_LABELS: Record<PlatformCodeStatus, string> = {
   active: "Activo",

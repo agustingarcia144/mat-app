@@ -30,6 +30,7 @@ import {
 
 const STAFF_REDIRECT = "/select-organization";
 const PENDING_LITE_CHECKOUT_KEY = "mat.pendingLiteCheckout";
+const PENDING_ULTRA_CHECKOUT_KEY = "mat.pendingUltraCheckout";
 const PENDING_PRO_TRIAL_KEY = "mat.pendingProTrial";
 
 function getSafeRedirectUrl(value: string | null, fallback: string) {
@@ -317,12 +318,18 @@ export default function InviteOnlySignUp() {
   const hasPendingLiteCheckout =
     typeof window !== "undefined" &&
     Boolean(window.sessionStorage.getItem(PENDING_LITE_CHECKOUT_KEY));
+  const hasPendingUltraCheckout =
+    typeof window !== "undefined" &&
+    Boolean(window.sessionStorage.getItem(PENDING_ULTRA_CHECKOUT_KEY));
   const hasPendingProTrial =
     typeof window !== "undefined" &&
     Boolean(window.sessionStorage.getItem(PENDING_PRO_TRIAL_KEY));
   const liteCheckout =
     searchParams.get("lite_checkout") === "1" ||
     (isSignUpSsoCallback && hasPendingLiteCheckout);
+  const ultraCheckout =
+    searchParams.get("ultra_checkout") === "1" ||
+    (isSignUpSsoCallback && hasPendingUltraCheckout);
   const startTrial =
     searchParams.get("start_trial") === "1" ||
     (isSignUpSsoCallback && hasPendingProTrial);
@@ -335,7 +342,9 @@ export default function InviteOnlySignUp() {
         ? "/?start_trial=1"
         : liteCheckout
           ? "/?lite_checkout=1"
-          : STAFF_REDIRECT;
+          : ultraCheckout
+            ? "/?ultra_checkout=1"
+            : STAFF_REDIRECT;
   const postSignUpRedirect = getSafeRedirectUrl(redirectUrl, fallbackRedirect);
   const attemptedRef = useRef(false);
   const [retryKey, setRetryKey] = useState(0);

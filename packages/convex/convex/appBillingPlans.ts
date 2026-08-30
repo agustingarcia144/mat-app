@@ -8,8 +8,7 @@ import { requireSuperAdmin } from "./permissions";
  *
  * Plans without the object behave as MercadoPago disabled with zero
  * commission, so member payment code resolves a policy instead of branching on
- * plan names. A future ULTRA plan is just `platformFeeBps: 0` with
- * `feeCollectionMode: "none"` — no code change required.
+ * plan names.
  */
 export type MemberPaymentPolicy = {
   mercadoPagoEnabled: boolean;
@@ -37,12 +36,47 @@ const PRO_MEMBER_PAYMENTS: MemberPaymentPolicy = {
   feeCollectionMode: "none",
 };
 
+/**
+ * ULTRA gyms keep every peso their members pay: MAT charges no transaction
+ * commission. The zero here is the plan's headline promise rather than a
+ * placeholder, so unlike PRO it is not expected to be raised later.
+ */
+const ULTRA_MEMBER_PAYMENTS: MemberPaymentPolicy = {
+  mercadoPagoEnabled: true,
+  platformFeeBps: 0,
+  feeCollectionMode: "none",
+};
+
 export const MAX_PLATFORM_FEE_BPS = 3_000; // 30%
 
 export function resolveMemberPaymentPolicy(
   entitlements: Doc<"appBillingPlans">["entitlements"] | undefined,
 ): MemberPaymentPolicy {
   return { ...MEMBER_PAYMENT_POLICY_DISABLED, ...(entitlements?.memberPayments ?? {}) };
+}
+
+/**
+ * Mati AI allowance for a MAT billing plan.
+ *
+ * Stored on the plan doc rather than hard-coded per plan key so a super admin
+ * can retune an allowance without a deploy, the same way `memberPayments`
+ * works. Plans without the object grant no AI access.
+ */
+export type AiAllowance = {
+  /** Assistant turns allowed per subscription cycle. */
+  monthlyTurnLimit: number;
+};
+
+export const AI_ALLOWANCE_NONE: AiAllowance = { monthlyTurnLimit: 0 };
+
+const LITE_AI: AiAllowance = AI_ALLOWANCE_NONE;
+const PRO_AI: AiAllowance = { monthlyTurnLimit: 15 };
+const ULTRA_AI: AiAllowance = { monthlyTurnLimit: 100 };
+
+export function resolveAiAllowance(
+  entitlements: Doc<"appBillingPlans">["entitlements"] | undefined,
+): AiAllowance {
+  return { ...AI_ALLOWANCE_NONE, ...(entitlements?.ai ?? {}) };
 }
 
 /** The member-payment policy in force for an organization's current MAT plan. */
@@ -71,17 +105,21 @@ export async function getOrganizationMemberPaymentPolicy(
   };
 }
 
+// These arrays are the single definition of what each plan unlocks.
+// organizationBilling.ts imports them rather than keeping its own copy, so a
+// module added here cannot be granted by one file and withheld by the other.
+//
 // "metrics_exercises" is the exercise-metrics screen only; the full "metrics"
 // module (classes, attendance, churn, finance balance) stays PRO-only.
-const LITE_MODULES = [
+export const LITE_MODULES = [
   "dashboard",
   "members",
   "exercises",
   "planifications",
   "metrics_exercises",
 ];
-const LITE_DASHBOARD_CARDS = ["members", "planifications"];
-const PRO_MODULES = [
+export const LITE_DASHBOARD_CARDS = ["members", "planifications"];
+export const PRO_MODULES = [
   "dashboard",
   "members",
   "exercises",
@@ -94,12 +132,18 @@ const PRO_MODULES = [
   "users",
   "settings",
 ];
-const PRO_DASHBOARD_CARDS = [
+export const PRO_DASHBOARD_CARDS = [
   "members",
   "planifications",
   "payments",
   "classes",
 ];
+
+// "rewards" covers both the rewards program and the QR check-in scanner, which
+// share the same data and are sold together. It is deliberately absent from
+// PRO_MODULES: that absence is what makes the pair ULTRA-only.
+export const ULTRA_MODULES = [...PRO_MODULES, "rewards"];
+export const ULTRA_DASHBOARD_CARDS = PRO_DASHBOARD_CARDS;
 
 export const listActive = query({
   args: {},
@@ -131,6 +175,16 @@ export const getPro = query({
   },
 });
 
+export const getUltra = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db
+      .query("appBillingPlans")
+      .withIndex("by_key", (q) => q.eq("key", "ultra"))
+      .first();
+  },
+});
+
 export const setLitePriceArs = mutation({
   args: {
     priceArs: v.number(),
@@ -151,6 +205,16 @@ export const setProPriceArs = mutation({
   },
 });
 
+export const setUltraPriceArs = mutation({
+  args: {
+    priceArs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
+    return await upsertUltraPlan(ctx, args.priceArs);
+  },
+});
+
 export const ensureLitePlanInternal = internalMutation({
   args: {
     priceArs: v.number(),
@@ -166,6 +230,15 @@ export const ensureProPlanInternal = internalMutation({
   },
   handler: async (ctx, args) => {
     return await upsertProPlan(ctx, args.priceArs ?? 1);
+  },
+});
+
+export const ensureUltraPlanInternal = internalMutation({
+  args: {
+    priceArs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return await upsertUltraPlan(ctx, args.priceArs);
   },
 });
 
@@ -196,6 +269,7 @@ async function upsertLitePlan(ctx: any, priceArs: number) {
       // Re-seeding must not silently revert a policy a super admin changed.
       memberPayments:
         existing?.entitlements?.memberPayments ?? LITE_MEMBER_PAYMENTS,
+      ai: existing?.entitlements?.ai ?? LITE_AI,
     },
     isActive: true,
     updatedAt: now,
@@ -227,7 +301,8 @@ export async function upsertProPlan(ctx: any, priceArs: number) {
   const doc = {
     key: "pro",
     name: "PRO",
-    description: "Acceso completo a todos los módulos de MAT.",
+    description:
+      "Clases, pagos, finanzas, métricas y usuarios para una organización.",
     referencePriceUsd: 0,
     priceCurrency: "ARS" as const,
     priceArs,
@@ -239,6 +314,7 @@ export async function upsertProPlan(ctx: any, priceArs: number) {
       // Re-seeding must not silently revert a policy a super admin changed.
       memberPayments:
         existing?.entitlements?.memberPayments ?? PRO_MEMBER_PAYMENTS,
+      ai: existing?.entitlements?.ai ?? PRO_AI,
     },
     isActive: true,
     updatedAt: now,
@@ -253,6 +329,77 @@ export async function upsertProPlan(ctx: any, priceArs: number) {
     ...doc,
     createdAt: now,
   });
+}
+
+/** Exported so test seeding can create ULTRA without duplicating its definition. */
+export async function upsertUltraPlan(ctx: any, priceArs: number) {
+  if (!Number.isFinite(priceArs) || priceArs < 0) {
+    throw new Error("Ultra price must be a non-negative ARS amount");
+  }
+
+  const now = Date.now();
+  const existing = await ctx.db
+    .query("appBillingPlans")
+    .withIndex("by_key", (q: any) => q.eq("key", "ultra"))
+    .first();
+
+  const doc = {
+    key: "ultra",
+    name: "ULTRA",
+    description:
+      "Todo lo de PRO, sin comisión en los cobros a miembros, con recompensas, ingreso QR y Mati AI ampliado.",
+    referencePriceUsd: 0,
+    priceCurrency: "ARS" as const,
+    priceArs,
+    frequency: 1,
+    frequencyType: "months" as const,
+    entitlements: {
+      modules: ULTRA_MODULES,
+      dashboardCards: ULTRA_DASHBOARD_CARDS,
+      // Re-seeding must not silently revert a policy a super admin changed.
+      memberPayments:
+        existing?.entitlements?.memberPayments ?? ULTRA_MEMBER_PAYMENTS,
+      ai: existing?.entitlements?.ai ?? ULTRA_AI,
+    },
+    isActive: true,
+    updatedAt: now,
+  };
+
+  if (existing) {
+    await ctx.db.patch(existing._id, doc);
+    return existing._id;
+  }
+
+  return await ctx.db.insert("appBillingPlans", {
+    ...doc,
+    createdAt: now,
+  });
+}
+
+/**
+ * Whether an organization's current MAT plan unlocks a module.
+ *
+ * Mirrors `getOrganizationMemberPaymentPolicy`: server code that gates on an
+ * entitlement asks this instead of reading a plan key, so adding a module to a
+ * plan is a data change. Organizations with no subscription have no modules.
+ */
+export async function organizationHasModule(
+  ctx: { db: any },
+  organizationId: Id<"organizations">,
+  module: string,
+): Promise<boolean> {
+  const subscription = await ctx.db
+    .query("organizationBillingSubscriptions")
+    .withIndex("by_organization", (q: any) =>
+      q.eq("organizationId", organizationId),
+    )
+    .order("desc")
+    .first();
+
+  if (!subscription) return false;
+
+  const plan = await ctx.db.get(subscription.billingPlanId);
+  return plan?.entitlements?.modules?.includes(module) === true;
 }
 
 /**

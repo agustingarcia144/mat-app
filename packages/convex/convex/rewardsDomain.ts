@@ -18,6 +18,12 @@ export const REWARD_ACCESS_CODES = {
 export type RewardAccessCode =
   (typeof REWARD_ACCESS_CODES)[keyof typeof REWARD_ACCESS_CODES];
 
+/**
+ * The billing module that unlocks rewards and QR check-in. They share the same
+ * data and are sold together, so one module gates both.
+ */
+export const REWARDS_MODULE = "rewards";
+
 export const DEFAULT_REWARD_TIMEZONE = "America/Argentina/Buenos_Aires";
 
 export function normalizeRewardTimezone(timezone?: string): string {
@@ -68,10 +74,19 @@ export function isRewardSourceEligible(
   return settings.eligibleSources.includes(source);
 }
 
+/**
+ * Whether the rewards program (and the QR check-in that feeds it) is live for
+ * an organization.
+ *
+ * Takes the entitlement as an argument so this module stays free of database
+ * access; callers resolve it with `organizationHasModule(ctx, orgId,
+ * REWARDS_MODULE)`. Losing the entitlement hides the program but never touches
+ * the stored settings, so an organization that upgrades again resumes with its
+ * configuration intact.
+ */
 export function rewardCapabilityEnabled(
   settings: Doc<"organizationSettings"> | null,
+  hasRewardsEntitlement: boolean,
 ): boolean {
-  // Future ULTRA integration point: add the billing entitlement check here,
-  // leaving every caller and all reward data unchanged.
-  return settings?.rewards?.enabled === true;
+  return hasRewardsEntitlement && settings?.rewards?.enabled === true;
 }

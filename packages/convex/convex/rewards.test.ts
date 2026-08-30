@@ -21,7 +21,14 @@ afterEach(() => {
   delete process.env.REWARDS_QR_SIGNING_SECRET;
 });
 
-async function seed(t: TestConvex, suffix = "a") {
+async function seed(
+  t: TestConvex,
+  suffix = "a",
+  // Rewards and QR check-in are unlocked by the "rewards" module, which only
+  // ULTRA grants. Seeding "pro" produces an organization that has the program
+  // configured but is no longer entitled to it.
+  billingPlanKey: "pro" | "ultra" = "ultra",
+) {
   return await t.run(async (ctx) => {
     const now = Date.now();
     const organizationId = await ctx.db.insert("organizations", {
@@ -79,6 +86,33 @@ async function seed(t: TestConvex, suffix = "a") {
           planDesigns: [],
         },
       },
+      createdAt: now,
+      updatedAt: now,
+    });
+    const billingPlanId = await ctx.db.insert("appBillingPlans", {
+      key: billingPlanKey,
+      name: billingPlanKey.toUpperCase(),
+      referencePriceUsd: 0,
+      priceCurrency: "ARS",
+      priceArs: 30_000,
+      frequency: 1,
+      frequencyType: "months",
+      entitlements: {
+        modules: billingPlanKey === "ultra" ? ["rewards"] : [],
+        dashboardCards: [],
+      },
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("organizationBillingSubscriptions", {
+      organizationId,
+      billingPlanId,
+      source: "manual",
+      externalReference: `reward-billing-${suffix}-${now}`,
+      status: "authorized",
+      entitlementStatus: "active",
+      createdBy: `${ADMIN}_${suffix}`,
       createdAt: now,
       updatedAt: now,
     });
@@ -637,5 +671,59 @@ describe("member rewards", () => {
     expect(
       state.ledger.filter((entry) => entry.type === "reversal"),
     ).toHaveLength(1);
+  });
+});
+
+describe("rewards billing entitlement", () => {
+  it("refuses to scan for a plan without the rewards module", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await seed(t, "entitlement-pro", "pro");
+    await expect(issueAndScan(t, fixture)).rejects.toThrow("REWARDS_DISABLED");
+  });
+
+  it("reports the program as off to a member on a plan without it", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await seed(t, "entitlement-member", "pro");
+    const rewards = await t
+      .withIdentity({ subject: fixture.member })
+      .query(api.rewards.getMyRewards, {});
+    expect(rewards?.enabled).toBe(false);
+    // The gym's settings are untouched, so re-upgrading resumes the program.
+    expect(rewards?.configured).toBe(true);
+  });
+
+  it("keeps the same organization working once the plan grants the module", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await seed(t, "entitlement-ultra", "ultra");
+    const decision = await issueAndScan(t, fixture);
+    expect(decision.allowed).toBe(true);
+  });
+
+  it("preserves earned points when the plan loses the module", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await seed(t, "entitlement-downgrade", "ultra");
+    await issueAndScan(t, fixture);
+
+    // Downgrade in place: only the plan the subscription points at changes.
+    await t.run(async (ctx) => {
+      const subscription = await ctx.db
+        .query("organizationBillingSubscriptions")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", fixture.organizationId),
+        )
+        .first();
+      await ctx.db.patch(subscription!.billingPlanId, {
+        entitlements: { modules: [], dashboardCards: [] },
+      });
+    });
+
+    const state = await t.run(async (ctx) => ({
+      account: await ctx.db.query("rewardAccounts").first(),
+      ledger: await ctx.db.query("rewardLedger").collect(),
+      checkIns: await ctx.db.query("memberCheckIns").collect(),
+    }));
+    expect(state.account?.balance).toBe(10);
+    expect(state.ledger).toHaveLength(1);
+    expect(state.checkIns).toHaveLength(1);
   });
 });

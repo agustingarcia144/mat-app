@@ -8,6 +8,7 @@ import OrganizationEntitlementGuard from "@/components/features/dashboard/organi
 import TrialBanner from "@/components/features/dashboard/trial-banner";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { UnsavedChangesProvider } from "@/contexts/unsaved-changes-context";
+import { MatiAssistantProvider } from "@/components/features/ai/mati-assistant-provider";
 
 async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { userId } = await auth();
@@ -18,14 +19,16 @@ async function DashboardLayout({ children }: { children: React.ReactNode }) {
       <UnsavedChangesProvider>
         <DashboardPermissionGuard>
           <OrganizationEntitlementGuard>
-            <AppSidebar />
-            <SidebarInset>
-              <HeaderSection />
-              <main className="flex flex-1 flex-col gap-4 p-4 pt-0">
-                <TrialBanner />
-                {children}
-              </main>
-            </SidebarInset>
+            <MatiAssistantProvider>
+              <AppSidebar />
+              <SidebarInset>
+                <HeaderSection />
+                <main className="flex flex-1 flex-col gap-4 p-4 pt-0">
+                  <TrialBanner />
+                  {children}
+                </main>
+              </SidebarInset>
+            </MatiAssistantProvider>
           </OrganizationEntitlementGuard>
         </DashboardPermissionGuard>
       </UnsavedChangesProvider>

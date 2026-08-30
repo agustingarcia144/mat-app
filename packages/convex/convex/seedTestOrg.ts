@@ -14,7 +14,7 @@ import { internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { upsertProPlan } from "./appBillingPlans";
+import { upsertProPlan, upsertUltraPlan } from "./appBillingPlans";
 import { MEMBER_PAYMENT_DEFAULTS } from "./organizationSettings";
 
 const CLERK_API_BASE = "https://api.clerk.com/v1";
@@ -110,6 +110,9 @@ export const createTestOrganization = internalAction({
     adminLastName: v.optional(v.string()),
     /** Only used when the PRO plan does not exist yet. */
     proPriceArs: v.optional(v.number()),
+    // Seed on ULTRA to exercise rewards and QR check-in, which PRO does not
+    // unlock.
+    planKey: v.optional(v.union(v.literal("pro"), v.literal("ultra"))),
   },
   handler: async (
     ctx,
@@ -149,6 +152,7 @@ export const createTestOrganization = internalAction({
         lastName,
         organizationName,
         proPriceArs: args.proPriceArs,
+        planKey: args.planKey,
       },
     );
 
@@ -171,6 +175,9 @@ export const createTestOrganizationRecords = internalMutation({
     lastName: v.string(),
     organizationName: v.string(),
     proPriceArs: v.optional(v.number()),
+    // Seed on ULTRA to exercise rewards and QR check-in, which PRO does not
+    // unlock.
+    planKey: v.optional(v.union(v.literal("pro"), v.literal("ultra"))),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -248,25 +255,33 @@ export const createTestOrganizationRecords = internalMutation({
       updatedAt: now,
     });
 
-    // PRO, because member payments are a PRO entitlement. An existing PRO row
-    // is used as-is so seeding never rewrites a configured price.
-    let proPlan = await ctx.db
+    // PRO by default, because member payments are a PRO entitlement. An
+    // existing row is used as-is so seeding never rewrites a configured price.
+    const planKey = args.planKey ?? "pro";
+    let billingPlan = await ctx.db
       .query("appBillingPlans")
-      .withIndex("by_key", (q) => q.eq("key", "pro"))
+      .withIndex("by_key", (q) => q.eq("key", planKey))
       .first();
 
-    if (!proPlan) {
-      await upsertProPlan(ctx, args.proPriceArs ?? 50_000);
-      proPlan = await ctx.db
+    if (!billingPlan) {
+      const priceArs = args.proPriceArs ?? 50_000;
+      if (planKey === "ultra") {
+        await upsertUltraPlan(ctx, priceArs);
+      } else {
+        await upsertProPlan(ctx, priceArs);
+      }
+      billingPlan = await ctx.db
         .query("appBillingPlans")
-        .withIndex("by_key", (q) => q.eq("key", "pro"))
+        .withIndex("by_key", (q) => q.eq("key", planKey))
         .first();
     }
-    if (!proPlan) throw new Error("Could not resolve the PRO billing plan");
+    if (!billingPlan) {
+      throw new Error(`Could not resolve the ${planKey.toUpperCase()} billing plan`);
+    }
 
     await ctx.db.insert("organizationBillingSubscriptions", {
       organizationId,
-      billingPlanId: proPlan._id,
+      billingPlanId: billingPlan._id,
       source: "manual",
       externalReference: `seed_${organizationId}`,
       status: "authorized",
@@ -278,14 +293,15 @@ export const createTestOrganizationRecords = internalMutation({
       updatedAt: now,
     });
 
-    const memberPayments = proPlan.entitlements.memberPayments;
+    const memberPayments = billingPlan.entitlements.memberPayments;
 
     return {
       organizationId,
       organizationName: args.organizationName,
       slug,
+      planKey,
       // Surfaced so the caller knows whether member Mercado Pago is actually
-      // enabled on this deployment's PRO plan, rather than finding out later.
+      // enabled on this deployment's plan, rather than finding out later.
       proMemberPaymentsEnabled: memberPayments?.mercadoPagoEnabled ?? false,
     };
   },

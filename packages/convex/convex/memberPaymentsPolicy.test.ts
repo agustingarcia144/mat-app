@@ -1,11 +1,17 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import schema from "./schema";
+import type { Id } from "./_generated/dataModel";
 import {
   MEMBER_PAYMENT_POLICY_DISABLED,
   getOrganizationMemberPaymentPolicy,
+  resolveAiAllowance,
   resolveMemberPaymentPolicy,
+  upsertProPlan,
+  upsertUltraPlan,
 } from "./appBillingPlans";
+import { computeCommissionArs } from "./billingDomain";
+import { REWARDS_MODULE } from "./rewardsDomain";
 import {
   MAX_GRACE_PERIOD_DAYS,
   MEMBER_PAYMENT_DEFAULTS,
@@ -144,7 +150,7 @@ describe("MAT billing plan member-payment policy", () => {
     });
   });
 
-  it("supports a zero-commission plan (future ULTRA) with no code change", () => {
+  it("supports a zero-commission plan with no code change", () => {
     const policy = resolveMemberPaymentPolicy({
       modules: [],
       dashboardCards: [],
@@ -156,6 +162,86 @@ describe("MAT billing plan member-payment policy", () => {
     });
     expect(policy.mercadoPagoEnabled).toBe(true);
     expect(policy.platformFeeBps).toBe(0);
+  });
+
+  // ULTRA is sold on "MAT takes nothing from what your members pay". Seeding it
+  // with any commission would break that promise silently, so assert the seed.
+  it("seeds ULTRA with MercadoPago on and no commission", async () => {
+    const t = convexTest(schema, modules);
+    const plan = await t.run(async (ctx) => {
+      const planId = (await upsertUltraPlan(ctx, 30_000)) as Id<"appBillingPlans">;
+      return await ctx.db.get(planId);
+    });
+
+    expect(resolveMemberPaymentPolicy(plan!.entitlements)).toEqual({
+      mercadoPagoEnabled: true,
+      platformFeeBps: 0,
+      feeCollectionMode: "none",
+    });
+    expect(computeCommissionArs(50_000, 0)).toBe(0);
+  });
+
+  it("unlocks rewards on ULTRA and withholds them from PRO", async () => {
+    const t = convexTest(schema, modules);
+    const { ultra, pro } = await t.run(async (ctx) => ({
+      ultra: await ctx.db.get(
+        (await upsertUltraPlan(ctx, 30_000)) as Id<"appBillingPlans">,
+      ),
+      pro: await ctx.db.get(
+        (await upsertProPlan(ctx, 20_000)) as Id<"appBillingPlans">,
+      ),
+    }));
+
+    expect(ultra!.entitlements.modules).toContain(REWARDS_MODULE);
+    expect(pro!.entitlements.modules).not.toContain(REWARDS_MODULE);
+    // Everything PRO unlocks stays unlocked on ULTRA.
+    for (const module of pro!.entitlements.modules) {
+      expect(ultra!.entitlements.modules).toContain(module);
+    }
+  });
+
+  it("seeds a larger AI allowance for ULTRA than for PRO", async () => {
+    const t = convexTest(schema, modules);
+    const { ultra, pro } = await t.run(async (ctx) => ({
+      ultra: await ctx.db.get(
+        (await upsertUltraPlan(ctx, 30_000)) as Id<"appBillingPlans">,
+      ),
+      pro: await ctx.db.get(
+        (await upsertProPlan(ctx, 20_000)) as Id<"appBillingPlans">,
+      ),
+    }));
+
+    expect(resolveAiAllowance(pro!.entitlements).monthlyTurnLimit).toBe(15);
+    expect(resolveAiAllowance(ultra!.entitlements).monthlyTurnLimit).toBe(100);
+  });
+
+  it("keeps a super admin's policy change across a re-seed", async () => {
+    const t = convexTest(schema, modules);
+    const plan = await t.run(async (ctx) => {
+      await upsertUltraPlan(ctx, 30_000);
+      const seeded = await ctx.db
+        .query("appBillingPlans")
+        .withIndex("by_key", (q) => q.eq("key", "ultra"))
+        .first();
+      await ctx.db.patch(seeded!._id, {
+        entitlements: {
+          ...seeded!.entitlements,
+          memberPayments: {
+            mercadoPagoEnabled: true,
+            platformFeeBps: 250,
+            feeCollectionMode: "monthly_gym_invoice" as const,
+          },
+        },
+      });
+      // A price change re-seeds the doc; the policy must survive it.
+      const planId = (await upsertUltraPlan(ctx, 35_000)) as Id<"appBillingPlans">;
+      return await ctx.db.get(planId);
+    });
+
+    expect(plan!.priceArs).toBe(35_000);
+    expect(resolveMemberPaymentPolicy(plan!.entitlements).platformFeeBps).toBe(
+      250,
+    );
   });
 
   it("resolves the policy of the organization's current MAT plan", async () => {

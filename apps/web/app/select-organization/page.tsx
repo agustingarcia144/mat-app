@@ -13,19 +13,27 @@ import {
   isWebStaffGuardEnabled,
 } from "@/lib/security/roles";
 
-const PENDING_LITE_CHECKOUT_KEY = "mat.pendingLiteCheckout";
+const PENDING_CHECKOUTS = [
+  { key: "mat.pendingLiteCheckout", resumeParam: "lite_checkout" },
+  { key: "mat.pendingUltraCheckout", resumeParam: "ultra_checkout" },
+] as const;
 
-function hasPendingLiteCheckout() {
-  if (typeof window === "undefined") return false;
+/** The paid checkout this browser parked before signing up, if any. */
+function pendingCheckoutResumeParam() {
+  if (typeof window === "undefined") return null;
 
-  try {
-    const rawValue = window.sessionStorage.getItem(PENDING_LITE_CHECKOUT_KEY);
-    if (!rawValue) return false;
-    const parsed = JSON.parse(rawValue) as { organizationName?: string };
-    return Boolean(parsed.organizationName?.trim());
-  } catch {
-    return false;
+  for (const { key, resumeParam } of PENDING_CHECKOUTS) {
+    try {
+      const rawValue = window.sessionStorage.getItem(key);
+      if (!rawValue) continue;
+      const parsed = JSON.parse(rawValue) as { organizationName?: string };
+      if (parsed.organizationName?.trim()) return resumeParam;
+    } catch {
+      // A malformed entry is treated as no pending checkout.
+    }
   }
+
+  return null;
 }
 
 export default function SelectOrganizationPage() {
@@ -48,10 +56,11 @@ export default function SelectOrganizationPage() {
     organizations !== undefined && currentMembership !== undefined;
 
   useEffect(() => {
-    if (!hasPendingLiteCheckout()) return;
+    const resumeParam = pendingCheckoutResumeParam();
+    if (!resumeParam) return;
 
     setIsContinuingLiteCheckout(true);
-    router.replace("/?lite_checkout=1");
+    router.replace(`/?${resumeParam}=1`);
   }, [router]);
 
   useEffect(() => {

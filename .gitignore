@@ -11,6 +11,7 @@ packages/convex/_generated/
 .turbo/
 node_modules
 *.tsbuildinfo
+.DS_Store
 
 #certs
 certs/

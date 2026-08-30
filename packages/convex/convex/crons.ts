@@ -157,6 +157,12 @@ crons.interval(
   { limit: 500 },
 );
 
+// Release abandoned AI stream reservations and remove private conversations
+// after the configured 90-day retention window.
+crons.interval("maintain-mati-ai", { hours: 1 }, internal.ai.cleanup, {
+  limit: 50,
+});
+
 // Membership state can change outside the rewards domain. Hourly refreshes
 // keep Wallet status current without coupling payment mutations to providers.
 crons.interval(

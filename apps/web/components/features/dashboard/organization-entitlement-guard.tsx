@@ -16,6 +16,10 @@ function moduleForPath(pathname: string) {
   if (pathname.startsWith("/dashboard/planifications")) return "planifications";
   if (pathname.startsWith("/dashboard/exercises")) return "exercises";
   if (pathname.startsWith("/dashboard/classes")) return "classes";
+  // Checked before /dashboard/memberships: rewards and check-in sit under the
+  // memberships menu but are unlocked by their own module.
+  if (pathname.startsWith("/dashboard/rewards")) return "rewards";
+  if (pathname.startsWith("/dashboard/check-in")) return "rewards";
   if (pathname.startsWith("/dashboard/memberships")) return "payments";
   if (pathname.startsWith("/dashboard/payments")) return "payments";
   if (pathname.startsWith("/dashboard/finance")) return "finance";

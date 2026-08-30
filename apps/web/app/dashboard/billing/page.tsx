@@ -43,6 +43,8 @@ const currency = new Intl.NumberFormat("es-AR", {
 const mercadoPagoCheckoutEnabled =
   process.env.NEXT_PUBLIC_MERCADOPAGO_CHECKOUT_ENABLED === "true";
 
+type PlanKey = "lite" | "pro" | "ultra";
+
 const LITE_FEATURES = ["Miembros", "Ejercicios", "Planificaciones", "Dashboard Lite"];
 const PRO_FEATURES = [
   "Todo lo de LITE",
@@ -50,6 +52,41 @@ const PRO_FEATURES = [
   "Pagos y finanzas",
   "Métricas y usuarios",
 ];
+const ULTRA_FEATURES = [
+  "Todo lo de PRO",
+  "Sin comisión MAT en los cobros a miembros",
+  "Recompensas e ingreso QR",
+  "Mati AI con 100 consultas por mes",
+];
+
+// The first entry of each list is "everything the plan below has", so it is not
+// something a downgrade loses on its own.
+const PLAN_FEATURES: Record<PlanKey, string[]> = {
+  lite: LITE_FEATURES,
+  pro: PRO_FEATURES,
+  ultra: ULTRA_FEATURES,
+};
+const PLAN_NAMES: Record<PlanKey, string> = {
+  lite: "LITE",
+  pro: "PRO",
+  ultra: "ULTRA",
+};
+const PLAN_RANK: Record<PlanKey, number> = { lite: 0, pro: 1, ultra: 2 };
+
+function isPlanKey(value: string | null | undefined): value is PlanKey {
+  return value === "lite" || value === "pro" || value === "ultra";
+}
+
+/**
+ * The features an organization gives up moving from `from` to `to`: every tier
+ * above the target, minus each list's leading "todo lo de X" line.
+ */
+function featuresLostByDowngrade(from: PlanKey, to: PlanKey) {
+  if (PLAN_RANK[to] >= PLAN_RANK[from]) return [];
+  return (Object.keys(PLAN_RANK) as PlanKey[])
+    .filter((plan) => PLAN_RANK[plan] > PLAN_RANK[to] && PLAN_RANK[plan] <= PLAN_RANK[from])
+    .flatMap((plan) => PLAN_FEATURES[plan].slice(1));
+}
 
 const accentButtonClassName =
   "w-full gap-2 border-transparent bg-[#FF5C24] text-white shadow-[0_12px_34px_-12px_rgba(255,92,36,0.7)] transition-colors hover:bg-[#F04E0E] hover:text-white";
@@ -83,14 +120,15 @@ function daysLeft(trialEndsAt: number | undefined) {
 
 export default function BillingPage() {
   const params = useSearchParams();
-  const [startingPlan, setStartingPlan] = useState<"lite" | "pro" | null>(null);
-  const [planPendingChange, setPlanPendingChange] = useState<
-    "lite" | "pro" | null
-  >(null);
+  const [startingPlan, setStartingPlan] = useState<PlanKey | null>(null);
+  const [planPendingChange, setPlanPendingChange] = useState<PlanKey | null>(
+    null,
+  );
   const billing = useQuery(api.organizationBilling.getCurrentBilling);
   const entitlement = useQuery(api.organizationBilling.getCurrentEntitlement);
   const litePlan = useQuery(api.appBillingPlans.getLite);
   const proPlan = useQuery(api.appBillingPlans.getPro);
+  const ultraPlan = useQuery(api.appBillingPlans.getUltra);
   const createCheckout = useAction(api.organizationBilling.createCheckout);
   const cancelCurrentSubscription = useAction(
     api.organizationBilling.cancelCurrentSubscription,
@@ -109,7 +147,7 @@ export default function BillingPage() {
   const blocked = params.get("blocked") === "1";
   const trialDays = daysLeft(entitlement?.trialEndsAt);
 
-  const handleStartCheckout = async (plan: "lite" | "pro") => {
+  const handleStartCheckout = async (plan: PlanKey) => {
     setPlanPendingChange(null);
     setStartingPlan(plan);
     try {
@@ -152,7 +190,7 @@ export default function BillingPage() {
 
   const isActivePaid = billingStatus === "active";
 
-  function planButton(plan: "lite" | "pro") {
+  function planButton(plan: PlanKey) {
     if (isActivePaid && planKey === plan) {
       return isMercadoPagoSubscription && mercadoPagoCheckoutEnabled ? (
         <Button variant="outline" onClick={handleCancel} className="w-full">
@@ -187,8 +225,8 @@ export default function BillingPage() {
             : handleStartCheckout(plan)
         }
         disabled={startingPlan !== null}
-        className={plan === "pro" ? accentButtonClassName : "w-full gap-2"}
-        variant={plan === "pro" ? "default" : "outline"}
+        className={plan === "ultra" ? accentButtonClassName : "w-full gap-2"}
+        variant={plan === "ultra" ? "default" : "outline"}
       >
         {startingPlan === plan ? "Abriendo..." : "Pagar con MercadoPago"}
         <ArrowRight className="size-4" />
@@ -233,8 +271,9 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle className="text-base">Función no incluida</CardTitle>
             <CardDescription>
-              El plan LITE solo incluye miembros, ejercicios y planificaciones.
-              Actualizá a PRO para acceder a todos los módulos.
+              {planKey === "pro"
+                ? "Las recompensas y el ingreso QR son parte del plan ULTRA. Actualizá para habilitarlos."
+                : "El plan LITE solo incluye miembros, ejercicios y planificaciones. Actualizá para acceder a esta función."}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -261,7 +300,7 @@ export default function BillingPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
+      <div className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
         {/* LITE */}
         <Card className="flex flex-col">
           <CardHeader>
@@ -297,18 +336,15 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
-        {/* PRO (featured) */}
-        <Card className="relative flex flex-col overflow-hidden border-[#FF5C24]/40 bg-[linear-gradient(180deg,rgba(255,92,36,0.08),transparent_55%)] shadow-[0_30px_80px_-50px_rgba(255,92,36,0.7)]">
-          <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#FF5C24]/20 blur-3xl" />
+        {/* PRO */}
+        <Card className="flex flex-col">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
               <CardTitle>Plan PRO</CardTitle>
-              <Badge className="border-transparent bg-[#FF5C24] text-white hover:bg-[#FF5C24]">
-                Recomendado
-              </Badge>
+              <Badge variant="secondary">Gestión completa</Badge>
             </div>
             <CardDescription>
-              Acceso completo a todos los módulos de MAT.
+              Clases, pagos, finanzas, métricas y usuarios.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col gap-5">
@@ -320,16 +356,52 @@ export default function BillingPage() {
               </p>
               <p className="mt-1 text-sm text-muted-foreground">por mes</p>
             </div>
-            <Separator className="bg-[#FF5C24]/20" />
+            <Separator />
             <div className="grid flex-1 gap-3">
               {PRO_FEATURES.map((item) => (
+                <div key={item} className="flex items-center gap-3 text-sm">
+                  <Check className="size-4 shrink-0 text-muted-foreground" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+            {planButton("pro")}
+          </CardContent>
+        </Card>
+
+        {/* ULTRA (featured) */}
+        <Card className="relative flex flex-col overflow-hidden border-[#FF5C24]/40 bg-[linear-gradient(180deg,rgba(255,92,36,0.08),transparent_55%)] shadow-[0_30px_80px_-50px_rgba(255,92,36,0.7)]">
+          <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#FF5C24]/20 blur-3xl" />
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>Plan ULTRA</CardTitle>
+              <Badge className="border-transparent bg-[#FF5C24] text-white hover:bg-[#FF5C24]">
+                Recomendado
+              </Badge>
+            </div>
+            <CardDescription>
+              Todo lo de PRO, sin comisión en los cobros a miembros.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col gap-5">
+            <div>
+              <p className="text-4xl font-semibold tracking-tight">
+                {ultraPlan?.priceArs
+                  ? currency.format(ultraPlan.priceArs)
+                  : "ARS sin configurar"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">por mes</p>
+            </div>
+            <Separator className="bg-[#FF5C24]/20" />
+            <div className="grid flex-1 gap-3">
+              {ULTRA_FEATURES.map((item) => (
                 <div key={item} className="flex items-center gap-3 text-sm">
                   <Check className="size-4 shrink-0 text-[#FF5C24]" />
                   <span>{item}</span>
                 </div>
               ))}
             </div>
-            {planButton("pro")}
+            {planButton("ultra")}
           </CardContent>
         </Card>
       </div>
@@ -375,31 +447,44 @@ export default function BillingPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="size-4 text-amber-500" />
-              {planPendingChange === "lite"
-                ? "Cambiar a LITE"
-                : "Cambiar a PRO"}
+              {planPendingChange
+                ? `Cambiar a ${PLAN_NAMES[planPendingChange]}`
+                : "Cambiar de plan"}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>
                   El cambio de plan se aplica ahora, antes de que MercadoPago
                   cobre. Si no completás el pago, la organización queda igual en{" "}
-                  {planPendingChange === "lite" ? "LITE" : "PRO"}.
+                  {planPendingChange ? PLAN_NAMES[planPendingChange] : "su plan"}.
                 </p>
-                {planPendingChange === "lite" && planKey === "pro" ? (
-                  <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400">
-                    <p className="font-medium">
-                      Vas a perder el acceso a las funciones PRO:
-                    </p>
-                    <ul className="mt-1 list-disc pl-5">
-                      {PRO_FEATURES.filter(
-                        (feature) => feature !== "Todo lo de LITE",
-                      ).map((feature) => (
-                        <li key={feature}>{feature}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
+                {planPendingChange && isPlanKey(planKey)
+                  ? (() => {
+                      const lost = featuresLostByDowngrade(
+                        planKey,
+                        planPendingChange,
+                      );
+                      if (lost.length === 0) return null;
+                      return (
+                        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400">
+                          <p className="font-medium">
+                            Vas a perder el acceso a:
+                          </p>
+                          <ul className="mt-1 list-disc pl-5">
+                            {lost.map((feature) => (
+                              <li key={feature}>{feature}</li>
+                            ))}
+                          </ul>
+                          {planKey === "ultra" ? (
+                            <p className="mt-2">
+                              Los datos de recompensas se conservan, pero el
+                              programa deja de sumar puntos.
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })()
+                  : null}
                 <p>
                   Tu acceso sigue activo mientras MercadoPago procesa el primer
                   pago. Para volver al plan anterior, contactá a MAT.

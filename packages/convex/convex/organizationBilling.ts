@@ -9,6 +9,12 @@ import {
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
+  PRO_DASHBOARD_CARDS,
+  PRO_MODULES,
+  ULTRA_DASHBOARD_CARDS,
+  ULTRA_MODULES,
+} from "./appBillingPlans";
+import {
   requireActiveOrgContext,
   requireAdmin,
   requireSuperAdmin,
@@ -18,39 +24,13 @@ import {
 const unsafeInternal = internal as any;
 const MP_API_BASE = "https://api.mercadopago.com";
 const DEFAULT_GRACE_DAYS = 3;
-const ALLOWED_LITE_MODULES = [
-  "dashboard",
-  "members",
-  "exercises",
-  "planifications",
-  "metrics_exercises",
-];
-const ALLOWED_LITE_DASHBOARD_CARDS = ["members", "planifications"];
-const ALL_MODULES = [
-  "dashboard",
-  "members",
-  "exercises",
-  "planifications",
-  "classes",
-  "payments",
-  "finance",
-  "metrics",
-  "metrics_exercises",
-  "users",
-  "settings",
-];
-const ALL_DASHBOARD_CARDS = [
-  "members",
-  "planifications",
-  "payments",
-  "classes",
-];
 const manualBillingSourceV = v.optional(
   v.union(v.literal("manual"), v.literal("legacy")),
 );
 const manualBillingPlanKeyV = v.optional(
-  v.union(v.literal("pro"), v.literal("lite")),
+  v.union(v.literal("ultra"), v.literal("pro"), v.literal("lite")),
 );
+type ManualBillingPlanKey = "ultra" | "pro" | "lite";
 
 export type BillingStatus =
   | "active"
@@ -104,6 +84,15 @@ function getProPriceArsFromEnv() {
   const price = raw ? Number(raw) : NaN;
   if (!Number.isFinite(price) || price < 1) {
     throw new Error("Missing or invalid MERCADOPAGO_PRO_PRICE_ARS");
+  }
+  return Math.round(price);
+}
+
+function getUltraPriceArsFromEnv() {
+  const raw = process.env.MERCADOPAGO_ULTRA_PRICE_ARS;
+  const price = raw ? Number(raw) : NaN;
+  if (!Number.isFinite(price) || price < 1) {
+    throw new Error("Missing or invalid MERCADOPAGO_ULTRA_PRICE_ARS");
   }
   return Math.round(price);
 }
@@ -343,8 +332,10 @@ export const getCurrentEntitlement = query({
         planKey: plan?.key ?? "super_admin",
         referencePriceUsd: plan?.referencePriceUsd ?? 10,
         priceArs: plan?.priceArs ?? null,
-        modules: ALL_MODULES,
-        dashboardCards: ALL_DASHBOARD_CARDS,
+        // Super admins see every screen the product has, so this tracks the
+        // top plan rather than a fixed list.
+        modules: ULTRA_MODULES,
+        dashboardCards: ULTRA_DASHBOARD_CARDS,
         graceUntil: undefined,
         trialEndsAt: undefined,
       };
@@ -373,15 +364,19 @@ export const getCurrentEntitlement = query({
       planKey: plan?.key ?? null,
       referencePriceUsd: plan?.referencePriceUsd ?? 10,
       priceArs: plan?.priceArs ?? null,
+      // The signup trial is provisioned against PRO (see organizations.ts), so
+      // it grants the PRO set and never ULTRA-only modules such as "rewards".
+      // Granting more here would hand every new organization a feature it
+      // loses on day 8.
       modules: grantsPlanModules
         ? (plan?.entitlements.modules ?? [])
         : status === "trial"
-          ? ALL_MODULES
+          ? PRO_MODULES
           : [],
       dashboardCards: grantsPlanModules
         ? (plan?.entitlements.dashboardCards ?? [])
         : status === "trial"
-          ? ALL_DASHBOARD_CARDS
+          ? PRO_DASHBOARD_CARDS
           : [],
       graceUntil: subscription?.graceUntil,
       trialEndsAt: subscription?.trialEndsAt,
@@ -417,7 +412,9 @@ export const getCurrentBilling = query({
 
 export const createCheckout = action({
   args: {
-    planKey: v.optional(v.union(v.literal("lite"), v.literal("pro"))),
+    planKey: v.optional(
+      v.union(v.literal("lite"), v.literal("pro"), v.literal("ultra")),
+    ),
   },
   handler: async (ctx, args): Promise<{ initPoint: string }> => {
     if (!isMercadoPagoCheckoutEnabled()) {
@@ -438,15 +435,20 @@ export const createCheckout = action({
 
     const planKey = args.planKey ?? "lite";
     const planId =
-      planKey === "pro"
+      planKey === "ultra"
         ? await ctx.runMutation(
-            unsafeInternal.appBillingPlans.ensureProPlanInternal,
-            { priceArs: getProPriceArsFromEnv() },
+            unsafeInternal.appBillingPlans.ensureUltraPlanInternal,
+            { priceArs: getUltraPriceArsFromEnv() },
           )
-        : await ctx.runMutation(
-            unsafeInternal.appBillingPlans.ensureLitePlanInternal,
-            { priceArs: getLitePriceArsFromEnv() },
-          );
+        : planKey === "pro"
+          ? await ctx.runMutation(
+              unsafeInternal.appBillingPlans.ensureProPlanInternal,
+              { priceArs: getProPriceArsFromEnv() },
+            )
+          : await ctx.runMutation(
+              unsafeInternal.appBillingPlans.ensureLitePlanInternal,
+              { priceArs: getLitePriceArsFromEnv() },
+            );
 
     const checkout = await ctx.runMutation(
       unsafeInternal.organizationBilling.prepareCheckoutInternal,
@@ -776,6 +778,7 @@ export const activateOrganizationManuallyInternal = internalMutation({
     planKey: manualBillingPlanKeyV,
     litePriceArs: v.optional(v.number()),
     proPriceArs: v.optional(v.number()),
+    ultraPriceArs: v.optional(v.number()),
     source: manualBillingSourceV,
   },
   handler: async (ctx, args) => {
@@ -788,9 +791,10 @@ async function activateOrganizationAccess(
   args: {
     organizationId: any;
     billingPlanId?: any;
-    planKey?: "pro" | "lite";
+    planKey?: ManualBillingPlanKey;
     litePriceArs?: number;
     proPriceArs?: number;
+    ultraPriceArs?: number;
     source?: "manual" | "legacy";
   },
   createdBy: string,
@@ -822,6 +826,23 @@ async function activateOrganizationAccess(
       const planId = await ctx.runMutation(
         unsafeInternal.appBillingPlans.ensureLitePlanInternal,
         { priceArs: args.litePriceArs },
+      );
+      plan = await ctx.db.get(planId);
+    }
+  }
+
+  if (!plan && planKey === "ultra") {
+    plan = await ctx.db
+      .query("appBillingPlans")
+      .withIndex("by_key", (q: any) => q.eq("key", "ultra"))
+      .first();
+
+    // Seeding needs an explicit price: unlike PRO there is no sensible
+    // placeholder for a plan the gym is being charged for.
+    if ((!plan || !plan.isActive) && args.ultraPriceArs !== undefined) {
+      const planId = await ctx.runMutation(
+        unsafeInternal.appBillingPlans.ensureUltraPlanInternal,
+        { priceArs: args.ultraPriceArs },
       );
       plan = await ctx.db.get(planId);
     }
@@ -1183,7 +1204,7 @@ export const assertSuperAdminInternal = internalQuery({
 export const applyManualConversionInternal = internalMutation({
   args: {
     organizationId: v.id("organizations"),
-    planKey: v.union(v.literal("pro"), v.literal("lite")),
+    planKey: v.union(v.literal("ultra"), v.literal("pro"), v.literal("lite")),
     source: v.union(v.literal("legacy"), v.literal("manual")),
     paidThroughMs: v.optional(v.number()),
     createdBy: v.string(),
@@ -1198,7 +1219,7 @@ export const applyManualConversionInternal = internalMutation({
 
     if (!plan || !plan.isActive) {
       throw new Error(
-        `No active "${args.planKey}" billing plan found. Create it first (appBillingPlans:setProPriceArs / setLitePriceArs).`,
+        `No active "${args.planKey}" billing plan found. Create it first (appBillingPlans:setUltraPriceArs / setProPriceArs / setLitePriceArs).`,
       );
     }
 
@@ -1259,7 +1280,7 @@ async function runManualConversion(
   args: {
     organizationId?: any;
     organizationSlug?: string;
-    planKey?: "pro" | "lite";
+    planKey?: ManualBillingPlanKey;
     source?: ManualConversionSource;
     paidThroughMs?: number;
   },
@@ -1475,7 +1496,7 @@ export const reattachMercadoPagoSubscriptionInternal = internalMutation({
     preapprovalId: v.string(),
     externalReference: v.optional(v.string()),
     payerEmail: v.optional(v.string()),
-    planKey: v.union(v.literal("pro"), v.literal("lite")),
+    planKey: v.union(v.literal("ultra"), v.literal("pro"), v.literal("lite")),
   },
   handler: async (ctx, args) => {
     const plan = await ctx.db
@@ -1687,5 +1708,3 @@ export const syncFromMercadoPagoInternal = internalMutation({
 export function liteAllowsModule(module: string, modules: string[]) {
   return modules.includes(module);
 }
-
-export { ALLOWED_LITE_MODULES, ALLOWED_LITE_DASHBOARD_CARDS };

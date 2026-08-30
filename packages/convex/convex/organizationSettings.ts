@@ -12,6 +12,7 @@ const DEFAULTS = {
   planificationsEnabled: true,
   classesEnabled: true,
   financeEnabled: true,
+  showAiPet: true,
   memberAutoApproval: false,
 };
 
@@ -461,6 +462,7 @@ export const get = query({
     // reimplement the legacy defaults.
     return {
       ...settings,
+      showAiPet: settings.showAiPet ?? DEFAULTS.showAiPet,
       memberPayments: resolveMemberPaymentSettings(settings.memberPayments),
       rewards: resolveRewardSettings(settings.rewards),
     };
@@ -472,6 +474,7 @@ export const update = mutation({
     planificationsEnabled: v.optional(v.boolean()),
     classesEnabled: v.optional(v.boolean()),
     financeEnabled: v.optional(v.boolean()),
+    showAiPet: v.optional(v.boolean()),
     memberAutoApproval: v.optional(v.boolean()),
     memberPayments: v.optional(memberPaymentsValidator),
     rewards: v.optional(rewardsValidator),
@@ -522,6 +525,7 @@ export const update = mutation({
           args.planificationsEnabled ?? DEFAULTS.planificationsEnabled,
         classesEnabled: args.classesEnabled ?? DEFAULTS.classesEnabled,
         financeEnabled: args.financeEnabled ?? DEFAULTS.financeEnabled,
+        showAiPet: args.showAiPet ?? DEFAULTS.showAiPet,
         memberAutoApproval:
           args.memberAutoApproval ?? DEFAULTS.memberAutoApproval,
         memberPayments,

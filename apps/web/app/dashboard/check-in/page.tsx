@@ -9,7 +9,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, QrCode, RefreshCw, XCircle } from "lucide-react";
+import { useQrCamera } from "@/hooks/use-qr-camera";
+import {
+  Camera,
+  CameraOff,
+  CheckCircle2,
+  Keyboard,
+  QrCode,
+  RefreshCw,
+  XCircle,
+} from "lucide-react";
 
 type ScanResult = {
   allowed: boolean;
@@ -43,6 +52,21 @@ const CODE_MESSAGES: Record<string, string> = {
   REWARDS_DISABLED: "El control de acceso por QR no está habilitado.",
 };
 
+type ScanMode = "usb" | "camera";
+
+const SCAN_MODE_STORAGE_KEY = "mat.checkin.scanMode";
+
+const CAMERA_STATUS_MESSAGES: Record<string, string> = {
+  starting: "Encendiendo la cámara…",
+  scanning: "Mostrale el código del socio a la cámara.",
+  denied:
+    "No hay permiso para usar la cámara. Habilitala en el navegador y volvé a intentar.",
+  unsupported:
+    "Este navegador no permite usar la cámara. Necesitás una conexión segura (https).",
+  error:
+    "No se pudo iniciar la cámara. Revisá que no esté en uso por otra app.",
+};
+
 function playFeedback(success: boolean) {
   try {
     const AudioContextClass = window.AudioContext;
@@ -69,11 +93,17 @@ export default function CheckInPage() {
   const linkReservation = useMutation(api.rewards.linkReservationToCheckIn);
   const inputRef = useRef<HTMLInputElement>(null);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const busy = useRef(false);
+  const resultRef = useRef<ScanResult | null>(null);
   const [value, setValue] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [mode, setMode] = useState<ScanMode>("usb");
 
-  const focusScanner = useCallback(() => inputRef.current?.focus(), []);
+  const focusScanner = useCallback(() => {
+    if (mode !== "usb") return;
+    inputRef.current?.focus();
+  }, [mode]);
 
   const reset = useCallback(() => {
     if (resetTimer.current) clearTimeout(resetTimer.current);
@@ -82,6 +112,22 @@ export default function CheckInPage() {
     setSubmitting(false);
     requestAnimationFrame(focusScanner);
   }, [focusScanner]);
+
+  useEffect(() => {
+    resultRef.current = result;
+  }, [result]);
+
+  // Each front desk picks its input once; the choice sticks on that machine.
+  useEffect(() => {
+    const stored = window.localStorage.getItem(SCAN_MODE_STORAGE_KEY);
+    if (stored === "usb" || stored === "camera") setMode(stored);
+  }, []);
+
+  const selectMode = useCallback((next: ScanMode) => {
+    setMode(next);
+    window.localStorage.setItem(SCAN_MODE_STORAGE_KEY, next);
+    if (next === "usb") requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
 
   useEffect(() => {
     focusScanner();
@@ -93,33 +139,61 @@ export default function CheckInPage() {
     };
   }, [focusScanner]);
 
-  async function submit(event?: FormEvent) {
+  const submitPayload = useCallback(
+    async (payload: string) => {
+      // The camera can fire faster than React flushes state, so gate on a ref.
+      if (!payload || busy.current) return;
+      busy.current = true;
+      setSubmitting(true);
+      try {
+        const response = (await scanQr({ payload })) as ScanResult;
+        setResult(response);
+        playFeedback(response.allowed);
+        resetTimer.current = setTimeout(
+          reset,
+          response.allowed ? 6_000 : 4_000,
+        );
+      } catch {
+        const response: ScanResult = {
+          allowed: false,
+          code: "UNAVAILABLE",
+          decisionId: "unavailable",
+        };
+        setResult(response);
+        playFeedback(false);
+        resetTimer.current = setTimeout(reset, 4_000);
+      } finally {
+        busy.current = false;
+        setSubmitting(false);
+      }
+    },
+    [reset, scanQr],
+  );
+
+  function submit(event?: FormEvent) {
     event?.preventDefault();
     const payload = value.trim();
     setValue("");
-    if (!payload || submitting) {
+    if (!payload) {
       focusScanner();
       return;
     }
-    setSubmitting(true);
-    try {
-      const response = (await scanQr({ payload })) as ScanResult;
-      setResult(response);
-      playFeedback(response.allowed);
-      resetTimer.current = setTimeout(reset, response.allowed ? 6_000 : 4_000);
-    } catch {
-      const response: ScanResult = {
-        allowed: false,
-        code: "UNAVAILABLE",
-        decisionId: "unavailable",
-      };
-      setResult(response);
-      playFeedback(false);
-      resetTimer.current = setTimeout(reset, 4_000);
-    } finally {
-      setSubmitting(false);
-    }
+    void submitPayload(payload);
   }
+
+  // While a decision is on screen the same code is still in front of the lens.
+  const onCameraDecode = useCallback(
+    (payload: string) => {
+      if (resultRef.current) return;
+      void submitPayload(payload);
+    },
+    [submitPayload],
+  );
+
+  const { videoRef, status: cameraStatus } = useQrCamera({
+    active: mode === "camera",
+    onDecode: onCameraDecode,
+  });
 
   const success = result?.allowed === true;
   const initials = result?.member?.name
@@ -150,18 +224,75 @@ export default function CheckInPage() {
       <div className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight">Ingreso por QR</h1>
         <p className="text-muted-foreground">
-          Conectá el lector USB en modo teclado y escaneá el código del socio.
+          {mode === "usb"
+            ? "Conectá el lector USB en modo teclado y escaneá el código del socio."
+            : "Usá la cámara de la computadora para leer el código del socio."}
         </p>
       </div>
 
       <Card className="mx-auto w-full max-w-3xl overflow-hidden">
-        <CardHeader className="border-b">
+        <CardHeader className="flex-row items-center justify-between gap-4 space-y-0 border-b">
           <CardTitle className="flex items-center gap-2 text-lg">
             <QrCode className="size-5" /> Puesto de recepción
           </CardTitle>
+          <div className="inline-flex rounded-lg bg-muted p-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "usb" ? "secondary" : "ghost"}
+              className="gap-2"
+              aria-pressed={mode === "usb"}
+              onClick={() => selectMode("usb")}
+            >
+              <Keyboard className="size-4" /> Lector USB
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "camera" ? "secondary" : "ghost"}
+              className="gap-2"
+              aria-pressed={mode === "camera"}
+              onClick={() => selectMode("camera")}
+            >
+              <Camera className="size-4" /> Cámara
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="p-6 md:p-10">
-          {!result ? (
+        <CardContent className="space-y-6 p-6 md:p-10">
+          {/* Kept mounted across scans so the stream is not torn down and
+              re-requested after every check-in. */}
+          {mode === "camera" && (
+            <div className="mx-auto w-full max-w-md space-y-3">
+              <div className="relative aspect-video overflow-hidden rounded-2xl border bg-black">
+                <video
+                  ref={videoRef}
+                  playsInline
+                  muted
+                  className="size-full object-cover"
+                />
+                {cameraStatus === "scanning" ? (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="size-40 rounded-2xl border-4 border-white/80" />
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/95 p-6 text-center">
+                    {cameraStatus === "starting" ? (
+                      <RefreshCw className="size-8 animate-spin text-muted-foreground" />
+                    ) : (
+                      <CameraOff className="size-8 text-muted-foreground" />
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="text-center text-sm text-muted-foreground">
+                {submitting
+                  ? "Validando ingreso…"
+                  : (CAMERA_STATUS_MESSAGES[cameraStatus] ?? "")}
+              </p>
+            </div>
+          )}
+
+          {result ? null : mode === "camera" ? null : (
             <form onSubmit={submit} className="space-y-6 text-center">
               <div className="mx-auto flex size-28 items-center justify-center rounded-full bg-primary/10 text-primary">
                 {submitting ? (
@@ -193,7 +324,9 @@ export default function CheckInPage() {
                 Validar código
               </Button>
             </form>
-          ) : (
+          )}
+
+          {result && (
             <div
               className={`rounded-2xl border p-6 text-center ${
                 success

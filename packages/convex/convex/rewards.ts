@@ -29,6 +29,7 @@ import {
   previousLocalDate,
   REWARD_ACCESS_CODES,
   rewardCapabilityEnabled,
+  REWARDS_MODULE,
 } from "./rewardsDomain";
 import {
   getRewardsQrSecret,
@@ -37,6 +38,7 @@ import {
   signApplePassAuthenticationToken,
   signMobileQr,
 } from "./rewardsQr";
+import { organizationHasModule } from "./appBillingPlans";
 import {
   buildJoinDateCycle,
   getPaymentTimezone,
@@ -193,7 +195,12 @@ async function requireRewardsEnabled(
   organizationId: Id<"organizations">,
 ): Promise<RewardSettings> {
   const settingsDocument = await getSettingsDocument(ctx, organizationId);
-  if (!rewardCapabilityEnabled(settingsDocument)) {
+  const entitled = await organizationHasModule(
+    ctx,
+    organizationId,
+    REWARDS_MODULE,
+  );
+  if (!rewardCapabilityEnabled(settingsDocument, entitled)) {
     throw new Error("REWARDS_DISABLED");
   }
   return resolveRewardSettings(settingsDocument?.rewards);
@@ -549,8 +556,13 @@ export async function awardAttendanceReward(
     params.organizationId,
   );
   const settings = resolveRewardSettings(settingsDocument?.rewards);
+  const entitled = await organizationHasModule(
+    ctx,
+    params.organizationId,
+    REWARDS_MODULE,
+  );
   if (
-    !rewardCapabilityEnabled(settingsDocument) ||
+    !rewardCapabilityEnabled(settingsDocument, entitled) ||
     !isRewardSourceEligible(settingsDocument?.rewards, params.source)
   ) {
     const account = await ctx.db
@@ -684,8 +696,13 @@ export async function awardMembershipPaymentReward(
     ctx,
     payment.organizationId,
   );
+  const entitled = await organizationHasModule(
+    ctx,
+    payment.organizationId,
+    REWARDS_MODULE,
+  );
   if (
-    !rewardCapabilityEnabled(settingsDocument) ||
+    !rewardCapabilityEnabled(settingsDocument, entitled) ||
     !isRewardSourceEligible(settingsDocument?.rewards, "membership_payment")
   ) {
     return { pointsAwarded: 0, consecutivePaidMonths: 0 };
@@ -978,7 +995,14 @@ export const getMyRewards = query({
       .order("desc")
       .take(25);
     return {
-      enabled: rewardCapabilityEnabled(settingsDocument),
+      enabled: rewardCapabilityEnabled(
+        settingsDocument,
+        await organizationHasModule(
+          ctx,
+          orgCtx.organizationId,
+          REWARDS_MODULE,
+        ),
+      ),
       configured: Boolean(settingsDocument?.rewards),
       settings,
       access: { allowed: access.allowed, code: access.code },

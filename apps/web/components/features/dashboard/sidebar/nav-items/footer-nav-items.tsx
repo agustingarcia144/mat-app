@@ -29,12 +29,19 @@ export default function FooterNavItems() {
     return <SidebarMenuSkeleton />;
   }
 
-  // Show during the trial, or whenever the org lacks a Pro-only module
-  // (Lite or expired). Super-admins get full modules, so they never see it.
-  const showUpgrade =
-    !!entitlement &&
-    (entitlement.billingStatus === "trial" ||
-      !entitlement.modules.includes("payments"));
+  // Point at the next tier the org is missing: PRO while it lacks a Pro-only
+  // module (Lite, expired, or on trial), then ULTRA. Super-admins get every
+  // module, so they never see it.
+  const upgradeTarget =
+    !entitlement
+      ? null
+      : entitlement.billingStatus === "trial" ||
+          !entitlement.modules.includes("payments")
+        ? "Pro"
+        : !entitlement.modules.includes("rewards")
+          ? "Ultra"
+          : null;
+  const showUpgrade = upgradeTarget !== null;
 
   return (
     <>
@@ -47,7 +54,7 @@ export default function FooterNavItems() {
             >
               <Link href="/dashboard/billing">
                 <Sparkles className="size-4" />
-                <span>Actualizar a Pro</span>
+                <span>Actualizar a {upgradeTarget}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

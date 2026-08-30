@@ -20,6 +20,7 @@ import { isOrgAdminRole } from "@/lib/security/roles";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/convex/_generated/api";
 import MemberPaymentsSettings from "@/components/features/payments/member-payments/member-payments-settings";
+import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 
 type FormState = {
   name: string;
@@ -70,6 +71,7 @@ export default function SettingsPage() {
   const currentOrganization = useQuery(api.organizations.getCurrentOrganization);
   const updateOrganization = useMutation(api.organizations.updateCurrentOrganization);
   const generateLogoUploadUrl = useMutation(api.organizations.generateOrganizationLogoUploadUrl);
+  const entitlement = useOrganizationEntitlement();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_STATE);
@@ -207,7 +209,12 @@ export default function SettingsPage() {
   }
 
   const handleToggle = async (
-    field: "planificationsEnabled" | "classesEnabled" | "financeEnabled" | "memberAutoApproval",
+    field:
+      | "planificationsEnabled"
+      | "classesEnabled"
+      | "financeEnabled"
+      | "memberAutoApproval"
+      | "showAiPet",
     value: boolean,
   ) => {
     try {
@@ -361,6 +368,29 @@ export default function SettingsPage() {
       </Card>
 
       {canEdit ? <MemberPaymentsSettings canEdit={canEdit} /> : null}
+
+      {entitlement &&
+      (entitlement.planKey === "pro" ||
+        entitlement.planKey === "ultra") &&
+      ["active", "grace_period", "trial"].includes(entitlement.billingStatus) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Mati, asistente con IA</CardTitle>
+            <CardDescription>
+              El chat seguirá disponible desde el encabezado aunque ocultes la mascota.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SettingRow
+              id="showAiPet"
+              label="Mostrar a Mati"
+              description="Muestra la mascota animada en la esquina inferior derecha"
+              checked={settings.showAiPet}
+              onCheckedChange={(value) => handleToggle("showAiPet", value)}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

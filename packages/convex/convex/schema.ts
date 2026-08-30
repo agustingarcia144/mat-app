@@ -128,6 +128,9 @@ export default defineSchema({
     planificationsEnabled: v.boolean(),
     classesEnabled: v.boolean(),
     financeEnabled: v.boolean(),
+    // Whether eligible staff see the animated Mati launcher. When false, the
+    // assistant remains available from the dashboard header.
+    showAiPet: v.optional(v.boolean()),
     // Membership
     memberAutoApproval: v.boolean(),
     // Member -> gym payment configuration. Absent on rows created before the
@@ -374,6 +377,14 @@ export default defineSchema({
           ),
         }),
       ),
+      // Mati AI allowance for gyms on this MAT plan. Plans without this object
+      // behave as no AI access, so the AI code never branches on the plan name.
+      ai: v.optional(
+        v.object({
+          // Assistant turns allowed per subscription cycle.
+          monthlyTurnLimit: v.number(),
+        }),
+      ),
     }),
     isActive: v.boolean(),
     createdAt: v.number(),
@@ -381,6 +392,105 @@ export default defineSchema({
   })
     .index("by_key", ["key"])
     .index("by_active", ["isActive"]),
+
+  // Private, organization-scoped Mati AI conversations. The userId is the
+  // Clerk subject and is always checked server-side before a conversation is
+  // read or changed.
+  aiConversations: defineTable({
+    organizationId: v.id("organizations"),
+    userId: v.string(),
+    title: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastMessageAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_organization_user", ["organizationId", "userId"])
+    .index("by_organization_user_updated", [
+      "organizationId",
+      "userId",
+      "updatedAt",
+    ])
+    .index("by_expires_at", ["expiresAt"]),
+
+  aiMessages: defineTable({
+    organizationId: v.id("organizations"),
+    conversationId: v.id("aiConversations"),
+    userId: v.string(),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    content: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("complete"),
+      v.literal("failed"),
+    ),
+    model: v.optional(v.string()),
+    inputTokens: v.optional(v.number()),
+    outputTokens: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_conversation_created", ["conversationId", "createdAt"])
+    .index("by_organization_user", ["organizationId", "userId"]),
+
+  // One row per accepted user prompt. A reservation prevents concurrent tabs
+  // from exceeding the organization's subscription-cycle allowance.
+  aiTurns: defineTable({
+    organizationId: v.id("organizations"),
+    conversationId: v.id("aiConversations"),
+    userId: v.string(),
+    userMessageId: v.id("aiMessages"),
+    assistantMessageId: v.optional(v.id("aiMessages")),
+    clientRequestId: v.string(),
+    status: v.union(
+      v.literal("reserved"),
+      v.literal("complete"),
+      v.literal("failed"),
+    ),
+    cycleStart: v.number(),
+    cycleEnd: v.number(),
+    model: v.optional(v.string()),
+    inputTokens: v.optional(v.number()),
+    outputTokens: v.optional(v.number()),
+    errorCode: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_user_request", ["userId", "clientRequestId"])
+    .index("by_user_created", ["userId", "createdAt"])
+    .index("by_user_status_created", ["userId", "status", "createdAt"])
+    .index("by_status_updated", ["status", "updatedAt"])
+    .index("by_conversation", ["conversationId"]),
+
+  aiUsageBuckets: defineTable({
+    organizationId: v.id("organizations"),
+    planKey: v.string(),
+    cycleStart: v.number(),
+    cycleEnd: v.number(),
+    limit: v.number(),
+    used: v.number(),
+    reserved: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_organization_cycle", ["organizationId", "cycleStart"]),
+
+  aiToolAudits: defineTable({
+    organizationId: v.id("organizations"),
+    conversationId: v.id("aiConversations"),
+    turnId: v.id("aiTurns"),
+    userId: v.string(),
+    source: v.union(v.literal("organization"), v.literal("help")),
+    dataset: v.string(),
+    normalizedQuery: v.any(),
+    rowCount: v.number(),
+    truncated: v.boolean(),
+    durationMs: v.number(),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_organization_created", ["organizationId", "createdAt"])
+    .index("by_turn", ["turnId"]),
 
   // Organization-level subscriptions for MAT app access.
   organizationBillingSubscriptions: defineTable({

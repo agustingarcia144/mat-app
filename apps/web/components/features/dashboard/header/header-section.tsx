@@ -14,6 +14,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { useDashboardBreadcrumbs } from "@/hooks/use-current-page-title";
+import { MatiHeaderButton } from "@/components/features/ai/mati-assistant-provider";
 
 function HeaderSection() {
   const breadcrumbs = useDashboardBreadcrumbs();
@@ -53,7 +54,10 @@ function HeaderSection() {
           </BreadcrumbList>
         </Breadcrumb>
       </div>
-      <ModeToggle />
+      <div className="flex items-center gap-1">
+        <MatiHeaderButton />
+        <ModeToggle />
+      </div>
     </header>
   );
 }
