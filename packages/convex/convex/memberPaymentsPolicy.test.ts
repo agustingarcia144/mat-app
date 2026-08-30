@@ -1,6 +1,7 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import schema from "./schema";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
   MEMBER_PAYMENT_POLICY_DISABLED,
@@ -213,6 +214,65 @@ describe("MAT billing plan member-payment policy", () => {
 
     expect(resolveAiAllowance(pro!.entitlements).monthlyTurnLimit).toBe(15);
     expect(resolveAiAllowance(ultra!.entitlements).monthlyTurnLimit).toBe(100);
+  });
+
+  // Regression guard: moving the AI allowance onto the plan doc gave older docs
+  // an implicit limit of 0, which switches Mati off for every gym on them.
+  it("backfills a missing AI allowance without touching the price", async () => {
+    const t = convexTest(schema, modules);
+    const before = await t.run(async (ctx) =>
+      ctx.db.insert("appBillingPlans", {
+        key: "pro",
+        name: "PRO",
+        referencePriceUsd: 60,
+        priceCurrency: "ARS" as const,
+        priceArs: 89_999,
+        frequency: 1,
+        frequencyType: "months" as const,
+        // A doc created before either the "ai" field or metrics_exercises.
+        entitlements: {
+          modules: ["dashboard", "members"],
+          dashboardCards: ["members"],
+          memberPayments: {
+            mercadoPagoEnabled: true,
+            platformFeeBps: 175,
+            feeCollectionMode: "monthly_gym_invoice" as const,
+          },
+        },
+        isActive: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }),
+    );
+
+    const result = await t.mutation(
+      internal.appBillingPlans.reconcilePlanEntitlementsInternal,
+      {},
+    );
+    expect(result.plansChanged).toBe(1);
+
+    const plan = await t.run((ctx) => ctx.db.get(before));
+    expect(plan!.priceArs).toBe(89_999);
+    expect(resolveAiAllowance(plan!.entitlements).monthlyTurnLimit).toBe(15);
+    // A hand-tuned commission is not reverted.
+    expect(resolveMemberPaymentPolicy(plan!.entitlements).platformFeeBps).toBe(
+      175,
+    );
+    // Missing modules are added; nothing is taken away.
+    expect(plan!.entitlements.modules).toContain("metrics_exercises");
+    expect(plan!.entitlements.modules).toContain("members");
+    expect(plan!.entitlements.modules).not.toContain(REWARDS_MODULE);
+  });
+
+  it("is a no-op on a plan already up to date", async () => {
+    const t = convexTest(schema, modules);
+    await t.run((ctx) => upsertUltraPlan(ctx, 30_000));
+
+    const result = await t.mutation(
+      internal.appBillingPlans.reconcilePlanEntitlementsInternal,
+      {},
+    );
+    expect(result.plansChanged).toBe(0);
   });
 
   it("keeps a super admin's policy change across a re-seed", async () => {

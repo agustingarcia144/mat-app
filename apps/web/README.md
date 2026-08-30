@@ -46,3 +46,14 @@ SENTRY_AUTH_TOKEN=<Sentry auth token for source map uploads>
 On Vercel, add `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_DSN`, `SENTRY_ORG`, and `SENTRY_PROJECT` to the runtime environments you deploy. Add `SENTRY_AUTH_TOKEN` as a protected build environment variable so production and preview builds can upload source maps.
 
 The Sentry DSN is not a secret, but the auth token is. If the auth token is exposed in logs, chat transcripts, or a shared terminal recording, revoke it in Sentry and generate a new token with project-scoped source map upload permissions.
+
+## Mati AI
+
+The staff AI assistant requires an OpenAI API key in the web server environment:
+
+```bash
+OPENAI_API_KEY=<server-only OpenAI API key>
+OPENAI_CHAT_MODEL=gpt-5.6-luna
+```
+
+`OPENAI_CHAT_MODEL` is optional and defaults to `gpt-5.6-luna`. Keep both values server-only; neither should use the `NEXT_PUBLIC_` prefix.

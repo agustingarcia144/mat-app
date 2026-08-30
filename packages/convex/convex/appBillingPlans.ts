@@ -26,14 +26,17 @@ export const MEMBER_PAYMENT_POLICY_DISABLED: MemberPaymentPolicy = {
 const LITE_MEMBER_PAYMENTS: MemberPaymentPolicy = MEMBER_PAYMENT_POLICY_DISABLED;
 
 /**
- * PRO gyms can charge through MercadoPago. The commission stays at zero until
- * MAT approves the commercial percentage and the tax treatment; a super admin
- * then raises it with `setMemberPaymentPolicy` without a deploy.
+ * PRO gyms can charge through MercadoPago, and MAT takes 0.5% of what their
+ * members pay. `marketplace_split` has MercadoPago deduct the fee at the source
+ * so the gym is paid net; recurring preapproval charges have no split-fee API,
+ * so `resolveCollectionMode` accrues those for the monthly invoice instead.
+ *
+ * Dropping this to zero is what an ULTRA gym is paying for.
  */
 const PRO_MEMBER_PAYMENTS: MemberPaymentPolicy = {
   mercadoPagoEnabled: true,
-  platformFeeBps: 0,
-  feeCollectionMode: "none",
+  platformFeeBps: 50, // 0.5%
+  feeCollectionMode: "marketplace_split",
 };
 
 /**
@@ -401,6 +404,96 @@ export async function organizationHasModule(
   const plan = await ctx.db.get(subscription.billingPlanId);
   return plan?.entitlements?.modules?.includes(module) === true;
 }
+
+/**
+ * Bring existing plan docs up to date with the entitlements this file defines,
+ * without touching prices.
+ *
+ * `ensure*PlanInternal` rewrites the whole doc including `priceArs`, so it
+ * cannot be used to repair a live deployment. This fills in entitlement fields
+ * a plan predates -- notably `ai`, whose absence means "no AI access" and would
+ * otherwise silently switch Mati off for every organization on an older doc.
+ *
+ * Deliberately conservative: it never writes a price, never downgrades a
+ * plan's module list, and never overwrites `memberPayments`, which a super
+ * admin may have tuned. Safe to run repeatedly.
+ */
+export const reconcilePlanEntitlementsInternal = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const defaults: Record<
+      string,
+      { modules: string[]; dashboardCards: string[]; ai: AiAllowance }
+    > = {
+      lite: {
+        modules: LITE_MODULES,
+        dashboardCards: LITE_DASHBOARD_CARDS,
+        ai: LITE_AI,
+      },
+      pro: {
+        modules: PRO_MODULES,
+        dashboardCards: PRO_DASHBOARD_CARDS,
+        ai: PRO_AI,
+      },
+      ultra: {
+        modules: ULTRA_MODULES,
+        dashboardCards: ULTRA_DASHBOARD_CARDS,
+        ai: ULTRA_AI,
+      },
+    };
+
+    const changes: Array<{
+      key: string;
+      addedModules: string[];
+      addedDashboardCards: string[];
+      aiTurnLimit: number | "unchanged";
+    }> = [];
+
+    for (const plan of await ctx.db.query("appBillingPlans").collect()) {
+      const expected = defaults[plan.key];
+      if (!expected) continue;
+
+      // Union, not replace: a module granted by hand stays granted.
+      const addedModules = expected.modules.filter(
+        (module) => !plan.entitlements.modules.includes(module),
+      );
+      const addedDashboardCards = expected.dashboardCards.filter(
+        (card) => !plan.entitlements.dashboardCards.includes(card),
+      );
+      const needsAi = plan.entitlements.ai === undefined;
+
+      if (
+        addedModules.length === 0 &&
+        addedDashboardCards.length === 0 &&
+        !needsAi
+      ) {
+        continue;
+      }
+
+      await ctx.db.patch(plan._id, {
+        entitlements: {
+          ...plan.entitlements,
+          modules: [...plan.entitlements.modules, ...addedModules],
+          dashboardCards: [
+            ...plan.entitlements.dashboardCards,
+            ...addedDashboardCards,
+          ],
+          ai: plan.entitlements.ai ?? expected.ai,
+        },
+        updatedAt: Date.now(),
+      });
+
+      changes.push({
+        key: plan.key,
+        addedModules,
+        addedDashboardCards,
+        aiTurnLimit: needsAi ? expected.ai.monthlyTurnLimit : "unchanged",
+      });
+    }
+
+    return { changes, plansChanged: changes.length };
+  },
+});
 
 /**
  * Super-admin: change a MAT plan's member-payment policy without a deploy.

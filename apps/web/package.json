@@ -33,7 +33,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@repo/convex": "workspace:*",
     "@repo/core": "workspace:*",
-    "@sentry/nextjs": "10.52.0",
+    "@sentry/nextjs": "^10",
     "@tanstack/react-table": "^8.21.3",
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
