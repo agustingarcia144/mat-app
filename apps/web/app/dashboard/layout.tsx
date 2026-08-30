@@ -7,7 +7,6 @@ import DashboardPermissionGuard from "@/components/features/dashboard/dashboard-
 import OrganizationEntitlementGuard from "@/components/features/dashboard/organization-entitlement-guard";
 import TrialBanner from "@/components/features/dashboard/trial-banner";
 import { SidebarInset } from "@/components/ui/sidebar";
-import { Toaster } from "@/components/ui/sonner";
 import { UnsavedChangesProvider } from "@/contexts/unsaved-changes-context";
 
 async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -29,7 +28,6 @@ async function DashboardLayout({ children }: { children: React.ReactNode }) {
             </SidebarInset>
           </OrganizationEntitlementGuard>
         </DashboardPermissionGuard>
-        <Toaster />
       </UnsavedChangesProvider>
     </DashboardProviders>
   );

@@ -1,5 +1,6 @@
 import "../styles/global.css";
 import Providers from "@/components/providers/providers";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata = {
   title: {
@@ -34,6 +35,13 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
+        {/*
+          Mounted at the root, not per-section. It used to live only in the
+          dashboard layout, which meant every error on sign-in, sign-up,
+          password reset and invitation acceptance was raised into nothing —
+          a failed sign-in looked like a button that did not work.
+        */}
+        <Toaster />
       </body>
     </html>
   );

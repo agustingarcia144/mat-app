@@ -2868,3 +2868,51 @@ export const notifyGraceDeadlines = internalMutation({
     return { notified };
   },
 });
+
+/**
+ * Coarse payment state for the public web fallback page.
+ *
+ * Deliberately minimal. A member who lands on the website instead of the app
+ * is not signed in there, so this cannot be behind authentication — which
+ * means the only safe thing to return is a state, with no amount, plan,
+ * organization or identity attached. It exists to answer "did it work, and how
+ * do I get back", nothing more.
+ *
+ * An unknown id returns `unknown` rather than an error, so the endpoint cannot
+ * be used to confirm whether a given session exists.
+ */
+export const getCheckoutSessionPublicStatusInternal = internalQuery({
+  args: { sessionId: v.string() },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ status: "approved" | "processing" | "failed" | "expired" | "unknown" }> => {
+    const sessionId = ctx.db.normalizeId(
+      "memberPaymentCheckoutSessions",
+      args.sessionId,
+    );
+    if (!sessionId) return { status: "unknown" };
+
+    const session = await ctx.db.get(sessionId);
+    if (!session) return { status: "unknown" };
+
+    // Access is what the member actually cares about, and it is the only
+    // signal that means a payment was verified.
+    if (session.subscriptionId) {
+      const subscription = await ctx.db.get(session.subscriptionId);
+      if (subscription?.status === "active") return { status: "approved" };
+    }
+
+    switch (session.status) {
+      case "approved":
+        return { status: "approved" };
+      case "failed":
+      case "cancelled":
+        return { status: "failed" };
+      case "expired":
+        return { status: "expired" };
+      default:
+        return { status: "processing" };
+    }
+  },
+});

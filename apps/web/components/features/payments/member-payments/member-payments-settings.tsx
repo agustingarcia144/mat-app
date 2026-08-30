@@ -88,6 +88,37 @@ function useMercadoPagoBlocker(
   }, [overview]);
 }
 
+
+/**
+ * Short result codes from the OAuth callback, in words an admin can act on.
+ * The codes are the ones `classifyConnectError` produces in the backend.
+ */
+const CONNECT_FAILURE_MESSAGES: Record<string, string> = {
+  invalid_state:
+    "El pedido de conexión venció. Volvé a tocar «Conectar cuenta» y completá el paso sin demorarte.",
+  live_account_on_sandbox:
+    "Entraste con una cuenta real de Mercado Pago y este entorno es de prueba. Conectá una cuenta de prueba.",
+  seller_already_connected:
+    "Esa cuenta de Mercado Pago ya está conectada a otro gimnasio.",
+  seller_mismatch:
+    "La cuenta que autorizó no coincide con la que devolvió Mercado Pago. Probá de nuevo con una sola sesión abierta.",
+  missing_refresh_token:
+    "La aplicación de Mercado Pago no tiene habilitado «offline_access». Revisá su configuración.",
+  exchange_failed:
+    "Mercado Pago rechazó la conexión. Revisá el Client ID, el Client Secret y la Redirect URI de la aplicación.",
+  provider_error: "Mercado Pago cortó la autorización. Intentá de nuevo.",
+  missing_parameters:
+    "Mercado Pago volvió sin los datos de la autorización. Intentá de nuevo.",
+};
+
+function describeConnectFailure(reason: string | null): string {
+  const message = reason ? CONNECT_FAILURE_MESSAGES[reason] : undefined;
+  if (message) return message;
+  return reason
+    ? `No pudimos conectar la cuenta de Mercado Pago (${reason}).`
+    : "No pudimos conectar la cuenta de Mercado Pago. Intentá de nuevo.";
+}
+
 export default function MemberPaymentsSettings({
   canEdit,
 }: {
@@ -134,9 +165,9 @@ export default function MemberPaymentsSettings({
     } else if (result === "denied") {
       toast.info("Cancelaste la conexión con Mercado Pago");
     } else {
-      toast.error(
-        "No pudimos conectar la cuenta de Mercado Pago. Intentá de nuevo.",
-      );
+      // Say *why* it failed: a generic message here made a misconfigured
+      // application indistinguishable from a cancelled login.
+      toast.error(describeConnectFailure(searchParams.get("reason")));
     }
 
     router.replace("/dashboard/settings");

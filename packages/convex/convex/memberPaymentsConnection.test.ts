@@ -889,3 +889,87 @@ describe("OAuth callback route", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("sandbox isolation", () => {
+  it("refuses a real Mercado Pago account on a sandbox deployment", async () => {
+    const t = convexTest(schema, modules);
+    await seedOrganization(t, { slug: "gym-a", adminUserId: ADMIN });
+    process.env.MEMBER_PAYMENTS_MP_ENV = "sandbox";
+
+    const fake = new FakeMercadoPago();
+    // A real account: the admin signed in with their own login instead of the
+    // seller test user.
+    fake.onJson(
+      "POST /oauth/token",
+      oauthTokenResponse({ user_id: SELLER_A.userId, live_mode: true }),
+    );
+    fake.onJson("GET /users/me", sellerIdentityResponse(SELLER_A));
+    __setMercadoPagoTransportForTests(fake.transport);
+
+    const { state } = await beginConnection(t, ADMIN);
+    const result = await t.action(
+      internal.memberPaymentsActions.completeMercadoPagoConnection,
+      { code: "auth-code", state },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("live_account_on_sandbox");
+    // Nothing is stored: a sandbox deployment never holds real credentials.
+    expect(
+      await t.run((ctx) =>
+        ctx.db.query("organizationPaymentProviderConnections").collect(),
+      ),
+    ).toHaveLength(0);
+
+    delete process.env.MEMBER_PAYMENTS_MP_ENV;
+  });
+
+  it("accepts a test account on a sandbox deployment", async () => {
+    const t = convexTest(schema, modules);
+    await seedOrganization(t, { slug: "gym-a", adminUserId: ADMIN });
+    process.env.MEMBER_PAYMENTS_MP_ENV = "sandbox";
+
+    const fake = new FakeMercadoPago();
+    fake.onJson(
+      "POST /oauth/token",
+      oauthTokenResponse({ user_id: SELLER_A.userId, live_mode: false }),
+    );
+    fake.onJson("GET /users/me", sellerIdentityResponse(SELLER_A));
+    __setMercadoPagoTransportForTests(fake.transport);
+
+    const { state } = await beginConnection(t, ADMIN);
+    const result = await t.action(
+      internal.memberPaymentsActions.completeMercadoPagoConnection,
+      { code: "auth-code", state },
+    );
+
+    expect(result.ok).toBe(true);
+    delete process.env.MEMBER_PAYMENTS_MP_ENV;
+  });
+
+  it("accepts a real account when the deployment is not a sandbox", async () => {
+    const t = convexTest(schema, modules);
+    await seedOrganization(t, { slug: "gym-a", adminUserId: ADMIN });
+    delete process.env.MEMBER_PAYMENTS_MP_ENV;
+
+    const fake = new FakeMercadoPago();
+    fake.onJson(
+      "POST /oauth/token",
+      oauthTokenResponse({ user_id: SELLER_A.userId, live_mode: true }),
+    );
+    fake.onJson("GET /users/me", sellerIdentityResponse(SELLER_A));
+    __setMercadoPagoTransportForTests(fake.transport);
+
+    const { state } = await beginConnection(t, ADMIN);
+    const result = await t.action(
+      internal.memberPaymentsActions.completeMercadoPagoConnection,
+      { code: "auth-code", state },
+    );
+
+    expect(result.ok).toBe(true);
+    const [connection] = await t.run((ctx) =>
+      ctx.db.query("organizationPaymentProviderConnections").collect(),
+    );
+    expect(connection!.liveMode).toBe(true);
+  });
+});

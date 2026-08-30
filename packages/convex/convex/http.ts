@@ -3,6 +3,7 @@ import { clerkWebhook } from "./webhooks";
 import { httpJoinPreview } from "./joinGym";
 import { mercadoPagoWebhook } from "./mercadoPagoWebhook";
 import {
+  memberPaymentReturnStatus,
   mercadoPagoMemberWebhook,
   mercadoPagoOAuthCallback,
 } from "./memberPaymentsHttp";
@@ -72,6 +73,14 @@ http.route({
   pathPrefix: "/member-payments/webhook/",
   method: "POST",
   handler: mercadoPagoMemberWebhook,
+});
+
+// Public payment status for the web fallback page, used when the app did not
+// take over the Mercado Pago return link.
+http.route({
+  pathPrefix: "/member-payments/return/",
+  method: "GET",
+  handler: memberPaymentReturnStatus,
 });
 
 // Public join preview for web fallback (GET /join/<token>)

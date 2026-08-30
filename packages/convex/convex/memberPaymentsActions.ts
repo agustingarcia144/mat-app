@@ -32,6 +32,7 @@ import {
   getMemberPaymentsWebhookBaseUrl,
   getMercadoPagoOAuthConfig,
   isMemberMercadoPagoEnabled,
+  isMercadoPagoSandbox,
   MEMBER_MP_DISABLED_REASON,
 } from "./memberPaymentsEnv";
 import {
@@ -144,6 +145,7 @@ export const completeMercadoPagoConnection = internalAction({
 
     // Unknown, expired or already-used state: nothing to attribute the code to.
     if (!consumed) {
+      console.error("[member-payments] oauth connect failed: invalid_state");
       return { ok: false, reason: "invalid_state", returnPath: "" };
     }
 
@@ -157,6 +159,20 @@ export const completeMercadoPagoConnection = internalAction({
       });
       const identity = await fetchSellerIdentity(transport, tokens.accessToken);
       assertSellerMatchesTokens(tokens, identity);
+
+      // OAuth has no separate sandbox credentials: the same application
+      // client id and secret serve both, and whether money is real depends on
+      // who authorized. On a sandbox deployment that makes it possible to
+      // connect a genuine gym account by signing in with the wrong Mercado
+      // Pago login — after which real members would be charged for real.
+      // Refuse it: a test deployment must only ever hold test accounts.
+      if (isMercadoPagoSandbox() && tokens.liveMode === true) {
+        console.error(
+          "[member-payments] oauth connect failed: live_account_on_sandbox " +
+            `(seller ${identity.providerAccountId})`,
+        );
+        return { ok: false, reason: "live_account_on_sandbox", returnPath };
+      }
 
       const now = Date.now();
       const [accessToken, refreshToken] = await Promise.all([
@@ -186,7 +202,15 @@ export const completeMercadoPagoConnection = internalAction({
 
       return { ok: true, returnPath };
     } catch (error) {
-      return { ok: false, reason: classifyConnectError(error), returnPath };
+      const reason = classifyConnectError(error);
+      // The message is already sanitized (no token, no payer email), so it is
+      // safe in the deployment log — and without it a failed connection is
+      // indistinguishable from every other failed connection.
+      console.error(
+        `[member-payments] oauth connect failed: ${reason}`,
+        error instanceof Error ? error.message : String(error),
+      );
+      return { ok: false, reason, returnPath };
     }
   },
 });

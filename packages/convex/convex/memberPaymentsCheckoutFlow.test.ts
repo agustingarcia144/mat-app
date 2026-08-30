@@ -23,7 +23,7 @@ import {
   SELLER_A,
 } from "./mercadoPago.fixtures";
 
-import { drainScheduled } from "./memberPayments.testing";
+import { drainScheduled, type TestConvex } from "./memberPayments.testing";
 
 const modules = import.meta.glob("./**/*.*s");
 
@@ -949,5 +949,87 @@ describe("first activation", () => {
 
     expect((await readSubscriptions(t))[0]!.status).toBe("active");
     expect(await readPlanPayments(t)).toHaveLength(1);
+  });
+});
+
+describe("public web fallback status", () => {
+  const fetchStatus = (t: TestConvex, sessionId: string) =>
+    t.fetch(`/member-payments/return/${encodeURIComponent(sessionId)}`, {
+      method: "GET",
+    });
+
+  it("reports an approved payment once access is granted", async () => {
+    const t = convexTest(schema, modules);
+    const gym = await seedGym(t);
+    const fake = new FakeMercadoPago();
+    fake.onJson("POST /preapproval", preapprovalResponse());
+    __setMercadoPagoTransportForTests(fake.transport);
+    const { sessionId } = await startCheckout(t, gym);
+
+    const [agreement] = await readAgreements(t);
+    fake.onJson(
+      "GET /authorized_payments/*",
+      authorizedPaymentResponse({
+        external_reference: agreement!.externalReference,
+        transaction_amount: 30_000,
+        payment_status: "approved",
+      }),
+    );
+    await postAuthorizedPaymentWebhook(t);
+
+    const response = await fetchStatus(t, sessionId);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: "approved" });
+  });
+
+  it("reports processing while the payment is unconfirmed", async () => {
+    const t = convexTest(schema, modules);
+    const gym = await seedGym(t);
+    fakeWithCheckout();
+    const { sessionId } = await startCheckout(t, gym);
+
+    expect(await (await fetchStatus(t, sessionId)).json()).toEqual({
+      status: "processing",
+    });
+  });
+
+  it("reports a failed checkout", async () => {
+    const t = convexTest(schema, modules);
+    const gym = await seedGym(t);
+    fakeWithCheckout();
+    const { sessionId } = await startCheckout(t, gym);
+    await t
+      .withIdentity({ subject: MEMBER })
+      .mutation(api.memberPaymentsCheckout.cancelMyCheckoutSession, {
+        sessionId,
+      });
+
+    expect(await (await fetchStatus(t, sessionId)).json()).toEqual({
+      status: "failed",
+    });
+  });
+
+  it("cannot be used to confirm whether a session exists", async () => {
+    const t = convexTest(schema, modules);
+    await seedGym(t);
+
+    // A malformed id and a well-formed but unknown one are indistinguishable.
+    for (const id of ["not-an-id", "kn70000000000000000000000000000000"]) {
+      const response = await fetchStatus(t, id);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ status: "unknown" });
+    }
+  });
+
+  it("returns a state and nothing else", async () => {
+    const t = convexTest(schema, modules);
+    const gym = await seedGym(t);
+    fakeWithCheckout();
+    const { sessionId } = await startCheckout(t, gym);
+
+    const body = await (await fetchStatus(t, sessionId)).json();
+    // No amount, plan, organization or identity may reach an unauthenticated
+    // page reachable by anyone holding the link.
+    expect(Object.keys(body)).toEqual(["status"]);
   });
 });

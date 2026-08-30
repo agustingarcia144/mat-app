@@ -17,7 +17,8 @@
     "testflight": "pnpm --filter mobile run testflight",
     "admin": "pnpm --filter mobile-admin run dev",
     "android:admin": "pnpm --filter mobile-admin run android",
-    "ios:admin": "pnpm --filter mobile-admin run ios"
+    "ios:admin": "pnpm --filter mobile-admin run ios",
+    "seed:test-org": "node scripts/create-test-org.mjs"
   },
   "devDependencies": {
     "prettier": "^3.1.1",

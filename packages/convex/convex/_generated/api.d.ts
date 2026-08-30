@@ -72,6 +72,7 @@ import type * as scheduleBatchUtils from "../scheduleBatchUtils.js";
 import type * as scheduleBatches from "../scheduleBatches.js";
 import type * as seedDemoOrg from "../seedDemoOrg.js";
 import type * as seedExercises from "../seedExercises.js";
+import type * as seedTestOrg from "../seedTestOrg.js";
 import type * as sessionExerciseLogs from "../sessionExerciseLogs.js";
 import type * as staffShiftModelSlots from "../staffShiftModelSlots.js";
 import type * as staffShifts from "../staffShifts.js";
@@ -156,6 +157,7 @@ declare const fullApi: ApiFromModules<{
   scheduleBatches: typeof scheduleBatches;
   seedDemoOrg: typeof seedDemoOrg;
   seedExercises: typeof seedExercises;
+  seedTestOrg: typeof seedTestOrg;
   sessionExerciseLogs: typeof sessionExerciseLogs;
   staffShiftModelSlots: typeof staffShiftModelSlots;
   staffShifts: typeof staffShifts;

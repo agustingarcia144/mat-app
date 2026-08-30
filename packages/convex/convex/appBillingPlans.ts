@@ -212,7 +212,8 @@ async function upsertLitePlan(ctx: any, priceArs: number) {
   });
 }
 
-async function upsertProPlan(ctx: any, priceArs: number) {
+/** Exported so test seeding can create PRO without duplicating its definition. */
+export async function upsertProPlan(ctx: any, priceArs: number) {
   if (!Number.isFinite(priceArs) || priceArs < 0) {
     throw new Error("Pro price must be a non-negative ARS amount");
   }
@@ -311,6 +312,76 @@ export const setMemberPaymentPolicy = mutation({
     });
 
     return plan._id;
+  },
+});
+
+/**
+ * Set a plan's member-payment policy without touching its price.
+ *
+ * An internal mutation so it can be run from the Convex dashboard during
+ * setup, where there is no signed-in super admin to authorize the public
+ * mutation. Deliberately narrow: it cannot change a price, and it refuses the
+ * same nonsensical combinations `setMemberPaymentPolicy` does.
+ */
+export const ensureMemberPaymentPolicyInternal = internalMutation({
+  args: {
+    planKey: v.string(),
+    mercadoPagoEnabled: v.boolean(),
+    platformFeeBps: v.optional(v.number()),
+    feeCollectionMode: v.optional(
+      v.union(
+        v.literal("none"),
+        v.literal("marketplace_split"),
+        v.literal("monthly_gym_invoice"),
+      ),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const platformFeeBps = args.platformFeeBps ?? 0;
+    const feeCollectionMode = args.feeCollectionMode ?? "none";
+
+    if (
+      !Number.isInteger(platformFeeBps) ||
+      platformFeeBps < 0 ||
+      platformFeeBps > MAX_PLATFORM_FEE_BPS
+    ) {
+      throw new Error(
+        `platformFeeBps must be an integer between 0 and ${MAX_PLATFORM_FEE_BPS}`,
+      );
+    }
+    if (feeCollectionMode !== "none" && platformFeeBps === 0) {
+      throw new Error(
+        'A zero commission must use feeCollectionMode "none" so ledger rows are recorded as not applicable.',
+      );
+    }
+
+    const plan = await ctx.db
+      .query("appBillingPlans")
+      .withIndex("by_key", (q) => q.eq("key", args.planKey))
+      .first();
+    if (!plan) throw new Error(`Unknown billing plan "${args.planKey}"`);
+
+    await ctx.db.patch(plan._id, {
+      entitlements: {
+        ...plan.entitlements,
+        memberPayments: {
+          mercadoPagoEnabled: args.mercadoPagoEnabled,
+          platformFeeBps,
+          feeCollectionMode,
+        },
+      },
+      updatedAt: Date.now(),
+    });
+
+    return {
+      planKey: plan.key,
+      priceArsUnchanged: plan.priceArs,
+      memberPayments: {
+        mercadoPagoEnabled: args.mercadoPagoEnabled,
+        platformFeeBps,
+        feeCollectionMode,
+      },
+    };
   },
 });
 

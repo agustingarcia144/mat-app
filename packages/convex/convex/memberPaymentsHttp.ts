@@ -53,6 +53,9 @@ export const mercadoPagoOAuthCallback = httpAction(async (ctx, request) => {
   const providerError = url.searchParams.get("error");
 
   if (providerError) {
+    console.error(
+      `[member-payments] oauth callback returned provider error: ${providerError}`,
+    );
     return redirect(
       buildOAuthResultUrl({
         webAppOrigin,
@@ -64,6 +67,10 @@ export const mercadoPagoOAuthCallback = httpAction(async (ctx, request) => {
   }
 
   if (!code || !state) {
+    console.error(
+      "[member-payments] oauth callback missing parameters " +
+        `(code: ${code ? "present" : "absent"}, state: ${state ? "present" : "absent"})`,
+    );
     return redirect(
       buildOAuthResultUrl({
         webAppOrigin,
@@ -204,3 +211,47 @@ function readResourceId(payload: any, url: URL): string | null {
   const value = String(raw).trim();
   return value.length > 0 ? value : null;
 }
+
+/**
+ * Public payment status for the web fallback:
+ * `GET /member-payments/return/<sessionId>`.
+ *
+ * Reached when a member finishes checkout on a device where the app did not
+ * take over the return link — the app is not installed, app links are not
+ * verified, or the browser stripped the hand-off. Without this the member is
+ * left on a 404 wondering whether their money went somewhere.
+ *
+ * Returns a state and nothing else. See
+ * `getCheckoutSessionPublicStatusInternal` for why it carries no amounts,
+ * names or identifiers.
+ */
+export const memberPaymentReturnStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
+  const prefix = "/member-payments/return/";
+  const pathname = new URL(request.url).pathname;
+  if (!pathname.startsWith(prefix)) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  const sessionId = decodeURIComponent(
+    pathname.slice(prefix.length).replace(/\/.*$/, "").trim(),
+  );
+
+  const result = sessionId
+    ? await ctx.runQuery(
+        internal.memberPayments.getCheckoutSessionPublicStatusInternal,
+        { sessionId },
+      )
+    : { status: "unknown" as const };
+
+  return new Response(JSON.stringify(result), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+});

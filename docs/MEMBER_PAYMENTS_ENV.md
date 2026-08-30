@@ -33,7 +33,7 @@ Pago OAuth application.
 | `MEMBER_PAYMENTS_WEBHOOK_SECRET` | yes | Webhook signing secret of the Mercado Pago **application**. Notifications from every connected seller are signed with it, so one secret covers all gyms — unlike the access token, which is per gym. Distinct from the SaaS `MERCADOPAGO_WEBHOOK_SECRET`. |
 | `MEMBER_PAYMENTS_WEB_APP_URL` | yes | Allowlisted origin the OAuth callback may redirect back to (the web dashboard). |
 | `MEMBER_PAYMENTS_MOBILE_RETURN_URL` | yes | Universal link members return to after checkout, e.g. `https://matgestion.app/payments/return`. |
-| `MEMBER_PAYMENTS_MP_ENV` | no | `sandbox` or `production`. Selects test-user behaviour and which application credentials are expected. |
+| `MEMBER_PAYMENTS_MP_ENV` | no | Set to `sandbox` on any non-production deployment. OAuth has no separate test credentials, so the same application could connect a real gym's real account; with this set, a connection whose token reports `live_mode: true` is refused and nothing is stored. |
 
 ## Sandbox checklist
 
@@ -52,6 +52,11 @@ Pago OAuth application.
    in section 15 of the implementation plan.
 3. Commission collection stays at `feeCollectionMode: "none"` / `platformFeeBps: 0`
    until MAT confirms the commercial and tax treatment.
+
+## Setup
+
+See `docs/MEMBER_PAYMENTS_SANDBOX_SETUP.md` for the step-by-step sandbox
+configuration against a dev Convex deployment.
 
 ## Support
 
