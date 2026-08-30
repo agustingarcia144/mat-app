@@ -53,6 +53,7 @@ type RewardForm = {
   weeklyBonusPoints?: number;
   terms?: string;
   walletCard: {
+    enabled: boolean;
     mode: "global" | "by_plan";
     defaultDesign: WalletDesign;
     planDesigns: Array<{ planId: string; design: WalletDesign }>;

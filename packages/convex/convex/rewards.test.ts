@@ -69,6 +69,15 @@ async function seed(t: TestConvex, suffix = "a") {
         eligibleSources: ["qr_check_in", "class_attendance"],
         streaksEnabled: false,
         weeklyBonusEnabled: false,
+        walletCard: {
+          enabled: true,
+          mode: "global",
+          defaultDesign: {
+            programName: "Membresía",
+            backgroundColor: "#121826",
+          },
+          planDesigns: [],
+        },
       },
       createdAt: now,
       updatedAt: now,
@@ -118,12 +127,31 @@ async function issueAndScan(
 
 describe("member rewards", () => {
   it("resolves a plan-specific Wallet design and queues existing passes after edits", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-30T12:00:00Z"));
     const t = convexTest(schema, modules);
     const fixture = await seed(t, "wallet-design");
     const member = t.withIdentity({ subject: fixture.member });
-    await member.mutation(internal.rewards.prepareMyWalletPass, {
-      provider: "apple",
+    const initialPass = await member.mutation(
+      internal.rewards.prepareMyWalletPass,
+      {
+        provider: "apple",
+      },
+    );
+    await t.mutation(internal.rewards.saveAppleRegistration, {
+      deviceLibraryIdentifier: "test-device",
+      passTypeIdentifier: "pass.com.example.membership",
+      serialNumber: initialPass.providerObjectId,
+      pushToken: "test-push-token",
     });
+    const beforeUpdate = await t.query(
+      internal.rewards.listApplePassesForDevice,
+      {
+        deviceLibraryIdentifier: "test-device",
+        passTypeIdentifier: "pass.com.example.membership",
+      },
+    );
+    vi.advanceTimersByTime(1_000);
 
     await t
       .withIdentity({ subject: fixture.admin })
@@ -139,6 +167,7 @@ describe("member rewards", () => {
           streaksEnabled: false,
           weeklyBonusEnabled: false,
           walletCard: {
+            enabled: true,
             mode: "by_plan",
             defaultDesign: {
               programName: "Membresía general",
@@ -173,6 +202,19 @@ describe("member rewards", () => {
     );
     expect(operations).toHaveLength(1);
     expect(operations[0]?.operationType).toBe("update");
+
+    const changedPasses = await t.query(
+      internal.rewards.listApplePassesForDevice,
+      {
+        deviceLibraryIdentifier: "test-device",
+        passTypeIdentifier: "pass.com.example.membership",
+        passesUpdatedSince: Number(beforeUpdate.lastUpdated),
+      },
+    );
+    expect(changedPasses.serialNumbers).toEqual([initialPass.providerObjectId]);
+    expect(Number(changedPasses.lastUpdated)).toBeGreaterThan(
+      Number(beforeUpdate.lastUpdated),
+    );
   });
 
   it("records a QR entrance and awards the configured daily points once", async () => {

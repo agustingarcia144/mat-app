@@ -175,6 +175,7 @@ export default defineSchema({
         terms: v.optional(v.string()),
         walletCard: v.optional(
           v.object({
+            enabled: v.optional(v.boolean()),
             mode: v.union(v.literal("global"), v.literal("by_plan")),
             defaultDesign: v.object({
               programName: v.string(),

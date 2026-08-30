@@ -48,6 +48,7 @@ type WalletDesign = {
 };
 
 type WalletSettings = {
+  enabled: boolean;
   mode: "global" | "by_plan";
   defaultDesign: WalletDesign;
   planDesigns: Array<{ planId: string; design: WalletDesign }>;
@@ -236,6 +237,23 @@ export function WalletCardDesigner({
         <CardContent className="space-y-5">
           <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
             <div>
+              <Label htmlFor="wallet-enabled">Habilitar Wallet</Label>
+              <p className="text-xs text-muted-foreground">
+                Permite que los socios agreguen esta credencial a Apple Wallet y
+                Google Wallet.
+              </p>
+            </div>
+            <Switch
+              id="wallet-enabled"
+              checked={wallet.enabled}
+              onCheckedChange={(enabled) =>
+                setWallet((current) => ({ ...current, enabled }))
+              }
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+            <div>
               <Label htmlFor="wallet-by-plan">Diseños por plan</Label>
               <p className="text-xs text-muted-foreground">
                 Permite que cada plan tenga una tarjeta diferente.
@@ -310,9 +328,7 @@ export function WalletCardDesigner({
             <Switch
               id="wallet-show-card-name"
               checked={design.showCardName ?? true}
-              onCheckedChange={(showCardName) =>
-                updateDesign({ showCardName })
-              }
+              onCheckedChange={(showCardName) => updateDesign({ showCardName })}
             />
           </div>
 
@@ -794,10 +810,10 @@ function AppleWalletPreview({
               )}
             </div>
           </div>
-          <div className="mx-5 mb-6 mt-auto rounded-xl bg-white p-4 text-center shadow-lg">
+          <div className="mx-auto mb-6 mt-auto rounded-lg bg-white p-2 text-center shadow-lg">
             <QRCodeSVG
               value="MAT:WALLET:PREVIEW"
-              size={150}
+              size={132}
               className="mx-auto"
             />
           </div>
@@ -921,7 +937,11 @@ function GoogleWalletPreview({
               value="Activa"
               labelColor="#6B7280"
             />
-            <PreviewValue label="VENCE" value="31 ago 2026" labelColor="#6B7280" />
+            <PreviewValue
+              label="VENCE"
+              value="31 ago 2026"
+              labelColor="#6B7280"
+            />
             {(design.showPoints ?? true) && (
               <PreviewValue
                 label={pointsName.toUpperCase()}

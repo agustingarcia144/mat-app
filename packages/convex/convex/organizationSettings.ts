@@ -1,4 +1,5 @@
 import { query, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -59,6 +60,7 @@ export type WalletCardDesign = {
 };
 
 export type WalletCardSettings = {
+  enabled: boolean;
   mode: "global" | "by_plan";
   defaultDesign: WalletCardDesign;
   planDesigns: Array<{
@@ -106,6 +108,7 @@ export function resolveWalletCardSettings(
     | undefined,
 ): WalletCardSettings {
   return {
+    enabled: stored?.enabled ?? false,
     mode: stored?.mode ?? "global",
     defaultDesign: {
       ...DEFAULT_WALLET_CARD_DESIGN,
@@ -254,6 +257,7 @@ const rewardsValidator = v.object({
   terms: v.optional(v.string()),
   walletCard: v.optional(
     v.object({
+      enabled: v.optional(v.boolean()),
       mode: v.union(v.literal("global"), v.literal("by_plan")),
       defaultDesign: walletCardDesignValidator,
       planDesigns: v.array(
@@ -324,7 +328,9 @@ function validateRewardSettings(
   settings: Omit<RewardSettings, "walletCard" | "pointsPerMembershipMonth"> & {
     pointsPerMembershipMonth?: number;
     duplicateWindowMinutes?: number;
-    walletCard?: WalletCardSettings;
+    walletCard?: Omit<WalletCardSettings, "enabled"> & {
+      enabled?: boolean;
+    };
   },
 ): RewardSettings {
   const integerFields = [
@@ -533,6 +539,9 @@ export const update = mutation({
         .collect();
       for (const pass of passes.filter((item) => item.status === "active")) {
         const idempotencyKey = `wallet:${pass.provider}:${pass._id}:design:${now}`;
+        // Apple uses this timestamp as the opaque pass update tag after APNs
+        // wakes Wallet and it asks which registered serials changed.
+        await ctx.db.patch(pass._id, { updatedAt: now });
         await ctx.db.insert("walletSyncOperations", {
           organizationId: membership.organizationId,
           userId: pass.userId,
@@ -545,6 +554,13 @@ export const update = mutation({
           createdAt: now,
           updatedAt: now,
         });
+      }
+      if (passes.some((item) => item.status === "active")) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.walletActions.runWalletSyncOperations,
+          { limit: 50 },
+        );
       }
     }
   },

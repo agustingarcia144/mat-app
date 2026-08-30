@@ -1,0 +1,13 @@
+diff --git a/lib/client.js b/lib/client.js
+index 8703e9b17edc328e9b0c07f993577167d05162ea..5b4674dcf95a714344f2fabb247aa7e334166fc8 100644
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -573,7 +573,7 @@ module.exports = function (dependencies) {
+       responseData += data;
+     });
+ 
+-    if (notification.body !== '{}') {
++    if (notification.body !== undefined && notification.body !== null) {
+       request.write(notification.body);
+     }
+ 

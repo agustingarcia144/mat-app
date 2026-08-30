@@ -82,7 +82,12 @@ function formatWalletDate(timestamp: number): string {
 
 async function fetchPng(
   url: string | null | undefined,
-  dimensions: { width: number; height: number; fit: "contain" | "cover" },
+  dimensions: {
+    width: number;
+    height: number;
+    fit: "contain" | "cover";
+    tightCanvas?: boolean;
+  },
 ): Promise<Buffer | null> {
   if (!url) return null;
   const response = await fetch(url);
@@ -104,7 +109,6 @@ async function fetchPng(
       return null;
     }
     const source = Buffer.from(decoded.data);
-    const target = Buffer.alloc(dimensions.width * dimensions.height * 4);
     const scale =
       dimensions.fit === "cover"
         ? Math.max(
@@ -115,12 +119,23 @@ async function fetchPng(
             dimensions.width / decoded.width,
             dimensions.height / decoded.height,
           );
-    const renderedWidth = decoded.width * scale;
-    const renderedHeight = decoded.height * scale;
-    const offsetX = (dimensions.width - renderedWidth) / 2;
-    const offsetY = (dimensions.height - renderedHeight) / 2;
-    for (let y = 0; y < dimensions.height; y += 1) {
-      for (let x = 0; x < dimensions.width; x += 1) {
+    const renderedWidth = Math.max(1, Math.round(decoded.width * scale));
+    const renderedHeight = Math.max(1, Math.round(decoded.height * scale));
+    const outputWidth = dimensions.tightCanvas
+      ? renderedWidth
+      : dimensions.width;
+    const outputHeight = dimensions.tightCanvas
+      ? renderedHeight
+      : dimensions.height;
+    const target = Buffer.alloc(outputWidth * outputHeight * 4);
+    const offsetX = dimensions.tightCanvas
+      ? 0
+      : (outputWidth - renderedWidth) / 2;
+    const offsetY = dimensions.tightCanvas
+      ? 0
+      : (outputHeight - renderedHeight) / 2;
+    for (let y = 0; y < outputHeight; y += 1) {
+      for (let x = 0; x < outputWidth; x += 1) {
         const sourceX = Math.floor((x - offsetX) / scale);
         const sourceY = Math.floor((y - offsetY) / scale);
         if (
@@ -132,13 +147,13 @@ async function fetchPng(
           continue;
         }
         const sourceOffset = (sourceY * decoded.width + sourceX) * 4;
-        const targetOffset = (y * dimensions.width + x) * 4;
+        const targetOffset = (y * outputWidth + x) * 4;
         source.copy(target, targetOffset, sourceOffset, sourceOffset + 4);
       }
     }
     const output = new PNG({
-      width: dimensions.width,
-      height: dimensions.height,
+      width: outputWidth,
+      height: outputHeight,
     });
     output.data = target;
     return PNG.sync.write(output);
@@ -254,9 +269,10 @@ function googleClassPayload(data: {
   return {
     id: data.classId,
     issuerName: data.organizationName,
-    programName: (data.walletDesign.showCardName ?? true)
-      ? data.walletDesign.google?.programName || data.walletDesign.programName
-      : data.organizationName,
+    programName:
+      (data.walletDesign.showCardName ?? true)
+        ? data.walletDesign.google?.programName || data.walletDesign.programName
+        : data.organizationName,
     hexBackgroundColor: data.walletDesign.backgroundColor,
     ...(data.walletDesign.logoUrl
       ? {
@@ -338,31 +354,37 @@ async function generateApplePass(data: {
       width: 160,
       height: 50,
       fit: "contain",
+      tightCanvas: true,
     }),
     fetchPng(data.walletDesign.logoUrl, {
       width: 320,
       height: 100,
       fit: "contain",
+      tightCanvas: true,
     }),
     fetchPng(data.walletDesign.logoUrl, {
       width: 480,
       height: 150,
       fit: "contain",
+      tightCanvas: true,
     }),
     fetchPng(data.walletDesign.logoUrl, {
       width: 126,
       height: 30,
       fit: "contain",
+      tightCanvas: true,
     }),
     fetchPng(data.walletDesign.logoUrl, {
       width: 252,
       height: 60,
       fit: "contain",
+      tightCanvas: true,
     }),
     fetchPng(data.walletDesign.logoUrl, {
       width: 378,
       height: 90,
       fit: "contain",
+      tightCanvas: true,
     }),
     fetchPng(artworkUrl, { width: 358, height: 448, fit: "cover" }),
     fetchPng(artworkUrl, { width: 716, height: 896, fit: "cover" }),
@@ -392,6 +414,7 @@ async function generateApplePass(data: {
         key: "status",
         label: "MEMBRESÍA",
         value: data.membershipStatus,
+        textAlignment: "PKTextAlignmentLeft",
       },
     ],
     primaryFields: [
@@ -407,7 +430,7 @@ async function generateApplePass(data: {
         : []),
     ],
     secondaryFields:
-      data.walletDesign.showPoints ?? true
+      (data.walletDesign.showPoints ?? true)
         ? [
             {
               key: "points",
@@ -417,9 +440,10 @@ async function generateApplePass(data: {
           ]
         : [],
     auxiliaryFields: [],
-    footerFields: data.walletDesign.showCardName ?? true
-      ? [{ key: "program", value: data.walletDesign.programName }]
-      : [],
+    footerFields:
+      (data.walletDesign.showCardName ?? true)
+        ? [{ key: "program", value: data.walletDesign.programName }]
+        : [],
     backFields: [
       {
         key: "security",

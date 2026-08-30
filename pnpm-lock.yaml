@@ -13,6 +13,9 @@ patchedDependencies:
   '@clerk/expo@3.1.4':
     hash: 88710f47b70f7db46ce654322185a375bc2b73981b4bbca7381ea6ce786946b4
     path: patches/@clerk__expo@3.1.4.patch
+  '@parse/node-apn@8.1.0':
+    hash: 34a37c3f1fd091c3402c8e0f98c491db6911199b41ba9a5f20ca7783eab194e2
+    path: patches/@parse__node-apn@8.1.0.patch
   expo-dev-launcher@55.0.33:
     hash: d07835f97acd943d0e6cacc3272adc4ffd6fc34bd631493cf1241ca48bb5bb58
     path: patches/expo-dev-launcher@55.0.33.patch
@@ -596,7 +599,7 @@ importers:
     dependencies:
       '@parse/node-apn':
         specifier: ^8.1.0
-        version: 8.1.0
+        version: 8.1.0(patch_hash=34a37c3f1fd091c3402c8e0f98c491db6911199b41ba9a5f20ca7783eab194e2)
       convex:
         specifier: ^1.38.0
         version: 1.38.0(bufferutil@4.1.0)(react@19.2.3)(utf-8-validate@6.0.6)
@@ -10022,7 +10025,7 @@ snapshots:
       metro-babel-transformer: 0.83.7
       metro-cache: 0.83.7
       metro-cache-key: 0.83.7
-      metro-config: 0.83.7(bufferutil@4.1.0)
+      metro-config: 0.83.7(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.83.7
       metro-file-map: 0.83.7
       metro-minify-terser: 0.83.7
@@ -10700,7 +10703,7 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.1)
 
-  '@parse/node-apn@8.1.0':
+  '@parse/node-apn@8.1.0(patch_hash=34a37c3f1fd091c3402c8e0f98c491db6911199b41ba9a5f20ca7783eab194e2)':
     dependencies:
       debug: 4.4.3
       jsonwebtoken: 9.0.3
@@ -11636,7 +11639,7 @@ snapshots:
       debug: 4.4.3
       invariant: 2.2.4
       metro: 0.83.7(bufferutil@4.1.0)
-      metro-config: 0.83.7(bufferutil@4.1.0)
+      metro-config: 0.83.7(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.83.7
       semver: 7.7.4
     transitivePeerDependencies:
@@ -16199,21 +16202,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  metro-config@0.83.7(bufferutil@4.1.0):
-    dependencies:
-      connect: 3.7.0
-      flow-enums-runtime: 0.0.6
-      jest-validate: 29.7.0
-      metro: 0.83.7(bufferutil@4.1.0)
-      metro-cache: 0.83.7
-      metro-core: 0.83.7
-      metro-runtime: 0.83.7
-      yaml: 2.8.2
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
   metro-config@0.83.7(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
       connect: 3.7.0
@@ -16364,7 +16352,7 @@ snapshots:
       metro-babel-transformer: 0.83.7
       metro-cache: 0.83.7
       metro-cache-key: 0.83.7
-      metro-config: 0.83.7(bufferutil@4.1.0)
+      metro-config: 0.83.7(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       metro-core: 0.83.7
       metro-file-map: 0.83.7
       metro-resolver: 0.83.7

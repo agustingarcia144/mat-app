@@ -116,9 +116,15 @@ export const appleListDevicePasses = httpAction(async (ctx, request) => {
   if (!isConfiguredPassType(passTypeIdentifier)) {
     return new Response(null, { status: 404 });
   }
+  const updateTag = new URL(request.url).searchParams.get("passesUpdatedSince");
+  const parsedUpdateTag = updateTag === null ? undefined : Number(updateTag);
   const result = await ctx.runQuery(internal.rewards.listApplePassesForDevice, {
     deviceLibraryIdentifier,
     passTypeIdentifier,
+    passesUpdatedSince:
+      parsedUpdateTag !== undefined && Number.isFinite(parsedUpdateTag)
+        ? parsedUpdateTag
+        : undefined,
   });
   if (result.serialNumbers.length === 0)
     return new Response(null, { status: 204 });

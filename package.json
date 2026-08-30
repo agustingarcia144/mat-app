@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=!mobile-admin",
     "build": "turbo run build",
     "clean": "turbo run clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore",
@@ -10,6 +10,10 @@
     "convex:codegen": "pnpm --filter convex codegen",
     "android": "pnpm --filter mobile run android",
     "ios": "pnpm --filter mobile run ios",
+    "ios:device": "pnpm --filter mobile run ios:device",
+    "ios:prebuild": "pnpm --filter mobile run ios:prebuild",
+    "ios:build:device": "pnpm --filter mobile run ios:build:device",
+    "ios:build:simulator": "pnpm --filter mobile run ios:build:simulator",
     "testflight": "pnpm --filter mobile run testflight",
     "admin": "pnpm --filter mobile-admin run dev",
     "android:admin": "pnpm --filter mobile-admin run android",
@@ -44,7 +48,8 @@
     "patchedDependencies": {
       "@clerk/expo@3.1.4": "patches/@clerk__expo@3.1.4.patch",
       "expo-dev-launcher@55.0.33": "patches/expo-dev-launcher@55.0.33.patch",
-      "passkit-generator@3.5.8": "patches/passkit-generator@3.5.8.patch"
+      "passkit-generator@3.5.8": "patches/passkit-generator@3.5.8.patch",
+      "@parse/node-apn@8.1.0": "patches/@parse__node-apn@8.1.0.patch"
     }
   },
   "engines": {

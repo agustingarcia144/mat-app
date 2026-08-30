@@ -199,6 +199,16 @@ async function requireRewardsEnabled(
   return resolveRewardSettings(settingsDocument?.rewards);
 }
 
+async function requireWalletEnabled(
+  ctx: { db: MutationCtx["db"] },
+  organizationId: Id<"organizations">,
+): Promise<RewardSettings> {
+  const settingsDocument = await getSettingsDocument(ctx, organizationId);
+  const settings = resolveRewardSettings(settingsDocument?.rewards);
+  if (!settings.walletCard.enabled) throw new Error("WALLET_DISABLED");
+  return settings;
+}
+
 async function getOrCreateAccount(
   ctx: MutationCtx,
   organizationId: Id<"organizations">,
@@ -1111,7 +1121,7 @@ export const getMyWalletPassPreview = query({
     return {
       available:
         membership.role === "member" &&
-        rewardCapabilityEnabled(settingsDocument) &&
+        settings.walletCard.enabled &&
         Boolean(getRewardsQrSecret()),
       providers: {
         apple: Boolean(
@@ -1165,10 +1175,7 @@ export const prepareMyWalletPass = internalMutation({
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
     if (membership.role !== "member") throw new Error("MEMBER_REQUIRED");
-    const settings = await requireRewardsEnabled(
-      ctx,
-      membership.organizationId,
-    );
+    const settings = await requireWalletEnabled(ctx, membership.organizationId);
     if (!getRewardsQrSecret())
       throw new Error("REWARDS_QR_CONFIGURATION_REQUIRED");
     let credential = await ctx.db
@@ -1523,7 +1530,11 @@ export const deleteAppleRegistrationsByPushTokens = internalMutation({
 });
 
 export const listApplePassesForDevice = internalQuery({
-  args: { deviceLibraryIdentifier: v.string(), passTypeIdentifier: v.string() },
+  args: {
+    deviceLibraryIdentifier: v.string(),
+    passTypeIdentifier: v.string(),
+    passesUpdatedSince: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const registrations = await ctx.db
       .query("appleWalletRegistrations")
@@ -1537,10 +1548,35 @@ export const listApplePassesForDevice = internalQuery({
         ),
       )
       .collect();
+    const registeredPasses = (
+      await Promise.all(
+        registrations.map(async (registration) => {
+          const pass = await ctx.db
+            .query("walletPasses")
+            .withIndex("by_provider_object", (q) =>
+              q
+                .eq("provider", "apple")
+                .eq("providerObjectId", registration.serialNumber),
+            )
+            .first();
+          return pass
+            ? {
+                serialNumber: registration.serialNumber,
+                updatedAt: pass.updatedAt,
+              }
+            : null;
+        }),
+      )
+    ).filter((pass) => pass !== null);
+    const changedPasses = registeredPasses.filter(
+      (pass) =>
+        args.passesUpdatedSince === undefined ||
+        pass.updatedAt > args.passesUpdatedSince,
+    );
     return {
-      serialNumbers: registrations.map((item) => item.serialNumber),
+      serialNumbers: changedPasses.map((pass) => pass.serialNumber),
       lastUpdated: String(
-        Math.max(0, ...registrations.map((item) => item.updatedAt)),
+        Math.max(0, ...changedPasses.map((pass) => pass.updatedAt)),
       ),
     };
   },
