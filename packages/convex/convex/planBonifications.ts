@@ -221,7 +221,8 @@ export const create = mutation({
       }
     }
 
-    // Block if there are future pending advance payments
+    // Block if future months are already spoken for — either a pending payment
+    // or a month already settled by an advance charge.
     const now = Date.now();
     const d = new Date(now);
     const currentBillingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -233,15 +234,18 @@ export const create = mutation({
       )
       .filter((q) =>
         q.and(
-          q.eq(q.field("status"), "pending"),
           q.gt(q.field("billingPeriod"), currentBillingPeriod),
+          q.or(
+            q.eq(q.field("status"), "pending"),
+            q.neq(q.field("advanceCoveredByPaymentId"), undefined),
+          ),
         ),
       )
       .first();
 
     if (existingPayments) {
       throw new Error(
-        "No se puede bonificar una suscripci�n con pagos adelantados pendientes. Elimin� los pagos futuros primero.",
+        "No se puede bonificar una suscripci�n con meses ya pagados por adelantado o pagos futuros pendientes. Elimin� los pagos futuros primero.",
       );
     }
 

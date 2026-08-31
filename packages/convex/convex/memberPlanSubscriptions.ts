@@ -14,6 +14,7 @@ import {
   tryActiveOrgContext,
 } from "./permissions";
 import { computeBonificationAmount } from "./planBonifications";
+import { getPaymentTimezone } from "./planPayments";
 
 type BillingMode = "calendar" | "join_date";
 
@@ -466,20 +467,23 @@ export const activate = mutation({
       updatedAt: now,
     });
 
-    // Advance payments still create explicit records because the member chose a
-    // multi-month payment upfront. Regular monthly cycles stay virtual pending
-    // until the member uploads proof.
+    // An advance payment creates one explicit charge for the whole span, due
+    // now. Regular monthly cycles stay virtual pending until the member uploads
+    // proof.
     if (advanceMonths > 1) {
       const discountTier = plan.advancePaymentDiscounts!.find(
         (d) => d.months === advanceMonths,
       )!;
-      await createAdvancePayments(ctx, {
+      const organization = await ctx.db.get(membership.organizationId);
+      await createAdvancePayment(ctx, {
         organizationId: membership.organizationId,
         userId: identity.subject,
         subscriptionId,
         plan,
         months: advanceMonths,
         discountPercentage: discountTier.discountPercentage,
+        activatedAt: now,
+        timezone: getPaymentTimezone(organization?.timezone),
       });
     }
 
@@ -1085,10 +1089,15 @@ export const generateCurrentPeriodPayments = internalMutation({
 });
 
 /**
- * Helper: create advance payment records for multiple months with a discount.
- * Each month gets its own payment record with the discounted per-month amount.
+ * Helper: charge a multi-month advance as a single upfront payment.
+ *
+ * The member owes the whole span now — that is what the discount buys. Billing
+ * it as one discounted record per month would let them take the cheap first
+ * month and never come back, so months 2..N get no record here: they are
+ * created, already settled, by `settleAdvanceCoveredPeriods` in planPayments.ts
+ * once this charge is approved.
  */
-async function createAdvancePayments(
+async function createAdvancePayment(
   ctx: MutationCtx,
   params: {
     organizationId: Id<"organizations">;
@@ -1097,65 +1106,60 @@ async function createAdvancePayments(
     plan: PlanBillingConfig;
     months: number;
     discountPercentage: number;
+    activatedAt: number;
+    timezone: string;
   },
 ) {
   const now = Date.now();
-  const d = new Date(now);
   const { memberCount } = await getFamilyGroupSubscriptions(ctx, {
     _id: params.subscriptionId,
     organizationId: params.organizationId,
     status: "active",
   });
-  const discountedPricePerMember = Math.round(
-    params.plan.priceArs * (1 - params.discountPercentage / 100),
+  const monthlyAmountArs =
+    Math.round(params.plan.priceArs * (1 - params.discountPercentage / 100)) *
+    memberCount;
+  const totalAmountArs = monthlyAmountArs * params.months;
+
+  const cycle = getBillingCycle(
+    params.plan,
+    params.activatedAt,
+    now,
+    params.timezone,
   );
-  const discountedPrice = discountedPricePerMember * memberCount;
+  const [startYear, startMonth] = cycle.billingPeriod.split("-").map(Number);
+  const coveredPeriods = Array.from({ length: params.months }, (_, index) => {
+    const period = addMonths(startYear!, startMonth!, index);
+    return `${period.year}-${String(period.month).padStart(2, "0")}`;
+  });
 
-  for (let i = 0; i < params.months; i++) {
-    const monthDate = new Date(d.getFullYear(), d.getMonth() + i, 1);
-    const billingPeriod = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
-    const cycleStartAt = Date.UTC(
-      monthDate.getFullYear(),
-      monthDate.getMonth(),
-      1,
-    );
-    const cycleEndAt = Date.UTC(
-      monthDate.getFullYear(),
-      monthDate.getMonth() + 1,
-      1,
-    );
-    const dueAt = Date.UTC(
-      monthDate.getFullYear(),
-      monthDate.getMonth(),
-      params.plan.paymentWindowEndDay ?? 28,
-    );
+  const existing = await ctx.db
+    .query("planPayments")
+    .withIndex("by_subscription_period", (q) =>
+      q
+        .eq("subscriptionId", params.subscriptionId)
+        .eq("billingPeriod", cycle.billingPeriod),
+    )
+    .first();
+  if (existing) return;
 
-    // Check if a payment already exists for this period
-    const existing = await ctx.db
-      .query("planPayments")
-      .withIndex("by_subscription_period", (q) =>
-        q
-          .eq("subscriptionId", params.subscriptionId)
-          .eq("billingPeriod", billingPeriod),
-      )
-      .first();
-
-    if (!existing) {
-      await ctx.db.insert("planPayments", {
-        organizationId: params.organizationId,
-        userId: params.userId,
-        subscriptionId: params.subscriptionId,
-        planId: params.plan._id,
-        billingPeriod,
-        billingCycleStartAt: cycleStartAt,
-        billingCycleEndAt: cycleEndAt,
-        dueAt,
-        amountArs: discountedPrice,
-        totalAmountArs: discountedPrice,
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-  }
+  await ctx.db.insert("planPayments", {
+    organizationId: params.organizationId,
+    userId: params.userId,
+    subscriptionId: params.subscriptionId,
+    planId: params.plan._id,
+    billingPeriod: cycle.billingPeriod,
+    billingCycleStartAt: cycle.cycleStartAt,
+    billingCycleEndAt: cycle.cycleEndAt,
+    dueAt: cycle.dueAt,
+    amountArs: totalAmountArs,
+    totalAmountArs,
+    advanceMonths: params.months,
+    advanceDiscountPercentage: params.discountPercentage,
+    advanceMonthlyAmountArs: monthlyAmountArs,
+    advanceCoveredPeriods: coveredPeriods,
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+  });
 }

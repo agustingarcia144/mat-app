@@ -11,6 +11,7 @@ const PAYMENT_STATUS: Record<string, { label: string; accent: string; tint: stri
     pending: { label: "Pendiente", accent: "#f59e0b", tint: "rgba(245,158,11,0.16)" },
     in_review: { label: "En revisión", accent: "#3b82f6", tint: "rgba(59,130,246,0.16)" },
     approved: { label: "Aprobado", accent: "#22c55e", tint: "rgba(34,197,94,0.16)" },
+    advance_covered: { label: "Pagado por adelantado", accent: "#22c55e", tint: "rgba(34,197,94,0.16)" },
     declined: { label: "Rechazado", accent: "#ef4444", tint: "rgba(239,68,68,0.16)" },
     bonification: { label: "Bonificado", accent: "#a855f7", tint: "rgba(168,85,247,0.16)" },
   };
@@ -56,6 +57,9 @@ interface PaymentStatusCardProps {
         reviewNotes?: string;
         isBonification?: boolean;
         paymentMethod?: string;
+        advanceMonths?: number;
+        advanceCoveredPeriods?: string[];
+        advanceCoveredByPaymentId?: string;
       }
     | null
     | undefined;
@@ -76,9 +80,17 @@ export default function PaymentStatusCard({
 
   const isFullyBonified = payment.paymentMethod === "bonification";
   const hasDiscount = payment.isBonification || isFullyBonified;
-  const statusInfo = PAYMENT_STATUS[payment.status] ?? PAYMENT_STATUS.pending;
+  // This month was already settled by a multi-month advance charge, so it is
+  // genuinely $0 — it must not fall back to the plan price.
+  const isAdvanceCovered = payment.advanceCoveredByPaymentId !== undefined;
+  const statusInfo = isAdvanceCovered
+    ? PAYMENT_STATUS.advance_covered
+    : (PAYMENT_STATUS[payment.status] ?? PAYMENT_STATUS.pending);
   const planPriceFallback =
-    !isFullyBonified && !payment.isBonification && payment.amountArs <= 0
+    !isAdvanceCovered &&
+    !isFullyBonified &&
+    !payment.isBonification &&
+    payment.amountArs <= 0
       ? planPriceArs != null
         ? planPriceArs * (payment.coveredMemberCount ?? 1)
         : undefined
@@ -92,7 +104,10 @@ export default function PaymentStatusCard({
     payment.amountArs > 0 ? payment.amountArs : payableAmountArs;
   const canUpload =
     !isFullyBonified &&
+    !isAdvanceCovered &&
     (payment.status === "pending" || payment.status === "declined");
+  const advanceMonths = payment.advanceMonths;
+  const lastCoveredPeriod = payment.advanceCoveredPeriods?.at(-1);
 
   return (
     <View style={[styles.card, isDark ? styles.cardDark : styles.cardLight]}>
@@ -107,6 +122,11 @@ export default function PaymentStatusCard({
           <Text style={[styles.periodText, { color: isDark ? "#fff" : "#000" }]}>
             {formatBillingPeriod(payment.billingPeriod)}
           </Text>
+          {advanceMonths && lastCoveredPeriod ? (
+            <Text style={[styles.coverageNote, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
+              Cubre {advanceMonths} meses — hasta {formatBillingPeriod(lastCoveredPeriod)}
+            </Text>
+          ) : null}
         </View>
       </View>
 
@@ -182,10 +202,14 @@ export default function PaymentStatusCard({
             </Text>
           </View>
         </View>
+      ) : isAdvanceCovered ? (
+        <Text style={[styles.coverageNote, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
+          Este mes ya está incluido en tu pago adelantado. No tenés que subir comprobante.
+        </Text>
       ) : (
         <View style={styles.amountRow}>
           <Text style={[styles.amountLabel, { color: isDark ? "#a1a1aa" : "#71717a" }]}>
-            Monto
+            {advanceMonths ? `Total por ${advanceMonths} meses` : "Monto"}
           </Text>
           <Text style={[styles.amountValue, { color: isDark ? "#fff" : "#000" }]}>
             ${payableAmountArs.toLocaleString("es-AR")}
@@ -261,6 +285,10 @@ const styles = StyleSheet.create({
   periodText: {
     fontSize: 17,
     fontWeight: "700",
+  },
+  coverageNote: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   badgeRow: {
     flexDirection: "row",

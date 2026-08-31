@@ -1022,6 +1022,15 @@ export default defineSchema({
     ),
     interestTotalArs: v.optional(v.number()),
     totalAmountArs: v.optional(v.number()), // amountArs + interestTotalArs
+    // Advance payment: the member paid several months upfront as a single
+    // charge. These fields live on the one row carrying the whole amount.
+    advanceMonths: v.optional(v.number()),
+    advanceDiscountPercentage: v.optional(v.number()),
+    advanceMonthlyAmountArs: v.optional(v.number()),
+    advanceCoveredPeriods: v.optional(v.array(v.string())),
+    // Advance payment: $0 row for a month already settled by the charge above.
+    // Only created once that charge is approved.
+    advanceCoveredByPaymentId: v.optional(v.id("planPayments")),
     // Proof of payment
     proofStorageId: v.optional(v.id("_storage")),
     proofFileName: v.optional(v.string()),
