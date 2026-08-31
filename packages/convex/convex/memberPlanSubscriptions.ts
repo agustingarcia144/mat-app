@@ -425,6 +425,11 @@ export const activate = mutation({
     if (!plan.isActive) {
       throw new Error("Este plan ya no está disponible");
     }
+    // Hiding a plan removes it from the member-facing selector; it has to be
+    // enforced here too, or a member can still self-assign it by plan id.
+    if (plan.hiddenFromSelfAssignment) {
+      throw new Error("Este plan no está disponible para autoasignación");
+    }
 
     // Validate advance months against configured discounts
     const advanceMonths = args.advanceMonths ?? 1;
