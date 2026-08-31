@@ -1,5 +1,5 @@
 import { mutation, query, type MutationCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
@@ -381,44 +381,114 @@ export const getByClass = query({
   },
 });
 
+type ScheduleWithBreakdown = Doc<"classSchedules"> & {
+  reservationBreakdown?: { fixedSlot: number; regular: number };
+};
+
 /**
- * Get schedules in a date range for an organization
+ * Get schedules in a date range for an organization.
+ *
+ * Database I/O notes (this is one of the hottest queries in the app):
+ * - The date range is fully expressed on the index (`gte` + `lte`). Using
+ *   `.filter()` for the upper bound would read every schedule from `startDate`
+ *   to the end of the table — the whole generation horizon — on every call.
+ * - `classId` narrows the scan through `by_class_time` instead of collecting
+ *   the whole org and filtering in JS.
+ * - `includeReservationBreakdown` is opt-in: only the admin calendars need the
+ *   fixed-vs-regular split, so member clients never pay for reservation reads.
+ * - The org's fixed slots are read once per query (not once per schedule), and
+ *   reservations are only read for schedules that actually have a fixed slot;
+ *   otherwise the denormalized `currentReservations` counter is enough.
  */
 export const getByOrganizationAndDateRange = query({
   args: {
     startDate: v.number(),
     endDate: v.number(),
     classId: v.optional(v.id("classes")), // Filter by specific class
+    includeReservationBreakdown: v.optional(v.boolean()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<ScheduleWithBreakdown[]> => {
     const membership = await requireCurrentOrganizationMembership(ctx);
-    const organization = await ctx.db.get(membership.organizationId);
+    const organizationId = membership.organizationId;
+
+    let schedules;
+    if (args.classId) {
+      // by_class_time is not scoped by organization, so verify ownership first.
+      const classTemplate = await ctx.db.get(args.classId);
+      if (!classTemplate || classTemplate.organizationId !== organizationId) {
+        return [];
+      }
+      const classId = args.classId;
+      schedules = await ctx.db
+        .query("classSchedules")
+        .withIndex("by_class_time", (q) =>
+          q
+            .eq("classId", classId)
+            .gte("startTime", args.startDate)
+            .lte("startTime", args.endDate),
+        )
+        .collect();
+    } else {
+      schedules = await ctx.db
+        .query("classSchedules")
+        .withIndex("by_organization_time", (q) =>
+          q
+            .eq("organizationId", organizationId)
+            .gte("startTime", args.startDate)
+            .lte("startTime", args.endDate),
+        )
+        .collect();
+    }
+
+    if (!args.includeReservationBreakdown) {
+      return schedules;
+    }
+
+    const organization = await ctx.db.get(organizationId);
     const timezone =
       organization?.timezone && organization.timezone.trim() !== ""
         ? organization.timezone
         : "UTC";
 
-    // Get schedules in the date range
-    const schedules = await ctx.db
-      .query("classSchedules")
-      .withIndex("by_organization_time", (q) =>
-        q
-          .eq("organizationId", membership.organizationId)
-          .gte("startTime", args.startDate),
+    // One read of the org's fixed slots, indexed by class + weekly slot.
+    const fixedSlots = await ctx.db
+      .query("fixedClassSlots")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
       )
-      .filter((q) => q.lte(q.field("startTime"), args.endDate))
       .collect();
-
-    const filteredSchedules = args.classId
-      ? schedules.filter((s) => s.classId === args.classId)
-      : schedules;
+    const fixedSlotUsersByKey = new Map<string, Set<string>>();
+    for (const slot of fixedSlots) {
+      const key = `${slot.classId}|${slot.dayOfWeek}|${slot.startTimeMinutes}`;
+      const users = fixedSlotUsersByKey.get(key);
+      if (users) {
+        users.add(slot.userId);
+      } else {
+        fixedSlotUsersByKey.set(key, new Set([slot.userId]));
+      }
+    }
 
     return await Promise.all(
-      filteredSchedules.map(async (schedule) => {
+      schedules.map(async (schedule) => {
         const { dayOfWeek, startTimeMinutes } = getDayAndMinutesInZone(
           schedule.startTime,
           timezone,
         );
+        const fixedSlotUserIds = fixedSlotUsersByKey.get(
+          `${schedule.classId}|${dayOfWeek}|${startTimeMinutes}`,
+        );
+
+        // No member holds this weekly slot, so the split is trivial and there
+        // is nothing to learn from reading the reservations.
+        if (!fixedSlotUserIds || fixedSlotUserIds.size === 0) {
+          return {
+            ...schedule,
+            reservationBreakdown: {
+              fixedSlot: 0,
+              regular: Math.max(0, schedule.currentReservations),
+            },
+          };
+        }
 
         const reservations = await ctx.db
           .query("classReservations")
@@ -428,18 +498,6 @@ export const getByOrganizationAndDateRange = query({
         const activeReservations = reservations.filter(
           (reservation) => reservation.status !== "cancelled",
         );
-
-        const fixedSlots = await ctx.db
-          .query("fixedClassSlots")
-          .withIndex("by_organization_class_slot", (q) =>
-            q
-              .eq("organizationId", schedule.organizationId)
-              .eq("classId", schedule.classId)
-              .eq("dayOfWeek", dayOfWeek)
-              .eq("startTimeMinutes", startTimeMinutes),
-          )
-          .collect();
-        const fixedSlotUserIds = new Set(fixedSlots.map((slot) => slot.userId));
         const fixedSlot = activeReservations.filter((reservation) =>
           fixedSlotUserIds.has(reservation.userId),
         ).length;
@@ -455,7 +513,6 @@ export const getByOrganizationAndDateRange = query({
     );
   },
 });
-
 /**
  * Get upcoming schedules (next N occurrences)
  */
@@ -842,9 +899,9 @@ export const getScheduleSummaryForDay = query({
       .withIndex("by_organization_time", (q) =>
         q
           .eq("organizationId", membership.organizationId)
-          .gte("startTime", args.dayStartTime),
+          .gte("startTime", args.dayStartTime)
+          .lte("startTime", args.dayEndTime),
       )
-      .filter((q) => q.lte(q.field("startTime"), args.dayEndTime))
       .collect();
 
     const results = await Promise.all(
