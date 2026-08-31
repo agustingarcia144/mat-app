@@ -113,8 +113,9 @@ export const update = mutation({
     if (updates.capacity !== undefined) {
       const upcomingSchedules = await ctx.db
         .query("classSchedules")
-        .withIndex("by_class", (q) => q.eq("classId", args.id))
-        .filter((q) => q.gte(q.field("startTime"), now))
+        .withIndex("by_class_time", (q) =>
+          q.eq("classId", args.id).gte("startTime", now),
+        )
         .collect();
 
       const overbookedSchedules = upcomingSchedules.filter(
@@ -166,8 +167,9 @@ export const remove = mutation({
 
     const futureSchedules = await ctx.db
       .query("classSchedules")
-      .withIndex("by_class", (q) => q.eq("classId", args.id))
-      .filter((q) => q.gte(q.field("startTime"), now))
+      .withIndex("by_class_time", (q) =>
+        q.eq("classId", args.id).gte("startTime", now),
+      )
       .collect();
 
     if (futureSchedules.length > MAX_SCHEDULES_ON_CLASS_DELETE) {

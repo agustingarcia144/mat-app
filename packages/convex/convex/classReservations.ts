@@ -762,20 +762,28 @@ export const getByUserForDateRange = query({
 export const autoMarkNoShows = internalMutation({
   args: {
     scheduleLimit: v.optional(v.number()),
+    lookbackHours: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
     const cutoff = now - 6 * 60 * 60 * 1000;
     const scheduleLimit = args.scheduleLimit ?? 100;
+    const lookbackMs = (args.lookbackHours ?? 48) * 60 * 60 * 1000;
 
-    const candidateSchedules = await ctx.db
+    // Walk the classes that ended most recently first, over a bounded window.
+    //
+    // Ordering matters as much as the bound here: an ascending scan always
+    // returned the same oldest schedules in the table, which had already been
+    // processed on an earlier run, so newly-expired classes never fit inside
+    // `scheduleLimit` and stopped being marked at all. Newest-first keeps the
+    // classes that actually need work at the front of the batch.
+    const expiredSchedules = await ctx.db
       .query("classSchedules")
-      .withIndex("by_start_time", (q) => q.lte("startTime", cutoff))
-      .collect();
-
-    const expiredSchedules = candidateSchedules
-      .filter((schedule) => schedule.endTime <= cutoff)
-      .slice(0, scheduleLimit);
+      .withIndex("by_end_time", (q) =>
+        q.gte("endTime", cutoff - lookbackMs).lte("endTime", cutoff),
+      )
+      .order("desc")
+      .take(scheduleLimit);
 
     let updatedReservations = 0;
 

@@ -56,6 +56,7 @@ export default function ClassesListScreen() {
     startDate: weekStart.getTime(),
     endDate: weekEnd.getTime(),
     classId: classFilter === "all" ? undefined : (classFilter as never),
+    includeReservationBreakdown: true,
   });
 
   const enrichedSchedules = useMemo(() => {

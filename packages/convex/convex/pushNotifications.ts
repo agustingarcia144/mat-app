@@ -440,12 +440,16 @@ export const sendPreClassReminders = internalMutation({
     const windowStart = target - halfWindowMs;
     const windowEnd = target + halfWindowMs;
 
+    // Both window bounds live on the index. With only `gte` on the index, the
+    // `.take()` would keep scanning past `windowEnd` — across every org's whole
+    // schedule horizon — hunting for rows that can never match the filter.
     const schedules = await ctx.db
       .query("classSchedules")
-      .withIndex("by_start_time", (q) => q.gte("startTime", windowStart))
+      .withIndex("by_start_time", (q) =>
+        q.gte("startTime", windowStart).lte("startTime", windowEnd),
+      )
       .filter((q) =>
         q.and(
-          q.lte(q.field("startTime"), windowEnd),
           q.eq(q.field("status"), "scheduled"),
           q.gt(q.field("currentReservations"), 0),
         ),
@@ -601,12 +605,15 @@ export const sendAttendanceReminders = internalMutation({
     const windowStart = target - halfWindowMs;
     const windowEnd = target + halfWindowMs;
 
+    // Both window bounds live on the index — see the note in
+    // sendPreClassReminders for why the upper bound must not be a `.filter()`.
     const schedules = await ctx.db
       .query("classSchedules")
-      .withIndex("by_end_time", (q) => q.gte("endTime", windowStart))
+      .withIndex("by_end_time", (q) =>
+        q.gte("endTime", windowStart).lte("endTime", windowEnd),
+      )
       .filter((q) =>
         q.and(
-          q.lte(q.field("endTime"), windowEnd),
           q.neq(q.field("status"), "cancelled"),
           q.gt(q.field("currentReservations"), 0),
         ),
