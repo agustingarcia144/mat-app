@@ -1,5 +1,5 @@
 import { mutation, query, type MutationCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { reassignFixedSlotsForUser } from "./fixedClassSlots";
@@ -24,7 +24,7 @@ type BillingMode = "calendar" | "join_date";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_PAYMENT_TIMEZONE = "America/Argentina/Buenos_Aires";
 
-function getPaymentTimezone(timezone?: string) {
+export function getPaymentTimezone(timezone?: string) {
   return timezone && timezone.trim() !== ""
     ? timezone.trim()
     : DEFAULT_PAYMENT_TIMEZONE;
@@ -64,13 +64,14 @@ function getDaysAfterPaymentWindow(
   // dueAt is stored as Date.UTC(year, month-1, day) so use UTC components directly.
   // Using timezone-converted parts would shift the day in negative-offset timezones (e.g. ART UTC-3),
   // making midnight UTC resolve to the previous local day and shortening the payment window by one day.
-  const windowEndDateMs = dueAt !== undefined
-    ? Date.UTC(
-        new Date(dueAt).getUTCFullYear(),
-        new Date(dueAt).getUTCMonth(),
-        new Date(dueAt).getUTCDate(),
-      )
-    : Date.UTC(billingYear, billingMonth - 1, paymentWindowEndDay);
+  const windowEndDateMs =
+    dueAt !== undefined
+      ? Date.UTC(
+          new Date(dueAt).getUTCFullYear(),
+          new Date(dueAt).getUTCMonth(),
+          new Date(dueAt).getUTCDate(),
+        )
+      : Date.UTC(billingYear, billingMonth - 1, paymentWindowEndDay);
   const currentLocalDateMs = Date.UTC(
     nowParts.year,
     nowParts.month - 1,
@@ -275,6 +276,7 @@ export async function computePaymentInterest(
     amountArs: number;
     paymentMethod?: string;
     isBonification?: boolean;
+    advanceCoveredByPaymentId?: Id<"planPayments">;
     billingPeriod: string;
     dueAt?: number;
   },
@@ -291,6 +293,7 @@ export async function computePaymentInterest(
     ? await getPaymentCoverage(ctx, subscription)
     : null;
   const baseAmount =
+    !isAdvanceCoveredPayment(payment) &&
     !payment.isBonification &&
     payment.paymentMethod !== "bonification" &&
     payment.amountArs <= 0 &&
@@ -331,6 +334,103 @@ async function getActiveMemberUserIds(
   return new Set<string>(
     activeMemberships.map((membership: any) => String(membership.userId)),
   );
+}
+
+/**
+ * A $0 row standing in for a month already paid through an advance charge.
+ * It must never fall back to the plan price the way a regular $0 row does —
+ * the member owes nothing for that month.
+ */
+function isAdvanceCoveredPayment(payment: {
+  advanceCoveredByPaymentId?: Id<"planPayments">;
+}) {
+  return payment.advanceCoveredByPaymentId !== undefined;
+}
+
+/**
+ * What the member actually has to pay for a payment row. A non-bonified row
+ * sitting at $0 is a legacy/placeholder row, so it falls back to the current
+ * plan price; an advance-covered row is genuinely $0.
+ */
+function resolvePayableAmountArs(
+  payment: {
+    amountArs: number;
+    totalAmountArs?: number;
+    isBonification?: boolean;
+    paymentMethod?: string;
+    advanceCoveredByPaymentId?: Id<"planPayments">;
+  },
+  plan: { priceArs: number } | null | undefined,
+  coveredMemberCount: number,
+) {
+  const usesPlanPriceFallback =
+    !isAdvanceCoveredPayment(payment) &&
+    !payment.isBonification &&
+    payment.paymentMethod !== "bonification" &&
+    payment.amountArs <= 0 &&
+    plan &&
+    coveredMemberCount > 0;
+
+  return usesPlanPriceFallback
+    ? plan.priceArs * coveredMemberCount
+    : (payment.totalAmountArs ?? payment.amountArs);
+}
+
+/**
+ * Create the already-settled $0 rows for the months an approved advance charge
+ * covers. Called only on approval, so a member who never pays gets no free
+ * months. The rows are `approved`, which is what the suspension cron, the due
+ * reminders and the finance metrics all key off.
+ */
+async function settleAdvanceCoveredPeriods(
+  ctx: MutationCtx,
+  payment: Doc<"planPayments">,
+  reviewerId: string,
+  now: number,
+) {
+  const coveredPeriods = payment.advanceCoveredPeriods;
+  if (!coveredPeriods?.length) return;
+
+  for (const billingPeriod of coveredPeriods) {
+    if (billingPeriod === payment.billingPeriod) continue;
+
+    const coveredFields = {
+      amountArs: 0,
+      totalAmountArs: 0,
+      advanceCoveredByPaymentId: payment._id,
+      advanceMonthlyAmountArs: payment.advanceMonthlyAmountArs,
+      status: "approved" as const,
+      reviewedBy: reviewerId,
+      reviewedAt: now,
+      interestApplied: undefined,
+      interestTotalArs: undefined,
+      updatedAt: now,
+    };
+
+    const existing = await ctx.db
+      .query("planPayments")
+      .withIndex("by_subscription_period", (q) =>
+        q
+          .eq("subscriptionId", payment.subscriptionId)
+          .eq("billingPeriod", billingPeriod),
+      )
+      .first();
+
+    if (existing) {
+      if (existing.status === "approved") continue;
+      await ctx.db.patch(existing._id, coveredFields);
+    } else {
+      await ctx.db.insert("planPayments", {
+        organizationId: payment.organizationId,
+        userId: payment.userId,
+        subscriptionId: payment.subscriptionId,
+        planId: payment.planId,
+        billingPeriod,
+        createdAt: now,
+        ...coveredFields,
+      });
+    }
+  }
 }
 
 function isChargeablePayment(
@@ -443,14 +543,11 @@ export const getMyCurrentPeriodPayment = query({
     return {
       ...payment,
       canUploadProof,
-      payableAmountArs:
-        !payment.isBonification &&
-        payment.paymentMethod !== "bonification" &&
-        payment.amountArs <= 0 &&
-        plan &&
-        coveredMemberCount > 0
-          ? plan.priceArs * coveredMemberCount
-          : (payment.totalAmountArs ?? payment.amountArs),
+      payableAmountArs: resolvePayableAmountArs(
+        payment,
+        plan,
+        coveredMemberCount,
+      ),
       coveredMemberCount,
       coveredUserIds:
         coveredMemberCount > 1
@@ -577,14 +674,11 @@ export const getById = query({
     const coverage = subscription
       ? await getPaymentCoverage(ctx, subscription)
       : null;
-    const payableAmountArs =
-      !payment.isBonification &&
-      payment.paymentMethod !== "bonification" &&
-      payment.amountArs <= 0 &&
-      plan &&
-      (coverage?.coveredMemberCount ?? 1) > 0
-        ? plan.priceArs * (coverage?.coveredMemberCount ?? 1)
-        : (payment.totalAmountArs ?? payment.amountArs);
+    const payableAmountArs = resolvePayableAmountArs(
+      payment,
+      plan,
+      coverage?.coveredMemberCount ?? 1,
+    );
 
     if (payment.status === "in_review" && payment.proofUploadedAt) {
       const interest = await computePaymentInterest(
@@ -646,14 +740,11 @@ export const getMyPayments = query({
     return payments
       .map((payment) => ({
         ...payment,
-        payableAmountArs:
-          !payment.isBonification &&
-          payment.paymentMethod !== "bonification" &&
-          payment.amountArs <= 0 &&
-          plan &&
-          coveredMemberCount > 0
-            ? plan.priceArs * coveredMemberCount
-            : (payment.totalAmountArs ?? payment.amountArs),
+        payableAmountArs: resolvePayableAmountArs(
+          payment,
+          plan,
+          coveredMemberCount,
+        ),
       }))
       .sort((a, b) => b.createdAt - a.createdAt);
   },
@@ -913,6 +1004,19 @@ export const getOrganizationMetrics = query({
       const interestAmountPerMember = currentPayment
         ? Math.round((currentPayment.interestTotalArs ?? 0) / familyGroupSize)
         : 0;
+      // A month already paid through an advance charge is owed nothing; the
+      // month that carries the charge is owed the whole span at once.
+      const isAdvanceCovered = Boolean(
+        currentPayment?.advanceCoveredByPaymentId,
+      );
+      const advanceChargeExpectedPerMember =
+        currentPayment?.advanceMonths && currentPayment.advanceMonthlyAmountArs
+          ? Math.round(
+              (currentPayment.advanceMonthlyAmountArs *
+                currentPayment.advanceMonths) /
+                familyGroupSize,
+            )
+          : null;
 
       if (subscription.status === "suspended") suspendedCount += 1;
 
@@ -935,9 +1039,11 @@ export const getOrganizationMetrics = query({
         bonificationDiscountArs += planPrice - effectivePlanPrice;
       }
 
-      if (!isFullyBonified) {
-        expectedRevenueArs += effectivePlanPrice;
-        planEntry.expectedRevenueArs += effectivePlanPrice;
+      if (!isFullyBonified && !isAdvanceCovered) {
+        const expectedPerMember =
+          advanceChargeExpectedPerMember ?? effectivePlanPrice;
+        expectedRevenueArs += expectedPerMember;
+        planEntry.expectedRevenueArs += expectedPerMember;
       }
 
       if (currentPayment?.status === "approved") {
@@ -1228,8 +1334,7 @@ export const getOrganizationMetrics = query({
           return {
             avgIncomeArs: Math.round(avg),
             periodCount: otherPeriods.length,
-            trendPct:
-              Math.round(((selectedIncomeArs - avg) / avg) * 1000) / 10,
+            trendPct: Math.round(((selectedIncomeArs - avg) / avg) * 1000) / 10,
           };
         })(),
         expenseByCategory: Object.entries(
@@ -1547,6 +1652,9 @@ export const approve = mutation({
 
     await setFamilySubscriptionsStatus(ctx, subscription, "active", now);
 
+    // Only now does the member get the months this charge paid for.
+    await settleAdvanceCoveredPeriods(ctx, payment, identity.subject, now);
+
     await ctx.scheduler.runAfter(
       0,
       internal.pushNotifications.sendPaymentReviewNotification,
@@ -1620,6 +1728,23 @@ export const remove = mutation({
         await ctx.storage.delete(payment.proofStorageId);
       } catch {
         // Ignore if already deleted
+      }
+    }
+
+    // An advance charge owns the $0 rows for the months it settled; deleting it
+    // alone would leave those months looking paid for free.
+    if (payment.advanceCoveredPeriods?.length) {
+      const coveredRows = await ctx.db
+        .query("planPayments")
+        .withIndex("by_subscription", (q) =>
+          q.eq("subscriptionId", payment.subscriptionId),
+        )
+        .filter((q) =>
+          q.eq(q.field("advanceCoveredByPaymentId"), args.paymentId),
+        )
+        .collect();
+      for (const row of coveredRows) {
+        await ctx.db.delete(row._id);
       }
     }
 
@@ -1703,7 +1828,12 @@ export const recordPayment = mutation({
     }
 
     const now = Date.now();
-    const defaultAmountArs = plan.priceArs * coveredMemberCount;
+    // Settling an advance charge in cash/transfer collects the whole span, not
+    // a single month.
+    const advanceCharge = existing?.advanceMonths ? existing : null;
+    const defaultAmountArs = advanceCharge
+      ? (advanceCharge.totalAmountArs ?? advanceCharge.amountArs)
+      : plan.priceArs * coveredMemberCount;
     const amountArs = args.amountArs ?? defaultAmountArs;
 
     if (existing) {
@@ -1748,6 +1878,15 @@ export const recordPayment = mutation({
     }
 
     await setFamilySubscriptionsStatus(ctx, subscription, "active", now);
+
+    if (advanceCharge) {
+      await settleAdvanceCoveredPeriods(
+        ctx,
+        advanceCharge,
+        identity.subject,
+        now,
+      );
+    }
   },
 });
 
@@ -1793,14 +1932,11 @@ async function enrichPayments(
         userFullName: user?.fullName ?? user?.email ?? payment.userId,
         coveredMemberCount: coverage?.coveredMemberCount ?? 1,
         coveredMemberNames,
-        payableAmountArs:
-          !payment.isBonification &&
-          payment.paymentMethod !== "bonification" &&
-          payment.amountArs <= 0 &&
-          plan &&
-          (coverage?.coveredMemberCount ?? 1) > 0
-            ? plan.priceArs * (coverage?.coveredMemberCount ?? 1)
-            : (payment.totalAmountArs ?? payment.amountArs),
+        payableAmountArs: resolvePayableAmountArs(
+          payment,
+          plan,
+          coverage?.coveredMemberCount ?? 1,
+        ),
       };
     }),
   );

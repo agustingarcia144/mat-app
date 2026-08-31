@@ -62,7 +62,7 @@ export default function PlanSelector() {
 
     const message =
       advanceMonths > 1
-        ? `¿Querés activar el plan "${planName}" pagando ${advanceMonths} meses por adelantado?\n\nPrecio por mes: $${discountedPrice.toLocaleString("es-AR")} (${discount!.discountPercentage}% dto.)\nTotal: $${totalPrice.toLocaleString("es-AR")}`
+        ? `¿Querés activar el plan "${planName}" pagando ${advanceMonths} meses por adelantado?\n\nPrecio por mes: $${discountedPrice.toLocaleString("es-AR")} (${discount!.discountPercentage}% dto.)\nPagás ahora, en un solo pago: $${totalPrice.toLocaleString("es-AR")}\n\nQuedás cubierto por ${advanceMonths} meses: no vas a tener que subir comprobante todos los meses.`
         : `¿Querés activar el plan "${planName}"? Deberás realizar la transferencia bancaria y subir el comprobante.`;
 
     Alert.alert("Activar plan", message, [
@@ -436,7 +436,7 @@ export default function PlanSelector() {
                                     { color: isDark ? "#d4d4d8" : "#3f3f46" },
                                   ]}
                                 >
-                                  Total: $
+                                  Pagás hoy: $
                                   {(
                                     Math.round(
                                       plan.priceArs *
