@@ -157,6 +157,7 @@ export default function ClassesPage() {
           endDate: weekEnd.getTime(),
           classId:
             classFilter === "all" ? undefined : (classFilter as Id<"classes">),
+          includeReservationBreakdown: true,
         }
       : "skip",
   );
