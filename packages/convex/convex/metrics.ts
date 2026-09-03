@@ -1,4 +1,5 @@
-import { query } from "./_generated/server";
+import { query, type QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import {
   isStaffRole,
@@ -395,13 +396,7 @@ export const getExerciseMetricsByMember = query({
     const effortSessions: {
       performedOn: string;
       effortRating: number | null;
-      mood:
-        | "great"
-        | "good"
-        | "ok"
-        | "tired"
-        | "exhausted"
-        | null;
+      mood: "great" | "good" | "ok" | "tired" | "exhausted" | null;
       note: string | null;
     }[] = [];
 
@@ -610,8 +605,9 @@ export const getExerciseMetricsByMember = query({
           bestWeight,
           latestVolume,
           trend,
-          comments: dedupeComments(exercise.comments)
-            .sort((a, b) => compareDatesDesc(a.performedOn, b.performedOn)),
+          comments: dedupeComments(exercise.comments).sort((a, b) =>
+            compareDatesDesc(a.performedOn, b.performedOn),
+          ),
           points,
         };
       })
@@ -979,8 +975,9 @@ export const getExerciseMetricsByMembers = query({
               bestWeight,
               latestVolume,
               trend,
-              comments: dedupeComments(exercise.comments)
-                .sort((a, b) => compareDatesDesc(a.performedOn, b.performedOn)),
+              comments: dedupeComments(exercise.comments).sort((a, b) =>
+                compareDatesDesc(a.performedOn, b.performedOn),
+              ),
               points,
             };
           })
@@ -1036,6 +1033,143 @@ export const getExerciseMetricsByMembers = query({
  *   had 80 active members but only 75 payers reports 75.
  * - Future months: 0.
  */
+/**
+ * Active-member count per month. Shared by the dashboard and Mati
+ * (`ai.runReport`). Callers are responsible for authorization.
+ */
+export async function computeActiveMembersHistory(
+  ctx: QueryCtx,
+  organizationId: Id<"organizations">,
+  args: { monthsCount?: number; responsibleUserId?: string },
+) {
+  const monthsCount = Math.min(
+    Math.max(Math.floor(args.monthsCount ?? 6), 1),
+    12,
+  );
+
+  const [allSubscriptions, approvedPayments] = await Promise.all([
+    ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect(),
+    ctx.db
+      .query("planPayments")
+      .withIndex("by_organization_status", (q) =>
+        q.eq("organizationId", organizationId).eq("status", "approved"),
+      )
+      .collect(),
+  ]);
+
+  // Restrict to the members this staff member is responsible for. Filtering
+  // the subscriptions (not the payments) keeps the family billing grouping
+  // below intact.
+  const subscriptions = args.responsibleUserId
+    ? await (async () => {
+        const assigned = await ctx.db
+          .query("organizationMemberships")
+          .withIndex("by_organization_responsible", (q) =>
+            q
+              .eq("organizationId", organizationId)
+              .eq("responsibleUserId", args.responsibleUserId),
+          )
+          .collect();
+        const assignedUserIds = new Set(assigned.map((m) => m.userId));
+        return allSubscriptions.filter((subscription) =>
+          assignedUserIds.has(subscription.userId),
+        );
+      })()
+    : allSubscriptions;
+
+  const approvedByPeriod = buildApprovedBillingSubsByPeriod(approvedPayments);
+
+  const isActiveAtPeriodEnd = (
+    subscription: (typeof subscriptions)[number],
+    periodEndAt: number,
+  ) =>
+    subscription.activatedAt < periodEndAt &&
+    (typeof subscription.cancelledAt !== "number" ||
+      subscription.cancelledAt >= periodEndAt);
+
+  // Members whose billing group paid this period AND who were active during it.
+  const countPaidForPeriod = (
+    period: string,
+    startAt: number,
+    endAt: number,
+  ) => {
+    const paidBillingSubs = approvedByPeriod.get(period);
+    if (!paidBillingSubs || paidBillingSubs.size === 0) return 0;
+    let count = 0;
+    for (const subscription of subscriptions) {
+      const billingId = String(
+        subscription.familyParentSubscriptionId ?? subscription._id,
+      );
+      if (!paidBillingSubs.has(billingId)) continue;
+      if (
+        subscription.activatedAt < endAt &&
+        (typeof subscription.cancelledAt !== "number" ||
+          subscription.cancelledAt >= startAt)
+      ) {
+        count += 1;
+      }
+    }
+    return count;
+  };
+
+  const now = new Date();
+  const currentPeriod = getCurrentBillingPeriod();
+  const startMonth = new Date(
+    now.getFullYear(),
+    now.getMonth() - (monthsCount - 1),
+    1,
+  );
+
+  const months = Array.from({ length: monthsCount }, (_, index) => {
+    const date = new Date(
+      startMonth.getFullYear(),
+      startMonth.getMonth() + index,
+      1,
+    );
+    const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const startAt = date.getTime();
+    const endAt = new Date(
+      date.getFullYear(),
+      date.getMonth() + 1,
+      1,
+    ).getTime();
+
+    if (period > currentPeriod) {
+      return { period, count: 0, isPaidBased: false };
+    }
+    if (period === currentPeriod) {
+      return {
+        period,
+        count: subscriptions.filter((subscription) =>
+          isActiveAtPeriodEnd(subscription, endAt),
+        ).length,
+        isPaidBased: false,
+      };
+    }
+    return {
+      period,
+      count: countPaidForPeriod(period, startAt, endAt),
+      isPaidBased: true,
+    };
+  });
+
+  const currentPeriodEndAt = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    1,
+  ).getTime();
+  const activeCount = subscriptions.filter((subscription) =>
+    isActiveAtPeriodEnd(subscription, currentPeriodEndAt),
+  ).length;
+
+  return { activeCount, months };
+}
+
 export const getActiveMembersHistory = query({
   args: {
     monthsCount: v.optional(v.number()),
@@ -1044,137 +1178,192 @@ export const getActiveMembersHistory = query({
   },
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
-    await requireAdminOrTrainer(ctx, membership.organizationId);
-
     const organizationId = membership.organizationId;
-    const monthsCount = Math.min(
-      Math.max(Math.floor(args.monthsCount ?? 6), 1),
-      12,
-    );
-
-    const [allSubscriptions, approvedPayments] = await Promise.all([
-      ctx.db
-        .query("memberPlanSubscriptions")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", organizationId),
-        )
-        .collect(),
-      ctx.db
-        .query("planPayments")
-        .withIndex("by_organization_status", (q) =>
-          q.eq("organizationId", organizationId).eq("status", "approved"),
-        )
-        .collect(),
-    ]);
-
-    // Restrict to the members this staff member is responsible for. Filtering
-    // the subscriptions (not the payments) keeps the family billing grouping
-    // below intact.
-    const subscriptions = args.responsibleUserId
-      ? await (async () => {
-          const assigned = await ctx.db
-            .query("organizationMemberships")
-            .withIndex("by_organization_responsible", (q) =>
-              q
-                .eq("organizationId", organizationId)
-                .eq("responsibleUserId", args.responsibleUserId),
-            )
-            .collect();
-          const assignedUserIds = new Set(assigned.map((m) => m.userId));
-          return allSubscriptions.filter((subscription) =>
-            assignedUserIds.has(subscription.userId),
-          );
-        })()
-      : allSubscriptions;
-
-    const approvedByPeriod = buildApprovedBillingSubsByPeriod(approvedPayments);
-
-    const isActiveAtPeriodEnd = (
-      subscription: (typeof subscriptions)[number],
-      periodEndAt: number,
-    ) =>
-      subscription.activatedAt < periodEndAt &&
-      (typeof subscription.cancelledAt !== "number" ||
-        subscription.cancelledAt >= periodEndAt);
-
-    // Members whose billing group paid this period AND who were active during it.
-    const countPaidForPeriod = (
-      period: string,
-      startAt: number,
-      endAt: number,
-    ) => {
-      const paidBillingSubs = approvedByPeriod.get(period);
-      if (!paidBillingSubs || paidBillingSubs.size === 0) return 0;
-      let count = 0;
-      for (const subscription of subscriptions) {
-        const billingId = String(
-          subscription.familyParentSubscriptionId ?? subscription._id,
-        );
-        if (!paidBillingSubs.has(billingId)) continue;
-        if (
-          subscription.activatedAt < endAt &&
-          (typeof subscription.cancelledAt !== "number" ||
-            subscription.cancelledAt >= startAt)
-        ) {
-          count += 1;
-        }
-      }
-      return count;
-    };
-
-    const now = new Date();
-    const currentPeriod = getCurrentBillingPeriod();
-    const startMonth = new Date(
-      now.getFullYear(),
-      now.getMonth() - (monthsCount - 1),
-      1,
-    );
-
-    const months = Array.from({ length: monthsCount }, (_, index) => {
-      const date = new Date(
-        startMonth.getFullYear(),
-        startMonth.getMonth() + index,
-        1,
-      );
-      const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const startAt = date.getTime();
-      const endAt = new Date(
-        date.getFullYear(),
-        date.getMonth() + 1,
-        1,
-      ).getTime();
-
-      if (period > currentPeriod) {
-        return { period, count: 0, isPaidBased: false };
-      }
-      if (period === currentPeriod) {
-        return {
-          period,
-          count: subscriptions.filter((subscription) =>
-            isActiveAtPeriodEnd(subscription, endAt),
-          ).length,
-          isPaidBased: false,
-        };
-      }
-      return {
-        period,
-        count: countPaidForPeriod(period, startAt, endAt),
-        isPaidBased: true,
-      };
-    });
-
-    const currentPeriodEndAt = new Date(
-      now.getFullYear(),
-      now.getMonth() + 1,
-      1,
-    ).getTime();
-    const activeCount = subscriptions.filter((subscription) =>
-      isActiveAtPeriodEnd(subscription, currentPeriodEndAt),
-    ).length;
-
-    return { activeCount, months };
+    await requireAdminOrTrainer(ctx, organizationId);
+    return await computeActiveMembersHistory(ctx, organizationId, args);
   },
 });
+
+/**
+ * Churn / retention by period. Shared by the dashboard and Mati
+ * (`ai.runReport`). Callers are responsible for authorization.
+ */
+export async function computeChurnMetrics(
+  ctx: QueryCtx,
+  organizationId: Id<"organizations">,
+  args: { selectedPeriod?: string },
+) {
+  const [subscriptions, approvedPayments] = await Promise.all([
+    ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect(),
+    ctx.db
+      .query("planPayments")
+      .withIndex("by_organization_status", (q) =>
+        q.eq("organizationId", organizationId).eq("status", "approved"),
+      )
+      .collect(),
+  ]);
+
+  const currentPeriod = getCurrentBillingPeriod();
+  const availablePeriods = sortPeriodsDesc([
+    currentPeriod,
+    ...subscriptions.map((subscription) =>
+      getPeriodFromTimestamp(subscription.activatedAt),
+    ),
+    ...subscriptions
+      .map((subscription) =>
+        typeof subscription.cancelledAt === "number"
+          ? getPeriodFromTimestamp(subscription.cancelledAt)
+          : null,
+      )
+      .filter((period): period is string => Boolean(period)),
+    // Include periods that had payments so closed months with no
+    // activation/cancellation still show up in the history.
+    ...approvedPayments.map((payment) => payment.billingPeriod),
+  ]).slice(0, 12);
+
+  const selectedPeriod =
+    args.selectedPeriod && availablePeriods.includes(args.selectedPeriod)
+      ? args.selectedPeriod
+      : currentPeriod;
+  const selectedIndex = availablePeriods.indexOf(selectedPeriod);
+  const previousPeriod =
+    selectedIndex >= 0 ? (availablePeriods[selectedIndex + 1] ?? null) : null;
+
+  const approvedByPeriod = buildApprovedBillingSubsByPeriod(approvedPayments);
+
+  const getMemberIdsActiveAt = (timestamp: number) => {
+    const ids = new Set<string>();
+    for (const sub of subscriptions) {
+      if (
+        sub.activatedAt < timestamp &&
+        (typeof sub.cancelledAt !== "number" || sub.cancelledAt >= timestamp)
+      ) {
+        ids.add(sub.userId);
+      }
+    }
+    return ids;
+  };
+
+  // Members (userIds) whose billing group has an approved payment for a period.
+  const getPaidMemberIds = (period: string) => {
+    const paidBillingSubs = approvedByPeriod.get(period);
+    const ids = new Set<string>();
+    if (!paidBillingSubs || paidBillingSubs.size === 0) return ids;
+    for (const sub of subscriptions) {
+      const billingId = String(sub.familyParentSubscriptionId ?? sub._id);
+      if (paidBillingSubs.has(billingId)) ids.add(sub.userId);
+    }
+    return ids;
+  };
+
+  // The active base for a period: for a closed month it's who actually paid;
+  // for the in-progress month it's the members currently active (paid data is
+  // still incomplete).
+  const getPeriodMemberIds = (period: string) => {
+    if (period >= currentPeriod) {
+      const { end } = getPeriodRange(period);
+      return getMemberIdsActiveAt(end);
+    }
+    return getPaidMemberIds(period);
+  };
+
+  const buildPeriodOverview = (period: string) => {
+    const { start, end } = getPeriodRange(period);
+    const periodIndex = availablePeriods.indexOf(period);
+    const priorPeriod =
+      periodIndex >= 0 ? (availablePeriods[periodIndex + 1] ?? null) : null;
+
+    // Base at the start of the period = who continued from the prior period
+    // (its payers). Falls back to live active subs for the earliest period.
+    const startingIds = priorPeriod
+      ? getPeriodMemberIds(priorPeriod)
+      : getMemberIdsActiveAt(start);
+    const endingIds = getPeriodMemberIds(period);
+
+    // Members in the starting base who are gone by the end of the period
+    const churnedMembers = new Set<string>(
+      Array.from(startingIds).filter((id) => !endingIds.has(id)),
+    );
+
+    // Members present at end who were not in the starting base
+    const newMembers = new Set<string>(
+      Array.from(endingIds).filter((id) => !startingIds.has(id)),
+    );
+
+    // Members whose active-at-end subs are all suspended
+    const activeAtEnd = getMemberIdsActiveAt(end);
+    const suspendedAtEnd = new Set<string>();
+    for (const userId of Array.from(activeAtEnd)) {
+      const activeSubs = subscriptions.filter(
+        (sub) =>
+          sub.userId === userId &&
+          sub.activatedAt < end &&
+          (typeof sub.cancelledAt !== "number" || sub.cancelledAt >= end),
+      );
+      if (activeSubs.every((sub) => sub.status === "suspended")) {
+        suspendedAtEnd.add(userId);
+      }
+    }
+
+    const churnBaseCount = startingIds.size + newMembers.size;
+
+    return {
+      period,
+      startingMembers: startingIds.size,
+      endingMembers: endingIds.size,
+      newMembers: newMembers.size,
+      churnedMembers: churnedMembers.size,
+      churnBaseMembers: churnBaseCount,
+      suspendedMembers: suspendedAtEnd.size,
+      netGrowth: newMembers.size - churnedMembers.size,
+      churnRatePct: roundPercentage(churnedMembers.size, churnBaseCount),
+      retentionRatePct:
+        startingIds.size > 0
+          ? Math.max(
+              0,
+              Math.round(
+                ((startingIds.size - churnedMembers.size) / startingIds.size) *
+                  1000,
+              ) / 10,
+            )
+          : 100,
+    };
+  };
+
+  const monthlyOverview = availablePeriods.map(buildPeriodOverview);
+  const selectedOverview =
+    monthlyOverview.find((period) => period.period === selectedPeriod) ??
+    buildPeriodOverview(selectedPeriod);
+  const previousOverview = previousPeriod
+    ? (monthlyOverview.find((period) => period.period === previousPeriod) ??
+      buildPeriodOverview(previousPeriod))
+    : null;
+
+  return {
+    currentPeriod,
+    selectedPeriod,
+    previousPeriod,
+    availablePeriods,
+    selectedOverview,
+    previousOverview,
+    comparison: previousOverview
+      ? {
+          churnRateDeltaPct:
+            selectedOverview.churnRatePct - previousOverview.churnRatePct,
+          churnedMembersDelta:
+            selectedOverview.churnedMembers - previousOverview.churnedMembers,
+          endingMembersDelta:
+            selectedOverview.endingMembers - previousOverview.endingMembers,
+        }
+      : null,
+    monthlyOverview,
+  };
+}
 
 export const getChurnMetrics = query({
   args: {
@@ -1182,180 +1371,8 @@ export const getChurnMetrics = query({
   },
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
-    await requireAdmin(ctx, membership.organizationId);
-
-    const [subscriptions, approvedPayments] = await Promise.all([
-      ctx.db
-        .query("memberPlanSubscriptions")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .collect(),
-      ctx.db
-        .query("planPayments")
-        .withIndex("by_organization_status", (q) =>
-          q
-            .eq("organizationId", membership.organizationId)
-            .eq("status", "approved"),
-        )
-        .collect(),
-    ]);
-
-    const currentPeriod = getCurrentBillingPeriod();
-    const availablePeriods = sortPeriodsDesc([
-      currentPeriod,
-      ...subscriptions.map((subscription) =>
-        getPeriodFromTimestamp(subscription.activatedAt),
-      ),
-      ...subscriptions
-        .map((subscription) =>
-          typeof subscription.cancelledAt === "number"
-            ? getPeriodFromTimestamp(subscription.cancelledAt)
-            : null,
-        )
-        .filter((period): period is string => Boolean(period)),
-      // Include periods that had payments so closed months with no
-      // activation/cancellation still show up in the history.
-      ...approvedPayments.map((payment) => payment.billingPeriod),
-    ]).slice(0, 12);
-
-    const selectedPeriod =
-      args.selectedPeriod && availablePeriods.includes(args.selectedPeriod)
-        ? args.selectedPeriod
-        : currentPeriod;
-    const selectedIndex = availablePeriods.indexOf(selectedPeriod);
-    const previousPeriod =
-      selectedIndex >= 0 ? (availablePeriods[selectedIndex + 1] ?? null) : null;
-
-    const approvedByPeriod = buildApprovedBillingSubsByPeriod(approvedPayments);
-
-    const getMemberIdsActiveAt = (timestamp: number) => {
-      const ids = new Set<string>();
-      for (const sub of subscriptions) {
-        if (
-          sub.activatedAt < timestamp &&
-          (typeof sub.cancelledAt !== "number" || sub.cancelledAt >= timestamp)
-        ) {
-          ids.add(sub.userId);
-        }
-      }
-      return ids;
-    };
-
-    // Members (userIds) whose billing group has an approved payment for a period.
-    const getPaidMemberIds = (period: string) => {
-      const paidBillingSubs = approvedByPeriod.get(period);
-      const ids = new Set<string>();
-      if (!paidBillingSubs || paidBillingSubs.size === 0) return ids;
-      for (const sub of subscriptions) {
-        const billingId = String(sub.familyParentSubscriptionId ?? sub._id);
-        if (paidBillingSubs.has(billingId)) ids.add(sub.userId);
-      }
-      return ids;
-    };
-
-    // The active base for a period: for a closed month it's who actually paid;
-    // for the in-progress month it's the members currently active (paid data is
-    // still incomplete).
-    const getPeriodMemberIds = (period: string) => {
-      if (period >= currentPeriod) {
-        const { end } = getPeriodRange(period);
-        return getMemberIdsActiveAt(end);
-      }
-      return getPaidMemberIds(period);
-    };
-
-    const buildPeriodOverview = (period: string) => {
-      const { start, end } = getPeriodRange(period);
-      const periodIndex = availablePeriods.indexOf(period);
-      const priorPeriod =
-        periodIndex >= 0 ? (availablePeriods[periodIndex + 1] ?? null) : null;
-
-      // Base at the start of the period = who continued from the prior period
-      // (its payers). Falls back to live active subs for the earliest period.
-      const startingIds = priorPeriod
-        ? getPeriodMemberIds(priorPeriod)
-        : getMemberIdsActiveAt(start);
-      const endingIds = getPeriodMemberIds(period);
-
-      // Members in the starting base who are gone by the end of the period
-      const churnedMembers = new Set<string>(
-        Array.from(startingIds).filter((id) => !endingIds.has(id)),
-      );
-
-      // Members present at end who were not in the starting base
-      const newMembers = new Set<string>(
-        Array.from(endingIds).filter((id) => !startingIds.has(id)),
-      );
-
-      // Members whose active-at-end subs are all suspended
-      const activeAtEnd = getMemberIdsActiveAt(end);
-      const suspendedAtEnd = new Set<string>();
-      for (const userId of Array.from(activeAtEnd)) {
-        const activeSubs = subscriptions.filter(
-          (sub) =>
-            sub.userId === userId &&
-            sub.activatedAt < end &&
-            (typeof sub.cancelledAt !== "number" || sub.cancelledAt >= end),
-        );
-        if (activeSubs.every((sub) => sub.status === "suspended")) {
-          suspendedAtEnd.add(userId);
-        }
-      }
-
-      const churnBaseCount = startingIds.size + newMembers.size;
-
-      return {
-        period,
-        startingMembers: startingIds.size,
-        endingMembers: endingIds.size,
-        newMembers: newMembers.size,
-        churnedMembers: churnedMembers.size,
-        churnBaseMembers: churnBaseCount,
-        suspendedMembers: suspendedAtEnd.size,
-        netGrowth: newMembers.size - churnedMembers.size,
-        churnRatePct: roundPercentage(churnedMembers.size, churnBaseCount),
-        retentionRatePct:
-          startingIds.size > 0
-            ? Math.max(
-                0,
-                Math.round(
-                  ((startingIds.size - churnedMembers.size) /
-                    startingIds.size) *
-                    1000,
-                ) / 10,
-              )
-            : 100,
-      };
-    };
-
-    const monthlyOverview = availablePeriods.map(buildPeriodOverview);
-    const selectedOverview =
-      monthlyOverview.find((period) => period.period === selectedPeriod) ??
-      buildPeriodOverview(selectedPeriod);
-    const previousOverview = previousPeriod
-      ? (monthlyOverview.find((period) => period.period === previousPeriod) ??
-        buildPeriodOverview(previousPeriod))
-      : null;
-
-    return {
-      currentPeriod,
-      selectedPeriod,
-      previousPeriod,
-      availablePeriods,
-      selectedOverview,
-      previousOverview,
-      comparison: previousOverview
-        ? {
-            churnRateDeltaPct:
-              selectedOverview.churnRatePct - previousOverview.churnRatePct,
-            churnedMembersDelta:
-              selectedOverview.churnedMembers - previousOverview.churnedMembers,
-            endingMembersDelta:
-              selectedOverview.endingMembers - previousOverview.endingMembers,
-          }
-        : null,
-      monthlyOverview,
-    };
+    const organizationId = membership.organizationId;
+    await requireAdmin(ctx, organizationId);
+    return await computeChurnMetrics(ctx, organizationId, args);
   },
 });

@@ -1,4 +1,9 @@
-import { internalMutation, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type QueryCtx,
+} from "./_generated/server";
 import { v } from "convex/values";
 import {
   requireAdmin,
@@ -179,51 +184,60 @@ export const getTransactions = query({
   },
 });
 
+/**
+ * Income / expense / net for one period. Shared by the dashboard and Mati
+ * (`ai.runReport`). Callers are responsible for authorization.
+ */
+export async function computeFinanceSummary(
+  ctx: QueryCtx,
+  organizationId: Id<"organizations">,
+  args: { period?: string },
+) {
+  const period = args.period ?? getPeriodPartsForTimezone().period;
+  assertPeriod(period);
+
+  const [transactions, recurringRules] = await Promise.all([
+    ctx.db
+      .query("financeTransactions")
+      .withIndex("by_organization_period", (q) =>
+        q.eq("organizationId", organizationId).eq("period", period),
+      )
+      .collect(),
+    ctx.db
+      .query("financeRecurringRules")
+      .withIndex("by_organization_status", (q) =>
+        q.eq("organizationId", organizationId).eq("status", "active"),
+      )
+      .collect(),
+  ]);
+
+  const activeTransactions = transactions.filter(
+    (transaction) => transaction.status === "active",
+  );
+  const incomeArs = activeTransactions
+    .filter((transaction) => transaction.type === "income")
+    .reduce((sum, transaction) => sum + transaction.amountArs, 0);
+  const expenseArs = activeTransactions
+    .filter((transaction) => transaction.type === "expense")
+    .reduce((sum, transaction) => sum + transaction.amountArs, 0);
+
+  return {
+    period,
+    incomeArs,
+    expenseArs,
+    netResultArs: incomeArs - expenseArs,
+    activeRecurringRules: recurringRules.length,
+  };
+}
+
 export const getSummary = query({
   args: {
     period: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const membership = await requireAdminMembership(ctx);
-    const period = args.period ?? getPeriodPartsForTimezone().period;
-    assertPeriod(period);
-
-    const [transactions, recurringRules] = await Promise.all([
-      ctx.db
-        .query("financeTransactions")
-        .withIndex("by_organization_period", (q) =>
-          q
-            .eq("organizationId", membership.organizationId)
-            .eq("period", period),
-        )
-        .collect(),
-      ctx.db
-        .query("financeRecurringRules")
-        .withIndex("by_organization_status", (q) =>
-          q
-            .eq("organizationId", membership.organizationId)
-            .eq("status", "active"),
-        )
-        .collect(),
-    ]);
-
-    const activeTransactions = transactions.filter(
-      (transaction) => transaction.status === "active",
-    );
-    const incomeArs = activeTransactions
-      .filter((transaction) => transaction.type === "income")
-      .reduce((sum, transaction) => sum + transaction.amountArs, 0);
-    const expenseArs = activeTransactions
-      .filter((transaction) => transaction.type === "expense")
-      .reduce((sum, transaction) => sum + transaction.amountArs, 0);
-
-    return {
-      period,
-      incomeArs,
-      expenseArs,
-      netResultArs: incomeArs - expenseArs,
-      activeRecurringRules: recurringRules.length,
-    };
+    const organizationId = membership.organizationId;
+    return await computeFinanceSummary(ctx, organizationId, args);
   },
 });
 

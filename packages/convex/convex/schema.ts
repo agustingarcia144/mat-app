@@ -480,7 +480,12 @@ export default defineSchema({
     conversationId: v.id("aiConversations"),
     turnId: v.id("aiTurns"),
     userId: v.string(),
-    source: v.union(v.literal("organization"), v.literal("help")),
+    source: v.union(
+      v.literal("organization"),
+      v.literal("report"),
+      v.literal("help"),
+      v.literal("schema"),
+    ),
     dataset: v.string(),
     normalizedQuery: v.any(),
     rowCount: v.number(),

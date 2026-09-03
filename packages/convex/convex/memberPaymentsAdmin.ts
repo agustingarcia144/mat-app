@@ -6,7 +6,7 @@
  * states. No token, no ciphertext, no payer contact details.
  */
 
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -106,7 +106,8 @@ export const getOverview = query({
       policy: policyResult.policy,
       runtimeEnabled: isMemberMercadoPagoEnabled(),
       counts: {
-        activeAgreements: agreements.filter((a) => a.status === "active").length,
+        activeAgreements: agreements.filter((a) => a.status === "active")
+          .length,
         retryingAgreements: agreements.filter((a) => a.status === "retrying")
           .length,
         scheduledCancellations: agreements.filter(
@@ -368,187 +369,195 @@ export const cancelAgreement = mutation({
  * webhooks are landing, whether failed cards recover, and what the gym is
  * actually receiving.
  */
+/**
+ * MercadoPago member-payment funnel and health. Shared by the admin console
+ * and Mati (`ai.runReport`). Callers are responsible for authorization.
+ */
+export async function computeMemberPaymentMetrics(
+  ctx: QueryCtx,
+  organizationId: Id<"organizations">,
+  args: { sinceDays?: number },
+) {
+  const since = Date.now() - (args.sinceDays ?? 30) * 24 * 60 * 60 * 1000;
+
+  const [sessions, transactions, agreements, operations, connection, ledger] =
+    await Promise.all([
+      ctx.db
+        .query("memberPaymentCheckoutSessions")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("memberPaymentTransactions")
+        .withIndex("by_organization_created", (q) =>
+          q.eq("organizationId", organizationId).gte("createdAt", since),
+        )
+        .collect(),
+      ctx.db
+        .query("memberRecurringAgreements")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("memberPaymentProviderOperations")
+        .withIndex("by_organization", (q) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("organizationPaymentProviderConnections")
+        .withIndex("by_organization_provider", (q) =>
+          q.eq("organizationId", organizationId).eq("provider", "mercadopago"),
+        )
+        .first(),
+      ctx.db
+        .query("platformCommissionLedger")
+        .withIndex("by_organization_created", (q) =>
+          q.eq("organizationId", organizationId).gte("createdAt", since),
+        )
+        .collect(),
+    ]);
+
+  const recentSessions = sessions.filter(
+    (session) => session.createdAt >= since,
+  );
+  const startedCheckouts = recentSessions.filter(
+    (session) => session.status !== "created",
+  ).length;
+  const approvedCheckouts = recentSessions.filter(
+    (session) => session.status === "approved",
+  ).length;
+
+  const approved = transactions.filter(
+    (transaction) => transaction.status === "approved",
+  );
+  // Time from MAT creating the charge record to the provider approving it.
+  const latencies = approved
+    .map((transaction) =>
+      transaction.providerApprovedAt
+        ? transaction.providerApprovedAt - transaction.createdAt
+        : null,
+    )
+    .filter((value): value is number => value !== null && value >= 0)
+    .sort((a, b) => a - b);
+
+  const webhookEvents = connection
+    ? await ctx.db
+        .query("paymentProviderWebhookEvents")
+        .withIndex("by_connection", (q) => q.eq("connectionId", connection._id))
+        .collect()
+    : [];
+  const recentWebhooks = webhookEvents.filter(
+    (event) => event.receivedAt >= since,
+  );
+
+  const suspendedMembers = await ctx.db
+    .query("memberPlanSubscriptions")
+    .withIndex("by_organization_status", (q) =>
+      q.eq("organizationId", organizationId).eq("status", "suspended"),
+    )
+    .collect();
+
+  return {
+    sinceDays: args.sinceDays ?? 30,
+    checkout: {
+      started: startedCheckouts,
+      approved: approvedCheckouts,
+      abandoned: recentSessions.filter(
+        (session) =>
+          session.status === "expired" || session.status === "cancelled",
+      ).length,
+      // Null rather than a fabricated 0%: no attempts means no rate.
+      conversionRate:
+        startedCheckouts > 0 ? approvedCheckouts / startedCheckouts : null,
+    },
+    payments: {
+      approved: approved.length,
+      rejected: transactions.filter(
+        (transaction) => transaction.status === "rejected",
+      ).length,
+      reversed: transactions.filter(
+        (transaction) =>
+          transaction.status === "refunded" ||
+          transaction.status === "charged_back",
+      ).length,
+      needingAttention: transactions.filter(
+        (transaction) => transaction.requiresAttention === true,
+      ).length,
+      grossVolumeArs: approved.reduce(
+        (total, transaction) => total + transaction.grossAmountArs,
+        0,
+      ),
+      gymNetArs: approved.reduce(
+        (total, transaction) => total + (transaction.gymNetAmountArs ?? 0),
+        0,
+      ),
+      medianApprovalLatencyMs:
+        latencies.length > 0
+          ? latencies[Math.floor(latencies.length / 2)]!
+          : null,
+    },
+    webhooks: {
+      received: recentWebhooks.length,
+      failed: recentWebhooks.filter((event) => event.status === "failed")
+        .length,
+      stuck: recentWebhooks.filter((event) => event.status === "processing")
+        .length,
+      oldestUnprocessedAgeMs: recentWebhooks
+        .filter((event) => event.status === "processing")
+        .reduce<
+          number | null
+        >((oldest, event) => Math.max(oldest ?? 0, Date.now() - event.receivedAt), null),
+    },
+    agreements: {
+      active: agreements.filter((a) => a.status === "active").length,
+      retrying: agreements.filter((a) => a.status === "retrying").length,
+      paused: agreements.filter((a) => a.status === "paused_bonification")
+        .length,
+      cancellationScheduled: agreements.filter(
+        (a) => a.status === "cancellation_scheduled",
+      ).length,
+      failed: agreements.filter((a) => a.status === "failed").length,
+      // Members whose card failed and who then paid: the number that says
+      // whether the grace window is doing its job.
+      recoveredAfterFailure: agreements.filter(
+        (a) => a.status === "active" && a.firstFailureAt === undefined,
+      ).length,
+    },
+    operations: {
+      queued: operations.filter((o) => o.status === "queued").length,
+      running: operations.filter((o) => o.status === "running").length,
+      permanentlyFailed: operations.filter(
+        (o) => o.status === "permanently_failed",
+      ).length,
+    },
+    connection: {
+      status: connection?.status ?? "disconnected",
+      lastHealthCheckAt: connection?.lastHealthCheckAt ?? null,
+      lastRefreshedAt: connection?.lastRefreshedAt ?? null,
+      accessTokenExpiresAt: connection?.accessTokenExpiresAt ?? null,
+    },
+    commission: {
+      accruedArs: ledger
+        .filter((entry) => entry.status === "accrued")
+        .reduce((total, entry) => total + entry.feeAmountArs, 0),
+      collectedArs: ledger
+        .filter((entry) => entry.status === "collected")
+        .reduce((total, entry) => total + entry.feeAmountArs, 0),
+    },
+    suspendedMembers: suspendedMembers.length,
+  };
+}
+
 export const getMetrics = query({
   args: { sinceDays: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const orgCtx = await tryActiveOrgContext(ctx);
     if (!orgCtx) return null;
-    await requireAdmin(ctx, orgCtx.organizationId);
-
-    const since = Date.now() - (args.sinceDays ?? 30) * 24 * 60 * 60 * 1000;
-
-    const [sessions, transactions, agreements, operations, connection, ledger] =
-      await Promise.all([
-        ctx.db
-          .query("memberPaymentCheckoutSessions")
-          .withIndex("by_organization", (q) =>
-            q.eq("organizationId", orgCtx.organizationId),
-          )
-          .collect(),
-        ctx.db
-          .query("memberPaymentTransactions")
-          .withIndex("by_organization_created", (q) =>
-            q.eq("organizationId", orgCtx.organizationId).gte("createdAt", since),
-          )
-          .collect(),
-        ctx.db
-          .query("memberRecurringAgreements")
-          .withIndex("by_organization", (q) =>
-            q.eq("organizationId", orgCtx.organizationId),
-          )
-          .collect(),
-        ctx.db
-          .query("memberPaymentProviderOperations")
-          .withIndex("by_organization", (q) =>
-            q.eq("organizationId", orgCtx.organizationId),
-          )
-          .collect(),
-        ctx.db
-          .query("organizationPaymentProviderConnections")
-          .withIndex("by_organization_provider", (q) =>
-            q
-              .eq("organizationId", orgCtx.organizationId)
-              .eq("provider", "mercadopago"),
-          )
-          .first(),
-        ctx.db
-          .query("platformCommissionLedger")
-          .withIndex("by_organization_created", (q) =>
-            q.eq("organizationId", orgCtx.organizationId).gte("createdAt", since),
-          )
-          .collect(),
-      ]);
-
-    const recentSessions = sessions.filter(
-      (session) => session.createdAt >= since,
-    );
-    const startedCheckouts = recentSessions.filter(
-      (session) => session.status !== "created",
-    ).length;
-    const approvedCheckouts = recentSessions.filter(
-      (session) => session.status === "approved",
-    ).length;
-
-    const approved = transactions.filter(
-      (transaction) => transaction.status === "approved",
-    );
-    // Time from MAT creating the charge record to the provider approving it.
-    const latencies = approved
-      .map((transaction) =>
-        transaction.providerApprovedAt
-          ? transaction.providerApprovedAt - transaction.createdAt
-          : null,
-      )
-      .filter((value): value is number => value !== null && value >= 0)
-      .sort((a, b) => a - b);
-
-    const webhookEvents = connection
-      ? await ctx.db
-          .query("paymentProviderWebhookEvents")
-          .withIndex("by_connection", (q) => q.eq("connectionId", connection._id))
-          .collect()
-      : [];
-    const recentWebhooks = webhookEvents.filter(
-      (event) => event.receivedAt >= since,
-    );
-
-    const suspendedMembers = await ctx.db
-      .query("memberPlanSubscriptions")
-      .withIndex("by_organization_status", (q) =>
-        q.eq("organizationId", orgCtx.organizationId).eq("status", "suspended"),
-      )
-      .collect();
-
-    return {
-      sinceDays: args.sinceDays ?? 30,
-      checkout: {
-        started: startedCheckouts,
-        approved: approvedCheckouts,
-        abandoned: recentSessions.filter(
-          (session) =>
-            session.status === "expired" || session.status === "cancelled",
-        ).length,
-        // Null rather than a fabricated 0%: no attempts means no rate.
-        conversionRate:
-          startedCheckouts > 0 ? approvedCheckouts / startedCheckouts : null,
-      },
-      payments: {
-        approved: approved.length,
-        rejected: transactions.filter(
-          (transaction) => transaction.status === "rejected",
-        ).length,
-        reversed: transactions.filter(
-          (transaction) =>
-            transaction.status === "refunded" ||
-            transaction.status === "charged_back",
-        ).length,
-        needingAttention: transactions.filter(
-          (transaction) => transaction.requiresAttention === true,
-        ).length,
-        grossVolumeArs: approved.reduce(
-          (total, transaction) => total + transaction.grossAmountArs,
-          0,
-        ),
-        gymNetArs: approved.reduce(
-          (total, transaction) => total + (transaction.gymNetAmountArs ?? 0),
-          0,
-        ),
-        medianApprovalLatencyMs:
-          latencies.length > 0
-            ? latencies[Math.floor(latencies.length / 2)]!
-            : null,
-      },
-      webhooks: {
-        received: recentWebhooks.length,
-        failed: recentWebhooks.filter((event) => event.status === "failed")
-          .length,
-        stuck: recentWebhooks.filter((event) => event.status === "processing")
-          .length,
-        oldestUnprocessedAgeMs: recentWebhooks
-          .filter((event) => event.status === "processing")
-          .reduce<number | null>(
-            (oldest, event) =>
-              Math.max(oldest ?? 0, Date.now() - event.receivedAt),
-            null,
-          ),
-      },
-      agreements: {
-        active: agreements.filter((a) => a.status === "active").length,
-        retrying: agreements.filter((a) => a.status === "retrying").length,
-        paused: agreements.filter((a) => a.status === "paused_bonification")
-          .length,
-        cancellationScheduled: agreements.filter(
-          (a) => a.status === "cancellation_scheduled",
-        ).length,
-        failed: agreements.filter((a) => a.status === "failed").length,
-        // Members whose card failed and who then paid: the number that says
-        // whether the grace window is doing its job.
-        recoveredAfterFailure: agreements.filter(
-          (a) => a.status === "active" && a.firstFailureAt === undefined,
-        ).length,
-      },
-      operations: {
-        queued: operations.filter((o) => o.status === "queued").length,
-        running: operations.filter((o) => o.status === "running").length,
-        permanentlyFailed: operations.filter(
-          (o) => o.status === "permanently_failed",
-        ).length,
-      },
-      connection: {
-        status: connection?.status ?? "disconnected",
-        lastHealthCheckAt: connection?.lastHealthCheckAt ?? null,
-        lastRefreshedAt: connection?.lastRefreshedAt ?? null,
-        accessTokenExpiresAt: connection?.accessTokenExpiresAt ?? null,
-      },
-      commission: {
-        accruedArs: ledger
-          .filter((entry) => entry.status === "accrued")
-          .reduce((total, entry) => total + entry.feeAmountArs, 0),
-        collectedArs: ledger
-          .filter((entry) => entry.status === "collected")
-          .reduce((total, entry) => total + entry.feeAmountArs, 0),
-      },
-      suspendedMembers: suspendedMembers.length,
-    };
+    const organizationId = orgCtx.organizationId;
+    await requireAdmin(ctx, organizationId);
+    return await computeMemberPaymentMetrics(ctx, organizationId, args);
   },
 });

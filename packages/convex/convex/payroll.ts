@@ -184,6 +184,127 @@ async function loadApprovedPlanPayments(
  * Each row reports the computed total plus how much has been paid so far and
  * the derived status (pending / partial / paid).
  */
+/**
+ * Staff payroll rollup for a period. Shared by the dashboard and Mati
+ * (`ai.runReport`). Callers are responsible for authorization.
+ */
+export async function computePayrollSummary(
+  ctx: QueryCtx,
+  organizationId: Id<"organizations">,
+  args: { period: string; startDate: number; endDate: number },
+) {
+  // All memberships: staff rows are limited to active ones below, but a member
+  // who went inactive after paying still earned a commission for the period.
+  const memberships = await ctx.db
+    .query("organizationMemberships")
+    .withIndex("by_organization", (q) => q.eq("organizationId", organizationId))
+    .collect();
+
+  const staffMemberships = memberships.filter(
+    (m) => m.status === "active" && isStaffRole(m.role),
+  );
+
+  const shifts = await ctx.db
+    .query("staffShifts")
+    .withIndex("by_organization_time", (q) =>
+      q
+        .eq("organizationId", organizationId)
+        .gte("startTime", args.startDate)
+        .lte("startTime", args.endDate),
+    )
+    .collect();
+
+  const schedules = await ctx.db
+    .query("classSchedules")
+    .withIndex("by_organization_time", (q) =>
+      q
+        .eq("organizationId", organizationId)
+        .gte("startTime", args.startDate)
+        .lte("startTime", args.endDate),
+    )
+    .collect();
+
+  // Payments for the period, summed by user.
+  const payments = await ctx.db
+    .query("staffPayrollPayments")
+    .withIndex("by_organization_period", (q) =>
+      q.eq("organizationId", organizationId).eq("period", args.period),
+    )
+    .collect();
+  const paidByUser = new Map<string, number>();
+  for (const payment of payments) {
+    paidByUser.set(
+      payment.userId,
+      (paidByUser.get(payment.userId) ?? 0) + payment.amountArs,
+    );
+  }
+
+  const commissions = computeCommissions(
+    await loadApprovedPlanPayments(ctx, organizationId),
+    memberships,
+    args.startDate,
+    args.endDate,
+  );
+
+  const rows = await Promise.all(
+    staffMemberships.map(async (m) => {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_externalId", (q) => q.eq("externalId", m.userId))
+        .first();
+
+      const name =
+        user?.fullName ||
+        [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+        user?.email ||
+        m.userId;
+
+      const { hours, classesInCharge } = computeUsage(
+        shifts,
+        schedules,
+        m.userId,
+      );
+      const payrollType = m.payrollType ?? "hourly";
+      const { baseTotal, commissionBase, commissionAmount, total } =
+        computeTotal(
+          m,
+          hours,
+          classesInCharge,
+          commissions.get(m.userId)?.base ?? 0,
+        );
+      const paidAmount = paidByUser.get(m.userId) ?? 0;
+
+      return {
+        userId: m.userId,
+        name,
+        email: user?.email,
+        imageUrl: user?.imageUrl,
+        role: m.role,
+        payrollType,
+        pricePerHour: m.pricePerHour,
+        pricePerClass: m.pricePerClass,
+        pricePerMonth: m.pricePerMonth,
+        commissionPercentage: m.commissionPercentage,
+        hours,
+        classesInCharge,
+        baseTotal,
+        commissionBase,
+        commissionAmount,
+        total,
+        paidAmount,
+        remaining: Math.max(0, total - paidAmount),
+        status: statusFor(total, paidAmount),
+      };
+    }),
+  );
+
+  rows.sort((a, b) =>
+    a.name.localeCompare(b.name, "es", { sensitivity: "base" }),
+  );
+
+  return rows;
+}
+
 export const getPayrollSummary = query({
   args: {
     period: v.string(), // "YYYY-MM"
@@ -194,119 +315,7 @@ export const getPayrollSummary = query({
     const membership = await requireCurrentOrganizationMembership(ctx);
     const organizationId = membership.organizationId;
     await requireAdmin(ctx, organizationId);
-
-    // All memberships: staff rows are limited to active ones below, but a member
-    // who went inactive after paying still earned a commission for the period.
-    const memberships = await ctx.db
-      .query("organizationMemberships")
-      .withIndex("by_organization", (q) =>
-        q.eq("organizationId", organizationId),
-      )
-      .collect();
-
-    const staffMemberships = memberships.filter(
-      (m) => m.status === "active" && isStaffRole(m.role),
-    );
-
-    const shifts = await ctx.db
-      .query("staffShifts")
-      .withIndex("by_organization_time", (q) =>
-        q
-          .eq("organizationId", organizationId)
-          .gte("startTime", args.startDate)
-          .lte("startTime", args.endDate),
-      )
-      .collect();
-
-    const schedules = await ctx.db
-      .query("classSchedules")
-      .withIndex("by_organization_time", (q) =>
-        q
-          .eq("organizationId", organizationId)
-          .gte("startTime", args.startDate)
-          .lte("startTime", args.endDate),
-      )
-      .collect();
-
-    // Payments for the period, summed by user.
-    const payments = await ctx.db
-      .query("staffPayrollPayments")
-      .withIndex("by_organization_period", (q) =>
-        q.eq("organizationId", organizationId).eq("period", args.period),
-      )
-      .collect();
-    const paidByUser = new Map<string, number>();
-    for (const payment of payments) {
-      paidByUser.set(
-        payment.userId,
-        (paidByUser.get(payment.userId) ?? 0) + payment.amountArs,
-      );
-    }
-
-    const commissions = computeCommissions(
-      await loadApprovedPlanPayments(ctx, organizationId),
-      memberships,
-      args.startDate,
-      args.endDate,
-    );
-
-    const rows = await Promise.all(
-      staffMemberships.map(async (m) => {
-        const user = await ctx.db
-          .query("users")
-          .withIndex("by_externalId", (q) => q.eq("externalId", m.userId))
-          .first();
-
-        const name =
-          user?.fullName ||
-          [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
-          user?.email ||
-          m.userId;
-
-        const { hours, classesInCharge } = computeUsage(
-          shifts,
-          schedules,
-          m.userId,
-        );
-        const payrollType = m.payrollType ?? "hourly";
-        const { baseTotal, commissionBase, commissionAmount, total } =
-          computeTotal(
-            m,
-            hours,
-            classesInCharge,
-            commissions.get(m.userId)?.base ?? 0,
-          );
-        const paidAmount = paidByUser.get(m.userId) ?? 0;
-
-        return {
-          userId: m.userId,
-          name,
-          email: user?.email,
-          imageUrl: user?.imageUrl,
-          role: m.role,
-          payrollType,
-          pricePerHour: m.pricePerHour,
-          pricePerClass: m.pricePerClass,
-          pricePerMonth: m.pricePerMonth,
-          commissionPercentage: m.commissionPercentage,
-          hours,
-          classesInCharge,
-          baseTotal,
-          commissionBase,
-          commissionAmount,
-          total,
-          paidAmount,
-          remaining: Math.max(0, total - paidAmount),
-          status: statusFor(total, paidAmount),
-        };
-      }),
-    );
-
-    rows.sort((a, b) =>
-      a.name.localeCompare(b.name, "es", { sensitivity: "base" }),
-    );
-
-    return rows;
+    return await computePayrollSummary(ctx, organizationId, args);
   },
 });
 
@@ -446,7 +455,8 @@ export const getMyCommissionSummary = query({
 
     const now = new Date();
     const startDate =
-      args.startDate ?? new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      args.startDate ??
+      new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     const endDate =
       args.endDate ??
       new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime() - 1;

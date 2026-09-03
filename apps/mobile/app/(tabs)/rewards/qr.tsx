@@ -2,21 +2,24 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
+  Pressable,
   StyleSheet,
   Text,
   View,
-  useColorScheme,
 } from "react-native";
 import { useMutation } from "convex/react";
 import { api } from "@repo/convex";
 import QRCode from "react-native-qrcode-svg";
 import { usePreventScreenCapture } from "expo-screen-capture";
-import { Colors } from "@/constants/theme";
+import { LinearGradient } from "expo-linear-gradient";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { getRewardTheme, REWARD_ACCENT } from "@/components/features/rewards";
 
 export default function MemberQrScreen() {
   usePreventScreenCapture("member-rewards-qr");
-  const colorScheme = useColorScheme() === "dark" ? "dark" : "light";
-  const colors = Colors[colorScheme];
+  const isDark = useColorScheme() === "dark";
+  const theme = getRewardTheme(isDark);
   const issueQr = useMutation(api.rewards.issueMyMobileQr);
   const [payload, setPayload] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState(0);
@@ -75,17 +78,23 @@ export default function MemberQrScreen() {
   }, [expiresAt, refresh]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <LinearGradient
+      colors={isDark ? ["#171318", "#0A0A0A"] : ["#FFF0EA", "#FAFAFA"]}
+      style={styles.container}
+    >
       <View
         style={[
           styles.card,
-          { backgroundColor: colorScheme === "dark" ? "#18181b" : "#fff" },
+          { backgroundColor: theme.surface, borderColor: theme.border },
         ]}
       >
-        <Text style={[styles.title, { color: colors.text }]}>
+        <View style={[styles.icon, { backgroundColor: theme.orangeSoft }]}>
+          <MaterialIcons name="qr-code-2" size={29} color={REWARD_ACCENT} />
+        </View>
+        <Text style={[styles.title, { color: theme.text }]}>
           Presentá este código
         </Text>
-        <Text style={[styles.subtitle, { color: colors.icon }]}>
+        <Text style={[styles.subtitle, { color: theme.muted }]}>
           El código cambia automáticamente y solo sirve para tu gimnasio activo.
         </Text>
         <View style={styles.qrFrame}>
@@ -100,32 +109,46 @@ export default function MemberQrScreen() {
           ) : error ? (
             <Text style={styles.error}>{error}</Text>
           ) : (
-            <ActivityIndicator size="large" color="#111827" />
+            <ActivityIndicator size="large" color={REWARD_ACCENT} />
           )}
         </View>
         {payload && (
           <Text
             style={[
               styles.timer,
-              { color: seconds <= 15 ? "#dc2626" : colors.icon },
+              { color: seconds <= 15 ? "#DC2626" : REWARD_ACCENT },
             ]}
           >
-            Se actualiza en {seconds}s
+            <MaterialIcons name="autorenew" size={15} /> Se actualiza en{" "}
+            {seconds}s
           </Text>
         )}
-        <Text style={[styles.note, { color: colors.icon }]}>
-          No compartas capturas. Recepción verificará tu nombre y foto al
-          escanear.
-        </Text>
+        {error ? (
+          <Pressable
+            style={styles.retryButton}
+            onPress={() => refresh(true)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.retryText}>Reintentar</Text>
+          </Pressable>
+        ) : null}
+        <View style={[styles.noteBox, { backgroundColor: theme.orangeSoft }]}>
+          <MaterialIcons name="shield" size={17} color={REWARD_ACCENT} />
+          <Text style={[styles.note, { color: theme.muted }]}>
+            No compartas capturas. Recepción verificará tu nombre y foto al
+            escanear.
+          </Text>
+        </View>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", padding: 20 },
   card: {
-    borderRadius: 24,
+    borderRadius: 30,
+    borderWidth: StyleSheet.hairlineWidth,
     padding: 24,
     alignItems: "center",
     shadowColor: "#000",
@@ -134,19 +157,50 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 5,
   },
-  title: { fontSize: 24, fontWeight: "800", textAlign: "center" },
+  icon: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 13,
+  },
+  title: {
+    fontSize: 25,
+    fontWeight: "900",
+    textAlign: "center",
+    letterSpacing: -0.4,
+  },
   subtitle: { marginTop: 8, fontSize: 14, lineHeight: 20, textAlign: "center" },
   qrFrame: {
-    marginTop: 28,
+    marginTop: 24,
     width: 270,
     height: 270,
-    borderRadius: 20,
+    borderRadius: 24,
     backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
   },
-  timer: { marginTop: 18, fontSize: 14, fontWeight: "600" },
-  note: { marginTop: 14, fontSize: 12, lineHeight: 17, textAlign: "center" },
+  timer: { marginTop: 18, fontSize: 13, fontWeight: "800" },
+  retryButton: {
+    marginTop: 16,
+    minHeight: 42,
+    borderRadius: 14,
+    backgroundColor: REWARD_ACCENT,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  retryText: { color: "#FFFFFF", fontWeight: "800" },
+  noteBox: {
+    marginTop: 17,
+    borderRadius: 16,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  note: { flex: 1, fontSize: 12, lineHeight: 17 },
   error: { color: "#991b1b", textAlign: "center", lineHeight: 20 },
 });

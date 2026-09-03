@@ -8,6 +8,20 @@ import {
 } from "./permissions";
 import { toBillingStatus } from "./organizationBilling";
 import { resolveAiAllowance } from "./appBillingPlans";
+import {
+  computeMemberPaymentSummary,
+  computeOrganizationMetrics,
+  computeOverdueMembers,
+  getCurrentBillingPeriod,
+} from "./planPayments";
+import { computeFinanceSummary } from "./finance";
+import { computePayrollSummary } from "./payroll";
+import { computeActiveMembersHistory, computeChurnMetrics } from "./metrics";
+import {
+  computeClassMetrics,
+  computeMemberAttendanceMetrics,
+} from "./classMetrics";
+import { computeMemberPaymentMetrics } from "./memberPaymentsAdmin";
 
 const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const RESERVATION_TTL_MS = 15 * 60 * 1000;
@@ -66,7 +80,10 @@ export function resolveAnchoredCycle(anchor: number, now: number) {
   return { cycleStart: start, cycleEnd: end };
 }
 
-async function resolveAiAccess(ctx: any, now = Date.now()): Promise<AiAccess | null> {
+async function resolveAiAccess(
+  ctx: any,
+  now = Date.now(),
+): Promise<AiAccess | null> {
   const orgCtx = await tryActiveOrgContext(ctx);
   if (!orgCtx) return null;
   const role = orgCtx.membership.role;
@@ -92,7 +109,9 @@ async function resolveAiAccess(ctx: any, now = Date.now()): Promise<AiAccess | n
     )
     .order("desc")
     .first();
-  const plan = subscription ? await ctx.db.get(subscription.billingPlanId) : null;
+  const plan = subscription
+    ? await ctx.db.get(subscription.billingPlanId)
+    : null;
   const billingStatus = toBillingStatus(subscription);
   const planKey = plan?.key ?? null;
   // The allowance lives on the plan doc, so a super admin can retune it
@@ -288,7 +307,10 @@ export const renameConversation = mutation({
   },
 });
 
-async function deleteConversationRecords(ctx: any, conversationId: Id<"aiConversations">) {
+async function deleteConversationRecords(
+  ctx: any,
+  conversationId: Id<"aiConversations">,
+) {
   const messages = await ctx.db
     .query("aiMessages")
     .withIndex("by_conversation_created", (q: any) =>
@@ -348,7 +370,8 @@ export const beginTurn = mutation({
     const access = await requireAiAccess(ctx);
     const now = Date.now();
     const message = args.message.trim();
-    if (!message || message.length > 4_000) throw new Error("AI_INVALID_MESSAGE");
+    if (!message || message.length > 4_000)
+      throw new Error("AI_INVALID_MESSAGE");
     if (!/^[a-zA-Z0-9_-]{8,100}$/.test(args.clientRequestId)) {
       throw new Error("AI_INVALID_REQUEST_ID");
     }
@@ -356,7 +379,9 @@ export const beginTurn = mutation({
     const existing = await ctx.db
       .query("aiTurns")
       .withIndex("by_user_request", (q) =>
-        q.eq("userId", access.userId).eq("clientRequestId", args.clientRequestId),
+        q
+          .eq("userId", access.userId)
+          .eq("clientRequestId", args.clientRequestId),
       )
       .first();
     if (existing) {
@@ -483,6 +508,7 @@ export const getTurnContext = query({
       turnId: turn._id,
       conversationId: turn.conversationId,
       organizationName: organization?.name ?? "la organización",
+      timezone: organization?.timezone ?? "UTC",
       role: access.role,
       messages: messages
         .filter((message: any) => message.status !== "failed")
@@ -510,7 +536,8 @@ export const completeTurn = mutation({
       turn.userId !== membership.userId ||
       turn.organizationId !== membership.organizationId ||
       turn.status !== "reserved"
-    ) return;
+    )
+      return;
     const now = Date.now();
     const assistantMessageId = await ctx.db.insert("aiMessages", {
       organizationId: turn.organizationId,
@@ -525,7 +552,10 @@ export const completeTurn = mutation({
       createdAt: now,
       updatedAt: now,
     });
-    await ctx.db.patch(turn.userMessageId, { status: "complete", updatedAt: now });
+    await ctx.db.patch(turn.userMessageId, {
+      status: "complete",
+      updatedAt: now,
+    });
     await ctx.db.patch(turn._id, {
       assistantMessageId,
       status: "complete",
@@ -568,9 +598,13 @@ export const failTurn = mutation({
       turn.userId !== membership.userId ||
       turn.organizationId !== membership.organizationId ||
       turn.status !== "reserved"
-    ) return;
+    )
+      return;
     const now = Date.now();
-    await ctx.db.patch(turn.userMessageId, { status: "failed", updatedAt: now });
+    await ctx.db.patch(turn.userMessageId, {
+      status: "failed",
+      updatedAt: now,
+    });
     await ctx.db.patch(turn._id, {
       status: "failed",
       errorCode: args.errorCode?.slice(0, 80),
@@ -596,11 +630,16 @@ export const failTurn = mutation({
 
 type DataRecord = Record<string, string | number | boolean | null | undefined>;
 
-const DATASET_ACCESS: Record<string, "staff" | "admin"> = {
+export const DATASET_ACCESS: Record<string, "staff" | "admin"> = {
   members: "staff",
   membershipPlans: "admin",
   memberSubscriptions: "admin",
   memberPayments: "admin",
+  overdueMembers: "admin",
+  memberPaymentTransactions: "admin",
+  recurringAgreements: "admin",
+  bonifications: "admin",
+  financeRecurringRules: "admin",
   classes: "staff",
   schedules: "staff",
   attendance: "staff",
@@ -621,13 +660,17 @@ const DATASET_ACCESS: Record<string, "staff" | "admin"> = {
 async function nameMap(ctx: any, organizationId: Id<"organizations">) {
   const memberships = await ctx.db
     .query("organizationMemberships")
-    .withIndex("by_organization", (q: any) => q.eq("organizationId", organizationId))
+    .withIndex("by_organization", (q: any) =>
+      q.eq("organizationId", organizationId),
+    )
     .take(SOURCE_LIMIT);
   const entries = await Promise.all(
     memberships.map(async (membership: any) => {
       const user = await ctx.db
         .query("users")
-        .withIndex("by_externalId", (q: any) => q.eq("externalId", membership.userId))
+        .withIndex("by_externalId", (q: any) =>
+          q.eq("externalId", membership.userId),
+        )
         .first();
       return [
         membership.userId,
@@ -641,7 +684,69 @@ async function nameMap(ctx: any, organizationId: Id<"organizations">) {
   return new Map(entries);
 }
 
-async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise<DataRecord[]> {
+type DatasetRequest = {
+  filters?: Array<{ field?: string; op?: string; value?: unknown }>;
+  dateRange?: { field?: string; from?: unknown; to?: unknown };
+  [key: string]: unknown;
+};
+
+/**
+ * The "YYYY-MM" periods the caller asked for, so period-partitioned tables can
+ * hit their index instead of scanning the newest SOURCE_LIMIT rows. Returns
+ * null when the request does not pin the period down to a workable set.
+ */
+function requestedPeriods(
+  request: DatasetRequest | undefined,
+  field: string,
+): string[] | null {
+  const filters = Array.isArray(request?.filters) ? request.filters : [];
+  const periods = new Set<string>();
+  for (const filter of filters) {
+    if (String(filter?.field ?? "") !== field) continue;
+    const op = String(filter?.op ?? "eq");
+    if (op === "eq" && typeof filter.value === "string") {
+      periods.add(filter.value);
+    } else if (op === "in" && Array.isArray(filter.value)) {
+      for (const value of filter.value) {
+        if (typeof value === "string") periods.add(value);
+      }
+    } else {
+      // A range or negation over periods cannot be narrowed safely.
+      return null;
+    }
+  }
+  if (periods.size === 0 || periods.size > 12) return null;
+  return [...periods];
+}
+
+/** The epoch-ms window the caller asked for on a timestamp field, if any. */
+function requestedRange(
+  request: DatasetRequest | undefined,
+  field: string,
+): { from?: number; to?: number } | null {
+  const dateRange = request?.dateRange;
+  if (!dateRange || String(dateRange.field ?? "") !== field) return null;
+  const from = Number(dateRange.from);
+  const to = Number(dateRange.to);
+  const range: { from?: number; to?: number } = {};
+  if (Number.isFinite(from)) range.from = from;
+  if (Number.isFinite(to)) range.to = to;
+  return range.from === undefined && range.to === undefined ? null : range;
+}
+
+/**
+ * Projects org data into flat, PII-light records for the assistant.
+ *
+ * Every field name produced here must also appear in the catalog at
+ * `apps/web/lib/ai/dataset-catalog.ts` — the model reads that catalog to build
+ * valid queries, and `ai.test.ts` fails if the two drift apart.
+ */
+async function loadDataset(
+  ctx: any,
+  access: AiAccess,
+  dataset: string,
+  request?: DatasetRequest,
+): Promise<DataRecord[]> {
   const organizationId = access.organizationId;
   const names = await nameMap(ctx, organizationId);
   const userName = (id: string | undefined): string | null =>
@@ -651,6 +756,51 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
       .query(table)
       .withIndex(index, (q: any) => q.eq("organizationId", organizationId))
       .take(SOURCE_LIMIT);
+  // Newest-first, so truncation drops the oldest rows rather than the ones the
+  // question is almost always about.
+  const recentRows = async (table: string, index = "by_organization") =>
+    await ctx.db
+      .query(table)
+      .withIndex(index, (q: any) => q.eq("organizationId", organizationId))
+      .order("desc")
+      .take(SOURCE_LIMIT);
+  const periodRows = async (table: string, field = "period") => {
+    const periods = requestedPeriods(request, field);
+    if (!periods) {
+      return await ctx.db
+        .query(table)
+        .withIndex("by_organization_period", (q: any) =>
+          q.eq("organizationId", organizationId),
+        )
+        .order("desc")
+        .take(SOURCE_LIMIT);
+    }
+    const perPeriod = Math.max(1, Math.floor(SOURCE_LIMIT / periods.length));
+    const batches = await Promise.all(
+      periods.map((period) =>
+        ctx.db
+          .query(table)
+          .withIndex("by_organization_period", (q: any) =>
+            q.eq("organizationId", organizationId).eq(field, period),
+          )
+          .take(perPeriod),
+      ),
+    );
+    return batches.flat();
+  };
+  const rangeRows = async (table: string, index: string, field: string) => {
+    const range = requestedRange(request, field);
+    return await ctx.db
+      .query(table)
+      .withIndex(index, (q: any) => {
+        let builder = q.eq("organizationId", organizationId);
+        if (range?.from !== undefined) builder = builder.gte(field, range.from);
+        if (range?.to !== undefined) builder = builder.lte(field, range.to);
+        return builder;
+      })
+      .order("desc")
+      .take(SOURCE_LIMIT);
+  };
 
   switch (dataset) {
     case "members": {
@@ -659,7 +809,9 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
         memberships.map(async (item: any) => {
           const user = await ctx.db
             .query("users")
-            .withIndex("by_externalId", (q: any) => q.eq("externalId", item.userId))
+            .withIndex("by_externalId", (q: any) =>
+              q.eq("externalId", item.userId),
+            )
             .first();
           return {
             name: userName(item.userId),
@@ -683,6 +835,16 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
         priceArs: item.priceArs,
         weeklyClassLimit: item.weeklyClassLimit,
         billingMode: item.billingMode ?? "calendar",
+        paymentWindowStartDay: item.paymentWindowStartDay,
+        paymentWindowEndDay: item.paymentWindowEndDay,
+        interestTiersSummary: Array.isArray(item.interestTiers)
+          ? item.interestTiers
+              .map(
+                (tier: any) =>
+                  `+${tier.percentage}% desde el día ${tier.fromDay}`,
+              )
+              .join("; ") || "sin recargos"
+          : "sin recargos",
         classesEnabled: item.classesEnabled ?? true,
         isActive: item.isActive,
         createdAt: item.createdAt,
@@ -705,7 +867,7 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
       );
     }
     case "memberPayments": {
-      const rows = await orgRows("planPayments");
+      const rows = await recentRows("planPayments");
       return await Promise.all(
         rows.map(async (item: any) => {
           const plan = await ctx.db.get(item.planId);
@@ -715,6 +877,11 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
             billingPeriod: item.billingPeriod,
             amountArs: item.amountArs,
             totalAmountArs: item.totalAmountArs ?? item.amountArs,
+            interestTotalArs: item.interestTotalArs ?? 0,
+            dueAt: item.dueAt,
+            billingCycleStartAt: item.billingCycleStartAt,
+            billingCycleEndAt: item.billingCycleEndAt,
+            isAdvancePayment: Boolean(item.advancePaymentGroupId),
             paymentMethod: item.paymentMethod ?? "proof_upload",
             status: item.status,
             createdAt: item.createdAt,
@@ -723,6 +890,98 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
         }),
       );
     }
+    case "overdueMembers": {
+      const { rows, billingPeriod } = await computeOverdueMembers(
+        ctx,
+        organizationId,
+      );
+      return rows.map((row: any) => ({
+        member: userName(row.userId),
+        billingPeriod,
+        situation: row.situation,
+        unpaid: row.unpaid,
+        subscriptionStatus: row.subscriptionStatus,
+        suspended: row.suspended,
+        amountDueArs: row.amountDueArs,
+        dueAt: row.dueAt,
+        daysOverdue: row.daysOverdue,
+        paymentMethod: row.paymentMethod,
+      }));
+    }
+    case "memberPaymentTransactions": {
+      const rows = await rangeRows(
+        "memberPaymentTransactions",
+        "by_organization_created",
+        "createdAt",
+      );
+      return await Promise.all(
+        rows.map(async (item: any) => {
+          const agreement = item.agreementId
+            ? await ctx.db.get(item.agreementId)
+            : null;
+          return {
+            member: userName(agreement?.payerUserId),
+            kind: item.kind,
+            status: item.status,
+            grossAmountArs: item.grossAmountArs,
+            providerFeeArs: item.providerFeeArs,
+            platformFeeArs: item.platformFeeArs,
+            gymNetAmountArs: item.gymNetAmountArs,
+            providerApprovedAt: item.providerApprovedAt,
+            requiresAttention: item.requiresAttention ?? false,
+            attentionReason: item.attentionReason,
+            createdAt: item.createdAt,
+          };
+        }),
+      );
+    }
+    case "recurringAgreements":
+      return (await recentRows("memberRecurringAgreements")).map(
+        (item: any) => ({
+          member: userName(item.payerUserId),
+          status: item.status,
+          amountArs: item.amountArs,
+          familyMemberCount: item.familyMemberCount,
+          lastPaymentStatus: item.lastPaymentStatus,
+          nextChargeAt: item.nextChargeAt,
+          currentPeriodStart: item.currentPeriodStart,
+          currentPeriodEnd: item.currentPeriodEnd,
+          firstFailureAt: item.firstFailureAt,
+          graceUntil: item.graceUntil,
+          createdAt: item.createdAt,
+        }),
+      );
+    case "bonifications": {
+      const rows = await orgRows("planBonifications");
+      return await Promise.all(
+        rows.map(async (item: any) => {
+          const plan = await ctx.db.get(item.planId);
+          return {
+            member: userName(item.userId),
+            plan: plan?.name ?? "Plan eliminado",
+            discountType: item.discountType,
+            discountValue: item.discountValue,
+            reason: item.reason,
+            status: item.status,
+            createdAt: item.createdAt,
+            revokedAt: item.revokedAt,
+          };
+        }),
+      );
+    }
+    case "financeRecurringRules":
+      return (await orgRows("financeRecurringRules")).map((item: any) => ({
+        type: item.type,
+        title: item.title,
+        category: item.category,
+        amountArs: item.amountArs,
+        frequency: item.frequency,
+        dayOfMonth: item.dayOfMonth,
+        startPeriod: item.startPeriod,
+        endPeriod: item.endPeriod,
+        nextDuePeriod: item.nextDuePeriod,
+        status: item.status,
+      }));
     case "classes":
       return (await orgRows("classes")).map((item: any) => ({
         name: item.name,
@@ -744,7 +1003,10 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
             endTime: item.endTime,
             capacity: item.capacity,
             reservations: item.currentReservations,
-            availableSpots: Math.max(0, item.capacity - item.currentReservations),
+            availableSpots: Math.max(
+              0,
+              item.capacity - item.currentReservations,
+            ),
             status: item.status,
             inCharge: userName(item.inChargeUserId),
           };
@@ -752,7 +1014,7 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
       );
     }
     case "attendance": {
-      const rows = await orgRows("classReservations");
+      const rows = await recentRows("classReservations");
       return await Promise.all(
         rows.map(async (item: any) => {
           const classDoc = await ctx.db.get(item.classId);
@@ -795,17 +1057,17 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
       );
     }
     case "workoutSessions":
-      return (await orgRows("workoutDaySessions", "by_organization_performedOn")).map(
-        (item: any) => ({
-          member: userName(item.userId),
-          performedOn: item.performedOn,
-          status: item.status,
-          effortRating: item.effortRating,
-          mood: item.mood,
-          memberNote: item.memberNote,
-          createdAt: item.createdAt,
-        }),
-      );
+      return (
+        await orgRows("workoutDaySessions", "by_organization_performedOn")
+      ).map((item: any) => ({
+        member: userName(item.userId),
+        performedOn: item.performedOn,
+        status: item.status,
+        effortRating: item.effortRating,
+        mood: item.mood,
+        memberNote: item.memberNote,
+        createdAt: item.createdAt,
+      }));
     case "exerciseLogs": {
       const sessions = await ctx.db
         .query("workoutDaySessions")
@@ -822,7 +1084,9 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
           .take(20);
         for (const log of logs) {
           const dayExercise = await ctx.db.get(log.dayExerciseId);
-          const exercise = dayExercise ? await ctx.db.get(dayExercise.exerciseId) : null;
+          const exercise = dayExercise
+            ? await ctx.db.get(dayExercise.exerciseId)
+            : null;
           records.push({
             member: userName(session.userId),
             performedOn: session.performedOn,
@@ -849,22 +1113,21 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
         createdAt: item.createdAt,
       }));
     case "finance":
-      return (await ctx.db
-        .query("financeTransactions")
-        .withIndex("by_organization_period", (q: any) =>
-          q.eq("organizationId", organizationId),
-        )
-        .take(SOURCE_LIMIT)).map((item: any) => ({
-        type: item.type,
-        title: item.title,
-        category: item.category,
-        amountArs: item.amountArs,
-        occurredOn: item.occurredOn,
-        period: item.period,
-        paymentMethod: item.paymentMethod,
-        source: item.source,
-        status: item.status,
-      }));
+      // Voided transactions must never reach a sum, so they are dropped here
+      // rather than left for the model to filter out.
+      return (await periodRows("financeTransactions"))
+        .filter((item: any) => item.status !== "voided")
+        .map((item: any) => ({
+          type: item.type,
+          title: item.title,
+          category: item.category,
+          amountArs: item.amountArs,
+          occurredOn: item.occurredOn,
+          period: item.period,
+          paymentMethod: item.paymentMethod,
+          source: item.source,
+          status: item.status,
+        }));
     case "staffShifts":
       return (await orgRows("staffShifts")).map((item: any) => ({
         staff: userName(item.userId),
@@ -875,12 +1138,7 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
         notes: item.notes,
       }));
     case "payroll":
-      return (await ctx.db
-        .query("staffPayrollPayments")
-        .withIndex("by_organization_period", (q: any) =>
-          q.eq("organizationId", organizationId),
-        )
-        .take(SOURCE_LIMIT)).map((item: any) => ({
+      return (await periodRows("staffPayrollPayments")).map((item: any) => ({
         staff: userName(item.userId),
         period: item.period,
         payrollType: item.payrollType,
@@ -902,7 +1160,9 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
         updatedAt: item.updatedAt,
       }));
     case "checkIns":
-      return (await orgRows("memberCheckIns")).map((item: any) => ({
+      return (
+        await rangeRows("memberCheckIns", "by_organization_time", "checkedInAt")
+      ).map((item: any) => ({
         member: userName(item.userId),
         localDate: item.localDate,
         checkedInAt: item.checkedInAt,
@@ -931,7 +1191,9 @@ async function loadDataset(ctx: any, access: AiAccess, dataset: string): Promise
     case "organizationSettings": {
       const settings = await ctx.db
         .query("organizationSettings")
-        .withIndex("by_organization", (q: any) => q.eq("organizationId", organizationId))
+        .withIndex("by_organization", (q: any) =>
+          q.eq("organizationId", organizationId),
+        )
         .first();
       return settings
         ? [
@@ -966,9 +1228,9 @@ function compareValue(actual: unknown, op: string, expected: unknown) {
     case "lte":
       return Number(actual) <= Number(expected);
     case "contains":
-      return String(actual ?? "").toLocaleLowerCase().includes(
-        String(expected ?? "").toLocaleLowerCase(),
-      );
+      return String(actual ?? "")
+        .toLocaleLowerCase()
+        .includes(String(expected ?? "").toLocaleLowerCase());
     case "in":
       return Array.isArray(expected) && expected.includes(actual);
     case "between":
@@ -998,7 +1260,9 @@ function aggregateRecords(records: DataRecord[], input: any) {
     : [{ op: "count", as: "count" }];
   const groups = new Map<string, DataRecord[]>();
   for (const record of records) {
-    const key = JSON.stringify(groupFields.map((field: string) => record[field] ?? null));
+    const key = JSON.stringify(
+      groupFields.map((field: string) => record[field] ?? null),
+    );
     groups.set(key, [...(groups.get(key) ?? []), record]);
   }
   if (groups.size === 0 && groupFields.length === 0) groups.set("[]", []);
@@ -1011,7 +1275,9 @@ function aggregateRecords(records: DataRecord[], input: any) {
     for (const definition of aggregateDefs) {
       const op = String(definition.op ?? "count");
       const field = definition.field ? String(definition.field) : undefined;
-      const alias = String(definition.as ?? (field ? `${op}_${field}` : op)).slice(0, 60);
+      const alias = String(
+        definition.as ?? (field ? `${op}_${field}` : op),
+      ).slice(0, 60);
       const values = field ? numeric(rows.map((row) => row[field])) : [];
       if (op === "count") result[alias] = rows.length;
       else if (op === "sum") result[alias] = values.reduce((a, b) => a + b, 0);
@@ -1019,8 +1285,10 @@ function aggregateRecords(records: DataRecord[], input: any) {
         result[alias] = values.length
           ? values.reduce((a, b) => a + b, 0) / values.length
           : null;
-      else if (op === "min") result[alias] = values.length ? Math.min(...values) : null;
-      else if (op === "max") result[alias] = values.length ? Math.max(...values) : null;
+      else if (op === "min")
+        result[alias] = values.length ? Math.min(...values) : null;
+      else if (op === "max")
+        result[alias] = values.length ? Math.max(...values) : null;
       else throw new Error("AI_INVALID_AGGREGATE");
     }
     return result;
@@ -1047,9 +1315,14 @@ export const queryOrganizationData = query({
     if (requiredAccess === "admin" && access.role !== "admin") {
       throw new Error("AI_DATASET_FORBIDDEN");
     }
-    let records = await loadDataset(ctx, access, dataset);
-    const allowedFields = new Set(records.flatMap((record) => Object.keys(record)));
-    const filters = Array.isArray(request.filters) ? request.filters.slice(0, 12) : [];
+    let records = await loadDataset(ctx, access, dataset, request);
+    const sourceRowCount = records.length;
+    const allowedFields = new Set(
+      records.flatMap((record) => Object.keys(record)),
+    );
+    const filters = Array.isArray(request.filters)
+      ? request.filters.slice(0, 12)
+      : [];
     for (const filter of filters) {
       const field = String(filter.field ?? "");
       if (!allowedFields.has(field)) throw new Error("AI_UNKNOWN_FIELD");
@@ -1064,10 +1337,13 @@ export const queryOrganizationData = query({
       const to = request.dateRange.to;
       records = records.filter((record) => {
         const value = record[field];
-        const normalized = typeof value === "string" ? Date.parse(value) : Number(value);
+        const normalized =
+          typeof value === "string" ? Date.parse(value) : Number(value);
         if (!Number.isFinite(normalized)) return false;
-        return (from === undefined || normalized >= Number(from)) &&
-          (to === undefined || normalized <= Number(to));
+        return (
+          (from === undefined || normalized >= Number(from)) &&
+          (to === undefined || normalized <= Number(to))
+        );
       });
     }
     const totalMatched = records.length;
@@ -1084,14 +1360,21 @@ export const queryOrganizationData = query({
           .map((aggregate: any) => aggregate.field)
           .filter(Boolean)
       : [];
-    if (aggregateFields.some((field: string) => !allowedFields.has(String(field)))) {
+    if (
+      aggregateFields.some((field: string) => !allowedFields.has(String(field)))
+    ) {
       throw new Error("AI_UNKNOWN_FIELD");
     }
-    let result = request.mode === "aggregate" ? aggregateRecords(records, request) : records;
+    let result =
+      request.mode === "aggregate"
+        ? aggregateRecords(records, request)
+        : records;
     if (request.sort?.field) {
       const field = String(request.sort.field);
       const direction = request.sort.direction === "asc" ? 1 : -1;
-      if (!new Set(result.flatMap((record) => Object.keys(record))).has(field)) {
+      if (
+        !new Set(result.flatMap((record) => Object.keys(record))).has(field)
+      ) {
         throw new Error("AI_UNKNOWN_FIELD");
       }
       result = [...result].sort((a, b) => {
@@ -1100,34 +1383,248 @@ export const queryOrganizationData = query({
         return av < bv ? -direction : av > bv ? direction : 0;
       });
     }
-    const requestedLimit = Math.max(1, Math.min(RESULT_LIMIT, Number(request.limit) || 50));
-    const fields = Array.isArray(request.fields) ? request.fields.slice(0, 20) : [];
-    const resultFields = new Set(result.flatMap((record) => Object.keys(record)));
+    const requestedLimit = Math.max(
+      1,
+      Math.min(RESULT_LIMIT, Number(request.limit) || 50),
+    );
+    const fields = Array.isArray(request.fields)
+      ? request.fields.slice(0, 20)
+      : [];
+    const resultFields = new Set(
+      result.flatMap((record) => Object.keys(record)),
+    );
     if (fields.some((field: string) => !resultFields.has(field))) {
       throw new Error("AI_UNKNOWN_FIELD");
     }
-    const sliced = result.slice(0, requestedLimit).map((record) =>
-      fields.length
-        ? Object.fromEntries(fields.map((field: string) => [field, record[field]]))
-        : record,
-    );
+    const sliced = result
+      .slice(0, requestedLimit)
+      .map((record) =>
+        fields.length
+          ? Object.fromEntries(
+              fields.map((field: string) => [field, record[field]]),
+            )
+          : record,
+      );
+    const mode = request.mode === "aggregate" ? "aggregate" : "records";
+    const sourceTruncated = sourceRowCount >= SOURCE_LIMIT;
+    const truncated = result.length > sliced.length || sourceTruncated;
     return {
       dataset,
-      mode: request.mode === "aggregate" ? "aggregate" : "records",
+      mode,
       appliedFilters: { filters, dateRange: request.dateRange ?? null },
       totalMatched,
       returned: sliced.length,
-      truncated: result.length > sliced.length || totalMatched >= SOURCE_LIMIT,
+      truncated,
+      // An aggregate computed over a truncated scan is wrong, not merely
+      // partial, so the model is told not to report it as a fact.
+      aggregateReliable: mode === "aggregate" ? !sourceTruncated : undefined,
+      note:
+        mode === "aggregate" && sourceTruncated
+          ? `Solo se leyeron las ${SOURCE_LIMIT} filas más recientes de ${dataset}: el total es un piso, no un valor exacto. Acotá el rango o el período y volvé a consultar.`
+          : undefined,
       asOf: Date.now(),
       records: sliced,
     };
   },
 });
 
+export const REPORT_ACCESS: Record<string, "staff" | "admin"> = {
+  financeSummary: "admin",
+  membershipRevenue: "admin",
+  memberPaymentsHealth: "admin",
+  payrollSummary: "admin",
+  // churn and classMetrics mirror their source queries, which are admin-only.
+  churn: "admin",
+  activeMembersHistory: "staff",
+  classMetrics: "admin",
+  memberAttendance: "staff",
+  memberPaymentStatus: "staff",
+};
+
+/** Keeps long trend arrays from blowing up the model's context. */
+function trimSeries<T>(value: T[] | undefined, keep = 12): T[] {
+  return Array.isArray(value) ? value.slice(-keep) : [];
+}
+
+/**
+ * Precomputed rollups, reusing the same helpers the dashboard renders.
+ *
+ * These exist because aggregating from `queryOrganizationData` is capped at
+ * SOURCE_LIMIT rows: for anything that needs every row (revenue, churn,
+ * occupancy) the honest answer has to come from these instead.
+ */
+export const runReport = query({
+  args: {
+    turnId: v.id("aiTurns"),
+    report: v.string(),
+    args: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const access = await requireAiAccess(ctx);
+    const turn = await ctx.db.get(args.turnId);
+    if (
+      !turn ||
+      turn.userId !== access.userId ||
+      turn.organizationId !== access.organizationId ||
+      turn.status !== "reserved"
+    ) {
+      throw new Error("AI_TURN_NOT_FOUND");
+    }
+    const report = String(args.report ?? "");
+    const requiredAccess = REPORT_ACCESS[report];
+    if (!requiredAccess) throw new Error("AI_UNKNOWN_REPORT");
+    if (requiredAccess === "admin" && access.role !== "admin") {
+      throw new Error("AI_REPORT_FORBIDDEN");
+    }
+
+    const organizationId = access.organizationId;
+    const input = args.args ?? {};
+    const period = typeof input.period === "string" ? input.period : undefined;
+    const selectedPeriod =
+      typeof input.selectedPeriod === "string"
+        ? input.selectedPeriod
+        : undefined;
+    const asOf = Date.now();
+
+    switch (report) {
+      case "financeSummary":
+        return {
+          report,
+          asOf,
+          data: await computeFinanceSummary(ctx, organizationId, { period }),
+        };
+      case "membershipRevenue": {
+        const data: any = await computeOrganizationMetrics(
+          ctx,
+          organizationId,
+          {
+            selectedPeriod,
+          },
+        );
+        return {
+          report,
+          asOf,
+          data: {
+            ...data,
+            availablePeriods: trimSeries(data.availablePeriods),
+            monthlyOverview: trimSeries(data.monthlyOverview),
+          },
+        };
+      }
+      case "memberPaymentsHealth":
+        return {
+          report,
+          asOf,
+          data: await computeMemberPaymentMetrics(ctx, organizationId, {
+            sinceDays: Number(input.sinceDays) || 30,
+          }),
+        };
+      case "payrollSummary": {
+        const resolvedPeriod = period ?? getCurrentBillingPeriod();
+        const [year, month] = resolvedPeriod.split("-").map(Number);
+        if (!year || !month) throw new Error("AI_INVALID");
+        const startDate = Date.UTC(year, month - 1, 1);
+        const endDate = Date.UTC(year, month, 1) - 1;
+        return {
+          report,
+          asOf,
+          data: await computePayrollSummary(ctx, organizationId, {
+            period: resolvedPeriod,
+            startDate,
+            endDate,
+          }),
+        };
+      }
+      case "churn": {
+        const data: any = await computeChurnMetrics(ctx, organizationId, {
+          selectedPeriod,
+        });
+        return {
+          report,
+          asOf,
+          data: {
+            ...data,
+            availablePeriods: trimSeries(data.availablePeriods),
+            monthlyOverview: trimSeries(data.monthlyOverview),
+          },
+        };
+      }
+      case "activeMembersHistory":
+        return {
+          report,
+          asOf,
+          data: await computeActiveMembersHistory(ctx, organizationId, {
+            monthsCount: Number(input.monthsCount) || 6,
+          }),
+        };
+      case "classMetrics": {
+        const data: any = await computeClassMetrics(ctx, organizationId);
+        return {
+          report,
+          asOf,
+          data: { ...data, monthlyTrend: trimSeries(data.monthlyTrend) },
+        };
+      }
+      case "memberAttendance": {
+        const data: any = await computeMemberAttendanceMetrics(
+          ctx,
+          organizationId,
+          { rangeDays: Number(input.rangeDays) || 0 },
+        );
+        return {
+          report,
+          asOf,
+          data: {
+            ...data,
+            // The full ranking can run to thousands of members.
+            members: trimSeries(data.members, 50),
+          },
+        };
+      }
+      case "memberPaymentStatus": {
+        // Resolve by display name so the model never has to handle a Clerk id.
+        const wanted = String(input.member ?? input.userId ?? "").trim();
+        if (!wanted) throw new Error("AI_INVALID");
+        const names = await nameMap(ctx, organizationId);
+        const matches = [...names.entries()].filter(
+          ([userId, name]) =>
+            userId === wanted ||
+            String(name)
+              .toLocaleLowerCase()
+              .includes(wanted.toLocaleLowerCase()),
+        );
+        if (matches.length === 0) throw new Error("AI_MEMBER_NOT_FOUND");
+        if (matches.length > 1) {
+          return {
+            report,
+            asOf,
+            ambiguous: matches.slice(0, 10).map(([, name]) => String(name)),
+          };
+        }
+        const data: any = await computeMemberPaymentSummary(
+          ctx,
+          organizationId,
+          {
+            userId: String(matches[0]![0]),
+          },
+        );
+        return { report, asOf, member: String(matches[0]![1]), data };
+      }
+      default:
+        throw new Error("AI_UNKNOWN_REPORT");
+    }
+  },
+});
+
 export const recordToolAudit = mutation({
   args: {
     turnId: v.id("aiTurns"),
-    source: v.union(v.literal("organization"), v.literal("help")),
+    source: v.union(
+      v.literal("organization"),
+      v.literal("report"),
+      v.literal("help"),
+      v.literal("schema"),
+    ),
     dataset: v.string(),
     normalizedQuery: v.any(),
     rowCount: v.number(),
@@ -1188,7 +1685,10 @@ export const cleanup = internalMutation({
           updatedAt: now,
         });
       }
-      await ctx.db.patch(turn.userMessageId, { status: "failed", updatedAt: now });
+      await ctx.db.patch(turn.userMessageId, {
+        status: "failed",
+        updatedAt: now,
+      });
       await ctx.db.patch(turn._id, {
         status: "failed",
         errorCode: "reservation_expired",

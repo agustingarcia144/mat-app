@@ -1,4 +1,9 @@
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import {
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
@@ -341,91 +346,103 @@ export const getMyCurrentPeriodPayment = query({
  * and cuota block in the member detail screen. Returns null if the member has
  * no active/suspended subscription.
  */
+/**
+ * One member's current-period payment situation. Shared by the members table
+ * and Mati (`ai.runReport`). Callers are responsible for authorization.
+ */
+export async function computeMemberPaymentSummary(
+  ctx: QueryCtx,
+  organizationId: Id<"organizations">,
+  args: { userId: string },
+) {
+  const subscription = await ctx.db
+    .query("memberPlanSubscriptions")
+    .withIndex("by_organization_user", (q) =>
+      q.eq("organizationId", organizationId).eq("userId", args.userId),
+    )
+    .filter((q) => q.neq(q.field("status"), "cancelled"))
+    .first();
+
+  if (!subscription) return null;
+
+  const { billingSubscription, coveredMemberCount } = await getPaymentCoverage(
+    ctx,
+    subscription,
+  );
+  const [plan, organization] = await Promise.all([
+    ctx.db.get(billingSubscription.planId as Id<"membershipPlans">),
+    ctx.db.get(organizationId),
+  ]);
+  if (!plan) return null;
+
+  const timezone = getPaymentTimezone(organization?.timezone);
+  const now = Date.now();
+  const cycle = getBillingCycle(
+    plan,
+    billingSubscription.activatedAt,
+    now,
+    timezone,
+  );
+
+  const currentPeriodPayment = await ctx.db
+    .query("planPayments")
+    .withIndex("by_subscription_period", (q) =>
+      q
+        .eq("subscriptionId", billingSubscription._id)
+        .eq("billingPeriod", cycle.billingPeriod),
+    )
+    .first();
+
+  const activeBonification = await ctx.db
+    .query("planBonifications")
+    .withIndex("by_subscription_status", (q) =>
+      q.eq("subscriptionId", billingSubscription._id).eq("status", "active"),
+    )
+    .first();
+  const bonifiedAmountPerMember = activeBonification
+    ? computeBonificationAmount(
+        plan.priceArs,
+        activeBonification.discountType,
+        activeBonification.discountValue,
+      )
+    : null;
+  const payableAmountArs =
+    (bonifiedAmountPerMember ?? plan.priceArs) * coveredMemberCount;
+
+  return {
+    subscriptionId: billingSubscription._id,
+    memberStatus: subscription.status,
+    billingStatus: billingSubscription.status,
+    activatedAt: billingSubscription.activatedAt,
+    isFamilyChild: Boolean(subscription.familyParentSubscriptionId),
+    coveredMemberCount,
+    plan: {
+      _id: plan._id,
+      name: plan.name,
+      priceArs: plan.priceArs,
+      weeklyClassLimit: plan.weeklyClassLimit,
+      paymentWindowEndDay: plan.paymentWindowEndDay,
+      billingMode: plan.billingMode ?? "calendar",
+      isFamilyPlan: plan.isFamilyPlan ?? false,
+    },
+    currentPeriod: {
+      billingPeriod: cycle.billingPeriod,
+      dueAt: currentPeriodPayment?.dueAt ?? cycle.dueAt,
+      status: currentPeriodPayment?.status ?? "none",
+      paymentMethod: currentPeriodPayment?.paymentMethod ?? null,
+      payableAmountArs,
+      hasBonification: Boolean(activeBonification),
+    },
+  };
+}
+
 export const getMemberPaymentSummary = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
-    await requireAdminOrTrainer(ctx, membership.organizationId);
-
-    const subscription = await ctx.db
-      .query("memberPlanSubscriptions")
-      .withIndex("by_organization_user", (q) =>
-        q
-          .eq("organizationId", membership.organizationId)
-          .eq("userId", args.userId),
-      )
-      .filter((q) => q.neq(q.field("status"), "cancelled"))
-      .first();
-
-    if (!subscription) return null;
-
-    const { billingSubscription, coveredMemberCount } =
-      await getPaymentCoverage(ctx, subscription);
-    const [plan, organization] = await Promise.all([
-      ctx.db.get(billingSubscription.planId as Id<"membershipPlans">),
-      ctx.db.get(membership.organizationId),
-    ]);
-    if (!plan) return null;
-
-    const timezone = getPaymentTimezone(organization?.timezone);
-    const now = Date.now();
-    const cycle = getBillingCycle(
-      plan,
-      billingSubscription.activatedAt,
-      now,
-      timezone,
-    );
-
-    const currentPeriodPayment = await ctx.db
-      .query("planPayments")
-      .withIndex("by_subscription_period", (q) =>
-        q
-          .eq("subscriptionId", billingSubscription._id)
-          .eq("billingPeriod", cycle.billingPeriod),
-      )
-      .first();
-
-    const activeBonification = await ctx.db
-      .query("planBonifications")
-      .withIndex("by_subscription_status", (q) =>
-        q.eq("subscriptionId", billingSubscription._id).eq("status", "active"),
-      )
-      .first();
-    const bonifiedAmountPerMember = activeBonification
-      ? computeBonificationAmount(
-          plan.priceArs,
-          activeBonification.discountType,
-          activeBonification.discountValue,
-        )
-      : null;
-    const payableAmountArs =
-      (bonifiedAmountPerMember ?? plan.priceArs) * coveredMemberCount;
-
-    return {
-      subscriptionId: billingSubscription._id,
-      memberStatus: subscription.status,
-      billingStatus: billingSubscription.status,
-      activatedAt: billingSubscription.activatedAt,
-      isFamilyChild: Boolean(subscription.familyParentSubscriptionId),
-      coveredMemberCount,
-      plan: {
-        _id: plan._id,
-        name: plan.name,
-        priceArs: plan.priceArs,
-        weeklyClassLimit: plan.weeklyClassLimit,
-        paymentWindowEndDay: plan.paymentWindowEndDay,
-        billingMode: plan.billingMode ?? "calendar",
-        isFamilyPlan: plan.isFamilyPlan ?? false,
-      },
-      currentPeriod: {
-        billingPeriod: cycle.billingPeriod,
-        dueAt: currentPeriodPayment?.dueAt ?? cycle.dueAt,
-        status: currentPeriodPayment?.status ?? "none",
-        paymentMethod: currentPeriodPayment?.paymentMethod ?? null,
-        payableAmountArs,
-        hasBonification: Boolean(activeBonification),
-      },
-    };
+    const organizationId = membership.organizationId;
+    await requireAdminOrTrainer(ctx, organizationId);
+    return await computeMemberPaymentSummary(ctx, organizationId, args);
   },
 });
 
@@ -604,7 +621,7 @@ export const getByOrganization = query({
   },
 });
 
-function getCurrentBillingPeriod() {
+export function getCurrentBillingPeriod() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
@@ -620,6 +637,643 @@ function sortBillingPeriodsDesc(periods: string[]) {
   );
 }
 
+/**
+ * Members who owe the current billing period.
+ *
+ * "Overdue" is derived, never stored. The classification rules here mirror the
+ * `missingCount` / `pendingCount` / `declinedCount` branch of
+ * `computeOrganizationMetrics` — `ai.test.ts` asserts the two stay in agreement.
+ * Callers are responsible for authorization.
+ */
+export async function computeOverdueMembers(
+  ctx: QueryCtx,
+  organizationId: Id<"organizations">,
+) {
+  const [payments, subscriptions, activeBonifications, activeMemberUserIds] =
+    await Promise.all([
+      ctx.db
+        .query("planPayments")
+        .withIndex("by_organization", (q: any) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("memberPlanSubscriptions")
+        .withIndex("by_organization", (q: any) =>
+          q.eq("organizationId", organizationId),
+        )
+        .collect(),
+      ctx.db
+        .query("planBonifications")
+        .withIndex("by_organization_status", (q: any) =>
+          q.eq("organizationId", organizationId).eq("status", "active"),
+        )
+        .collect(),
+      getActiveMemberUserIds(ctx, organizationId),
+    ]);
+
+  const currentBillingPeriod = getCurrentBillingPeriod();
+  const chargeablePayments = payments.filter((payment: any) =>
+    isChargeablePayment(payment, activeMemberUserIds),
+  );
+  const activeBonificationBySubscriptionId = new Map(
+    activeBonifications.map((bonification: any) => [
+      String(bonification.subscriptionId),
+      bonification,
+    ]),
+  );
+
+  const paymentBySubscription = new Map<string, any>();
+  for (const payment of chargeablePayments) {
+    if (payment.billingPeriod !== currentBillingPeriod) continue;
+    const key = String(payment.subscriptionId);
+    const previous = paymentBySubscription.get(key);
+    if (!previous || payment.updatedAt > previous.updatedAt) {
+      paymentBySubscription.set(key, payment);
+    }
+  }
+
+  const activeSubscriptions = subscriptions.filter(
+    (subscription: any) =>
+      subscription.status !== "cancelled" &&
+      activeMemberUserIds.has(subscription.userId),
+  );
+
+  const now = Date.now();
+  const seenBillingSubscriptionIds = new Set<string>();
+  const rows: Array<{
+    userId: string;
+    planId: Id<"membershipPlans">;
+    billingPeriod: string;
+    situation: "missing" | "pending" | "declined" | "in_review";
+    unpaid: boolean;
+    subscriptionStatus: string;
+    suspended: boolean;
+    amountDueArs: number;
+    dueAt: number | null;
+    daysOverdue: number | null;
+    paymentMethod: string | null;
+  }> = [];
+
+  for (const subscription of activeSubscriptions) {
+    const billingSubscriptionId = String(
+      subscription.familyParentSubscriptionId ?? subscription._id,
+    );
+    // Family groups are billed once; only the head subscription is reported.
+    if (seenBillingSubscriptionIds.has(billingSubscriptionId)) continue;
+
+    const currentPayment = paymentBySubscription.get(billingSubscriptionId);
+    if (currentPayment?.status === "approved") continue;
+
+    const plan = await ctx.db.get(subscription.planId);
+    const planPrice = plan?.priceArs ?? 0;
+    const activeBonification = activeBonificationBySubscriptionId.get(
+      billingSubscriptionId,
+    );
+    const effectivePlanPrice = activeBonification
+      ? computeBonificationAmount(
+          planPrice,
+          (activeBonification as any).discountType,
+          (activeBonification as any).discountValue,
+        )
+      : planPrice;
+    // Fully bonified members owe nothing, so they are never overdue.
+    if (activeBonification && effectivePlanPrice === 0) continue;
+
+    seenBillingSubscriptionIds.add(billingSubscriptionId);
+
+    const situation: "missing" | "pending" | "declined" | "in_review" =
+      !currentPayment
+        ? "missing"
+        : currentPayment.status === "in_review"
+          ? "in_review"
+          : currentPayment.status === "declined"
+            ? "declined"
+            : "pending";
+
+    const dueAt = currentPayment?.dueAt ?? null;
+    rows.push({
+      userId: subscription.userId,
+      planId: subscription.planId,
+      billingPeriod: currentBillingPeriod,
+      situation,
+      unpaid: situation !== "in_review",
+      subscriptionStatus: subscription.status,
+      suspended: subscription.status === "suspended",
+      amountDueArs:
+        currentPayment?.totalAmountArs ??
+        currentPayment?.amountArs ??
+        effectivePlanPrice,
+      dueAt,
+      daysOverdue:
+        typeof dueAt === "number" && dueAt < now
+          ? Math.floor((now - dueAt) / 86_400_000)
+          : null,
+      paymentMethod: currentPayment?.paymentMethod ?? null,
+    });
+  }
+
+  return { billingPeriod: currentBillingPeriod, rows };
+}
+
+/**
+ * Membership revenue / collection metrics for one billing period.
+ *
+ * Extracted from the query handler so Mati (`ai.runReport`) and the dashboard
+ * share exactly one implementation. Callers are responsible for authorization.
+ */
+export async function computeOrganizationMetrics(
+  ctx: QueryCtx,
+  organizationId: Id<"organizations">,
+  args: { selectedPeriod?: string },
+) {
+  const [
+    payments,
+    subscriptions,
+    activeBonifications,
+    financeTransactions,
+    activeMemberUserIds,
+  ] = await Promise.all([
+    ctx.db
+      .query("planPayments")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect(),
+    ctx.db
+      .query("memberPlanSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .collect(),
+    ctx.db
+      .query("planBonifications")
+      .withIndex("by_organization_status", (q) =>
+        q.eq("organizationId", organizationId).eq("status", "active"),
+      )
+      .collect(),
+    ctx.db
+      .query("financeTransactions")
+      .withIndex("by_organization_period", (q) =>
+        q.eq("organizationId", organizationId),
+      )
+      .filter((q) => q.eq(q.field("status"), "active"))
+      .collect(),
+    getActiveMemberUserIds(ctx, organizationId),
+  ]);
+
+  const chargeablePayments = payments.filter((payment) =>
+    isChargeablePayment(payment, activeMemberUserIds),
+  );
+
+  const activeBonificationBySubscriptionId = new Map(
+    activeBonifications.map((bonification) => [
+      String(bonification.subscriptionId),
+      bonification,
+    ]),
+  );
+
+  const planIds = new Set<string>();
+  for (const payment of chargeablePayments) planIds.add(String(payment.planId));
+  for (const subscription of subscriptions) {
+    planIds.add(String(subscription.planId));
+  }
+
+  const plans = new Map<string, any>();
+  await Promise.all(
+    Array.from(planIds).map(async (planId) => {
+      const plan = await ctx.db.get(planId as any);
+      if (plan) plans.set(planId, plan);
+    }),
+  );
+
+  const activeSubscriptions = subscriptions.filter(
+    (subscription) =>
+      subscription.status !== "cancelled" &&
+      activeMemberUserIds.has(subscription.userId),
+  );
+  const currentBillingPeriod = getCurrentBillingPeriod();
+
+  const currentPayments = chargeablePayments.filter(
+    (payment) => payment.billingPeriod === currentBillingPeriod,
+  );
+
+  const paymentBySubscription = new Map<
+    string,
+    (typeof currentPayments)[number]
+  >();
+  for (const payment of currentPayments) {
+    const key = String(payment.subscriptionId);
+    const previous = paymentBySubscription.get(key);
+    if (!previous || payment.updatedAt > previous.updatedAt) {
+      paymentBySubscription.set(key, payment);
+    }
+  }
+
+  const familyGroupSizes = new Map<string, number>();
+  const countedPendingBillingSubscriptionIds = new Set<string>();
+
+  for (const subscription of activeSubscriptions) {
+    const billingKey = String(
+      subscription.familyParentSubscriptionId ?? subscription._id,
+    );
+    familyGroupSizes.set(
+      billingKey,
+      (familyGroupSizes.get(billingKey) ?? 0) + 1,
+    );
+  }
+
+  let expectedRevenueArs = 0;
+  let approvedRevenueArs = 0;
+  let interestRevenueArs = 0;
+  let approvedCount = 0;
+  let inReviewCount = 0;
+  let pendingCount = 0;
+  let declinedCount = 0;
+  let missingCount = 0;
+  let suspendedCount = 0;
+  // Bonification-specific counters
+  let bonificationCount = 0;
+  let bonificationValueArs = 0; // Total plan value that was waived/discounted
+  let bonificationDiscountArs = 0; // Total discount amount given
+
+  const planBreakdown = new Map<
+    string,
+    {
+      planId: string;
+      planName: string;
+      members: number;
+      approvedMembers: number;
+      expectedRevenueArs: number;
+      approvedRevenueArs: number;
+      bonifiedMembers: number;
+    }
+  >();
+
+  for (const subscription of activeSubscriptions) {
+    const plan = plans.get(String(subscription.planId));
+    const planName = plan?.name ?? "Plan eliminado";
+    const planPrice = plan?.priceArs ?? 0;
+    const billingSubscriptionId = String(
+      subscription.familyParentSubscriptionId ?? subscription._id,
+    );
+    const currentPayment = paymentBySubscription.get(billingSubscriptionId);
+    const activeBonification = activeBonificationBySubscriptionId.get(
+      billingSubscriptionId,
+    );
+    const effectivePlanPrice = activeBonification
+      ? computeBonificationAmount(
+          planPrice,
+          activeBonification.discountType,
+          activeBonification.discountValue,
+        )
+      : planPrice;
+    const isFullyBonified = activeBonification && effectivePlanPrice === 0;
+    const familyGroupSize = familyGroupSizes.get(billingSubscriptionId) ?? 1;
+    const approvedAmountPerMember = currentPayment
+      ? Math.round(
+          (currentPayment.totalAmountArs ?? currentPayment.amountArs) /
+            familyGroupSize,
+        )
+      : 0;
+    const interestAmountPerMember = currentPayment
+      ? Math.round((currentPayment.interestTotalArs ?? 0) / familyGroupSize)
+      : 0;
+
+    if (subscription.status === "suspended") suspendedCount += 1;
+
+    const planEntry = planBreakdown.get(String(subscription.planId)) ?? {
+      planId: String(subscription.planId),
+      planName,
+      members: 0,
+      approvedMembers: 0,
+      expectedRevenueArs: 0,
+      approvedRevenueArs: 0,
+      bonifiedMembers: 0,
+    };
+
+    planEntry.members += 1;
+
+    if (activeBonification) {
+      bonificationCount += 1;
+      bonificationValueArs += planPrice;
+      planEntry.bonifiedMembers += 1;
+      bonificationDiscountArs += planPrice - effectivePlanPrice;
+    }
+
+    if (!isFullyBonified) {
+      expectedRevenueArs += effectivePlanPrice;
+      planEntry.expectedRevenueArs += effectivePlanPrice;
+    }
+
+    if (currentPayment?.status === "approved") {
+      if (!isFullyBonified) {
+        approvedCount += 1;
+        planEntry.approvedMembers += 1;
+        approvedRevenueArs += approvedAmountPerMember;
+        interestRevenueArs += interestAmountPerMember;
+        planEntry.approvedRevenueArs += approvedAmountPerMember;
+      }
+    } else if (
+      !isFullyBonified &&
+      !countedPendingBillingSubscriptionIds.has(billingSubscriptionId)
+    ) {
+      countedPendingBillingSubscriptionIds.add(billingSubscriptionId);
+      if (!currentPayment) {
+        missingCount += 1;
+      } else if (currentPayment.status === "in_review") {
+        inReviewCount += 1;
+      } else if (currentPayment.status === "pending") {
+        pendingCount += 1;
+      } else if (currentPayment.status === "declined") {
+        declinedCount += 1;
+      }
+    }
+
+    planBreakdown.set(String(subscription.planId), planEntry);
+  }
+
+  const totalTrackedMembers = activeSubscriptions.length;
+  const unpaidCount = pendingCount + declinedCount + missingCount;
+
+  const collectionRatePct = roundPercentage(
+    approvedRevenueArs,
+    expectedRevenueArs,
+  );
+  const approvalRatePct = roundPercentage(approvedCount, totalTrackedMembers);
+  const inReviewRatePct = roundPercentage(inReviewCount, totalTrackedMembers);
+  const unpaidRatePct = roundPercentage(unpaidCount, totalTrackedMembers);
+  const suspendedRatePct = roundPercentage(suspendedCount, totalTrackedMembers);
+
+  const methodCounts = new Map<string, number>();
+  const paymentsWithMethod = chargeablePayments.filter((payment) =>
+    Boolean(payment.paymentMethod),
+  );
+  for (const payment of paymentsWithMethod) {
+    const raw = payment.paymentMethod ?? "Sin metodo";
+    const method = raw === "proof_upload" ? "bank_transfer" : raw;
+    methodCounts.set(method, (methodCounts.get(method) ?? 0) + 1);
+  }
+
+  const paymentMethods = Array.from(methodCounts.entries())
+    .map(([method, count]) => ({
+      method,
+      count,
+      percentage: roundPercentage(count, paymentsWithMethod.length),
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const reviewDurations = chargeablePayments
+    .filter(
+      (payment) =>
+        typeof payment.proofUploadedAt === "number" &&
+        typeof payment.reviewedAt === "number" &&
+        payment.reviewedAt >= payment.proofUploadedAt,
+    )
+    .map(
+      (payment) => (payment.reviewedAt! - payment.proofUploadedAt!) / 3600000,
+    );
+
+  const averageReviewHours =
+    reviewDurations.length > 0
+      ? Math.round(
+          (reviewDurations.reduce((sum, value) => sum + value, 0) /
+            reviewDurations.length) *
+            10,
+        ) / 10
+      : null;
+
+  const recentPeriods = sortBillingPeriodsDesc([
+    currentBillingPeriod,
+    ...chargeablePayments.map((payment) => payment.billingPeriod),
+    ...financeTransactions.map((transaction) => transaction.period),
+  ]).slice(0, 12);
+
+  const monthlyOverview = recentPeriods.map((period) => {
+    const periodPayments = chargeablePayments.filter(
+      (payment) => payment.billingPeriod === period,
+    );
+    const nonBonificationPayments = periodPayments.filter(
+      (p) => !p.isBonification,
+    );
+    const bonificationPayments = periodPayments.filter((p) => p.isBonification);
+    const isCurrentPeriod = period === currentBillingPeriod;
+    const paymentRowsExpectedAmount = nonBonificationPayments.reduce(
+      (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
+      0,
+    );
+    const approvedPaymentRows = nonBonificationPayments.filter(
+      (payment) => payment.status === "approved",
+    );
+    const paymentRowsApprovedAmount = approvedPaymentRows.reduce(
+      (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
+      0,
+    );
+    const bonificationAmountArs = bonificationPayments.reduce(
+      (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
+      0,
+    );
+    const periodFinanceTransactions = financeTransactions.filter(
+      (transaction) => transaction.period === period,
+    );
+    const otherIncomeArs = periodFinanceTransactions
+      .filter((transaction) => transaction.type === "income")
+      .reduce((sum, transaction) => sum + transaction.amountArs, 0);
+    const expenseArs = periodFinanceTransactions
+      .filter((transaction) => transaction.type === "expense")
+      .reduce((sum, transaction) => sum + transaction.amountArs, 0);
+    const expectedAmount = isCurrentPeriod
+      ? expectedRevenueArs
+      : paymentRowsExpectedAmount;
+    const approvedAmount = isCurrentPeriod
+      ? approvedRevenueArs
+      : paymentRowsApprovedAmount;
+    const approvedPayments = isCurrentPeriod
+      ? approvedCount
+      : approvedPaymentRows.length;
+    const pendingPayments = isCurrentPeriod
+      ? pendingCount + missingCount
+      : nonBonificationPayments.filter(
+          (payment) => payment.status === "pending",
+        ).length;
+    const inReviewPayments = isCurrentPeriod
+      ? inReviewCount
+      : nonBonificationPayments.filter(
+          (payment) => payment.status === "in_review",
+        ).length;
+    const declinedPayments = isCurrentPeriod
+      ? declinedCount
+      : nonBonificationPayments.filter(
+          (payment) => payment.status === "declined",
+        ).length;
+    const interestAmountArs = isCurrentPeriod
+      ? interestRevenueArs
+      : approvedPaymentRows.reduce(
+          (sum, payment) => sum + (payment.interestTotalArs ?? 0),
+          0,
+        );
+    const totalIncomeArs = approvedAmount + otherIncomeArs;
+
+    return {
+      billingPeriod: period,
+      totalPayments: periodPayments.length,
+      approvedPayments,
+      inReviewPayments,
+      declinedPayments,
+      pendingPayments,
+      bonificationPayments: bonificationPayments.length,
+      bonificationAmountArs,
+      interestAmountArs,
+      expectedAmountArs: expectedAmount,
+      approvedAmountArs: approvedAmount,
+      otherIncomeArs,
+      totalIncomeArs,
+      expenseArs,
+      netResultArs: totalIncomeArs - expenseArs,
+      collectionRatePct: roundPercentage(approvedAmount, expectedAmount),
+    };
+  });
+
+  const selectedPeriod =
+    args.selectedPeriod && recentPeriods.includes(args.selectedPeriod)
+      ? args.selectedPeriod
+      : currentBillingPeriod;
+  const selectedIndex = recentPeriods.indexOf(selectedPeriod);
+  const previousPeriod =
+    selectedIndex >= 0 ? (recentPeriods[selectedIndex + 1] ?? null) : null;
+
+  const selectedOverview =
+    monthlyOverview.find((period) => period.billingPeriod === selectedPeriod) ??
+    null;
+  const previousOverview = previousPeriod
+    ? (monthlyOverview.find(
+        (period) => period.billingPeriod === previousPeriod,
+      ) ?? null)
+    : null;
+
+  const comparison = selectedOverview
+    ? {
+        approvedAmountDeltaArs:
+          selectedOverview.approvedAmountArs -
+          (previousOverview?.approvedAmountArs ?? 0),
+        totalIncomeDeltaArs:
+          selectedOverview.totalIncomeArs -
+          (previousOverview?.totalIncomeArs ?? 0),
+        expenseDeltaArs:
+          selectedOverview.expenseArs - (previousOverview?.expenseArs ?? 0),
+        netResultDeltaArs:
+          selectedOverview.netResultArs - (previousOverview?.netResultArs ?? 0),
+        collectionRateDeltaPct:
+          selectedOverview.collectionRatePct -
+          (previousOverview?.collectionRatePct ?? 0),
+        approvedPaymentsDelta:
+          selectedOverview.approvedPayments -
+          (previousOverview?.approvedPayments ?? 0),
+        pendingPaymentsDelta:
+          selectedOverview.pendingPayments +
+          selectedOverview.inReviewPayments -
+          ((previousOverview?.pendingPayments ?? 0) +
+            (previousOverview?.inReviewPayments ?? 0)),
+      }
+    : null;
+
+  const selectedExpenseTransactions = financeTransactions.filter(
+    (transaction) =>
+      transaction.period === selectedPeriod && transaction.type === "expense",
+  );
+  const selectedIncomeArs = selectedOverview?.totalIncomeArs ?? 0;
+  const selectedExpenseArs = selectedOverview?.expenseArs ?? 0;
+  const selectedNetResultArs = selectedIncomeArs - selectedExpenseArs;
+  const hasExpenseData = selectedExpenseTransactions.length > 0;
+
+  return {
+    currentPeriod: currentBillingPeriod,
+    selectedPeriod,
+    previousPeriod,
+    availablePeriods: recentPeriods,
+    overview: {
+      trackedMembers: totalTrackedMembers,
+      expectedRevenueArs,
+      approvedRevenueArs,
+      outstandingRevenueArs: Math.max(
+        expectedRevenueArs - approvedRevenueArs,
+        0,
+      ),
+      interestRevenueArs,
+      approvedCount,
+      inReviewCount,
+      pendingCount,
+      declinedCount,
+      missingCount,
+      unpaidCount,
+      suspendedCount,
+      collectionRatePct,
+      approvalRatePct,
+      inReviewRatePct,
+      unpaidRatePct,
+      suspendedRatePct,
+      averageReviewHours,
+      bonificationCount,
+      bonificationValueArs,
+      bonificationDiscountArs,
+    },
+    selectedOverview,
+    previousOverview,
+    comparison,
+    financialBalance: {
+      membershipIncomeArs: selectedOverview?.approvedAmountArs ?? 0,
+      otherIncomeArs: selectedOverview?.otherIncomeArs ?? 0,
+      incomeArs: selectedIncomeArs,
+      interestIncomeArs: selectedOverview?.interestAmountArs ?? 0,
+      expenseArs: selectedExpenseArs,
+      netResultArs: selectedNetResultArs,
+      profitabilityPct:
+        hasExpenseData && selectedIncomeArs > 0
+          ? Math.round((selectedNetResultArs / selectedIncomeArs) * 1000) / 10
+          : null,
+      hasExpenseData,
+      incomeDeltaArs: comparison?.totalIncomeDeltaArs ?? null,
+      expenseDeltaArs: comparison?.expenseDeltaArs ?? null,
+      netResultDeltaArs: comparison?.netResultDeltaArs ?? null,
+      incomeTrend: (() => {
+        const otherPeriods = monthlyOverview
+          .filter((m) => m.billingPeriod !== selectedPeriod)
+          .slice(0, 6);
+        if (otherPeriods.length === 0) return null;
+        const avg =
+          otherPeriods.reduce((sum, m) => sum + m.totalIncomeArs, 0) /
+          otherPeriods.length;
+        if (avg === 0) return null;
+        return {
+          avgIncomeArs: Math.round(avg),
+          periodCount: otherPeriods.length,
+          trendPct: Math.round(((selectedIncomeArs - avg) / avg) * 1000) / 10,
+        };
+      })(),
+      expenseByCategory: Object.entries(
+        selectedExpenseTransactions.reduce<Record<string, number>>((acc, t) => {
+          const key = t.category.trim() || "Sin categoría";
+          acc[key] = (acc[key] ?? 0) + t.amountArs;
+          return acc;
+        }, {}),
+      )
+        .map(([category, amountArs]) => ({ category, amountArs }))
+        .sort((a, b) => b.amountArs - a.amountArs),
+    },
+    paymentMethods,
+    planBreakdown: Array.from(planBreakdown.values())
+      .map((plan) => ({
+        ...plan,
+        collectionRatePct: roundPercentage(
+          plan.approvedRevenueArs,
+          plan.expectedRevenueArs,
+        ),
+      }))
+      .sort((a, b) => b.expectedRevenueArs - a.expectedRevenueArs),
+    monthlyOverview,
+  };
+}
+
 export const getOrganizationMetrics = query({
   args: {
     selectedPeriod: v.optional(v.string()),
@@ -627,505 +1281,11 @@ export const getOrganizationMetrics = query({
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdmin(ctx, membership.organizationId);
-
-    const [
-      payments,
-      subscriptions,
-      activeBonifications,
-      financeTransactions,
-      activeMemberUserIds,
-    ] = await Promise.all([
-      ctx.db
-        .query("planPayments")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .collect(),
-      ctx.db
-        .query("memberPlanSubscriptions")
-        .withIndex("by_organization", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .collect(),
-      ctx.db
-        .query("planBonifications")
-        .withIndex("by_organization_status", (q) =>
-          q
-            .eq("organizationId", membership.organizationId)
-            .eq("status", "active"),
-        )
-        .collect(),
-      ctx.db
-        .query("financeTransactions")
-        .withIndex("by_organization_period", (q) =>
-          q.eq("organizationId", membership.organizationId),
-        )
-        .filter((q) => q.eq(q.field("status"), "active"))
-        .collect(),
-      getActiveMemberUserIds(ctx, membership.organizationId),
-    ]);
-
-    const chargeablePayments = payments.filter((payment) =>
-      isChargeablePayment(payment, activeMemberUserIds),
+    return await computeOrganizationMetrics(
+      ctx,
+      membership.organizationId,
+      args,
     );
-
-    const activeBonificationBySubscriptionId = new Map(
-      activeBonifications.map((bonification) => [
-        String(bonification.subscriptionId),
-        bonification,
-      ]),
-    );
-
-    const planIds = new Set<string>();
-    for (const payment of chargeablePayments)
-      planIds.add(String(payment.planId));
-    for (const subscription of subscriptions) {
-      planIds.add(String(subscription.planId));
-    }
-
-    const plans = new Map<string, any>();
-    await Promise.all(
-      Array.from(planIds).map(async (planId) => {
-        const plan = await ctx.db.get(planId as any);
-        if (plan) plans.set(planId, plan);
-      }),
-    );
-
-    const activeSubscriptions = subscriptions.filter(
-      (subscription) =>
-        subscription.status !== "cancelled" &&
-        activeMemberUserIds.has(subscription.userId),
-    );
-    const currentBillingPeriod = getCurrentBillingPeriod();
-
-    const currentPayments = chargeablePayments.filter(
-      (payment) => payment.billingPeriod === currentBillingPeriod,
-    );
-
-    const paymentBySubscription = new Map<
-      string,
-      (typeof currentPayments)[number]
-    >();
-    for (const payment of currentPayments) {
-      const key = String(payment.subscriptionId);
-      const previous = paymentBySubscription.get(key);
-      if (!previous || payment.updatedAt > previous.updatedAt) {
-        paymentBySubscription.set(key, payment);
-      }
-    }
-
-    const familyGroupSizes = new Map<string, number>();
-    const countedPendingBillingSubscriptionIds = new Set<string>();
-
-    for (const subscription of activeSubscriptions) {
-      const billingKey = String(
-        subscription.familyParentSubscriptionId ?? subscription._id,
-      );
-      familyGroupSizes.set(
-        billingKey,
-        (familyGroupSizes.get(billingKey) ?? 0) + 1,
-      );
-    }
-
-    let expectedRevenueArs = 0;
-    let approvedRevenueArs = 0;
-    let interestRevenueArs = 0;
-    let approvedCount = 0;
-    let inReviewCount = 0;
-    let pendingCount = 0;
-    let declinedCount = 0;
-    let missingCount = 0;
-    let suspendedCount = 0;
-    // Bonification-specific counters
-    let bonificationCount = 0;
-    let bonificationValueArs = 0; // Total plan value that was waived/discounted
-    let bonificationDiscountArs = 0; // Total discount amount given
-
-    const planBreakdown = new Map<
-      string,
-      {
-        planId: string;
-        planName: string;
-        members: number;
-        approvedMembers: number;
-        expectedRevenueArs: number;
-        approvedRevenueArs: number;
-        bonifiedMembers: number;
-      }
-    >();
-
-    for (const subscription of activeSubscriptions) {
-      const plan = plans.get(String(subscription.planId));
-      const planName = plan?.name ?? "Plan eliminado";
-      const planPrice = plan?.priceArs ?? 0;
-      const billingSubscriptionId = String(
-        subscription.familyParentSubscriptionId ?? subscription._id,
-      );
-      const currentPayment = paymentBySubscription.get(billingSubscriptionId);
-      const activeBonification = activeBonificationBySubscriptionId.get(
-        billingSubscriptionId,
-      );
-      const effectivePlanPrice = activeBonification
-        ? computeBonificationAmount(
-            planPrice,
-            activeBonification.discountType,
-            activeBonification.discountValue,
-          )
-        : planPrice;
-      const isFullyBonified = activeBonification && effectivePlanPrice === 0;
-      const familyGroupSize = familyGroupSizes.get(billingSubscriptionId) ?? 1;
-      const approvedAmountPerMember = currentPayment
-        ? Math.round(
-            (currentPayment.totalAmountArs ?? currentPayment.amountArs) /
-              familyGroupSize,
-          )
-        : 0;
-      const interestAmountPerMember = currentPayment
-        ? Math.round((currentPayment.interestTotalArs ?? 0) / familyGroupSize)
-        : 0;
-
-      if (subscription.status === "suspended") suspendedCount += 1;
-
-      const planEntry = planBreakdown.get(String(subscription.planId)) ?? {
-        planId: String(subscription.planId),
-        planName,
-        members: 0,
-        approvedMembers: 0,
-        expectedRevenueArs: 0,
-        approvedRevenueArs: 0,
-        bonifiedMembers: 0,
-      };
-
-      planEntry.members += 1;
-
-      if (activeBonification) {
-        bonificationCount += 1;
-        bonificationValueArs += planPrice;
-        planEntry.bonifiedMembers += 1;
-        bonificationDiscountArs += planPrice - effectivePlanPrice;
-      }
-
-      if (!isFullyBonified) {
-        expectedRevenueArs += effectivePlanPrice;
-        planEntry.expectedRevenueArs += effectivePlanPrice;
-      }
-
-      if (currentPayment?.status === "approved") {
-        if (!isFullyBonified) {
-          approvedCount += 1;
-          planEntry.approvedMembers += 1;
-          approvedRevenueArs += approvedAmountPerMember;
-          interestRevenueArs += interestAmountPerMember;
-          planEntry.approvedRevenueArs += approvedAmountPerMember;
-        }
-      } else if (
-        !isFullyBonified &&
-        !countedPendingBillingSubscriptionIds.has(billingSubscriptionId)
-      ) {
-        countedPendingBillingSubscriptionIds.add(billingSubscriptionId);
-        if (!currentPayment) {
-          missingCount += 1;
-        } else if (currentPayment.status === "in_review") {
-          inReviewCount += 1;
-        } else if (currentPayment.status === "pending") {
-          pendingCount += 1;
-        } else if (currentPayment.status === "declined") {
-          declinedCount += 1;
-        }
-      }
-
-      planBreakdown.set(String(subscription.planId), planEntry);
-    }
-
-    const totalTrackedMembers = activeSubscriptions.length;
-    const unpaidCount = pendingCount + declinedCount + missingCount;
-
-    const collectionRatePct = roundPercentage(
-      approvedRevenueArs,
-      expectedRevenueArs,
-    );
-    const approvalRatePct = roundPercentage(approvedCount, totalTrackedMembers);
-    const inReviewRatePct = roundPercentage(inReviewCount, totalTrackedMembers);
-    const unpaidRatePct = roundPercentage(unpaidCount, totalTrackedMembers);
-    const suspendedRatePct = roundPercentage(
-      suspendedCount,
-      totalTrackedMembers,
-    );
-
-    const methodCounts = new Map<string, number>();
-    const paymentsWithMethod = chargeablePayments.filter((payment) =>
-      Boolean(payment.paymentMethod),
-    );
-    for (const payment of paymentsWithMethod) {
-      const raw = payment.paymentMethod ?? "Sin metodo";
-      const method = raw === "proof_upload" ? "bank_transfer" : raw;
-      methodCounts.set(method, (methodCounts.get(method) ?? 0) + 1);
-    }
-
-    const paymentMethods = Array.from(methodCounts.entries())
-      .map(([method, count]) => ({
-        method,
-        count,
-        percentage: roundPercentage(count, paymentsWithMethod.length),
-      }))
-      .sort((a, b) => b.count - a.count);
-
-    const reviewDurations = chargeablePayments
-      .filter(
-        (payment) =>
-          typeof payment.proofUploadedAt === "number" &&
-          typeof payment.reviewedAt === "number" &&
-          payment.reviewedAt >= payment.proofUploadedAt,
-      )
-      .map(
-        (payment) => (payment.reviewedAt! - payment.proofUploadedAt!) / 3600000,
-      );
-
-    const averageReviewHours =
-      reviewDurations.length > 0
-        ? Math.round(
-            (reviewDurations.reduce((sum, value) => sum + value, 0) /
-              reviewDurations.length) *
-              10,
-          ) / 10
-        : null;
-
-    const recentPeriods = sortBillingPeriodsDesc([
-      currentBillingPeriod,
-      ...chargeablePayments.map((payment) => payment.billingPeriod),
-      ...financeTransactions.map((transaction) => transaction.period),
-    ]).slice(0, 12);
-
-    const monthlyOverview = recentPeriods.map((period) => {
-      const periodPayments = chargeablePayments.filter(
-        (payment) => payment.billingPeriod === period,
-      );
-      const nonBonificationPayments = periodPayments.filter(
-        (p) => !p.isBonification,
-      );
-      const bonificationPayments = periodPayments.filter(
-        (p) => p.isBonification,
-      );
-      const isCurrentPeriod = period === currentBillingPeriod;
-      const paymentRowsExpectedAmount = nonBonificationPayments.reduce(
-        (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
-        0,
-      );
-      const approvedPaymentRows = nonBonificationPayments.filter(
-        (payment) => payment.status === "approved",
-      );
-      const paymentRowsApprovedAmount = approvedPaymentRows.reduce(
-        (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
-        0,
-      );
-      const bonificationAmountArs = bonificationPayments.reduce(
-        (sum, payment) => sum + (payment.totalAmountArs ?? payment.amountArs),
-        0,
-      );
-      const periodFinanceTransactions = financeTransactions.filter(
-        (transaction) => transaction.period === period,
-      );
-      const otherIncomeArs = periodFinanceTransactions
-        .filter((transaction) => transaction.type === "income")
-        .reduce((sum, transaction) => sum + transaction.amountArs, 0);
-      const expenseArs = periodFinanceTransactions
-        .filter((transaction) => transaction.type === "expense")
-        .reduce((sum, transaction) => sum + transaction.amountArs, 0);
-      const expectedAmount = isCurrentPeriod
-        ? expectedRevenueArs
-        : paymentRowsExpectedAmount;
-      const approvedAmount = isCurrentPeriod
-        ? approvedRevenueArs
-        : paymentRowsApprovedAmount;
-      const approvedPayments = isCurrentPeriod
-        ? approvedCount
-        : approvedPaymentRows.length;
-      const pendingPayments = isCurrentPeriod
-        ? pendingCount + missingCount
-        : nonBonificationPayments.filter(
-            (payment) => payment.status === "pending",
-          ).length;
-      const inReviewPayments = isCurrentPeriod
-        ? inReviewCount
-        : nonBonificationPayments.filter(
-            (payment) => payment.status === "in_review",
-          ).length;
-      const declinedPayments = isCurrentPeriod
-        ? declinedCount
-        : nonBonificationPayments.filter(
-            (payment) => payment.status === "declined",
-          ).length;
-      const interestAmountArs = isCurrentPeriod
-        ? interestRevenueArs
-        : approvedPaymentRows.reduce(
-            (sum, payment) => sum + (payment.interestTotalArs ?? 0),
-            0,
-          );
-      const totalIncomeArs = approvedAmount + otherIncomeArs;
-
-      return {
-        billingPeriod: period,
-        totalPayments: periodPayments.length,
-        approvedPayments,
-        inReviewPayments,
-        declinedPayments,
-        pendingPayments,
-        bonificationPayments: bonificationPayments.length,
-        bonificationAmountArs,
-        interestAmountArs,
-        expectedAmountArs: expectedAmount,
-        approvedAmountArs: approvedAmount,
-        otherIncomeArs,
-        totalIncomeArs,
-        expenseArs,
-        netResultArs: totalIncomeArs - expenseArs,
-        collectionRatePct: roundPercentage(approvedAmount, expectedAmount),
-      };
-    });
-
-    const selectedPeriod =
-      args.selectedPeriod && recentPeriods.includes(args.selectedPeriod)
-        ? args.selectedPeriod
-        : currentBillingPeriod;
-    const selectedIndex = recentPeriods.indexOf(selectedPeriod);
-    const previousPeriod =
-      selectedIndex >= 0 ? (recentPeriods[selectedIndex + 1] ?? null) : null;
-
-    const selectedOverview =
-      monthlyOverview.find(
-        (period) => period.billingPeriod === selectedPeriod,
-      ) ?? null;
-    const previousOverview = previousPeriod
-      ? (monthlyOverview.find(
-          (period) => period.billingPeriod === previousPeriod,
-        ) ?? null)
-      : null;
-
-    const comparison = selectedOverview
-      ? {
-          approvedAmountDeltaArs:
-            selectedOverview.approvedAmountArs -
-            (previousOverview?.approvedAmountArs ?? 0),
-          totalIncomeDeltaArs:
-            selectedOverview.totalIncomeArs -
-            (previousOverview?.totalIncomeArs ?? 0),
-          expenseDeltaArs:
-            selectedOverview.expenseArs - (previousOverview?.expenseArs ?? 0),
-          netResultDeltaArs:
-            selectedOverview.netResultArs -
-            (previousOverview?.netResultArs ?? 0),
-          collectionRateDeltaPct:
-            selectedOverview.collectionRatePct -
-            (previousOverview?.collectionRatePct ?? 0),
-          approvedPaymentsDelta:
-            selectedOverview.approvedPayments -
-            (previousOverview?.approvedPayments ?? 0),
-          pendingPaymentsDelta:
-            selectedOverview.pendingPayments +
-            selectedOverview.inReviewPayments -
-            ((previousOverview?.pendingPayments ?? 0) +
-              (previousOverview?.inReviewPayments ?? 0)),
-        }
-      : null;
-
-    const selectedExpenseTransactions = financeTransactions.filter(
-      (transaction) =>
-        transaction.period === selectedPeriod && transaction.type === "expense",
-    );
-    const selectedIncomeArs = selectedOverview?.totalIncomeArs ?? 0;
-    const selectedExpenseArs = selectedOverview?.expenseArs ?? 0;
-    const selectedNetResultArs = selectedIncomeArs - selectedExpenseArs;
-    const hasExpenseData = selectedExpenseTransactions.length > 0;
-
-    return {
-      currentPeriod: currentBillingPeriod,
-      selectedPeriod,
-      previousPeriod,
-      availablePeriods: recentPeriods,
-      overview: {
-        trackedMembers: totalTrackedMembers,
-        expectedRevenueArs,
-        approvedRevenueArs,
-        outstandingRevenueArs: Math.max(
-          expectedRevenueArs - approvedRevenueArs,
-          0,
-        ),
-        interestRevenueArs,
-        approvedCount,
-        inReviewCount,
-        pendingCount,
-        declinedCount,
-        missingCount,
-        unpaidCount,
-        suspendedCount,
-        collectionRatePct,
-        approvalRatePct,
-        inReviewRatePct,
-        unpaidRatePct,
-        suspendedRatePct,
-        averageReviewHours,
-        bonificationCount,
-        bonificationValueArs,
-        bonificationDiscountArs,
-      },
-      selectedOverview,
-      previousOverview,
-      comparison,
-      financialBalance: {
-        membershipIncomeArs: selectedOverview?.approvedAmountArs ?? 0,
-        otherIncomeArs: selectedOverview?.otherIncomeArs ?? 0,
-        incomeArs: selectedIncomeArs,
-        interestIncomeArs: selectedOverview?.interestAmountArs ?? 0,
-        expenseArs: selectedExpenseArs,
-        netResultArs: selectedNetResultArs,
-        profitabilityPct:
-          hasExpenseData && selectedIncomeArs > 0
-            ? Math.round((selectedNetResultArs / selectedIncomeArs) * 1000) / 10
-            : null,
-        hasExpenseData,
-        incomeDeltaArs: comparison?.totalIncomeDeltaArs ?? null,
-        expenseDeltaArs: comparison?.expenseDeltaArs ?? null,
-        netResultDeltaArs: comparison?.netResultDeltaArs ?? null,
-        incomeTrend: (() => {
-          const otherPeriods = monthlyOverview
-            .filter((m) => m.billingPeriod !== selectedPeriod)
-            .slice(0, 6);
-          if (otherPeriods.length === 0) return null;
-          const avg =
-            otherPeriods.reduce((sum, m) => sum + m.totalIncomeArs, 0) /
-            otherPeriods.length;
-          if (avg === 0) return null;
-          return {
-            avgIncomeArs: Math.round(avg),
-            periodCount: otherPeriods.length,
-            trendPct: Math.round(((selectedIncomeArs - avg) / avg) * 1000) / 10,
-          };
-        })(),
-        expenseByCategory: Object.entries(
-          selectedExpenseTransactions.reduce<Record<string, number>>(
-            (acc, t) => {
-              const key = t.category.trim() || "Sin categoría";
-              acc[key] = (acc[key] ?? 0) + t.amountArs;
-              return acc;
-            },
-            {},
-          ),
-        )
-          .map(([category, amountArs]) => ({ category, amountArs }))
-          .sort((a, b) => b.amountArs - a.amountArs),
-      },
-      paymentMethods,
-      planBreakdown: Array.from(planBreakdown.values())
-        .map((plan) => ({
-          ...plan,
-          collectionRatePct: roundPercentage(
-            plan.approvedRevenueArs,
-            plan.expectedRevenueArs,
-          ),
-        }))
-        .sort((a, b) => b.expectedRevenueArs - a.expectedRevenueArs),
-      monthlyOverview,
-    };
   },
 });
 
