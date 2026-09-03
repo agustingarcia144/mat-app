@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   CalendarDays,
+  CalendarCheck,
   Gift,
   Loader2,
   MoreHorizontal,
@@ -334,6 +335,20 @@ export default function PaymentHistoryList() {
                               Bonificado
                             </Chip>
                           )}
+                          {payment.advanceMonths ? (
+                            <Chip className="border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                              <CalendarCheck className="size-3" />
+                              Adelantado · {payment.advanceMonths} meses
+                            </Chip>
+                          ) : null}
+                          {payment.advanceCoveredByPaymentId ? (
+                            <Chip className="border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                              <CalendarCheck className="size-3" />
+                              {payment.status === "approved"
+                                ? "Cubierto por pago adelantado"
+                                : "Reservado · pago adelantado pendiente"}
+                            </Chip>
+                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell className="hidden whitespace-nowrap text-muted-foreground lg:table-cell">

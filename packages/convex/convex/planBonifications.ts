@@ -222,7 +222,8 @@ export const create = mutation({
       }
     }
 
-    // Block if there are future pending advance payments
+    // A future advance allocation cannot be re-priced through a bonification:
+    // the payment was already quoted as part of a grouped advance purchase.
     const now = Date.now();
     const d = new Date(now);
     const currentBillingPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -234,15 +235,24 @@ export const create = mutation({
       )
       .filter((q) =>
         q.and(
-          q.eq(q.field("status"), "pending"),
           q.gt(q.field("billingPeriod"), currentBillingPeriod),
+          q.or(
+            q.eq(q.field("status"), "pending"),
+            q.and(
+              q.neq(q.field("advancePaymentGroupId"), undefined),
+              q.or(
+                q.eq(q.field("status"), "in_review"),
+                q.eq(q.field("status"), "approved"),
+              ),
+            ),
+          ),
         ),
       )
       .first();
 
     if (existingPayments) {
       throw new Error(
-        "No se puede bonificar una suscripci�n con pagos adelantados pendientes. Elimin� los pagos futuros primero.",
+        "No se puede bonificar una suscripci�n con pagos adelantados o pagos futuros pendientes. Elimin� los pagos futuros primero.",
       );
     }
 
