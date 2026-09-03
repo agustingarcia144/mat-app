@@ -344,7 +344,9 @@ export default function PaymentHistoryList() {
                           {payment.advanceCoveredByPaymentId ? (
                             <Chip className="border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400">
                               <CalendarCheck className="size-3" />
-                              Cubierto por pago adelantado
+                              {payment.status === "approved"
+                                ? "Cubierto por pago adelantado"
+                                : "Reservado · pago adelantado pendiente"}
                             </Chip>
                           ) : null}
                         </div>

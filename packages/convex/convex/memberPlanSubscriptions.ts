@@ -1094,13 +1094,75 @@ export const generateCurrentPeriodPayments = internalMutation({
 });
 
 /**
+ * The consecutive billing cycles a `months`-long advance covers, starting with
+ * the cycle that contains `referenceAt`. Join-date plans keep their anchored
+ * cycles; calendar plans get plain month boundaries.
+ */
+function getAdvanceBillingCycles(
+  plan: PlanBillingConfig,
+  activatedAt: number,
+  referenceAt: number,
+  months: number,
+  timezone: string,
+) {
+  const first = getBillingCycle(plan, activatedAt, referenceAt, timezone);
+  if (months <= 1) return [first];
+
+  const [firstYear, firstMonth] = first.billingPeriod.split("-").map(Number);
+  const cycles = [first];
+
+  for (let index = 1; index < months; index += 1) {
+    const startMonth = addMonths(firstYear!, firstMonth!, index);
+
+    if ((plan.billingMode ?? "calendar") === "join_date") {
+      const anchorDay = getZonedDateParts(activatedAt, timezone).day;
+      const endMonth = addMonths(startMonth.year, startMonth.month, 1);
+      const cycleStartDay = Math.min(
+        anchorDay,
+        daysInMonth(startMonth.year, startMonth.month),
+      );
+      const cycleEndDay = Math.min(
+        anchorDay,
+        daysInMonth(endMonth.year, endMonth.month),
+      );
+      cycles.push({
+        billingPeriod: `${startMonth.year}-${String(startMonth.month).padStart(2, "0")}`,
+        cycleStartAt: Date.UTC(
+          startMonth.year,
+          startMonth.month - 1,
+          cycleStartDay,
+        ),
+        cycleEndAt: Date.UTC(endMonth.year, endMonth.month - 1, cycleEndDay),
+        dueAt: Date.UTC(startMonth.year, startMonth.month - 1, cycleStartDay),
+      });
+      continue;
+    }
+
+    cycles.push({
+      billingPeriod: `${startMonth.year}-${String(startMonth.month).padStart(2, "0")}`,
+      cycleStartAt: Date.UTC(startMonth.year, startMonth.month - 1, 1),
+      cycleEndAt: Date.UTC(startMonth.year, startMonth.month, 1),
+      dueAt: Date.UTC(
+        startMonth.year,
+        startMonth.month - 1,
+        plan.paymentWindowEndDay ?? 28,
+      ),
+    });
+  }
+
+  return cycles;
+}
+
+/**
  * Helper: charge a multi-month advance as a single upfront payment.
  *
  * The member owes the whole span now — that is what the discount buys. Billing
  * it as one discounted record per month would let them take the cheap first
- * month and never come back, so months 2..N get no record here: they are
- * created, already settled, by `settleAdvanceCoveredPeriods` in planPayments.ts
- * once this charge is approved.
+ * month and never come back, so months 2..N carry no money: they get a $0 row
+ * pointing back at this charge, created here so admins can see how far the
+ * member is covered from the moment of purchase. Those rows stay `pending`
+ * until `settleAdvanceCoveredPeriods` in planPayments.ts approves them along
+ * with the charge — an unpaid advance must not hand out free months.
  */
 async function createAdvancePayment(
   ctx: MutationCtx,
@@ -1116,27 +1178,32 @@ async function createAdvancePayment(
   },
 ) {
   const now = Date.now();
-  const { memberCount } = await getFamilyGroupSubscriptions(ctx, {
-    _id: params.subscriptionId,
-    organizationId: params.organizationId,
-    status: "active",
-  });
+  // The real subscription document, not a synthetic stand-in: the family-count
+  // helper matches each subscription against its `organizationMemberships` row
+  // by `userId`, and a stand-in without one matched nothing — every advance
+  // charge was stored at $0, which the payable-amount fallback then rendered as
+  // the undiscounted single-month plan price.
+  const subscription = await ctx.db.get(params.subscriptionId);
+  if (!subscription) return;
+  const { memberCount } = await getFamilyGroupSubscriptions(ctx, subscription);
+  // A member paying for themselves always counts, even if the membership row
+  // is momentarily out of step: a $0 advance charge silently voids the discount
+  // the member just agreed to pay for.
+  const payingMemberCount = Math.max(1, memberCount);
   const monthlyAmountArs =
     Math.round(params.plan.priceArs * (1 - params.discountPercentage / 100)) *
-    memberCount;
+    payingMemberCount;
   const totalAmountArs = monthlyAmountArs * params.months;
 
-  const cycle = getBillingCycle(
+  const cycles = getAdvanceBillingCycles(
     params.plan,
     params.activatedAt,
     now,
+    params.months,
     params.timezone,
   );
-  const [startYear, startMonth] = cycle.billingPeriod.split("-").map(Number);
-  const coveredPeriods = Array.from({ length: params.months }, (_, index) => {
-    const period = addMonths(startYear!, startMonth!, index);
-    return `${period.year}-${String(period.month).padStart(2, "0")}`;
-  });
+  const cycle = cycles[0]!;
+  const coveredPeriods = cycles.map((item) => item.billingPeriod);
 
   const existing = await ctx.db
     .query("planPayments")
@@ -1148,7 +1215,7 @@ async function createAdvancePayment(
     .first();
   if (existing) return;
 
-  await ctx.db.insert("planPayments", {
+  const chargeId = await ctx.db.insert("planPayments", {
     organizationId: params.organizationId,
     userId: params.userId,
     subscriptionId: params.subscriptionId,
@@ -1167,4 +1234,38 @@ async function createAdvancePayment(
     createdAt: now,
     updatedAt: now,
   });
+
+  // The months the charge buys, reserved up front so the admin sees the
+  // coverage span in the payments table right away instead of waiting for each
+  // month to come around. They carry no money and stay `pending` — only
+  // approving the charge turns them into settled months.
+  for (const coveredCycle of cycles.slice(1)) {
+    const existingCovered = await ctx.db
+      .query("planPayments")
+      .withIndex("by_subscription_period", (q) =>
+        q
+          .eq("subscriptionId", params.subscriptionId)
+          .eq("billingPeriod", coveredCycle.billingPeriod),
+      )
+      .first();
+    if (existingCovered) continue;
+
+    await ctx.db.insert("planPayments", {
+      organizationId: params.organizationId,
+      userId: params.userId,
+      subscriptionId: params.subscriptionId,
+      planId: params.plan._id,
+      billingPeriod: coveredCycle.billingPeriod,
+      billingCycleStartAt: coveredCycle.cycleStartAt,
+      billingCycleEndAt: coveredCycle.cycleEndAt,
+      dueAt: coveredCycle.dueAt,
+      amountArs: 0,
+      totalAmountArs: 0,
+      advanceCoveredByPaymentId: chargeId,
+      advanceMonthlyAmountArs: monthlyAmountArs,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 }

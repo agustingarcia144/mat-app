@@ -16,6 +16,8 @@ const STATUS_VISUALS: Record<string, { label: string; accent: string; tint: stri
     approved: { label: "Aprobado", accent: "#22c55e", tint: "rgba(34,197,94,0.16)" },
     declined: { label: "Rechazado", accent: "#ef4444", tint: "rgba(239,68,68,0.16)" },
     bonification: { label: "Bonificado", accent: "#a855f7", tint: "rgba(168,85,247,0.16)" },
+    advance_covered: { label: "Pagado por adelantado", accent: "#22c55e", tint: "rgba(34,197,94,0.16)" },
+    advance_reserved: { label: "En tu pago adelantado", accent: "#3b82f6", tint: "rgba(59,130,246,0.16)" },
   };
 
 function formatBillingPeriod(period: string): string {
@@ -94,9 +96,19 @@ export default function PaymentHistoryContent() {
           const isBonification =
             (item as any).isBonification ||
             (item as any).paymentMethod === "bonification";
+          // A month bought through a multi-month advance: it carries no money
+          // of its own, so the plain "Pendiente"/"Aprobado" labels would read
+          // as an unpaid month or an unexplained $0 one.
+          const advanceCoveredKey = (item as any).advanceCoveredByPaymentId
+            ? item.status === "approved"
+              ? "advance_covered"
+              : "advance_reserved"
+            : null;
           const statusInfo = isBonification
             ? STATUS_VISUALS.bonification
-            : (STATUS_VISUALS[item.status] ?? STATUS_VISUALS.pending);
+            : advanceCoveredKey
+              ? STATUS_VISUALS[advanceCoveredKey]!
+              : (STATUS_VISUALS[item.status] ?? STATUS_VISUALS.pending);
           const amountArs =
             (item as any).payableAmountArs ??
             (item as any).totalAmountArs ??
