@@ -80,9 +80,13 @@ export default function PaymentStatusCard({
 
   const isFullyBonified = payment.paymentMethod === "bonification";
   const hasDiscount = payment.isBonification || isFullyBonified;
-  // This month was already settled by a multi-month advance charge, so it is
-  // genuinely $0 — it must not fall back to the plan price.
-  const isAdvanceCovered = payment.advanceCoveredByPaymentId !== undefined;
+  // This month was already settled by an approved multi-month advance charge,
+  // so it is genuinely $0 — it must not fall back to the plan price. A month
+  // merely reserved by a charge still awaiting approval is not paid yet, so it
+  // keeps reading as an outstanding month.
+  const isAdvanceCovered =
+    payment.advanceCoveredByPaymentId !== undefined &&
+    payment.status === "approved";
   const statusInfo = isAdvanceCovered
     ? PAYMENT_STATUS.advance_covered
     : (PAYMENT_STATUS[payment.status] ?? PAYMENT_STATUS.pending);

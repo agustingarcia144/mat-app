@@ -143,7 +143,7 @@ function getBillingCycle(
   };
 }
 
-async function getPaymentCoverage(
+export async function getPaymentCoverage(
   ctx: { db: any },
   subscription: {
     _id: Id<"memberPlanSubscriptions">;
@@ -348,6 +348,19 @@ function isAdvanceCoveredPayment(payment: {
 }
 
 /**
+ * A covered month whose advance charge was actually approved. The reserved rows
+ * created at purchase time look identical but are still `pending`: until the
+ * gym approves the charge the member has paid nothing, so those months must not
+ * count as settled anywhere.
+ */
+function isAdvanceSettledPayment(payment: {
+  advanceCoveredByPaymentId?: Id<"planPayments">;
+  status: string;
+}) {
+  return isAdvanceCoveredPayment(payment) && payment.status === "approved";
+}
+
+/**
  * What the member actually has to pay for a payment row. A non-bonified row
  * sitting at $0 is a legacy/placeholder row, so it falls back to the current
  * plan price; an advance-covered row is genuinely $0.
@@ -377,10 +390,13 @@ function resolvePayableAmountArs(
 }
 
 /**
- * Create the already-settled $0 rows for the months an approved advance charge
- * covers. Called only on approval, so a member who never pays gets no free
- * months. The rows are `approved`, which is what the suspension cron, the due
- * reminders and the finance metrics all key off.
+ * Settle the months an approved advance charge covers. The rows normally
+ * already exist — `createAdvancePayment` reserves them as `pending` at purchase
+ * so admins can see the coverage span immediately — and this flips them to
+ * `approved`, which is what the suspension cron, the due reminders and the
+ * finance metrics all key off. Rows are created here too, for charges bought
+ * before the rows were reserved up front. Called only on approval, so a member
+ * who never pays gets no free months.
  */
 async function settleAdvanceCoveredPeriods(
   ctx: MutationCtx,
@@ -496,7 +512,21 @@ export const getMyCurrentPeriodPayment = query({
       )
       .first();
 
-    let payment: any = currentPeriodPayment;
+    // A month reserved by an advance charge the gym has not approved yet is not
+    // what the member owes — the charge itself is. Show them that charge, so
+    // the outstanding amount and the proof upload both land on the one row that
+    // carries the money instead of on a $0 placeholder.
+    const unsettledAdvanceCharge =
+      currentPeriodPayment &&
+      currentPeriodPayment.advanceCoveredByPaymentId !== undefined &&
+      currentPeriodPayment.status !== "approved"
+        ? await ctx.db.get(currentPeriodPayment.advanceCoveredByPaymentId)
+        : null;
+
+    let payment: any =
+      unsettledAdvanceCharge && unsettledAdvanceCharge.status !== "approved"
+        ? unsettledAdvanceCharge
+        : currentPeriodPayment;
     const activeBonification = await ctx.db
       .query("planBonifications")
       .withIndex("by_subscription_status", (q) =>
@@ -625,8 +655,13 @@ export const getMemberPaymentSummary = query({
           activeBonification.discountValue,
         )
       : null;
+    // A month already settled by an approved advance charge is owed nothing —
+    // quoting the plan price here reads as an unpaid cuota the member does not
+    // owe.
     const payableAmountArs =
-      (bonifiedAmountPerMember ?? plan.priceArs) * coveredMemberCount;
+      currentPeriodPayment && isAdvanceSettledPayment(currentPeriodPayment)
+        ? 0
+        : (bonifiedAmountPerMember ?? plan.priceArs) * coveredMemberCount;
 
     return {
       subscriptionId: billingSubscription._id,
@@ -1005,10 +1040,11 @@ export const getOrganizationMetrics = query({
         ? Math.round((currentPayment.interestTotalArs ?? 0) / familyGroupSize)
         : 0;
       // A month already paid through an advance charge is owed nothing; the
-      // month that carries the charge is owed the whole span at once.
-      const isAdvanceCovered = Boolean(
-        currentPayment?.advanceCoveredByPaymentId,
-      );
+      // month that carries the charge is owed the whole span at once. A month
+      // merely reserved by a charge the gym has not approved is still owed.
+      const isAdvanceCovered = currentPayment
+        ? isAdvanceSettledPayment(currentPayment)
+        : false;
       const advanceChargeExpectedPerMember =
         currentPayment?.advanceMonths && currentPayment.advanceMonthlyAmountArs
           ? Math.round(
@@ -1580,6 +1616,27 @@ export const uploadProof = mutation({
       throw new Error("Pago no encontrado");
     }
 
+    // The proof for a month bought through an advance purchase belongs on the
+    // charge that carries the whole span, not on the $0 row standing in for the
+    // month: attaching it here would settle the month for nothing.
+    if (payment.advanceCoveredByPaymentId !== undefined) {
+      const advanceCharge = await ctx.db.get(payment.advanceCoveredByPaymentId);
+      if (!advanceCharge) {
+        throw new Error("Pago adelantado no encontrado");
+      }
+      if (advanceCharge.status === "approved") {
+        throw new Error(
+          "Este mes ya está cubierto por tu pago adelantado. No necesitás subir comprobante.",
+        );
+      }
+      if (advanceCharge.status === "in_review") {
+        throw new Error(
+          "Tu pago adelantado ya está en revisión. Esperá la aprobación del gimnasio.",
+        );
+      }
+      payment = advanceCharge;
+    }
+
     // Delete old proof file if re-uploading
     if (payment.proofStorageId) {
       try {
@@ -1837,11 +1894,15 @@ export const recordPayment = mutation({
     const amountArs = args.amountArs ?? defaultAmountArs;
 
     if (existing) {
-      // Update the existing pending/declined/in_review payment
+      // Update the existing pending/declined/in_review payment. Recording real
+      // money against a month that was only reserved by an advance purchase
+      // makes it a payment of its own — keeping the link would label a month
+      // the member just paid in cash as covered by a charge nobody approved.
       await ctx.db.patch(existing._id, {
         status: "approved",
         amountArs,
         totalAmountArs: amountArs,
+        advanceCoveredByPaymentId: undefined,
         paymentMethod: args.paymentMethod,
         recordedBy: identity.subject,
         reviewedBy: identity.subject,

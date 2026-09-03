@@ -2,7 +2,11 @@ import { internalAction, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
-import { computePaymentInterest, getInterestFields } from "./planPayments";
+import {
+  computePaymentInterest,
+  getInterestFields,
+  getPaymentCoverage,
+} from "./planPayments";
 
 /**
  * Migration: Wrap existing workout days in "Semana 1"
@@ -1229,6 +1233,7 @@ export const cleanupStaleZeroAmountPlanPayments = internalMutation({
       deleted: 0,
       skippedBonification: 0,
       skippedNonZero: 0,
+      skippedAdvanceCovered: 0,
       skippedWithProof: 0,
       skippedReviewedOrInReview: 0,
       sampleDeletedIds: [] as string[],
@@ -1240,6 +1245,13 @@ export const cleanupStaleZeroAmountPlanPayments = internalMutation({
         payment.amountArs <= 0 && (payment.totalAmountArs ?? 0) <= 0;
       if (!isZeroAmount) {
         summary.skippedNonZero += 1;
+        continue;
+      }
+
+      // A month reserved by an advance purchase is legitimately $0 and pending:
+      // its money sits on the charge row it points at.
+      if (payment.advanceCoveredByPaymentId !== undefined) {
+        summary.skippedAdvanceCovered += 1;
         continue;
       }
 
@@ -1288,3 +1300,242 @@ export const cleanupStaleZeroAmountPlanPayments = internalMutation({
     };
   },
 });
+
+/**
+ * Migration: repair advance purchases stored at $0.
+ *
+ * `createAdvancePayment` used to resolve the paying-member count from a
+ * synthetic subscription stand-in with no `userId`, so the count came back 0
+ * and the whole multi-month charge was stored at $0. The payable-amount
+ * fallback then rendered those rows as the undiscounted single-month plan
+ * price, so a member who owed e.g. $144.000 for 3 months saw $60.000.
+ *
+ * Recomputes the charge from the plan price, the discount stored on the row and
+ * the real member count, and reserves the $0 rows for the months the charge
+ * covers (what `createAdvancePayment` now does at purchase time). Approved
+ * charges are left alone unless `includeApproved` is set — repairing one
+ * rewrites revenue already booked.
+ *
+ * Run first with dryRun: true, then with dryRun: false.
+ */
+export const repairAdvancePaymentAmounts = internalMutation({
+  args: {
+    dryRun: v.optional(v.boolean()),
+    organizationId: v.optional(v.id("organizations")),
+    includeApproved: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? true;
+    const includeApproved = args.includeApproved ?? false;
+    const now = Date.now();
+
+    const payments = args.organizationId
+      ? await ctx.db
+          .query("planPayments")
+          .withIndex("by_organization", (q) =>
+            q.eq("organizationId", args.organizationId!),
+          )
+          .collect()
+      : await ctx.db.query("planPayments").collect();
+
+    const summary = {
+      organizationId: args.organizationId ? String(args.organizationId) : null,
+      scanned: payments.length,
+      advanceCharges: 0,
+      skippedApproved: 0,
+      skippedMissingPlan: 0,
+      amountsRepaired: 0,
+      coverageRowsReserved: 0,
+      unchanged: 0,
+      samples: [] as Array<{
+        paymentId: string;
+        billingPeriod: string;
+        months: number;
+        beforeAmountArs: number;
+        afterAmountArs: number;
+      }>,
+    };
+
+    for (const payment of payments) {
+      if (!payment.advanceMonths || payment.advanceMonths <= 1) continue;
+      summary.advanceCharges += 1;
+
+      if (payment.status === "approved" && !includeApproved) {
+        summary.skippedApproved += 1;
+        continue;
+      }
+
+      const [plan, subscription] = await Promise.all([
+        ctx.db.get(payment.planId),
+        ctx.db.get(payment.subscriptionId),
+      ]);
+      if (!plan || !subscription) {
+        summary.skippedMissingPlan += 1;
+        continue;
+      }
+
+      const discountPercentage =
+        payment.advanceDiscountPercentage ??
+        plan.advancePaymentDiscounts?.find(
+          (tier) => tier.months === payment.advanceMonths,
+        )?.discountPercentage;
+      if (discountPercentage === undefined) {
+        summary.skippedMissingPlan += 1;
+        continue;
+      }
+
+      const { coveredMemberCount } = await getPaymentCoverage(
+        ctx,
+        subscription,
+      );
+      const memberCount = Math.max(1, coveredMemberCount);
+      const monthlyAmountArs =
+        Math.round(plan.priceArs * (1 - discountPercentage / 100)) *
+        memberCount;
+      const totalAmountArs = monthlyAmountArs * payment.advanceMonths;
+
+      const needsAmountRepair =
+        payment.amountArs !== totalAmountArs ||
+        payment.advanceMonthlyAmountArs !== monthlyAmountArs;
+
+      if (needsAmountRepair) {
+        if (summary.samples.length < 50) {
+          summary.samples.push({
+            paymentId: String(payment._id),
+            billingPeriod: payment.billingPeriod,
+            months: payment.advanceMonths,
+            beforeAmountArs: payment.amountArs,
+            afterAmountArs: totalAmountArs,
+          });
+        }
+
+        if (!dryRun) {
+          const repaired = {
+            ...payment,
+            amountArs: totalAmountArs,
+            totalAmountArs,
+          };
+          // Interest was calculated off the $0 base, so it has to be redone
+          // together with the amount it is charged on.
+          const interestFields =
+            payment.status === "in_review"
+              ? getInterestFields(
+                  await computePaymentInterest(
+                    ctx,
+                    repaired,
+                    payment.proofUploadedAt ?? now,
+                  ),
+                )
+              : { totalAmountArs };
+
+          await ctx.db.patch(payment._id, {
+            amountArs: totalAmountArs,
+            advanceDiscountPercentage: discountPercentage,
+            advanceMonthlyAmountArs: monthlyAmountArs,
+            ...interestFields,
+            updatedAt: now,
+          });
+        }
+        summary.amountsRepaired += 1;
+      }
+
+      // Reserve the months this charge covers so admins see the span now,
+      // instead of a row appearing only when each month arrives.
+      const coveredPeriods = payment.advanceCoveredPeriods ?? [];
+      for (const billingPeriod of coveredPeriods) {
+        if (billingPeriod === payment.billingPeriod) continue;
+
+        const existing = await ctx.db
+          .query("planPayments")
+          .withIndex("by_subscription_period", (q) =>
+            q
+              .eq("subscriptionId", payment.subscriptionId)
+              .eq("billingPeriod", billingPeriod),
+          )
+          .first();
+        if (existing) continue;
+
+        const cycle = getPeriodCycleDates(
+          billingPeriod,
+          plan,
+          payment.billingCycleStartAt,
+        );
+
+        if (!dryRun) {
+          await ctx.db.insert("planPayments", {
+            organizationId: payment.organizationId,
+            userId: payment.userId,
+            subscriptionId: payment.subscriptionId,
+            planId: payment.planId,
+            billingPeriod,
+            billingCycleStartAt: cycle.cycleStartAt,
+            billingCycleEndAt: cycle.cycleEndAt,
+            dueAt: cycle.dueAt,
+            amountArs: 0,
+            totalAmountArs: 0,
+            advanceCoveredByPaymentId: payment._id,
+            advanceMonthlyAmountArs: monthlyAmountArs,
+            // Only an approved charge has actually been paid for.
+            status: payment.status === "approved" ? "approved" : "pending",
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        summary.coverageRowsReserved += 1;
+      }
+
+      if (!needsAmountRepair) summary.unchanged += 1;
+    }
+
+    return {
+      success: true,
+      dryRun,
+      includeApproved,
+      ...summary,
+    };
+  },
+});
+
+/**
+ * Cycle boundaries for one covered month of an advance purchase, derived from
+ * the period string alone so the repair never depends on the timezone the
+ * charge was created in. Join-date plans reuse the anchor day the charge row
+ * already carries.
+ */
+function getPeriodCycleDates(
+  billingPeriod: string,
+  plan: {
+    billingMode?: "calendar" | "join_date";
+    paymentWindowEndDay?: number;
+  },
+  chargeCycleStartAt?: number,
+) {
+  const [year, month] = billingPeriod.split("-").map(Number);
+  const daysIn = (targetYear: number, targetMonth: number) =>
+    new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
+
+  if ((plan.billingMode ?? "calendar") === "join_date" && chargeCycleStartAt) {
+    const anchorDay = new Date(chargeCycleStartAt).getUTCDate();
+    const startDay = Math.min(anchorDay, daysIn(year!, month!));
+    const endDate = new Date(Date.UTC(year!, month!, 1));
+    const endYear = endDate.getUTCFullYear();
+    const endMonth = endDate.getUTCMonth() + 1;
+    const cycleStartAt = Date.UTC(year!, month! - 1, startDay);
+
+    return {
+      cycleStartAt,
+      cycleEndAt: Date.UTC(
+        endYear,
+        endMonth - 1,
+        Math.min(anchorDay, daysIn(endYear, endMonth)),
+      ),
+      dueAt: cycleStartAt,
+    };
+  }
+
+  return {
+    cycleStartAt: Date.UTC(year!, month! - 1, 1),
+    cycleEndAt: Date.UTC(year!, month!, 1),
+    dueAt: Date.UTC(year!, month! - 1, plan.paymentWindowEndDay ?? 28),
+  };
+}
