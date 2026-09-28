@@ -393,6 +393,27 @@ export default defineSchema({
     .index("by_key", ["key"])
     .index("by_active", ["isActive"]),
 
+  // Per-organization exceptions to what the plan grants, written only by a
+  // super admin. A row is the exception: absence means "follow the plan", so
+  // the plan doc stays the default for every gym that has no row here.
+  //
+  // This is what lets a feature ship to one gym without a deploy and without
+  // moving that gym to another plan.
+  organizationModuleOverrides: defineTable({
+    organizationId: v.id("organizations"),
+    module: v.string(),
+    // true grants the module on top of the plan, false withholds one the plan
+    // would otherwise give.
+    enabled: v.boolean(),
+    note: v.optional(v.string()),
+    // externalId of the super admin who wrote the row.
+    grantedBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_organization", ["organizationId"])
+    .index("by_organization_module", ["organizationId", "module"]),
+
   // Private, organization-scoped Mati AI conversations. The userId is the
   // Clerk subject and is always checked server-side before a conversation is
   // read or changed.

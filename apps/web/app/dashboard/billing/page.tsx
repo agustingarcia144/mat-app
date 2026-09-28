@@ -55,7 +55,6 @@ const PRO_FEATURES = [
 const ULTRA_FEATURES = [
   "Todo lo de PRO",
   "Sin comisión MAT en los cobros a miembros",
-  "Recompensas e ingreso QR",
   "Mati AI con 100 consultas por mes",
 ];
 
@@ -128,7 +127,6 @@ export default function BillingPage() {
   const entitlement = useQuery(api.organizationBilling.getCurrentEntitlement);
   const litePlan = useQuery(api.appBillingPlans.getLite);
   const proPlan = useQuery(api.appBillingPlans.getPro);
-  const ultraPlan = useQuery(api.appBillingPlans.getUltra);
   const createCheckout = useAction(api.organizationBilling.createCheckout);
   const cancelCurrentSubscription = useAction(
     api.organizationBilling.cancelCurrentSubscription,
@@ -271,9 +269,9 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle className="text-base">Función no incluida</CardTitle>
             <CardDescription>
-              {planKey === "pro"
-                ? "Las recompensas y el ingreso QR son parte del plan ULTRA. Actualizá para habilitarlos."
-                : "El plan LITE solo incluye miembros, ejercicios y planificaciones. Actualizá para acceder a esta función."}
+              {planKey === "lite"
+                ? "El plan LITE solo incluye miembros, ejercicios y planificaciones. Actualizá para acceder a esta función."
+                : "Esta función no está habilitada para tu gimnasio. Escribinos si querés activarla."}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -300,7 +298,7 @@ export default function BillingPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-3 lg:items-stretch">
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-stretch">
         {/* LITE */}
         <Card className="flex flex-col">
           <CardHeader>
@@ -369,41 +367,6 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
-        {/* ULTRA (featured) */}
-        <Card className="relative flex flex-col overflow-hidden border-[#FF5C24]/40 bg-[linear-gradient(180deg,rgba(255,92,36,0.08),transparent_55%)] shadow-[0_30px_80px_-50px_rgba(255,92,36,0.7)]">
-          <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#FF5C24]/20 blur-3xl" />
-          <CardHeader>
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle>Plan ULTRA</CardTitle>
-              <Badge className="border-transparent bg-[#FF5C24] text-white hover:bg-[#FF5C24]">
-                Recomendado
-              </Badge>
-            </div>
-            <CardDescription>
-              Todo lo de PRO, sin comisión en los cobros a miembros.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-1 flex-col gap-5">
-            <div>
-              <p className="text-4xl font-semibold tracking-tight">
-                {ultraPlan?.priceArs
-                  ? currency.format(ultraPlan.priceArs)
-                  : "ARS sin configurar"}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">por mes</p>
-            </div>
-            <Separator className="bg-[#FF5C24]/20" />
-            <div className="grid flex-1 gap-3">
-              {ULTRA_FEATURES.map((item) => (
-                <div key={item} className="flex items-center gap-3 text-sm">
-                  <Check className="size-4 shrink-0 text-[#FF5C24]" />
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-            {planButton("ultra")}
-          </CardContent>
-        </Card>
       </div>
 
       <Card>

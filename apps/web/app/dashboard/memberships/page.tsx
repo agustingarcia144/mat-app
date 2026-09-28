@@ -7,6 +7,7 @@ import PlanList from "@/components/features/payments/plan-list";
 import { WalletCardDesigner } from "@/components/features/rewards/wallet-card-designer";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 import { Loader2 } from "lucide-react";
 
 type WalletSettings = Parameters<
@@ -14,7 +15,15 @@ type WalletSettings = Parameters<
 >[0]["rewardSettings"]["walletCard"];
 
 export default function MembershipsPage() {
-  const dashboard = useQuery(api.rewards.getAdminDashboard);
+  const entitlement = useOrganizationEntitlement();
+  // The wallet card is part of QR check-in, not of the "payments" module this
+  // page sits under, so the tab follows its own entitlement. Skipping the
+  // query when the gym lacks it also keeps a rewards-backed read off the page.
+  const hasCheckIn = entitlement?.modules.includes("check_in") ?? false;
+  const dashboard = useQuery(
+    api.rewards.getAdminDashboard,
+    hasCheckIn ? {} : "skip",
+  );
   const [savedWallet, setSavedWallet] = useState<WalletSettings | null>(null);
 
   return (
@@ -24,42 +33,47 @@ export default function MembershipsPage() {
           Membresías
         </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          Configurá los planes disponibles para tus socios y personalizá sus
-          tarjetas para Apple Wallet y Google Wallet.
+          {hasCheckIn
+            ? "Configurá los planes disponibles para tus socios y personalizá sus tarjetas para Apple Wallet y Google Wallet."
+            : "Configurá los planes disponibles para tus socios."}
         </p>
       </div>
 
       <Tabs defaultValue="plans" className="space-y-4">
         <TabsList>
           <TabsTrigger value="plans">Planes</TabsTrigger>
-          <TabsTrigger value="wallet">Tarjetas Wallet</TabsTrigger>
+          {hasCheckIn && (
+            <TabsTrigger value="wallet">Tarjetas Wallet</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="plans">
           <PlanList />
         </TabsContent>
 
-        <TabsContent value="wallet">
-          {!dashboard ? (
-            <div className="flex min-h-80 items-center justify-center">
-              <Loader2 className="size-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <WalletCardDesigner
-              organizationName={dashboard.organizationName}
-              organizationLogoUrl={dashboard.organizationLogoUrl}
-              rewardSettings={
-                {
-                  ...dashboard.settings,
-                  walletCard: savedWallet ?? dashboard.settings.walletCard,
-                } as never
-              }
-              plans={dashboard.membershipPlans as never}
-              initialAssets={dashboard.walletDesignAssets as never}
-              onSaved={setSavedWallet}
-            />
-          )}
-        </TabsContent>
+        {hasCheckIn && (
+          <TabsContent value="wallet">
+            {!dashboard ? (
+              <div className="flex min-h-80 items-center justify-center">
+                <Loader2 className="size-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <WalletCardDesigner
+                organizationName={dashboard.organizationName}
+                organizationLogoUrl={dashboard.organizationLogoUrl}
+                rewardSettings={
+                  {
+                    ...dashboard.settings,
+                    walletCard: savedWallet ?? dashboard.settings.walletCard,
+                  } as never
+                }
+                plans={dashboard.membershipPlans as never}
+                initialAssets={dashboard.walletDesignAssets as never}
+                onSaved={setSavedWallet}
+              />
+            )}
+          </TabsContent>
+        )}
       </Tabs>
     </DashboardPageContainer>
   );

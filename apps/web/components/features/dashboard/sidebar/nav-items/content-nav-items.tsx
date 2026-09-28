@@ -8,6 +8,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
+  SidebarMenuSkeleton,
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
@@ -46,8 +47,11 @@ export default function ContentNavItems() {
   const visibleNavItems = useMemo(() => {
     const isAdmin = isOrgAdminRole(membership?.role);
     const allowedModules = new Set(entitlement?.modules ?? []);
+    // Fails closed: while the entitlement is still loading nothing is allowed,
+    // so a module the gym does not have never flashes into the sidebar before
+    // the query resolves.
     const isModuleAllowed = (module: string) =>
-      !entitlement || allowedModules.has(module);
+      entitlement != null && allowedModules.has(module);
     const isSubItemVisible = (
       subItem: DashboardNavSubItem,
       parent: DashboardNavItem,
@@ -97,6 +101,21 @@ export default function ContentNavItems() {
       router.push(dashboardUrl);
     });
   };
+
+  // Module filtering fails closed, so until the entitlement arrives there is
+  // nothing safe to show. A skeleton keeps the sidebar from collapsing to
+  // empty for that moment.
+  if (entitlement === undefined) {
+    return (
+      <SidebarMenu>
+        {Array.from({ length: 6 }).map((_, index) => (
+          <SidebarMenuItem key={index}>
+            <SidebarMenuSkeleton showIcon />
+          </SidebarMenuItem>
+        ))}
+      </SidebarMenu>
+    );
+  }
 
   return (
     <SidebarMenu>

@@ -14,7 +14,11 @@ import { internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { upsertProPlan, upsertUltraPlan } from "./appBillingPlans";
+import {
+  PILOT_ONLY_MODULES,
+  upsertProPlan,
+  upsertUltraPlan,
+} from "./appBillingPlans";
 import { MEMBER_PAYMENT_DEFAULTS } from "./organizationSettings";
 
 const CLERK_API_BASE = "https://api.clerk.com/v1";
@@ -110,7 +114,8 @@ export const createTestOrganization = internalAction({
     adminLastName: v.optional(v.string()),
     /** Only used when the PRO plan does not exist yet. */
     proPriceArs: v.optional(v.number()),
-    // Seed on ULTRA to exercise rewards and QR check-in, which PRO does not
+    // Seed on ULTRA to exercise rewards, QR check-in and member payments,
+    // which are granted as per-organization overrides rather than by a plan
     // unlock.
     planKey: v.optional(v.union(v.literal("pro"), v.literal("ultra"))),
   },
@@ -131,7 +136,8 @@ export const createTestOrganization = internalAction({
       throw new Error("Password must be at least 8 characters");
     }
 
-    const organizationName = args.organizationName?.trim() || "Gimnasio de prueba";
+    const organizationName =
+      args.organizationName?.trim() || "Gimnasio de prueba";
     const firstName = args.adminFirstName?.trim() || "Admin";
     const lastName = args.adminLastName?.trim() || "Prueba";
 
@@ -175,7 +181,8 @@ export const createTestOrganizationRecords = internalMutation({
     lastName: v.string(),
     organizationName: v.string(),
     proPriceArs: v.optional(v.number()),
-    // Seed on ULTRA to exercise rewards and QR check-in, which PRO does not
+    // Seed on ULTRA to exercise rewards, QR check-in and member payments,
+    // which are granted as per-organization overrides rather than by a plan
     // unlock.
     planKey: v.optional(v.union(v.literal("pro"), v.literal("ultra"))),
   },
@@ -276,7 +283,9 @@ export const createTestOrganizationRecords = internalMutation({
         .first();
     }
     if (!billingPlan) {
-      throw new Error(`Could not resolve the ${planKey.toUpperCase()} billing plan`);
+      throw new Error(
+        `Could not resolve the ${planKey.toUpperCase()} billing plan`,
+      );
     }
 
     await ctx.db.insert("organizationBillingSubscriptions", {
@@ -292,6 +301,23 @@ export const createTestOrganizationRecords = internalMutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    // No plan grants the piloted modules any more, so a seeded org that is
+    // meant to exercise rewards, QR check-in and member payments gets them the
+    // way a real pilot gym does: per-organization overrides.
+    if (planKey === "ultra") {
+      for (const module of PILOT_ONLY_MODULES) {
+        await ctx.db.insert("organizationModuleOverrides", {
+          organizationId,
+          module,
+          enabled: true,
+          note: "seedTestOrg",
+          grantedBy: args.clerkUserId,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
 
     const memberPayments = billingPlan.entitlements.memberPayments;
 

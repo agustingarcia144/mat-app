@@ -29,18 +29,16 @@ export default function FooterNavItems() {
     return <SidebarMenuSkeleton />;
   }
 
-  // Point at the next tier the org is missing: PRO while it lacks a Pro-only
-  // module (Lite, expired, or on trial), then ULTRA. Super-admins get every
-  // module, so they never see it.
+  // Point at PRO while the org lacks a Pro-only module (Lite, expired, or on
+  // trial). There is no upsell beyond it: the features above PRO are granted
+  // per organization while they are piloted, not sold as a tier.
   const upgradeTarget =
     !entitlement
       ? null
       : entitlement.billingStatus === "trial" ||
           !entitlement.modules.includes("payments")
         ? "Pro"
-        : !entitlement.modules.includes("rewards")
-          ? "Ultra"
-          : null;
+        : null;
   const showUpgrade = upgradeTarget !== null;
 
   return (

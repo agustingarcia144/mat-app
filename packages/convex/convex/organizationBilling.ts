@@ -12,7 +12,8 @@ import {
   PRO_DASHBOARD_CARDS,
   PRO_MODULES,
   ULTRA_DASHBOARD_CARDS,
-  ULTRA_MODULES,
+  ALL_KNOWN_MODULES,
+  resolveOrganizationModules,
 } from "./appBillingPlans";
 import {
   requireActiveOrgContext,
@@ -332,9 +333,9 @@ export const getCurrentEntitlement = query({
         planKey: plan?.key ?? "super_admin",
         referencePriceUsd: plan?.referencePriceUsd ?? 10,
         priceArs: plan?.priceArs ?? null,
-        // Super admins see every screen the product has, so this tracks the
-        // top plan rather than a fixed list.
-        modules: ULTRA_MODULES,
+        // Super admins see every screen the product has, including modules
+        // still being piloted that no plan grants.
+        modules: ALL_KNOWN_MODULES,
         dashboardCards: ULTRA_DASHBOARD_CARDS,
         graceUntil: undefined,
         trialEndsAt: undefined,
@@ -359,20 +360,29 @@ export const getCurrentEntitlement = query({
     const status = toBillingStatus(subscription);
     const grantsPlanModules = status === "active" || status === "grace_period";
 
+    const planModules = grantsPlanModules
+      ? (plan?.entitlements.modules ?? [])
+      : status === "trial"
+        ? PRO_MODULES
+        : [];
+    const modules = await resolveOrganizationModules(
+      ctx,
+      orgCtx.organizationId,
+      planModules,
+    );
+
     return {
       billingStatus: status,
       planKey: plan?.key ?? null,
       referencePriceUsd: plan?.referencePriceUsd ?? 10,
       priceArs: plan?.priceArs ?? null,
       // The signup trial is provisioned against PRO (see organizations.ts), so
-      // it grants the PRO set and never ULTRA-only modules such as "rewards".
-      // Granting more here would hand every new organization a feature it
-      // loses on day 8.
-      modules: grantsPlanModules
-        ? (plan?.entitlements.modules ?? [])
-        : status === "trial"
-          ? PRO_MODULES
-          : [],
+      // it grants the PRO set and nothing beyond it. Granting more here would
+      // hand every new organization a feature it loses on day 8. Modules being
+      // piloted reach a gym only through an override, applied above to every
+      // status -- including trials, so a pilot gym does not lose the feature
+      // the day its trial ends.
+      modules,
       dashboardCards: grantsPlanModules
         ? (plan?.entitlements.dashboardCards ?? [])
         : status === "trial"

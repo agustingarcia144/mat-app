@@ -30,6 +30,7 @@ import AssignPlanDialog from "@/components/features/payments/dialogs/assign-plan
 import BonificationDialog from "@/components/features/payments/dialogs/bonification-dialog";
 import MemberPaymentsPanel from "@/components/features/payments/member-payments/member-payments-panel";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -42,6 +43,11 @@ type PaymentsTab = (typeof TABS)[number];
 
 export default function PagosPage() {
   const canQuery = useCanQueryCurrentOrganization();
+  const entitlement = useOrganizationEntitlement();
+  // Charging members through MercadoPago is still being piloted; without the
+  // module the tab is absent and the server resolves the policy as disabled.
+  const hasMemberPayments =
+    entitlement?.modules.includes("member_payments") ?? false;
   const [tab, setTab] = useState<PaymentsTab>("pendientes");
   const [recordOpen, setRecordOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
@@ -235,7 +241,9 @@ export default function PagosPage() {
               </span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="debitos">Mercado Pago</TabsTrigger>
+          {hasMemberPayments && (
+            <TabsTrigger value="debitos">Mercado Pago</TabsTrigger>
+          )}
           <TabsTrigger value="historial">Historial</TabsTrigger>
         </TabsList>
 
@@ -247,9 +255,11 @@ export default function PagosPage() {
           <BonificationList />
         </TabsContent>
 
-        <TabsContent value="debitos">
-          <MemberPaymentsPanel canQuery={canQuery} />
-        </TabsContent>
+        {hasMemberPayments && (
+          <TabsContent value="debitos">
+            <MemberPaymentsPanel canQuery={canQuery} />
+          </TabsContent>
+        )}
 
         <TabsContent value="historial">
           <PaymentHistoryList />

@@ -29,6 +29,7 @@ import {
 export interface PlatformOrgActions {
   onRecordPayment: (org: PlatformOrgRow) => void;
   onViewPayments: (org: PlatformOrgRow) => void;
+  onManageModules: (org: PlatformOrgRow) => void;
 }
 
 export function getOrganizationInitials(name: string): string {
@@ -214,6 +215,9 @@ export const getColumns = (
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => actions.onViewPayments(org)}>
               Ver pagos
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => actions.onManageModules(org)}>
+              Módulos
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

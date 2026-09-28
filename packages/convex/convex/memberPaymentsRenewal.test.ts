@@ -90,7 +90,9 @@ async function seedActiveMember(
       frequency: 1,
       frequencyType: "months",
       entitlements: {
-        modules: ["payments"],
+        // "member_payments" is what lets a gym charge its members at all;
+        // the plan's policy below only applies to an organization that has it.
+        modules: ["payments", "member_payments"],
         dashboardCards: ["payments"],
         memberPayments: {
           mercadoPagoEnabled: true,

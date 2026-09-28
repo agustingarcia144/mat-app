@@ -37,7 +37,9 @@ export type BillingModule =
   | "metrics_exercises"
   | "users"
   | "settings"
-  | "rewards";
+  | "rewards"
+  | "check_in"
+  | "member_payments";
 
 /**
  * A child entry of a nav item. Its `url` is a full dashboard-relative path and
@@ -108,8 +110,9 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
     billingModule: "payments",
     adminOnly: true,
     children: [
-      // Rewards and QR check-in share one module and are sold together, so
-      // they are tagged explicitly instead of inheriting "payments".
+      // Rewards and QR check-in have separate modules -- a gym can run QR
+      // entry with no points programme -- so both are tagged explicitly
+      // instead of inheriting "payments".
       {
         label: "Recompensas",
         icon: Gift,
@@ -121,7 +124,7 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
         icon: QrCode,
         url: "/check-in",
         adminOnly: false,
-        billingModule: "rewards",
+        billingModule: "check_in",
       },
     ],
   },

@@ -5,10 +5,10 @@ import { api } from "./_generated/api";
 import {
   upsertProPlan,
   upsertUltraPlan,
+  ALL_KNOWN_MODULES,
   PRO_MODULES,
-  ULTRA_MODULES,
 } from "./appBillingPlans";
-import { REWARDS_MODULE } from "./rewardsDomain";
+import { CHECK_IN_MODULE, REWARDS_MODULE } from "./rewardsDomain";
 
 const modules = import.meta.glob("./**/*.*s");
 type TestConvex = ReturnType<typeof convexTest>;
@@ -27,6 +27,7 @@ async function seedOrganization(
     entitlementStatus?: "active" | "inactive" | "grace_period" | "trial";
     isSuperAdmin?: boolean;
     withSubscription?: boolean;
+    moduleOverrides?: Array<{ module: string; enabled: boolean }>;
   } = {},
 ) {
   const planKey = options.planKey ?? "pro";
@@ -99,6 +100,17 @@ async function seedOrganization(
       });
     }
 
+    for (const override of options.moduleOverrides ?? []) {
+      await ctx.db.insert("organizationModuleOverrides", {
+        organizationId,
+        module: override.module,
+        enabled: override.enabled,
+        grantedBy: "super_admin_test",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
     return { organizationId, userId };
   });
 }
@@ -110,24 +122,54 @@ function entitlementFor(t: TestConvex, userId: string) {
 }
 
 describe("organization entitlement resolution", () => {
-  it("grants the rewards module to an active ULTRA organization", async () => {
+  // Rewards is piloted per gym, so no plan grants it -- not even the top one.
+  it("withholds the rewards module from every plan", async () => {
     const t = convexTest(schema, modules);
-    const { userId } = await seedOrganization(t, { planKey: "ultra" });
+    const ultra = await seedOrganization(t, { planKey: "ultra" });
+    const pro = await seedOrganization(t, { planKey: "pro" });
 
-    const entitlement = await entitlementFor(t, userId);
-    expect(entitlement.planKey).toBe("ultra");
-    expect(entitlement.modules).toContain(REWARDS_MODULE);
+    const ultraEntitlement = await entitlementFor(t, ultra.userId);
+    expect(ultraEntitlement.planKey).toBe("ultra");
+    expect(ultraEntitlement.modules).not.toContain(REWARDS_MODULE);
+
+    const proEntitlement = await entitlementFor(t, pro.userId);
+    expect(proEntitlement.planKey).toBe("pro");
+    expect(proEntitlement.modules).not.toContain(REWARDS_MODULE);
+    // PRO still unlocks everything it always did.
+    expect(proEntitlement.modules).toEqual(PRO_MODULES);
   });
 
-  it("withholds the rewards module from an active PRO organization", async () => {
+  it("grants a piloted module to the one organization it is enabled for", async () => {
     const t = convexTest(schema, modules);
-    const { userId } = await seedOrganization(t, { planKey: "pro" });
+    const piloted = await seedOrganization(t, {
+      planKey: "pro",
+      moduleOverrides: [{ module: CHECK_IN_MODULE, enabled: true }],
+    });
+    const other = await seedOrganization(t, { planKey: "pro" });
+
+    const pilotedEntitlement = await entitlementFor(t, piloted.userId);
+    expect(pilotedEntitlement.modules).toContain(CHECK_IN_MODULE);
+    // The pilot adds the module without disturbing what the plan grants.
+    expect(pilotedEntitlement.modules).toEqual(
+      expect.arrayContaining(PRO_MODULES),
+    );
+    // ...and grants only the module asked for.
+    expect(pilotedEntitlement.modules).not.toContain(REWARDS_MODULE);
+
+    const otherEntitlement = await entitlementFor(t, other.userId);
+    expect(otherEntitlement.modules).not.toContain(CHECK_IN_MODULE);
+  });
+
+  it("withholds a plan module from an organization overridden off", async () => {
+    const t = convexTest(schema, modules);
+    const { userId } = await seedOrganization(t, {
+      planKey: "pro",
+      moduleOverrides: [{ module: "classes", enabled: false }],
+    });
 
     const entitlement = await entitlementFor(t, userId);
-    expect(entitlement.planKey).toBe("pro");
-    expect(entitlement.modules).not.toContain(REWARDS_MODULE);
-    // PRO still unlocks everything it did before ULTRA existed.
-    expect(entitlement.modules).toEqual(PRO_MODULES);
+    expect(entitlement.modules).not.toContain("classes");
+    expect(entitlement.modules).toContain("payments");
   });
 
   // The signup trial runs on PRO. Granting ULTRA modules here would hand every
@@ -153,24 +195,26 @@ describe("organization entitlement resolution", () => {
     });
 
     const entitlement = await entitlementFor(t, userId);
-    expect(entitlement.modules).toEqual(ULTRA_MODULES);
+    // Including the modules still being piloted, which no plan grants.
+    expect(entitlement.modules).toEqual(ALL_KNOWN_MODULES);
     expect(entitlement.modules).toContain(REWARDS_MODULE);
+    expect(entitlement.modules).toContain(CHECK_IN_MODULE);
   });
 
   it("keeps plan modules through a grace period and drops them when inactive", async () => {
     const t = convexTest(schema, modules);
     const grace = await seedOrganization(t, {
-      planKey: "ultra",
+      planKey: "pro",
       entitlementStatus: "grace_period",
     });
     const inactive = await seedOrganization(t, {
-      planKey: "ultra",
+      planKey: "pro",
       entitlementStatus: "inactive",
     });
 
     const graceEntitlement = await entitlementFor(t, grace.userId);
     expect(graceEntitlement.billingStatus).toBe("grace_period");
-    expect(graceEntitlement.modules).toContain(REWARDS_MODULE);
+    expect(graceEntitlement.modules).toEqual(PRO_MODULES);
 
     const inactiveEntitlement = await entitlementFor(t, inactive.userId);
     expect(inactiveEntitlement.billingStatus).toBe("inactive");

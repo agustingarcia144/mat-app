@@ -7,6 +7,11 @@ import {
   requireAdmin,
   tryActiveOrgContext,
 } from "./permissions";
+import {
+  MEMBER_PAYMENTS_MODULE,
+  getOrganizationModules,
+} from "./appBillingPlans";
+import { CHECK_IN_MODULE, REWARDS_MODULE } from "./rewardsDomain";
 
 const DEFAULTS = {
   planificationsEnabled: true,
@@ -448,11 +453,49 @@ export const get = query({
       )
       .first();
 
+    // Both apps read their feature switches from here, so the entitlement is
+    // folded in on the server rather than in each client. The mobile tab bar in
+    // particular checks `rewards.enabled` alone and has no entitlement of its
+    // own; resolving it here is what keeps a module a gym does not have off the
+    // phone without shipping an app release.
+    //
+    // This never writes: the stored settings keep whatever the gym configured,
+    // so a gym that is granted a module later resumes with its setup intact.
+    const entitledModules = await getOrganizationModules(
+      ctx,
+      orgCtx.organizationId,
+    );
+    const checkInEntitled = entitledModules.includes(CHECK_IN_MODULE);
+    const rewardsEntitled = entitledModules.includes(REWARDS_MODULE);
+    const memberPaymentsEntitled = entitledModules.includes(
+      MEMBER_PAYMENTS_MODULE,
+    );
+
+    const gateRewards = (rewards: RewardSettings): RewardSettings => ({
+      ...rewards,
+      enabled: rewards.enabled && rewardsEntitled,
+      walletCard: {
+        ...rewards.walletCard,
+        enabled: rewards.walletCard.enabled && checkInEntitled,
+      },
+    });
+
+    const gateMemberPayments = <T extends { [key: string]: unknown }>(
+      memberPayments: T,
+    ): T =>
+      memberPaymentsEntitled
+        ? memberPayments
+        : {
+            ...memberPayments,
+            mercadoPagoRecurringEnabled: false,
+            mercadoPagoOneTimeEnabled: false,
+          };
+
     if (!settings) {
       return {
         ...DEFAULTS,
-        memberPayments: { ...MEMBER_PAYMENT_DEFAULTS },
-        rewards: resolveRewardSettings(undefined),
+        memberPayments: gateMemberPayments({ ...MEMBER_PAYMENT_DEFAULTS }),
+        rewards: gateRewards(resolveRewardSettings(undefined)),
         _id: null as null,
         organizationId: orgCtx.organizationId,
       };
@@ -463,8 +506,10 @@ export const get = query({
     return {
       ...settings,
       showAiPet: settings.showAiPet ?? DEFAULTS.showAiPet,
-      memberPayments: resolveMemberPaymentSettings(settings.memberPayments),
-      rewards: resolveRewardSettings(settings.rewards),
+      memberPayments: gateMemberPayments(
+        resolveMemberPaymentSettings(settings.memberPayments),
+      ),
+      rewards: gateRewards(resolveRewardSettings(settings.rewards)),
     };
   },
 });

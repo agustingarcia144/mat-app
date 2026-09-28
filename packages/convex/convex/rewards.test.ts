@@ -2,7 +2,12 @@ import { convexTest } from "convex-test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
-import { getLocalDate, previousLocalDate } from "./rewardsDomain";
+import {
+  CHECK_IN_MODULE,
+  REWARDS_MODULE,
+  getLocalDate,
+  previousLocalDate,
+} from "./rewardsDomain";
 import { awardMembershipPaymentReward } from "./rewards";
 
 const modules = import.meta.glob("./**/*.*s");
@@ -24,10 +29,11 @@ afterEach(() => {
 async function seed(
   t: TestConvex,
   suffix = "a",
-  // Rewards and QR check-in are unlocked by the "rewards" module, which only
-  // ULTRA grants. Seeding "pro" produces an organization that has the program
-  // configured but is no longer entitled to it.
-  billingPlanKey: "pro" | "ultra" = "ultra",
+  // Rewards and QR check-in have separate modules, neither of which any plan
+  // grants: they reach a gym through a per-organization override. Passing a
+  // shorter list produces an organization that has the programme configured
+  // but is not entitled to all of it.
+  grantedModules: string[] = [REWARDS_MODULE, CHECK_IN_MODULE],
 ) {
   return await t.run(async (ctx) => {
     const now = Date.now();
@@ -90,21 +96,28 @@ async function seed(
       updatedAt: now,
     });
     const billingPlanId = await ctx.db.insert("appBillingPlans", {
-      key: billingPlanKey,
-      name: billingPlanKey.toUpperCase(),
+      key: "pro",
+      name: "PRO",
       referencePriceUsd: 0,
       priceCurrency: "ARS",
       priceArs: 30_000,
       frequency: 1,
       frequencyType: "months",
-      entitlements: {
-        modules: billingPlanKey === "ultra" ? ["rewards"] : [],
-        dashboardCards: [],
-      },
+      entitlements: { modules: [], dashboardCards: [] },
       isActive: true,
       createdAt: now,
       updatedAt: now,
     });
+    for (const module of grantedModules) {
+      await ctx.db.insert("organizationModuleOverrides", {
+        organizationId,
+        module,
+        enabled: true,
+        grantedBy: `${ADMIN}_${suffix}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
     await ctx.db.insert("organizationBillingSubscriptions", {
       organizationId,
       billingPlanId,
@@ -675,46 +688,69 @@ describe("member rewards", () => {
 });
 
 describe("rewards billing entitlement", () => {
-  it("refuses to scan for a plan without the rewards module", async () => {
+  it("refuses to scan for an organization without the check-in module", async () => {
     const t = convexTest(schema, modules);
-    const fixture = await seed(t, "entitlement-pro", "pro");
-    await expect(issueAndScan(t, fixture)).rejects.toThrow("REWARDS_DISABLED");
+    const fixture = await seed(t, "entitlement-none", []);
+    await expect(issueAndScan(t, fixture)).rejects.toThrow("CHECK_IN_DISABLED");
   });
 
-  it("reports the program as off to a member on a plan without it", async () => {
+  it("reports the program as off to a member without the rewards module", async () => {
     const t = convexTest(schema, modules);
-    const fixture = await seed(t, "entitlement-member", "pro");
+    const fixture = await seed(t, "entitlement-member", [CHECK_IN_MODULE]);
     const rewards = await t
       .withIdentity({ subject: fixture.member })
       .query(api.rewards.getMyRewards, {});
     expect(rewards?.enabled).toBe(false);
-    // The gym's settings are untouched, so re-upgrading resumes the program.
+    // The gym's settings are untouched, so a later grant resumes the program.
     expect(rewards?.configured).toBe(true);
   });
 
-  it("keeps the same organization working once the plan grants the module", async () => {
+  // The point of splitting the modules: a gym can run the door without buying
+  // the points programme.
+  it("records a check-in and awards nothing with check-in but no rewards", async () => {
     const t = convexTest(schema, modules);
-    const fixture = await seed(t, "entitlement-ultra", "ultra");
+    const fixture = await seed(t, "entitlement-checkin", [CHECK_IN_MODULE]);
+
+    const decision = await issueAndScan(t, fixture);
+    expect(decision.allowed).toBe(true);
+    expect(decision.pointsAwarded).toBe(0);
+
+    const state = await t.run(async (ctx) => ({
+      checkIns: await ctx.db.query("memberCheckIns").collect(),
+      ledger: await ctx.db.query("rewardLedger").collect(),
+    }));
+    expect(state.checkIns).toHaveLength(1);
+    expect(state.ledger).toHaveLength(0);
+  });
+
+  it("refuses to issue a member QR with rewards but no check-in", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await seed(t, "entitlement-rewards-only", [REWARDS_MODULE]);
+    await expect(issueAndScan(t, fixture)).rejects.toThrow("CHECK_IN_DISABLED");
+  });
+
+  it("keeps the same organization working once it has both modules", async () => {
+    const t = convexTest(schema, modules);
+    const fixture = await seed(t, "entitlement-both");
     const decision = await issueAndScan(t, fixture);
     expect(decision.allowed).toBe(true);
   });
 
-  it("preserves earned points when the plan loses the module", async () => {
+  it("preserves earned points when the organization loses the modules", async () => {
     const t = convexTest(schema, modules);
-    const fixture = await seed(t, "entitlement-downgrade", "ultra");
+    const fixture = await seed(t, "entitlement-downgrade");
     await issueAndScan(t, fixture);
 
-    // Downgrade in place: only the plan the subscription points at changes.
+    // Revoke in place: the grants go away, the data does not.
     await t.run(async (ctx) => {
-      const subscription = await ctx.db
-        .query("organizationBillingSubscriptions")
+      for (const override of await ctx.db
+        .query("organizationModuleOverrides")
         .withIndex("by_organization", (q) =>
           q.eq("organizationId", fixture.organizationId),
         )
-        .first();
-      await ctx.db.patch(subscription!.billingPlanId, {
-        entitlements: { modules: [], dashboardCards: [] },
-      });
+        .collect()) {
+        await ctx.db.delete(override._id);
+      }
     });
 
     const state = await t.run(async (ctx) => ({

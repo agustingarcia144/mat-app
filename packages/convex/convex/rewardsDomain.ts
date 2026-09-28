@@ -19,10 +19,22 @@ export type RewardAccessCode =
   (typeof REWARD_ACCESS_CODES)[keyof typeof REWARD_ACCESS_CODES];
 
 /**
- * The billing module that unlocks rewards and QR check-in. They share the same
- * data and are sold together, so one module gates both.
+ * The billing module that unlocks the points programme: earning, the catalog,
+ * and redemptions.
  */
 export const REWARDS_MODULE = "rewards";
+
+/**
+ * The billing module that unlocks getting through the door: the reception QR
+ * scanner and the wallet pass that carries the member's code. The two are one
+ * feature -- the pass is how a member obtains the code that gets scanned -- so
+ * a single module gates both.
+ *
+ * Separate from REWARDS_MODULE because check-in is useful on its own: a gym can
+ * run QR entry with no points programme at all, in which case a scan is
+ * recorded and awards nothing.
+ */
+export const CHECK_IN_MODULE = "check_in";
 
 export const DEFAULT_REWARD_TIMEZONE = "America/Argentina/Buenos_Aires";
 
@@ -75,18 +87,36 @@ export function isRewardSourceEligible(
 }
 
 /**
- * Whether the rewards program (and the QR check-in that feeds it) is live for
- * an organization.
+ * Whether the rewards programme is live for an organization.
  *
  * Takes the entitlement as an argument so this module stays free of database
  * access; callers resolve it with `organizationHasModule(ctx, orgId,
- * REWARDS_MODULE)`. Losing the entitlement hides the program but never touches
- * the stored settings, so an organization that upgrades again resumes with its
- * configuration intact.
+ * REWARDS_MODULE)`. Losing the entitlement hides the programme but never
+ * touches the stored settings, so an organization that gets it back resumes
+ * with its configuration intact.
+ *
+ * Says nothing about QR check-in, which has its own module: see
+ * `checkInCapabilityEnabled`.
  */
 export function rewardCapabilityEnabled(
   settings: Doc<"organizationSettings"> | null,
   hasRewardsEntitlement: boolean,
 ): boolean {
   return hasRewardsEntitlement && settings?.rewards?.enabled === true;
+}
+
+/**
+ * Whether QR check-in and the wallet pass are live for an organization.
+ *
+ * Mirrors `rewardCapabilityEnabled` but reads the wallet-card switch, which is
+ * the settings flag a gym uses to turn member credentials on. Callers resolve
+ * the entitlement with `organizationHasModule(ctx, orgId, CHECK_IN_MODULE)`.
+ */
+export function checkInCapabilityEnabled(
+  settings: Doc<"organizationSettings"> | null,
+  hasCheckInEntitlement: boolean,
+): boolean {
+  return (
+    hasCheckInEntitlement && settings?.rewards?.walletCard?.enabled === true
+  );
 }

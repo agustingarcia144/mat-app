@@ -66,11 +66,10 @@ type OrgCheckoutDetails = {
   adminPhone?: string
 }
 
-type DialogMode = 'trial' | 'lite' | 'ultra'
+type DialogMode = 'trial' | 'lite'
 type CheckoutPlan = Exclude<DialogMode, 'trial'>
 
 const PENDING_LITE_CHECKOUT_KEY = 'mat.pendingLiteCheckout'
-const PENDING_ULTRA_CHECKOUT_KEY = 'mat.pendingUltraCheckout'
 const PENDING_PRO_TRIAL_KEY = 'mat.pendingProTrial'
 
 // Each paid plan parks the form in session storage under its own key and
@@ -84,11 +83,6 @@ const CHECKOUT_PLANS: Record<
     pendingKey: PENDING_LITE_CHECKOUT_KEY,
     resumeParam: 'lite_checkout',
     label: 'Lite'
-  },
-  ultra: {
-    pendingKey: PENDING_ULTRA_CHECKOUT_KEY,
-    resumeParam: 'ultra_checkout',
-    label: 'Ultra'
   }
 }
 const mercadoPagoCheckoutEnabled =
@@ -191,14 +185,6 @@ const liteFeatures = [
   'Ejercicios',
   'Planificaciones',
   'Dashboard Lite'
-]
-
-const ultraFeatures = [
-  'Todo lo de Pro',
-  'Sin comisión MAT en los cobros a socios',
-  'Recompensas y puntos por asistencia',
-  'Ingreso QR en recepción',
-  'Mati AI con 100 consultas por mes'
 ]
 
 const orangeButtonClassName =
@@ -329,7 +315,6 @@ export default function HeroSection() {
   const createCheckout = useAction(api.organizationBilling.createCheckout)
   const proPlan = useQuery(api.appBillingPlans.getPro)
   const litePlan = useQuery(api.appBillingPlans.getLite)
-  const ultraPlan = useQuery(api.appBillingPlans.getUltra)
   const proPriceLabel =
     typeof proPlan?.priceArs === 'number'
       ? arsCurrency.format(proPlan.priceArs)
@@ -337,10 +322,6 @@ export default function HeroSection() {
   const litePriceLabel =
     typeof litePlan?.priceArs === 'number'
       ? arsCurrency.format(litePlan.priceArs)
-      : null
-  const ultraPriceLabel =
-    typeof ultraPlan?.priceArs === 'number'
-      ? arsCurrency.format(ultraPlan.priceArs)
       : null
   const [isScrolled, setIsScrolled] = React.useState(false)
   const [signInOpen, setSignInOpen] = React.useState(false)
@@ -1096,12 +1077,11 @@ fbq('track', 'PageView');`}
             </h2>
             <p className="mt-4 text-base leading-7 text-white/60">
               Empezá con 7 días de Pro completo, sin tarjeta. Lite te deja
-              arrancar por menos, y Ultra suma recompensas, ingreso QR y cobros
-              sin comisión.
+              arrancar por menos.
             </p>
           </Reveal>
 
-          <div className="mx-auto mt-12 grid max-w-6xl gap-4 md:grid-cols-3 md:items-stretch">
+          <div className="mx-auto mt-12 grid max-w-4xl gap-4 md:grid-cols-2 md:items-stretch">
             {/* PRO (starts the trial) */}
             <Reveal className="relative flex flex-col overflow-hidden rounded-[1.6rem] border border-[#FF5C24]/40 bg-[linear-gradient(180deg,rgba(255,92,36,0.10),rgba(255,92,36,0.015))] p-7 shadow-[0_30px_80px_-40px_rgba(255,92,36,0.6)] sm:p-8">
               <div className="pointer-events-none absolute -right-16 -top-16 size-48 rounded-full bg-[#FF5C24]/20 blur-3xl" />
@@ -1216,62 +1196,6 @@ fbq('track', 'PageView');`}
               </div>
             </Reveal>
 
-            {/* ULTRA */}
-            <Reveal className="flex flex-col rounded-[1.6rem] border border-white/10 bg-white/[0.025] p-7 sm:p-8">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/80">
-                  MAT Ultra
-                </p>
-                <span className="rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/60">
-                  Sin comisiones
-                </span>
-              </div>
-              <div className="mt-5 flex items-end gap-2">
-                <span className="text-4xl font-semibold tracking-[-0.04em]">
-                  {ultraPriceLabel ?? 'Consultar'}
-                </span>
-                {ultraPriceLabel ? (
-                  <span className="pb-1 text-sm text-white/55">/ mes</span>
-                ) : null}
-              </div>
-              <p className="mt-2 text-sm text-white/60">
-                MAT no se queda con nada de lo que cobrás a tus socios.
-              </p>
-
-              <div className="mt-6 grid gap-3">
-                {ultraFeatures.map((item) => (
-                  <div key={item} className="flex items-center gap-3 text-sm">
-                    <Check className="size-4 shrink-0 text-white/40" />
-                    <span className="text-white/75">{item}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-7 flex flex-1 flex-col justify-end gap-2">
-                {mercadoPagoCheckoutEnabled ? (
-                  <Button
-                    size="lg"
-                    onClick={() => setDialogMode('ultra')}
-                    className={subtleButtonClassName}
-                  >
-                    Suscribirme a Ultra
-                    <ArrowRight className="ml-2 size-4" />
-                  </Button>
-                ) : (
-                  <Button asChild size="lg" className={subtleButtonClassName}>
-                    <a
-                      href={whatsappHref}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => trackWhatsAppClick('pricing_card_ultra')}
-                    >
-                      Consultar activación
-                      <MessageCircle className="ml-2 size-4" />
-                    </a>
-                  </Button>
-                )}
-              </div>
-            </Reveal>
           </div>
         </section>
       </div>

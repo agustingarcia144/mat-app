@@ -1,10 +1,11 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 import schema from "./schema";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
   MEMBER_PAYMENT_POLICY_DISABLED,
+  PILOT_ONLY_MODULES,
   getOrganizationMemberPaymentPolicy,
   resolveAiAllowance,
   resolveMemberPaymentPolicy,
@@ -170,7 +171,10 @@ describe("MAT billing plan member-payment policy", () => {
   it("seeds ULTRA with MercadoPago on and no commission", async () => {
     const t = convexTest(schema, modules);
     const plan = await t.run(async (ctx) => {
-      const planId = (await upsertUltraPlan(ctx, 30_000)) as Id<"appBillingPlans">;
+      const planId = (await upsertUltraPlan(
+        ctx,
+        30_000,
+      )) as Id<"appBillingPlans">;
       return await ctx.db.get(planId);
     });
 
@@ -182,7 +186,9 @@ describe("MAT billing plan member-payment policy", () => {
     expect(computeCommissionArs(50_000, 0)).toBe(0);
   });
 
-  it("unlocks rewards on ULTRA and withholds them from PRO", async () => {
+  // Rewards and QR check-in are piloted per organization rather than sold with
+  // a tier, so seeding must not put them on any plan doc.
+  it("seeds no piloted module onto a plan", async () => {
     const t = convexTest(schema, modules);
     const { ultra, pro } = await t.run(async (ctx) => ({
       ultra: await ctx.db.get(
@@ -193,8 +199,12 @@ describe("MAT billing plan member-payment policy", () => {
       ),
     }));
 
-    expect(ultra!.entitlements.modules).toContain(REWARDS_MODULE);
-    expect(pro!.entitlements.modules).not.toContain(REWARDS_MODULE);
+    for (const plan of [ultra, pro]) {
+      for (const module of PILOT_ONLY_MODULES) {
+        expect(plan!.entitlements.modules).not.toContain(module);
+      }
+    }
+    expect(ultra!.entitlements.modules).not.toContain(REWARDS_MODULE);
     // Everything PRO unlocks stays unlocked on ULTRA.
     for (const module of pro!.entitlements.modules) {
       expect(ultra!.entitlements.modules).toContain(module);
@@ -294,7 +304,10 @@ describe("MAT billing plan member-payment policy", () => {
         },
       });
       // A price change re-seeds the doc; the policy must survive it.
-      const planId = (await upsertUltraPlan(ctx, 35_000)) as Id<"appBillingPlans">;
+      const planId = (await upsertUltraPlan(
+        ctx,
+        35_000,
+      )) as Id<"appBillingPlans">;
       return await ctx.db.get(planId);
     });
 
@@ -319,7 +332,7 @@ describe("MAT billing plan member-payment policy", () => {
         frequency: 1,
         frequencyType: "months",
         entitlements: {
-          modules: ["payments"],
+          modules: ["payments", "member_payments"],
           dashboardCards: ["payments"],
           memberPayments: {
             mercadoPagoEnabled: true,
@@ -353,6 +366,76 @@ describe("MAT billing plan member-payment policy", () => {
     expect(resolved.policy.platformFeeBps).toBe(150);
   });
 
+  // Charging members is piloted per gym, so the plan's policy is inert until
+  // the organization has the module. Checked here rather than in the UI: a gym
+  // admin can flip their own organizationSettings, and hiding a screen would
+  // not stop them.
+  it("disables member payments for an organization without the module", async () => {
+    const t = convexTest(schema, modules);
+    const organizationId = await seedOrganization(t);
+
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      const billingPlanId = await ctx.db.insert("appBillingPlans", {
+        key: "pro",
+        name: "PRO",
+        referencePriceUsd: 0,
+        priceCurrency: "ARS" as const,
+        priceArs: 50_000,
+        frequency: 1,
+        frequencyType: "months" as const,
+        entitlements: {
+          // The plan grants "payments" but not "member_payments".
+          modules: ["payments"],
+          dashboardCards: ["payments"],
+          memberPayments: {
+            mercadoPagoEnabled: true,
+            platformFeeBps: 150,
+            feeCollectionMode: "monthly_gym_invoice" as const,
+          },
+        },
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      await ctx.db.insert("organizationBillingSubscriptions", {
+        organizationId,
+        billingPlanId,
+        externalReference: "org_billing_ungated",
+        status: "authorized" as const,
+        entitlementStatus: "active" as const,
+        createdBy: "user_test",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const resolved = await t.run((ctx) =>
+      getOrganizationMemberPaymentPolicy(ctx, organizationId),
+    );
+    expect(resolved.policy).toEqual(MEMBER_PAYMENT_POLICY_DISABLED);
+
+    // Granting the module to this one gym turns the plan's policy on.
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("organizationModuleOverrides", {
+        organizationId,
+        module: "member_payments",
+        enabled: true,
+        grantedBy: "super_admin_test",
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    const granted = await t.run((ctx) =>
+      getOrganizationMemberPaymentPolicy(ctx, organizationId),
+    );
+    expect(granted.policy.platformFeeBps).toBe(150);
+    expect(granted.policy.mercadoPagoEnabled).toBe(true);
+  });
+
   it("disables member MercadoPago for an organization with no MAT subscription", async () => {
     const t = convexTest(schema, modules);
     const organizationId = await seedOrganization(t);
@@ -362,5 +445,110 @@ describe("MAT billing plan member-payment policy", () => {
     );
     expect(resolved.policy).toEqual(MEMBER_PAYMENT_POLICY_DISABLED);
     expect(resolved.billingPlanId).toBeUndefined();
+  });
+});
+
+describe("per-organization module overrides", () => {
+  async function seedSuperAdmin(
+    t: ReturnType<typeof convexTest>,
+    organizationId: Id<"organizations">,
+  ) {
+    const userId = `super_${Math.random()}`;
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("users", {
+        externalId: userId,
+        fullName: "Super Admin",
+        activeOrganizationId: organizationId,
+        isSuperAdmin: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+    return userId;
+  }
+
+  // A misspelled module would store a row that no gate can ever match, so the
+  // write is rejected rather than silently granting nothing.
+  it("rejects an unknown module", async () => {
+    const t = convexTest(schema, modules);
+    const organizationId = await seedOrganization(t);
+    const userId = await seedSuperAdmin(t, organizationId);
+
+    await expect(
+      t
+        .withIdentity({ subject: userId })
+        .mutation(api.appBillingPlans.setOrganizationModuleOverride, {
+          organizationId,
+          module: "check-in",
+          enabled: true,
+        }),
+    ).rejects.toThrow("UNKNOWN_MODULE");
+  });
+
+  it("refuses a caller who is not a super admin", async () => {
+    const t = convexTest(schema, modules);
+    const organizationId = await seedOrganization(t);
+    const userId = `plain_${Math.random()}`;
+    await t.run(async (ctx) => {
+      const now = Date.now();
+      await ctx.db.insert("users", {
+        externalId: userId,
+        fullName: "Admin del gym",
+        activeOrganizationId: organizationId,
+        createdAt: now,
+        updatedAt: now,
+      });
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: userId })
+        .mutation(api.appBillingPlans.setOrganizationModuleOverride, {
+          organizationId,
+          module: "check_in",
+          enabled: true,
+        }),
+    ).rejects.toThrow();
+  });
+
+  it("grants, revokes and clears back to the plan default", async () => {
+    const t = convexTest(schema, modules);
+    const organizationId = await seedOrganization(t);
+    const userId = await seedSuperAdmin(t, organizationId);
+    const asSuperAdmin = t.withIdentity({ subject: userId });
+
+    await asSuperAdmin.mutation(
+      api.appBillingPlans.setOrganizationModuleOverride,
+      { organizationId, module: "check_in", enabled: true },
+    );
+    let state = await asSuperAdmin.query(
+      api.appBillingPlans.listOrganizationModuleOverrides,
+      { organizationId },
+    );
+    expect(state.effectiveModules).toContain("check_in");
+
+    // Writing the same module again updates the row rather than adding one.
+    await asSuperAdmin.mutation(
+      api.appBillingPlans.setOrganizationModuleOverride,
+      { organizationId, module: "check_in", enabled: false },
+    );
+    state = await asSuperAdmin.query(
+      api.appBillingPlans.listOrganizationModuleOverrides,
+      { organizationId },
+    );
+    expect(state.overrides).toHaveLength(1);
+    expect(state.effectiveModules).not.toContain("check_in");
+
+    // null clears the exception entirely.
+    await asSuperAdmin.mutation(
+      api.appBillingPlans.setOrganizationModuleOverride,
+      { organizationId, module: "check_in", enabled: null },
+    );
+    state = await asSuperAdmin.query(
+      api.appBillingPlans.listOrganizationModuleOverrides,
+      { organizationId },
+    );
+    expect(state.overrides).toHaveLength(0);
   });
 });

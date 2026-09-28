@@ -27,6 +27,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import PlatformSummaryCards from "@/components/features/platform/platform-summary-cards";
 import RecordPaymentDialog from "@/components/features/platform/billing/record-payment-dialog";
 import PaymentHistoryDialog from "@/components/features/platform/billing/payment-history-dialog";
+import ModulesDialog from "@/components/features/platform/billing/modules-dialog";
 import {
   getColumns,
   getOrganizationInitials,
@@ -68,12 +69,16 @@ export default function OrganizationsTab() {
   const [historyTarget, setHistoryTarget] = useState<PlatformOrgRow | null>(
     null,
   );
+  const [modulesTarget, setModulesTarget] = useState<PlatformOrgRow | null>(
+    null,
+  );
 
   const columns = useMemo(
     () =>
       getColumns({
         onRecordPayment: setPaymentTarget,
         onViewPayments: setHistoryTarget,
+        onManageModules: setModulesTarget,
       }),
     [],
   );
@@ -203,6 +208,9 @@ export default function OrganizationsTab() {
                       <DropdownMenuItem onSelect={() => setHistoryTarget(org)}>
                         Ver pagos
                       </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setModulesTarget(org)}>
+                        Módulos
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -244,6 +252,11 @@ export default function OrganizationsTab() {
         organization={historyTarget}
         open={historyTarget !== null}
         onOpenChange={(open) => !open && setHistoryTarget(null)}
+      />
+      <ModulesDialog
+        organization={modulesTarget}
+        open={modulesTarget !== null}
+        onOpenChange={(open) => !open && setModulesTarget(null)}
       />
     </div>
   );

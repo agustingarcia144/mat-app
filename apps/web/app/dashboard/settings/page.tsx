@@ -72,6 +72,11 @@ export default function SettingsPage() {
   const updateOrganization = useMutation(api.organizations.updateCurrentOrganization);
   const generateLogoUploadUrl = useMutation(api.organizations.generateOrganizationLogoUploadUrl);
   const entitlement = useOrganizationEntitlement();
+  // Charging members through MercadoPago is still being piloted, so the connect
+  // block only appears for a gym that has the module. The server refuses to
+  // resolve a payment policy without it either way.
+  const hasMemberPayments =
+    entitlement?.modules.includes("member_payments") ?? false;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_STATE);
@@ -367,7 +372,9 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {canEdit ? <MemberPaymentsSettings canEdit={canEdit} /> : null}
+      {canEdit && hasMemberPayments ? (
+        <MemberPaymentsSettings canEdit={canEdit} />
+      ) : null}
 
       {entitlement &&
       (entitlement.planKey === "pro" ||

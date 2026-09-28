@@ -2,10 +2,19 @@
 
 ## What is implemented
 
-MAT Rewards is an organization-scoped attendance and loyalty capability. It is
-intentionally independent from LITE, PRO, and the future ULTRA plan. The future
-billing integration point is `rewardCapabilityEnabled` in
-`packages/convex/convex/rewardsDomain.ts`.
+MAT Rewards is an organization-scoped attendance and loyalty capability. It
+belongs to no billing plan: it reaches a gym through a per-organization module
+override, so it can be piloted with a handful of gyms.
+
+It is split across two modules, because QR entry is useful without a points
+programme and ships first:
+
+- `check_in` -- the reception scanner, the member's QR, and the Apple/Google
+  Wallet credential that carries it. Gate: `checkInCapabilityEnabled`.
+- `rewards` -- points, catalog, redemptions. Gate: `rewardCapabilityEnabled`.
+
+Both live in `packages/convex/convex/rewardsDomain.ts`. A gym with `check_in`
+and no `rewards` records check-ins that award zero points.
 
 The current release includes:
 
@@ -265,8 +274,9 @@ simulator.
 4. Configure Google Wallet and complete issuer review/device verification.
 5. Pilot with one gym and monitor denials, duplicates, Wallet failures, ledger
    discrepancies, and redemption issues.
-6. Attach `rewardCapabilityEnabled` to the future ULTRA entitlement only after
-   the isolated feature set and plan pricing are approved.
+6. Fold `check_in` and/or `rewards` into a plan's module array only once the
+   feature set and pricing are approved; until then they stay per-organization
+   grants in `organizationModuleOverrides`.
 
 ## Known manual dependencies
 

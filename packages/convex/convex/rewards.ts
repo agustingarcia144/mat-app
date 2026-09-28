@@ -16,7 +16,6 @@ import {
   tryActiveOrgContext,
 } from "./permissions";
 import {
-  getRewardSettings,
   resolveRewardSettings,
   resolveWalletCardDesign,
   type RewardSettings,
@@ -30,6 +29,8 @@ import {
   REWARD_ACCESS_CODES,
   rewardCapabilityEnabled,
   REWARDS_MODULE,
+  checkInCapabilityEnabled,
+  CHECK_IN_MODULE,
 } from "./rewardsDomain";
 import {
   getRewardsQrSecret,
@@ -38,7 +39,10 @@ import {
   signApplePassAuthenticationToken,
   signMobileQr,
 } from "./rewardsQr";
-import { organizationHasModule } from "./appBillingPlans";
+import {
+  getOrganizationModules,
+  organizationHasModule,
+} from "./appBillingPlans";
 import {
   buildJoinDateCycle,
   getPaymentTimezone,
@@ -206,14 +210,41 @@ async function requireRewardsEnabled(
   return resolveRewardSettings(settingsDocument?.rewards);
 }
 
-async function requireWalletEnabled(
-  ctx: { db: MutationCtx["db"] },
+/**
+ * The gate for getting through the door: the reception scanner, the member's
+ * QR, and the wallet pass that carries it.
+ *
+ * Deliberately independent of `requireRewardsEnabled` -- a gym running QR
+ * entry with no points programme passes this and fails that.
+ */
+async function requireCheckInEnabled(
+  ctx: { db: QueryCtx["db"] },
   organizationId: Id<"organizations">,
 ): Promise<RewardSettings> {
   const settingsDocument = await getSettingsDocument(ctx, organizationId);
-  const settings = resolveRewardSettings(settingsDocument?.rewards);
-  if (!settings.walletCard.enabled) throw new Error("WALLET_DISABLED");
-  return settings;
+  const entitled = await organizationHasModule(
+    ctx,
+    organizationId,
+    CHECK_IN_MODULE,
+  );
+  if (!checkInCapabilityEnabled(settingsDocument, entitled)) {
+    throw new Error("CHECK_IN_DISABLED");
+  }
+  return resolveRewardSettings(settingsDocument?.rewards);
+}
+
+/**
+ * Either module is enough: the attendance list is shown on the rewards page and
+ * produced by the check-in scanner, so an admin who can see it can correct it.
+ */
+async function requireCheckInOrRewards(
+  ctx: { db: QueryCtx["db"] },
+  organizationId: Id<"organizations">,
+): Promise<void> {
+  const modules = await getOrganizationModules(ctx, organizationId);
+  if (!modules.includes(REWARDS_MODULE) && !modules.includes(CHECK_IN_MODULE)) {
+    throw new Error("CHECK_IN_DISABLED");
+  }
 }
 
 async function getOrCreateAccount(
@@ -997,11 +1028,7 @@ export const getMyRewards = query({
     return {
       enabled: rewardCapabilityEnabled(
         settingsDocument,
-        await organizationHasModule(
-          ctx,
-          orgCtx.organizationId,
-          REWARDS_MODULE,
-        ),
+        await organizationHasModule(ctx, orgCtx.organizationId, REWARDS_MODULE),
       ),
       configured: Boolean(settingsDocument?.rewards),
       settings,
@@ -1066,7 +1093,7 @@ export const issueMyMobileQr = mutation({
   handler: async (ctx) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
     if (membership.role !== "member") throw new Error("MEMBER_REQUIRED");
-    await requireRewardsEnabled(ctx, membership.organizationId);
+    await requireCheckInEnabled(ctx, membership.organizationId);
     if (!getRewardsQrSecret())
       throw new Error("REWARDS_QR_CONFIGURATION_REQUIRED");
     let credential = await ctx.db
@@ -1142,10 +1169,19 @@ export const getMyWalletPassPreview = query({
       membership.userId,
     );
 
+    // A query the wallet screen renders from, so an organization without the
+    // module reports the pass as unavailable rather than throwing.
+    const entitledModules = await getOrganizationModules(
+      ctx,
+      membership.organizationId,
+    );
+    const checkInEntitled = entitledModules.includes(CHECK_IN_MODULE);
+    const rewardsEntitled = entitledModules.includes(REWARDS_MODULE);
+
     return {
       available:
         membership.role === "member" &&
-        settings.walletCard.enabled &&
+        checkInCapabilityEnabled(settingsDocument, checkInEntitled) &&
         Boolean(getRewardsQrSecret()),
       providers: {
         apple: Boolean(
@@ -1167,7 +1203,7 @@ export const getMyWalletPassPreview = query({
         user?.fullName ??
         (`${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() ||
           "Socio MAT"),
-      balance: account?.balance ?? 0,
+      balance: rewardsEntitled ? (account?.balance ?? 0) : 0,
       pointsName: settings.pointsName,
       membershipStatus: access.allowed
         ? "Activa"
@@ -1182,7 +1218,9 @@ export const getMyWalletPassPreview = query({
         gradientStartColor: walletDesign.gradientStartColor,
         gradientEndColor: walletDesign.gradientEndColor,
         gradientAngle: walletDesign.gradientAngle,
-        showPoints: walletDesign.showPoints,
+        // A gym running check-in without the points programme has no balance
+        // worth printing on the pass, whatever the designer was left set to.
+        showPoints: walletDesign.showPoints && rewardsEntitled,
         logoText: walletDesign.apple?.logoText,
         foregroundColor: walletDesign.apple?.foregroundColor,
         labelColor: walletDesign.apple?.labelColor,
@@ -1199,7 +1237,10 @@ export const prepareMyWalletPass = internalMutation({
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
     if (membership.role !== "member") throw new Error("MEMBER_REQUIRED");
-    const settings = await requireWalletEnabled(ctx, membership.organizationId);
+    const settings = await requireCheckInEnabled(
+      ctx,
+      membership.organizationId,
+    );
     if (!getRewardsQrSecret())
       throw new Error("REWARDS_QR_CONFIGURATION_REQUIRED");
     let credential = await ctx.db
@@ -1848,8 +1889,20 @@ export const scanQr = mutation({
         decisionExpiresAt: now + ACCESS_DECISION_TTL_MS,
       };
     }
-    const settings = await getRewardSettings(ctx, staff.organizationId);
-    if (!settings.enabled) {
+    // Gated on check-in, not on the points programme: a gym can run QR entry
+    // with rewards switched off entirely, in which case the scan below still
+    // records and simply awards nothing.
+    const settingsDocument = await getSettingsDocument(
+      ctx,
+      staff.organizationId,
+    );
+    const settings = resolveRewardSettings(settingsDocument?.rewards);
+    const checkInEntitled = await organizationHasModule(
+      ctx,
+      staff.organizationId,
+      CHECK_IN_MODULE,
+    );
+    if (!checkInCapabilityEnabled(settingsDocument, checkInEntitled)) {
       return {
         allowed: false,
         actuateAccess: false,
@@ -2061,6 +2114,7 @@ export const linkReservationToCheckIn = mutation({
   handler: async (ctx, args) => {
     const staff = await requireCurrentOrganizationMembership(ctx);
     await requireAdminOrTrainer(ctx, staff.organizationId);
+    await requireCheckInEnabled(ctx, staff.organizationId);
     const [checkIn, reservation] = await Promise.all([
       ctx.db.get(args.checkInId),
       ctx.db.get(args.reservationId),
@@ -2115,6 +2169,9 @@ export const getAdminDashboard = query({
   handler: async (ctx) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdmin(ctx, membership.organizationId);
+    // Feeds two screens gated by different modules: the rewards admin page and
+    // the wallet card designer.
+    await requireCheckInOrRewards(ctx, membership.organizationId);
     const settingsDocument = await getSettingsDocument(
       ctx,
       membership.organizationId,
@@ -2564,6 +2621,7 @@ export const rotateCredential = mutation({
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdmin(ctx, membership.organizationId);
+    await requireCheckInEnabled(ctx, membership.organizationId);
     const target = await ctx.db
       .query("organizationMemberships")
       .withIndex("by_organization_user", (q) =>
@@ -2630,6 +2688,7 @@ export const voidCheckIn = mutation({
   handler: async (ctx, args) => {
     const membership = await requireCurrentOrganizationMembership(ctx);
     await requireAdmin(ctx, membership.organizationId);
+    await requireCheckInOrRewards(ctx, membership.organizationId);
     const checkIn = await ctx.db.get(args.id);
     if (!checkIn || checkIn.organizationId !== membership.organizationId) {
       throw new Error("Asistencia no encontrada");
