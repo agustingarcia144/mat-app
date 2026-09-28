@@ -359,7 +359,41 @@ function ExerciseProgressSection({ exerciseId }: { exerciseId: string }) {
     exerciseId: exerciseId as any,
   })
 
-  if (!progress || progress.length === 0) return null
+  if (progress === undefined) {
+    return (
+      <View
+        style={[
+          styles.section,
+          {
+            borderTopColor: isDark
+              ? 'rgba(255,255,255,0.08)'
+              : 'rgba(0,0,0,0.08)',
+          },
+        ]}
+      >
+        <ThemedText style={styles.sectionLabel}>Progreso</ThemedText>
+        <View
+          style={[
+            styles.progressLoading,
+            {
+              backgroundColor: isDark
+                ? 'rgba(255,255,255,0.04)'
+                : 'rgba(0,0,0,0.03)',
+            },
+          ]}
+          accessibilityRole="progressbar"
+          accessibilityLabel="Cargando progreso"
+        >
+          <ActivityIndicator color={isDark ? '#a1a1aa' : '#71717a'} />
+          <ThemedText style={styles.progressLoadingText}>
+            Cargando progreso…
+          </ThemedText>
+        </View>
+      </View>
+    )
+  }
+
+  if (progress.length === 0) return null
 
   const barColor = isDark ? '#60a5fa' : '#3b82f6'
   const labelColor = isDark ? '#71717a' : '#71717a'
@@ -628,6 +662,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chartWrap: {},
+  progressLoading: {
+    // Matches the chart's footprint (150px plot + x-axis labels) so the
+    // layout doesn't jump when the data arrives.
+    height: 180,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  progressLoadingText: {
+    fontSize: 13,
+    opacity: 0.6,
+  },
   androidProgressList: {
     gap: 10,
   },
