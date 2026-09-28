@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import {
   requireActiveOrgContext,
   requireAuth,
@@ -229,6 +230,26 @@ export const getProgressByExercise = query({
 
     if (dayExercises.length === 0) return [];
 
+    // Group the exercise's dayExercises by workout day so we only look at the
+    // current user's sessions for those days. Walking every log of every
+    // dayExercise (all members of the gym) grows with the whole organization's
+    // history and eventually exceeds Convex's read limits, making the query
+    // throw on the client.
+    const dayExerciseIdsByWorkoutDay = new Map<string, Id<"dayExercises">[]>();
+    for (const dayEx of dayExercises) {
+      const key = String(dayEx.workoutDayId);
+      const ids = dayExerciseIdsByWorkoutDay.get(key) ?? [];
+      ids.push(dayEx._id);
+      dayExerciseIdsByWorkoutDay.set(key, ids);
+    }
+
+    const sessions = await ctx.db
+      .query("workoutDaySessions")
+      .withIndex("by_user_performedOn", (q) =>
+        q.eq("userId", identity.subject),
+      )
+      .collect();
+
     const entries: {
       performedOn: string;
       reps?: string;
@@ -237,18 +258,22 @@ export const getProgressByExercise = query({
       sets: number;
     }[] = [];
 
-    for (const dayEx of dayExercises) {
-      const logs = await ctx.db
-        .query("sessionExerciseLogs")
-        .withIndex("by_dayExercise", (q) => q.eq("dayExerciseId", dayEx._id))
-        .collect();
+    for (const session of sessions) {
+      if (session.organizationId !== organizationId) continue;
+      if (session.status !== "completed") continue;
+      const dayExerciseIds = dayExerciseIdsByWorkoutDay.get(
+        String(session.workoutDayId),
+      );
+      if (!dayExerciseIds) continue;
 
-      for (const log of logs) {
-        const session = await ctx.db.get(log.sessionId);
-        if (!session) continue;
-        if (session.userId !== identity.subject) continue;
-        if (session.organizationId !== organizationId) continue;
-        if (session.status !== "completed") continue;
+      for (const dayExerciseId of dayExerciseIds) {
+        const log = await ctx.db
+          .query("sessionExerciseLogs")
+          .withIndex("by_session_dayExercise", (q) =>
+            q.eq("sessionId", session._id).eq("dayExerciseId", dayExerciseId),
+          )
+          .first();
+        if (!log) continue;
 
         entries.push({
           performedOn: session.performedOn,

@@ -113,8 +113,6 @@ export default function ExerciseDetailContent() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
   const cardBg = useThemeColor({}, 'background')
-  const [activeMetric, setActiveMetric] = useState<Metric>('weight')
-
   const exercise = useQuery(
     api.exercises.getById,
     exerciseId ? { id: exerciseId as any } : 'skip'
@@ -122,10 +120,6 @@ export default function ExerciseDetailContent() {
   const dayExercise = useQuery(
     api.dayExercises.getById,
     dayExerciseId ? { id: dayExerciseId as any } : 'skip'
-  )
-  const progress = useQuery(
-    api.sessionExerciseLogs.getProgressByExercise,
-    exerciseId ? { exerciseId: exerciseId as any } : 'skip'
   )
   const youtubeVideoId = useMemo(() => {
     if (!exercise?.videoUrl) return null
@@ -321,154 +315,192 @@ export default function ExerciseDetailContent() {
           </View>
         )}
 
-        {progress != null &&
-          progress.length > 0 &&
-          (() => {
-            const barColor = isDark ? '#60a5fa' : '#3b82f6'
-            const labelColor = isDark ? '#71717a' : '#71717a'
-            const valueColor = isDark ? '#e4e4e7' : '#18181b'
-            const ruleColor = isDark
-              ? 'rgba(255,255,255,0.07)'
-              : 'rgba(0,0,0,0.07)'
-            const axisColor = isDark
-              ? 'rgba(255,255,255,0.12)'
-              : 'rgba(0,0,0,0.12)'
-            const textColor = isDark ? '#a1a1aa' : '#71717a'
-
-            const hasWeight = progress.some((e) =>
-              hasPositive(parseNums(e.weight))
-            )
-            const hasReps = progress.some((e) => hasPositive(parseNums(e.reps)))
-            const hasTime = progress.some((e) =>
-              hasPositive(parseNums(e.timeSeconds))
-            )
-
-            const availableMetrics: { key: Metric; label: string }[] = []
-            if (hasWeight)
-              availableMetrics.push({ key: 'weight', label: 'Peso' })
-            if (hasReps) availableMetrics.push({ key: 'reps', label: 'Reps' })
-            if (hasTime) availableMetrics.push({ key: 'time', label: 'Tiempo' })
-
-            if (availableMetrics.length === 0) return null
-
-            const metric = availableMetrics.some((m) => m.key === activeMetric)
-              ? activeMetric
-              : availableMetrics[0].key
-
-            const unitLabel =
-              metric === 'weight' ? 'kg' : metric === 'reps' ? 'rep' : 's'
-            const bars = buildBars(
-              progress,
-              metric,
-              barColor,
-              labelColor,
-              valueColor
-            )
-            const dataMax = bars.reduce((m, b) => Math.max(m, b.value), 0)
-            // Pick a clean step and round up so the chart top is a nice number
-            const step =
-              dataMax <= 10 ? 2 : dataMax <= 30 ? 5 : dataMax <= 100 ? 10 : 20
-            const maxValue = Math.ceil(dataMax / step) * step + step
-            const noOfSections = maxValue / step
-
-            return (
-              <View
-                style={[
-                  styles.section,
-                  {
-                    borderTopColor: isDark
-                      ? 'rgba(255,255,255,0.08)'
-                      : 'rgba(0,0,0,0.08)',
-                  },
-                ]}
-              >
-                <ThemedText style={styles.sectionLabel}>
-                  Progreso{unitLabel ? ` (${unitLabel})` : ''}
-                </ThemedText>
-
-                {availableMetrics.length > 1 && (
-                  <View style={styles.metricTabs}>
-                    {availableMetrics.map(({ key, label }) => (
-                      <Pressable
-                        key={key}
-                        onPress={() => setActiveMetric(key)}
-                        style={[
-                          styles.metricTab,
-                          metric === key && {
-                            backgroundColor: isDark ? '#3b82f6' : '#3b82f6',
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.metricTabText,
-                            { color: metric === key ? '#fff' : textColor },
-                          ]}
-                        >
-                          {label}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-
-                <View style={styles.chartWrap}>
-                  {Platform.OS === 'ios' ? (
-                    <BarChart
-                      data={bars}
-                      width={CHART_WIDTH}
-                      height={150}
-                      initialSpacing={8}
-                      maxValue={maxValue}
-                      noOfSections={noOfSections}
-                      hideYAxisText
-                      yAxisLabelWidth={0}
-                      xAxisLabelTextStyle={{ color: labelColor, fontSize: 9 }}
-                      rulesColor={ruleColor}
-                      yAxisColor="transparent"
-                      xAxisColor={axisColor}
-                      hideRules={false}
-                      showValuesAsTopLabel
-                      topLabelTextStyle={{
-                        fontSize: 11,
-                        color: valueColor,
-                        fontWeight: '600',
-                      }}
-                      isAnimated
-                      animationDuration={400}
-                      barBorderRadius={3}
-                    />
-                  ) : (
-                    <View style={styles.androidProgressList}>
-                      {bars.map((bar, i) => (
-                        <View key={i} style={styles.androidProgressRow}>
-                          <Text
-                            style={[
-                              styles.androidProgressLabel,
-                              { color: textColor },
-                            ]}
-                          >
-                            {bar.label}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.androidProgressValue,
-                              { color: valueColor },
-                            ]}
-                          >
-                            {bar.value} {unitLabel}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              </View>
-            )
-          })()}
+        {exerciseId && (
+          <ProgressErrorBoundary>
+            <ExerciseProgressSection exerciseId={exerciseId} />
+          </ProgressErrorBoundary>
+        )}
         </View>
       </ScrollView>
     </ThemedView>
+  )
+}
+
+/**
+ * Isolated so a slow or failing progress query (or a chart render error) only
+ * hides this section instead of throwing out of the whole exercise screen,
+ * which in release builds crashes the app — including while the video sheet
+ * is presented on top of it.
+ */
+class ProgressErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: unknown) {
+    console.warn('[exercise-progress]', error)
+  }
+
+  render() {
+    return this.state.hasError ? null : this.props.children
+  }
+}
+
+function ExerciseProgressSection({ exerciseId }: { exerciseId: string }) {
+  const colorScheme = useColorScheme()
+  const isDark = colorScheme === 'dark'
+  const [activeMetric, setActiveMetric] = useState<Metric>('weight')
+  const progress = useQuery(api.sessionExerciseLogs.getProgressByExercise, {
+    exerciseId: exerciseId as any,
+  })
+
+  if (!progress || progress.length === 0) return null
+
+  const barColor = isDark ? '#60a5fa' : '#3b82f6'
+  const labelColor = isDark ? '#71717a' : '#71717a'
+  const valueColor = isDark ? '#e4e4e7' : '#18181b'
+  const ruleColor = isDark
+    ? 'rgba(255,255,255,0.07)'
+    : 'rgba(0,0,0,0.07)'
+  const axisColor = isDark
+    ? 'rgba(255,255,255,0.12)'
+    : 'rgba(0,0,0,0.12)'
+  const textColor = isDark ? '#a1a1aa' : '#71717a'
+
+  const hasWeight = progress.some((e) =>
+    hasPositive(parseNums(e.weight))
+  )
+  const hasReps = progress.some((e) => hasPositive(parseNums(e.reps)))
+  const hasTime = progress.some((e) =>
+    hasPositive(parseNums(e.timeSeconds))
+  )
+
+  const availableMetrics: { key: Metric; label: string }[] = []
+  if (hasWeight)
+    availableMetrics.push({ key: 'weight', label: 'Peso' })
+  if (hasReps) availableMetrics.push({ key: 'reps', label: 'Reps' })
+  if (hasTime) availableMetrics.push({ key: 'time', label: 'Tiempo' })
+
+  if (availableMetrics.length === 0) return null
+
+  const metric = availableMetrics.some((m) => m.key === activeMetric)
+    ? activeMetric
+    : availableMetrics[0].key
+
+  const unitLabel =
+    metric === 'weight' ? 'kg' : metric === 'reps' ? 'rep' : 's'
+  const bars = buildBars(
+    progress,
+    metric,
+    barColor,
+    labelColor,
+    valueColor
+  )
+  const dataMax = bars.reduce((m, b) => Math.max(m, b.value), 0)
+  // Pick a clean step and round up so the chart top is a nice number
+  const step =
+    dataMax <= 10 ? 2 : dataMax <= 30 ? 5 : dataMax <= 100 ? 10 : 20
+  const maxValue = Math.ceil(dataMax / step) * step + step
+  const noOfSections = maxValue / step
+
+  return (
+    <View
+      style={[
+        styles.section,
+        {
+          borderTopColor: isDark
+            ? 'rgba(255,255,255,0.08)'
+            : 'rgba(0,0,0,0.08)',
+        },
+      ]}
+    >
+      <ThemedText style={styles.sectionLabel}>
+        Progreso{unitLabel ? ` (${unitLabel})` : ''}
+      </ThemedText>
+
+      {availableMetrics.length > 1 && (
+        <View style={styles.metricTabs}>
+          {availableMetrics.map(({ key, label }) => (
+            <Pressable
+              key={key}
+              onPress={() => setActiveMetric(key)}
+              style={[
+                styles.metricTab,
+                metric === key && {
+                  backgroundColor: isDark ? '#3b82f6' : '#3b82f6',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.metricTabText,
+                  { color: metric === key ? '#fff' : textColor },
+                ]}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.chartWrap}>
+        {Platform.OS === 'ios' ? (
+          <BarChart
+            data={bars}
+            width={CHART_WIDTH}
+            height={150}
+            initialSpacing={8}
+            maxValue={maxValue}
+            noOfSections={noOfSections}
+            hideYAxisText
+            yAxisLabelWidth={0}
+            xAxisLabelTextStyle={{ color: labelColor, fontSize: 9 }}
+            rulesColor={ruleColor}
+            yAxisColor="transparent"
+            xAxisColor={axisColor}
+            hideRules={false}
+            showValuesAsTopLabel
+            topLabelTextStyle={{
+              fontSize: 11,
+              color: valueColor,
+              fontWeight: '600',
+            }}
+            isAnimated
+            animationDuration={400}
+            barBorderRadius={3}
+          />
+        ) : (
+          <View style={styles.androidProgressList}>
+            {bars.map((bar, i) => (
+              <View key={i} style={styles.androidProgressRow}>
+                <Text
+                  style={[
+                    styles.androidProgressLabel,
+                    { color: textColor },
+                  ]}
+                >
+                  {bar.label}
+                </Text>
+                <Text
+                  style={[
+                    styles.androidProgressValue,
+                    { color: valueColor },
+                  ]}
+                >
+                  {bar.value} {unitLabel}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
   )
 }
 
