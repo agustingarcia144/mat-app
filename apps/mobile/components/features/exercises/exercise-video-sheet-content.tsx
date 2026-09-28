@@ -28,6 +28,7 @@ export default function ExerciseVideoSheetContent() {
   const isDark = colorScheme === "dark";
   const insets = useSafeAreaInsets();
   const [isPlaying, setIsPlaying] = useState(true);
+  const [hasPlayerError, setHasPlayerError] = useState(false);
 
   const exercise = useQuery(
     api.exercises.getById,
@@ -40,7 +41,7 @@ export default function ExerciseVideoSheetContent() {
   }, [exercise?.videoUrl]);
 
   const openVideo = useCallback(() => {
-    if (exercise?.videoUrl) Linking.openURL(exercise.videoUrl);
+    if (exercise?.videoUrl) Linking.openURL(exercise.videoUrl).catch(() => {});
   }, [exercise?.videoUrl]);
 
   const onPlayerStateChange = useCallback(
@@ -59,10 +60,13 @@ export default function ExerciseVideoSheetContent() {
     [router],
   );
 
+  // Fall back to the in-sheet "Abrir en YouTube" state instead of dismissing
+  // the sheet and opening another app in the same tick, which tears down the
+  // WebView while it is still dispatching the error event.
   const onPlayerError = useCallback(() => {
-    router.back();
-    openVideo();
-  }, [openVideo, router]);
+    setIsPlaying(false);
+    setHasPlayerError(true);
+  }, []);
 
   if (exercise === undefined) {
     return (
@@ -72,7 +76,7 @@ export default function ExerciseVideoSheetContent() {
     );
   }
 
-  if (!exercise || !youtubeVideoId) {
+  if (!exercise || !youtubeVideoId || hasPlayerError) {
     return (
       <ThemedView style={[styles.container, styles.centered]}>
         <EmptyState
