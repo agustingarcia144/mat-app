@@ -360,7 +360,8 @@ export default defineSchema({
   })
     .index("by_organization", ["organizationId"])
     .index("by_category", ["category"])
-    .index("by_organization_category", ["organizationId", "category"]),
+    .index("by_organization_category", ["organizationId", "category"])
+    .index("by_isStandard", ["isStandard"]),
 
   // Folders - Tree structure for organizing planifications
   folders: defineTable({

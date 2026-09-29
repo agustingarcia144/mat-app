@@ -33,6 +33,7 @@ export default function ExerciseSelector({
   className,
 }: ExerciseSelectorProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -43,8 +44,17 @@ export default function ExerciseSelector({
     equipment: [] as string[],
   };
 
+  // Debounce so each keystroke doesn't open a new query subscription.
+  useEffect(() => {
+    const timeout = setTimeout(
+      () => setDebouncedSearchTerm(searchTerm.trim()),
+      300,
+    );
+    return () => clearTimeout(timeout);
+  }, [searchTerm]);
+
   const exercises = useQuery(api.exercises.search, {
-    searchTerm,
+    searchTerm: debouncedSearchTerm,
     category: selectedCategories.length > 0 ? selectedCategories : undefined,
     equipment: selectedEquipment.length > 0 ? selectedEquipment : undefined,
   });
