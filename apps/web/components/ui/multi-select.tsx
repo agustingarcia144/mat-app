@@ -11,7 +11,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 export interface MultiSelectOption {
   value: string;
@@ -80,8 +79,11 @@ export function MultiSelect({
           className="w-(--radix-popover-trigger-width) p-0"
           align="start"
         >
-          <ScrollArea style={{ maxHeight }}>
-            <div className="p-1">
+          <div
+            className="overflow-y-auto overscroll-contain p-1"
+            style={{ maxHeight }}
+          >
+            <div>
               {options.map((opt) => {
                 const isChecked = value.includes(opt.value);
                 return (
@@ -111,7 +113,7 @@ export function MultiSelect({
                 );
               })}
             </div>
-          </ScrollArea>
+          </div>
         </PopoverContent>
       </Popover>
     </div>

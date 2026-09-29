@@ -135,7 +135,7 @@ export const getByOrganization = query({
 
     const standardExercises = await ctx.db
       .query("exercises")
-      .filter((q) => q.eq(q.field("isStandard"), true))
+      .withIndex("by_isStandard", (q) => q.eq("isStandard", true))
       .collect();
 
     const exercisesById = new Map(
@@ -169,7 +169,7 @@ export const search = query({
       .collect();
     const standardExercises = await ctx.db
       .query("exercises")
-      .filter((q) => q.eq(q.field("isStandard"), true))
+      .withIndex("by_isStandard", (q) => q.eq("isStandard", true))
       .collect();
 
     const exercisesById = new Map(
@@ -203,18 +203,27 @@ export const search = query({
       );
     }
     if (args.searchTerm) {
-      const term = args.searchTerm.toLowerCase();
+      const term = normalizeSearchText(args.searchTerm);
 
       exercises = exercises.filter(
         (e) =>
-          e.name.toLowerCase().includes(term) ||
-          e.description?.toLowerCase().includes(term) ||
-          e.muscleGroups.some((m) => m.toLowerCase().includes(term)),
+          normalizeSearchText(e.name).includes(term) ||
+          (e.description &&
+            normalizeSearchText(e.description).includes(term)) ||
+          e.muscleGroups.some((m) => normalizeSearchText(m).includes(term)),
       );
     }
     return exercises.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
+
+/** Lowercase and strip accents/diacritics so searches ignore them. */
+function normalizeSearchText(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f\u00b4`]/g, "")
+    .toLowerCase();
+}
 
 /**
  * List distinct categories and equipment for the current org (for filter badges)
@@ -233,7 +242,7 @@ export const listFacets = query({
       .collect();
     const standardExercises = await ctx.db
       .query("exercises")
-      .filter((q) => q.eq(q.field("isStandard"), true))
+      .withIndex("by_isStandard", (q) => q.eq("isStandard", true))
       .collect();
 
     const exercisesById = new Map(
