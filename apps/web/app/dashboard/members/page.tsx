@@ -141,18 +141,16 @@ export default function MembersPage() {
       }
     }
 
-    const currentPaymentBySubscription = new Map<string, any>()
+    const latestPaymentBySubscriptionPeriod = new Map<string, any>()
 
     for (const payment of payments ?? []) {
-      if (payment.billingPeriod !== currentBillingPeriod) continue
-
-      const key = String(payment.subscriptionId)
-      const previous = currentPaymentBySubscription.get(key)
+      const key = `${payment.subscriptionId}:${payment.billingPeriod}`
+      const previous = latestPaymentBySubscriptionPeriod.get(key)
       const previousUpdatedAt = previous?.updatedAt ?? previous?.createdAt ?? 0
       const currentUpdatedAt = payment.updatedAt ?? payment.createdAt ?? 0
 
       if (!previous || currentUpdatedAt > previousUpdatedAt) {
-        currentPaymentBySubscription.set(key, payment)
+        latestPaymentBySubscriptionPeriod.set(key, payment)
       }
     }
 
@@ -161,8 +159,14 @@ export default function MembersPage() {
       const billingSubscriptionId = subscription
         ? String(subscription.billingSubscriptionId ?? subscription._id)
         : null
+      // Join-date plans run from anchor day to anchor day, so the current
+      // period can still be last month's; the backend resolves it per plan.
+      const subscriptionBillingPeriod =
+        subscription?.currentBillingPeriod ?? currentBillingPeriod
       const currentPayment = billingSubscriptionId
-        ? currentPaymentBySubscription.get(billingSubscriptionId)
+        ? latestPaymentBySubscriptionPeriod.get(
+            `${billingSubscriptionId}:${subscriptionBillingPeriod}`
+          )
         : null
 
       const assignedPlanName = subscription?.plan?.name ?? 'Sin Plan'
