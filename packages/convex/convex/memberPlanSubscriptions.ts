@@ -274,6 +274,10 @@ export const getByOrganization = query({
           )
           .collect();
 
+    const organization = await ctx.db.get(membership.organizationId);
+    const timezone = getPaymentTimezone(organization?.timezone);
+    const now = Date.now();
+
     return await Promise.all(
       subscriptions.map(async (sub) => {
         const [plan, user, familySubscriptions] = await Promise.all([
@@ -303,10 +307,29 @@ export const getByOrganization = query({
               return relatedUser?.fullName ?? relatedUser?.email ?? item.userId;
             }),
         );
+        // Payments live on the primary subscription, so its plan and activation
+        // day decide which billing period is current. A join-date cycle that
+        // started last month (e.g. the 15th to the 15th) is still the current
+        // one until the anchor day comes around again.
+        const billingPlan =
+          primarySubscription.planId === sub.planId
+            ? plan
+            : await ctx.db.get(
+                primarySubscription.planId as Id<"membershipPlans">,
+              );
+        const currentBillingPeriod = billingPlan
+          ? getBillingCycle(
+              billingPlan,
+              primarySubscription.activatedAt,
+              now,
+              timezone,
+            ).billingPeriod
+          : null;
         return {
           ...sub,
           plan,
           billingSubscriptionId: primarySubscription._id,
+          currentBillingPeriod,
           coveredMemberCount: memberCount,
           familyAssociatedNames,
           payableAmountArs: plan ? plan.priceArs * memberCount : 0,
