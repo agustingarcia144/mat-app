@@ -32,6 +32,7 @@ import {
   CalendarClock,
   List,
   CalendarPlus,
+  MoreHorizontal,
   Wallet,
   CreditCard,
   RefreshCw,
@@ -48,6 +49,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -1160,8 +1172,8 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
           </div>
 
           {/* RIGHT */}
-          <div className="flex flex-col gap-4 rounded-lg border p-3 sm:p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <div className="flex flex-col gap-4 rounded-lg border p-3 sm:p-4 lg:self-start">
+            <div className="flex flex-col gap-3">
               <div className="min-w-0 space-y-1">
                 {assignments === undefined ? (
                   <div className="text-sm text-muted-foreground">
@@ -1183,16 +1195,78 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                       </Button>
 
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-semibold">
-                          {assignment.planification?.name ??
-                            "Planificación sin nombre"}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="truncate font-semibold">
+                              {assignment.planification?.name ??
+                                "Planificación sin nombre"}
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {assignment.planification?.name ??
+                              "Planificación sin nombre"}
+                          </TooltipContent>
+                        </Tooltip>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                          {visibleAssignments.length > 1 && (
+                            <span className="text-muted-foreground">
+                              {selectedAssignmentIndex + 1} de{" "}
+                              {visibleAssignments.length} asignadas
+                            </span>
+                          )}
+
+                          {hasCurrentActiveAssignment &&
+                          assignment._id !== activeAssignment?._id &&
+                          planStatus?.status === "expired" ? (
+                            <Badge variant="secondary">Anterior</Badge>
+                          ) : hasCurrentActiveAssignment &&
+                            assignment._id !== activeAssignment?._id &&
+                            planStatus?.status === "not_started" ? (
+                            <Badge variant="secondary">Próxima</Badge>
+                          ) : assignment.status === "completed" ? (
+                            <Badge variant="secondary">Completada</Badge>
+                          ) : (
+                            planStatus && (
+                              <>
+                                {planStatus.status === "active" && (
+                                  <>
+                                    <Badge className="bg-green-500/20 text-green-400 border border-green-500/40">
+                                      Activa
+                                    </Badge>
+                                    <Badge variant="secondary">
+                                      {planStatus.daysLeft} día
+                                      {planStatus.daysLeft !== 1 && "s"}{" "}
+                                      restantes
+                                    </Badge>
+                                  </>
+                                )}
+
+                                {planStatus.status === "expiring_soon" && (
+                                  <>
+                                    <Badge className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
+                                      Por vencer
+                                    </Badge>
+                                    <Badge variant="secondary">
+                                      {planStatus.daysLeft} día
+                                      {planStatus.daysLeft !== 1 && "s"}{" "}
+                                      restantes
+                                    </Badge>
+                                  </>
+                                )}
+
+                                {planStatus.status === "expired" && (
+                                  <Badge className="bg-red-500/20 text-red-400 border border-red-500/40">
+                                    Vencida
+                                  </Badge>
+                                )}
+
+                                {planStatus.status === "not_started" && (
+                                  <Badge variant="secondary">No iniciada</Badge>
+                                )}
+                              </>
+                            )
+                          )}
                         </div>
-                        {visibleAssignments.length > 1 && (
-                          <p className="text-xs text-muted-foreground">
-                            {selectedAssignmentIndex + 1} de{" "}
-                            {visibleAssignments.length} asignadas
-                          </p>
-                        )}
                       </div>
 
                       <Button
@@ -1210,71 +1284,15 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                         <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
-
-                    {hasCurrentActiveAssignment &&
-                    assignment._id !== activeAssignment?._id &&
-                    planStatus?.status === "expired" ? (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <Badge variant="secondary">Anterior</Badge>
-                      </div>
-                    ) : hasCurrentActiveAssignment &&
-                      assignment._id !== activeAssignment?._id &&
-                      planStatus?.status === "not_started" ? (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <Badge variant="secondary">Próxima</Badge>
-                      </div>
-                    ) : assignment.status === "completed" ? (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        <Badge variant="secondary">Completada</Badge>
-                      </div>
-                    ) : (
-                      planStatus && (
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {planStatus.status === "active" && (
-                            <>
-                              <Badge className="bg-green-500/20 text-green-400 border border-green-500/40">
-                                Activa
-                              </Badge>
-                              <Badge variant="secondary">
-                                {planStatus.daysLeft} día
-                                {planStatus.daysLeft !== 1 && "s"} restantes
-                              </Badge>
-                            </>
-                          )}
-
-                          {planStatus.status === "expiring_soon" && (
-                            <>
-                              <Badge className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">
-                                Por vencer
-                              </Badge>
-                              <Badge variant="secondary">
-                                {planStatus.daysLeft} día
-                                {planStatus.daysLeft !== 1 && "s"} restantes
-                              </Badge>
-                            </>
-                          )}
-
-                          {planStatus.status === "expired" && (
-                            <Badge className="bg-red-500/20 text-red-400 border border-red-500/40">
-                              Vencida
-                            </Badge>
-                          )}
-
-                          {planStatus.status === "not_started" && (
-                            <Badge variant="secondary">No iniciada</Badge>
-                          )}
-                        </div>
-                      )
-                    )}
                   </>
                 ) : (
                   <Badge variant="secondary">Sin planificación</Badge>
                 )}
               </div>
 
-              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+              <div className="flex items-center justify-between gap-2">
                 {selectedStartDate && selectedEndDate && (
-                  <div className="inline-flex self-start rounded-md border bg-background p-0.5 sm:self-auto">
+                  <div className="inline-flex rounded-md border bg-background p-0.5">
                     <Button
                       type="button"
                       size="sm"
@@ -1300,43 +1318,41 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                   </div>
                 )}
 
-                {assignment && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleViewPlan}
-                    className="w-full sm:w-auto"
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    Ver
-                  </Button>
-                )}
-
-                {currentPlanAssignment && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleOpenExtendPlan}
-                    className="flex w-full items-center gap-2 sm:w-auto"
-                  >
-                    <CalendarClock className="h-4 w-4" />
-                    Extender
-                  </Button>
-                )}
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleOpenAssignPlan}
-                  className="flex w-full items-center gap-2 sm:w-auto"
-                >
-                  <CalendarPlus className="h-4 w-4" />
-                  Asignar
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="ml-auto h-7 w-7 shrink-0"
+                      aria-label="Más acciones"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {assignment && (
+                      <DropdownMenuItem onClick={handleViewPlan}>
+                        <Eye className="mr-2 h-4 w-4" />
+                        Ver
+                      </DropdownMenuItem>
+                    )}
+                    {currentPlanAssignment && (
+                      <DropdownMenuItem onClick={handleOpenExtendPlan}>
+                        <CalendarClock className="mr-2 h-4 w-4" />
+                        Extender
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={handleOpenAssignPlan}>
+                      <CalendarPlus className="mr-2 h-4 w-4" />
+                      Asignar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
-            <div className="flex min-h-[200px] flex-1 items-start justify-center overflow-x-auto rounded-md bg-muted/20 p-2 sm:min-h-[220px] sm:p-3">
+            <div className="flex min-h-[200px] items-start justify-center overflow-x-auto rounded-md bg-muted/20 p-2 sm:min-h-[220px] sm:p-3">
               {selectedStartDate && selectedEndDate ? (
                 planViewMode === "calendar" ? (
                   <PlanCalendar
