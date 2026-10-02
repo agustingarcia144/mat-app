@@ -3,10 +3,12 @@
 import { useState } from "react";
 import {
   addDays,
+  differenceInCalendarDays,
   isSameDay,
   startOfMonth,
   startOfWeek,
   endOfMonth,
+  endOfWeek,
   addMonths,
   subMonths,
   format,
@@ -29,7 +31,12 @@ export default function PlanCalendar({ startDate, endDate }: Props) {
   const isExpired = endDate < today;
 
   const gridStart = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
-  const days = Array.from({ length: 42 }).map((_, i) => addDays(gridStart, i));
+  // Only the weeks the month spans (5 or 6): a fixed 6th week that is all
+  // next month left a dead row under the calendar.
+  const gridEnd = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
+  const days = Array.from({
+    length: differenceInCalendarDays(gridEnd, gridStart) + 1,
+  }).map((_, i) => addDays(gridStart, i));
 
   const midnight = (d: Date) =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
