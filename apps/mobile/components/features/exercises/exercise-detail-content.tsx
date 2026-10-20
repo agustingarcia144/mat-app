@@ -23,11 +23,24 @@ import { ThemedView } from '@/components/ui/themed-view'
 import { ThemedText } from '@/components/ui/themed-text'
 import { useExerciseVideo } from '@/contexts/exercise-video-context'
 import { BarChart } from 'react-native-gifted-charts'
+import { Gesture, GestureDetector } from 'react-native-gesture-handler'
+import { scheduleOnRN } from 'react-native-worklets'
+import Animated, {
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 const HEADER_BG = { light: '#e5e5e5', dark: '#262626' }
 const CHART_WIDTH = Dimensions.get('window').width - 48 - 36 // card padding - y-axis area
+const PAGE_SIZE = 10
+const CHART_EDGE_SPACING = 8
+const BAR_SLOT_WIDTH = (CHART_WIDTH - CHART_EDGE_SPACING * 2) / PAGE_SIZE
+const SWIPE_THRESHOLD = 50
+const SWIPE_VELOCITY = 400
 
 type Metric = 'weight' | 'reps' | 'time'
 
@@ -54,8 +67,7 @@ function buildBars(
   }[],
   metric: Metric,
   barColor: string,
-  labelColor: string,
-  valueColor: string
+  labelColor: string
 ) {
   // Step 1: one representative value per session (max of positive set values)
   const sessionValues: { performedOn: string; value: number }[] = []
@@ -74,25 +86,16 @@ function buildBars(
     })
   }
 
-  if (sessionValues.length === 0) return []
-
-  // Step 2: run-length encode — collapse consecutive sessions with the same value
-  const groups: { value: number; firstDate: string }[] = []
-  for (const sv of sessionValues) {
-    const last = groups[groups.length - 1]
-    if (last && last.value === sv.value) continue // same streak, skip
-    groups.push({ value: sv.value, firstDate: sv.performedOn })
-  }
-
-  // Step 3: one bar per group
-  return groups.map(({ value: val, firstDate }) => ({
-    value: val,
+  // Keep one bar per session, including consecutive equal values.
+  return sessionValues.map(({ value, performedOn }) => ({
+    value,
+    performedOn,
     frontColor: barColor,
-    label: format(parseISO(firstDate), 'd MMM', { locale: es }),
-    labelWidth: 44,
+    label: format(parseISO(performedOn), 'd MMM', { locale: es }),
+    labelWidth: BAR_SLOT_WIDTH,
     labelTextStyle: { fontSize: 9, color: labelColor },
-    barWidth: 32,
-    spacing: 20,
+    barWidth: BAR_SLOT_WIDTH * 0.6,
+    spacing: BAR_SLOT_WIDTH * 0.4,
   }))
 }
 
@@ -355,10 +358,135 @@ function ExerciseProgressSection({ exerciseId }: { exerciseId: string }) {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
   const [activeMetric, setActiveMetric] = useState<Metric>('weight')
+  const [pageIndex, setPageIndex] = useState(0)
+  const dragX = useSharedValue(0)
   const progress = useQuery(api.sessionExerciseLogs.getProgressByExercise, {
     exerciseId: exerciseId as any,
   })
 
+  const barColor = isDark ? '#60a5fa' : '#3b82f6'
+  const labelColor = '#71717a'
+  const valueColor = isDark ? '#e4e4e7' : '#18181b'
+  const ruleColor = isDark
+    ? 'rgba(255,255,255,0.07)'
+    : 'rgba(0,0,0,0.07)'
+  const axisColor = isDark
+    ? 'rgba(255,255,255,0.12)'
+    : 'rgba(0,0,0,0.12)'
+  const textColor = isDark ? '#a1a1aa' : '#71717a'
+
+  const hasWeight = progress?.some((e) =>
+    hasPositive(parseNums(e.weight))
+  )
+  const hasReps = progress?.some((e) => hasPositive(parseNums(e.reps)))
+  const hasTime = progress?.some((e) =>
+    hasPositive(parseNums(e.timeSeconds))
+  )
+
+  const availableMetrics: { key: Metric; label: string }[] = []
+  if (hasWeight)
+    availableMetrics.push({ key: 'weight', label: 'Peso' })
+  if (hasReps) availableMetrics.push({ key: 'reps', label: 'Reps' })
+  if (hasTime) availableMetrics.push({ key: 'time', label: 'Tiempo' })
+
+  const metric = availableMetrics.some((m) => m.key === activeMetric)
+    ? activeMetric
+    : (availableMetrics[0]?.key ?? activeMetric)
+
+  const unitLabel =
+    metric === 'weight' ? 'kg' : metric === 'reps' ? 'rep' : 's'
+  const allBars = useMemo(
+    () => buildBars(progress ?? [], metric, barColor, labelColor),
+    [progress, metric, barColor, labelColor]
+  )
+  const totalPages = Math.max(1, Math.ceil(allBars.length / PAGE_SIZE))
+  const currentPageIndex = Math.max(0, Math.min(pageIndex, totalPages - 1))
+  // Anchor at the newest end, leaving any partial page at the oldest end.
+  const end = allBars.length - currentPageIndex * PAGE_SIZE
+  const pageBars = allBars.slice(Math.max(0, end - PAGE_SIZE), end)
+  const canGoOlder = currentPageIndex < totalPages - 1
+  const canGoNewer = currentPageIndex > 0
+
+  useEffect(() => {
+    setPageIndex(0)
+    cancelAnimation(dragX)
+    dragX.value = 0
+    return () => cancelAnimation(dragX)
+  }, [metric, allBars.length, exerciseId, dragX])
+
+  const goOlder = useCallback(() => {
+    dragX.value = 0
+    setPageIndex((index) => Math.min(index + 1, totalPages - 1))
+  }, [dragX, totalPages])
+
+  const goNewer = useCallback(() => {
+    dragX.value = 0
+    setPageIndex((index) => Math.max(0, index - 1))
+  }, [dragX])
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(totalPages > 1)
+        .activeOffsetX([-16, 16])
+        .failOffsetY([-16, 16])
+        .onUpdate((event) => {
+          const atEdge =
+            (event.translationX < 0 && !canGoOlder) ||
+            (event.translationX > 0 && !canGoNewer)
+          dragX.value = event.translationX * (atEdge ? 0.25 : 1)
+        })
+        .onEnd((event) => {
+          const older =
+            event.translationX < -SWIPE_THRESHOLD ||
+            event.velocityX < -SWIPE_VELOCITY
+          const newer =
+            event.translationX > SWIPE_THRESHOLD ||
+            event.velocityX > SWIPE_VELOCITY
+          if (older && canGoOlder) {
+            dragX.value = withTiming(
+              -CHART_WIDTH,
+              { duration: 180 },
+              (finished) => {
+                if (finished) {
+                  scheduleOnRN(goOlder)
+                  dragX.value = 0
+                }
+              }
+            )
+          } else if (newer && canGoNewer) {
+            dragX.value = withTiming(
+              CHART_WIDTH,
+              { duration: 180 },
+              (finished) => {
+                if (finished) {
+                  scheduleOnRN(goNewer)
+                  dragX.value = 0
+                }
+              }
+            )
+          } else {
+            dragX.value = withTiming(0, { duration: 180 })
+          }
+        })
+        .onFinalize((_event, success) => {
+          if (!success) dragX.value = withTiming(0, { duration: 180 })
+        }),
+    [totalPages, canGoOlder, canGoNewer, dragX, goOlder, goNewer]
+  )
+
+  const animatedTranslateStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: dragX.value }],
+  }))
+
+  const dataMax = allBars.reduce((m, b) => Math.max(m, b.value), 0)
+  // Pick a clean step and round up so the chart top is a nice number
+  const step =
+    dataMax <= 10 ? 2 : dataMax <= 30 ? 5 : dataMax <= 100 ? 10 : 20
+  const maxValue = Math.ceil(dataMax / step) * step + step
+  const noOfSections = maxValue / step
+
+  // All hooks above run even while the query is loading or has no values.
   if (progress === undefined) {
     return (
       <View
@@ -393,54 +521,9 @@ function ExerciseProgressSection({ exerciseId }: { exerciseId: string }) {
     )
   }
 
-  if (progress.length === 0) return null
+  if (allBars.length === 0) return null
 
-  const barColor = isDark ? '#60a5fa' : '#3b82f6'
-  const labelColor = isDark ? '#71717a' : '#71717a'
-  const valueColor = isDark ? '#e4e4e7' : '#18181b'
-  const ruleColor = isDark
-    ? 'rgba(255,255,255,0.07)'
-    : 'rgba(0,0,0,0.07)'
-  const axisColor = isDark
-    ? 'rgba(255,255,255,0.12)'
-    : 'rgba(0,0,0,0.12)'
-  const textColor = isDark ? '#a1a1aa' : '#71717a'
-
-  const hasWeight = progress.some((e) =>
-    hasPositive(parseNums(e.weight))
-  )
-  const hasReps = progress.some((e) => hasPositive(parseNums(e.reps)))
-  const hasTime = progress.some((e) =>
-    hasPositive(parseNums(e.timeSeconds))
-  )
-
-  const availableMetrics: { key: Metric; label: string }[] = []
-  if (hasWeight)
-    availableMetrics.push({ key: 'weight', label: 'Peso' })
-  if (hasReps) availableMetrics.push({ key: 'reps', label: 'Reps' })
-  if (hasTime) availableMetrics.push({ key: 'time', label: 'Tiempo' })
-
-  if (availableMetrics.length === 0) return null
-
-  const metric = availableMetrics.some((m) => m.key === activeMetric)
-    ? activeMetric
-    : availableMetrics[0].key
-
-  const unitLabel =
-    metric === 'weight' ? 'kg' : metric === 'reps' ? 'rep' : 's'
-  const bars = buildBars(
-    progress,
-    metric,
-    barColor,
-    labelColor,
-    valueColor
-  )
-  const dataMax = bars.reduce((m, b) => Math.max(m, b.value), 0)
-  // Pick a clean step and round up so the chart top is a nice number
-  const step =
-    dataMax <= 10 ? 2 : dataMax <= 30 ? 5 : dataMax <= 100 ? 10 : 20
-  const maxValue = Math.ceil(dataMax / step) * step + step
-  const noOfSections = maxValue / step
+  const dateRange = `${pageBars[0].label} – ${pageBars[pageBars.length - 1].label}`
 
   return (
     <View
@@ -462,7 +545,12 @@ function ExerciseProgressSection({ exerciseId }: { exerciseId: string }) {
           {availableMetrics.map(({ key, label }) => (
             <Pressable
               key={key}
-              onPress={() => setActiveMetric(key)}
+              onPress={() => {
+                setPageIndex(0)
+                cancelAnimation(dragX)
+                dragX.value = 0
+                setActiveMetric(key)
+              }}
               style={[
                 styles.metricTab,
                 metric === key && {
@@ -484,56 +572,94 @@ function ExerciseProgressSection({ exerciseId }: { exerciseId: string }) {
       )}
 
       <View style={styles.chartWrap}>
-        {Platform.OS === 'ios' ? (
-          <BarChart
-            data={bars}
-            width={CHART_WIDTH}
-            height={150}
-            initialSpacing={8}
-            maxValue={maxValue}
-            noOfSections={noOfSections}
-            hideYAxisText
-            yAxisLabelWidth={0}
-            xAxisLabelTextStyle={{ color: labelColor, fontSize: 9 }}
-            rulesColor={ruleColor}
-            yAxisColor="transparent"
-            xAxisColor={axisColor}
-            hideRules={false}
-            showValuesAsTopLabel
-            topLabelTextStyle={{
-              fontSize: 11,
-              color: valueColor,
-              fontWeight: '600',
-            }}
-            isAnimated
-            animationDuration={400}
-            barBorderRadius={3}
-          />
-        ) : (
-          <View style={styles.androidProgressList}>
-            {bars.map((bar, i) => (
-              <View key={i} style={styles.androidProgressRow}>
-                <Text
-                  style={[
-                    styles.androidProgressLabel,
-                    { color: textColor },
-                  ]}
-                >
-                  {bar.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.androidProgressValue,
-                    { color: valueColor },
-                  ]}
-                >
-                  {bar.value} {unitLabel}
-                </Text>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={animatedTranslateStyle}>
+            {/* Gifted Charts' bar animation retains mount-time heights after data updates. */}
+            {Platform.OS === 'ios' ? (
+              <BarChart
+                data={pageBars}
+                width={CHART_WIDTH}
+                height={150}
+                initialSpacing={CHART_EDGE_SPACING}
+                endSpacing={CHART_EDGE_SPACING}
+                barWidth={BAR_SLOT_WIDTH * 0.6}
+                spacing={BAR_SLOT_WIDTH * 0.4}
+                disableScroll
+                maxValue={maxValue}
+                noOfSections={noOfSections}
+                hideYAxisText
+                yAxisLabelWidth={0}
+                xAxisLabelTextStyle={{ color: labelColor, fontSize: 9 }}
+                rulesColor={ruleColor}
+                yAxisColor="transparent"
+                xAxisColor={axisColor}
+                hideRules={false}
+                showValuesAsTopLabel
+                topLabelTextStyle={{
+                  fontSize: 11,
+                  color: valueColor,
+                  fontWeight: '600',
+                }}
+                isAnimated={false}
+                barBorderRadius={3}
+              />
+            ) : (
+              <View style={styles.androidProgressList}>
+                {pageBars.map((bar, i) => (
+                  <View key={i} style={styles.androidProgressRow}>
+                    <Text
+                      style={[
+                        styles.androidProgressLabel,
+                        { color: textColor },
+                      ]}
+                    >
+                      {bar.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.androidProgressValue,
+                        { color: valueColor },
+                      ]}
+                    >
+                      {bar.value} {unitLabel}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-        )}
+            )}
+          </Animated.View>
+        </GestureDetector>
       </View>
+      {totalPages > 1 && (
+        <View style={styles.progressPagination}>
+          <Pressable
+            onPress={goOlder}
+            disabled={!canGoOlder}
+            accessibilityRole="button"
+            accessibilityLabel="Ver sesiones anteriores"
+            accessibilityState={{ disabled: !canGoOlder }}
+            style={[styles.pageArrow, !canGoOlder && styles.pageArrowDisabled]}
+          >
+            <Text style={[styles.pageArrowText, { color: textColor }]}>‹</Text>
+          </Pressable>
+          <Text
+            style={[styles.pageDateRange, { color: textColor }]}
+            accessibilityLiveRegion="polite"
+          >
+            {dateRange}
+          </Text>
+          <Pressable
+            onPress={goNewer}
+            disabled={!canGoNewer}
+            accessibilityRole="button"
+            accessibilityLabel="Ver sesiones más recientes"
+            accessibilityState={{ disabled: !canGoNewer }}
+            style={[styles.pageArrow, !canGoNewer && styles.pageArrowDisabled]}
+          >
+            <Text style={[styles.pageArrowText, { color: textColor }]}>›</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   )
 }
@@ -661,7 +787,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  chartWrap: {},
+  chartWrap: {
+    overflow: 'hidden',
+  },
+  progressPagination: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  pageArrow: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pageArrowDisabled: {
+    opacity: 0.3,
+  },
+  pageArrowText: {
+    fontSize: 28,
+  },
+  pageDateRange: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
   progressLoading: {
     // Matches the chart's footprint (150px plot + x-axis labels) so the
     // layout doesn't jump when the data arrives.

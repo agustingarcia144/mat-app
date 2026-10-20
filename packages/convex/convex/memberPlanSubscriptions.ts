@@ -325,6 +325,25 @@ export const getByOrganization = query({
               timezone,
             ).billingPeriod
           : null;
+        // Bonifications live on the billing subscription and are charged the
+        // same amount generateBonificationPayments bills each period.
+        const activeBonification = await ctx.db
+          .query("planBonifications")
+          .withIndex("by_subscription_status", (q) =>
+            q
+              .eq("subscriptionId", primarySubscription._id)
+              .eq("status", "active"),
+          )
+          .first();
+        const payableAmountArs = !plan
+          ? 0
+          : activeBonification && billingPlan
+            ? computeBonificationAmount(
+                billingPlan.priceArs,
+                activeBonification.discountType,
+                activeBonification.discountValue,
+              )
+            : plan.priceArs * memberCount;
         return {
           ...sub,
           plan,
@@ -332,7 +351,13 @@ export const getByOrganization = query({
           currentBillingPeriod,
           coveredMemberCount: memberCount,
           familyAssociatedNames,
-          payableAmountArs: plan ? plan.priceArs * memberCount : 0,
+          payableAmountArs,
+          activeBonification: activeBonification
+            ? {
+                discountType: activeBonification.discountType,
+                discountValue: activeBonification.discountValue,
+              }
+            : null,
           userFullName: user?.fullName ?? user?.email ?? sub.userId,
         };
       }),

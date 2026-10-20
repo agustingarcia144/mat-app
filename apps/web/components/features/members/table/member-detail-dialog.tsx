@@ -4,12 +4,12 @@ import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 
 import { Badge } from "@/components/ui/badge";
-import StatusBadge from "@/components/shared/badges/status-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
@@ -37,7 +37,16 @@ import {
   CreditCard,
   RefreshCw,
   UserMinus,
+  Activity,
+  Cake,
+  Mail,
+  Phone,
+  Users,
+  Dumbbell,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
+import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 
 import { useRouter } from "next/navigation";
 
@@ -166,40 +175,129 @@ function billingPeriodLabel(period: string) {
   return format(new Date(year, month - 1, 1), "MMMM yyyy", { locale: es });
 }
 
-function getCuotaBadge(
+type CuotaTone = "success" | "info" | "warning" | "danger" | "muted";
+
+const CUOTA_TONE_CLASS: Record<CuotaTone, string> = {
+  success:
+    "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  info: "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  warning:
+    "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  danger: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
+  muted: "border-border bg-muted/40 text-muted-foreground",
+};
+
+const CUOTA_DOT_CLASS: Record<CuotaTone, string> = {
+  success: "bg-emerald-500",
+  info: "bg-sky-500",
+  warning: "bg-amber-500",
+  danger: "bg-red-500",
+  muted: "bg-muted-foreground/40",
+};
+
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  cash: "Efectivo",
+  bank_transfer: "Transferencia",
+  proof_upload: "Comprobante",
+  bonification: "Bonificación",
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function daysUntil(timestamp: number) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(timestamp);
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / DAY_MS);
+}
+
+function plural(count: number, singular: string, pluralForm: string) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+/** Status of the current period's fee, with one line of context. */
+function getCuotaStatus(
   currentPeriod: { status: string; dueAt?: number | null },
-  memberStatus: string,
-) {
-  if (memberStatus === "suspended") {
+  subscriptionStatus: string,
+  suspendedAt: number | null,
+): { label: string; detail: string | null; tone: CuotaTone } {
+  if (subscriptionStatus === "suspended") {
     return {
       label: "Suspendida",
-      className: "bg-red-500/20 text-red-400 border border-red-500/40",
+      detail: suspendedAt
+        ? `Por falta de pago desde el ${format(new Date(suspendedAt), "d MMM", { locale: es })}`
+        : "Por falta de pago",
+      tone: "danger",
     };
   }
   if (currentPeriod.status === "approved") {
-    return {
-      label: "Al día",
-      className: "bg-green-500/20 text-green-400 border border-green-500/40",
-    };
+    return { label: "Al día", detail: "Cuota del período pagada", tone: "success" };
   }
   if (currentPeriod.status === "in_review") {
     return {
       label: "En revisión",
-      className: "bg-blue-500/20 text-blue-400 border border-blue-500/40",
+      detail: "Subió un comprobante para revisar",
+      tone: "info",
     };
   }
-  const overdue =
-    typeof currentPeriod.dueAt === "number" && Date.now() > currentPeriod.dueAt;
-  return overdue
-    ? {
+  if (typeof currentPeriod.dueAt === "number") {
+    const days = daysUntil(currentPeriod.dueAt);
+    if (days < 0) {
+      return {
         label: "Vencida",
-        className: "bg-red-500/20 text-red-400 border border-red-500/40",
-      }
-    : {
-        label: "Pendiente",
-        className:
-          "bg-yellow-500/20 text-yellow-400 border border-yellow-500/40",
+        detail: `Atrasada ${plural(-days, "día", "días")}`,
+        tone: "danger",
       };
+    }
+    return {
+      label: "Pendiente",
+      detail:
+        days === 0
+          ? "Vence hoy"
+          : `Vence el ${format(new Date(currentPeriod.dueAt), "d MMM", { locale: es })}`,
+      tone: "warning",
+    };
+  }
+  return { label: "Pendiente", detail: null, tone: "warning" };
+}
+
+function shiftBillingPeriod(period: string, deltaMonths: number) {
+  const [year, month] = period.split("-").map(Number);
+  const date = new Date(year, month - 1 + deltaMonths, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatTenure(timestamp: number) {
+  const months = Math.floor((Date.now() - timestamp) / (30.44 * DAY_MS));
+  if (months < 1) return "nuevo";
+  if (months < 12) return plural(months, "mes", "meses");
+  return plural(Math.floor(months / 12), "año", "años");
+}
+
+function StatTile({
+  label,
+  value,
+  detail,
+  className,
+  children,
+}: {
+  label: string;
+  value: React.ReactNode;
+  detail?: React.ReactNode;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className={cn("min-w-0 rounded-lg bg-background/60 p-3", className)}>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="mt-0.5 truncate text-lg font-semibold">{value}</div>
+      {detail ? (
+        <div className="mt-0.5 text-xs text-muted-foreground">{detail}</div>
+      ) : null}
+      {children}
+    </div>
+  );
 }
 
 const UNLIMITED_WEEKLY_CLASS_LIMIT = 9999;
@@ -300,17 +398,43 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
     const billingSubscriptionId = sub.billingSubscriptionId ?? sub._id;
     const now = new Date();
-    const billingPeriod = `${now.getFullYear()}-${String(
-      now.getMonth() + 1,
-    ).padStart(2, "0")}`;
+    // Join-date plans run anchor day to anchor day, so the backend resolves
+    // which period is current; calendar month is only the fallback.
+    const billingPeriod =
+      sub.currentBillingPeriod ??
+      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
-    const currentPayment = (orgPayments ?? [])
-      .filter(
-        (p) =>
-          p.subscriptionId === billingSubscriptionId &&
-          p.billingPeriod === billingPeriod,
-      )
-      .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0];
+    const subscriptionPayments = (orgPayments ?? [])
+      .filter((p) => p.subscriptionId === billingSubscriptionId)
+      .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+
+    const latestByPeriod = new Map<string, (typeof subscriptionPayments)[0]>();
+    for (const payment of subscriptionPayments) {
+      if (!latestByPeriod.has(payment.billingPeriod)) {
+        latestByPeriod.set(payment.billingPeriod, payment);
+      }
+    }
+    const currentPayment = latestByPeriod.get(billingPeriod);
+
+    const lastApproved = subscriptionPayments
+      .filter((p) => p.status === "approved" && !p.advanceCoveredByPaymentId)
+      .map((p) => ({
+        ...p,
+        paidAt: p.reviewedAt ?? p.updatedAt ?? p.createdAt,
+      }))
+      .sort((a, b) => b.paidAt - a.paidAt)[0];
+
+    // Last six periods since the plan started, oldest first.
+    const activatedPeriod = format(new Date(sub.activatedAt), "yyyy-MM");
+    const history = Array.from({ length: 6 }, (_, i) =>
+      shiftBillingPeriod(billingPeriod, i - 5),
+    )
+      .filter((period) => period >= activatedPeriod)
+      .map((period) => ({
+        period,
+        status: latestByPeriod.get(period)?.status ?? "none",
+        isCurrent: period === billingPeriod,
+      }));
 
     const coveredMemberCount = sub.coveredMemberCount ?? 1;
 
@@ -318,6 +442,16 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
       subscriptionId: billingSubscriptionId,
       memberStatus: sub.status,
       activatedAt: sub.activatedAt,
+      suspendedAt: sub.suspendedAt ?? null,
+      familyAssociatedNames: (sub.familyAssociatedNames ?? []) as string[],
+      lastPayment: lastApproved
+        ? {
+            paidAt: lastApproved.paidAt,
+            amountArs: lastApproved.totalAmountArs ?? lastApproved.amountArs,
+            method: lastApproved.paymentMethod ?? "proof_upload",
+          }
+        : null,
+      history,
       isFamilyChild: Boolean(sub.familyParentSubscriptionId),
       coveredMemberCount,
       plan: {
@@ -336,6 +470,18 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
       },
     };
   }, [member, orgSubscriptions, orgPayments]);
+
+  const entitlement = useOrganizationEntitlement();
+  const canSeeAttendance = entitlement?.modules.includes("metrics") ?? false;
+  // Same args as the members table, so Convex serves both from one subscription.
+  const attendance = useQuery(
+    api.classMetrics.getMemberAttendanceMetrics,
+    member && open && canSeeAttendance ? { rangeDays: 30 } : "skip",
+  );
+  const memberAttendance = useMemo(() => {
+    if (!member || !attendance) return undefined;
+    return attendance.members.find((m) => m.userId === member.id) ?? null;
+  }, [attendance, member]);
 
   const membershipPlans = useQuery(
     api.membershipPlans.getByOrganization,
@@ -789,6 +935,19 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
   };
 
   const birthDate = safeDate(member.birthday);
+  // Member.joinedAt is a locale string; read the raw timestamp instead so the
+  // date can't be re-parsed with day and month swapped.
+  const joinedAtTimestamp =
+    memberships?.find((m) => m.userId === member.id)?.joinedAt ??
+    safeDate(member.joinedAt)?.getTime() ??
+    null;
+  const isMemberActive = !["inactive", "inactivo"].includes(
+    member.status?.toLowerCase() ?? "",
+  );
+  const isBirthdayToday =
+    birthDate !== null &&
+    birthDate.getDate() === new Date().getDate() &&
+    birthDate.getMonth() === new Date().getMonth();
 
   const age = (() => {
     if (!birthDate) return null;
@@ -827,12 +986,93 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="top-[max(1rem,env(safe-area-inset-top))] max-h-[88vh] w-[min(96vw,32rem)] translate-y-0 overflow-y-auto rounded-lg p-4 pt-8 sm:top-[50%] sm:max-h-[90vh] sm:w-full sm:max-w-5xl sm:translate-y-[-50%] sm:p-6">
-        <DialogHeader className="pr-8">
-          <DialogTitle>Detalle del miembro</DialogTitle>
+        {/* HEADER: who this is */}
+        <DialogHeader className="pr-8 text-left">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="relative shrink-0">
+              <Avatar className="h-14 w-14 sm:h-16 sm:w-16">
+                {member.imageUrl && <AvatarImage src={member.imageUrl} />}
+                <AvatarFallback>{initials}</AvatarFallback>
+              </Avatar>
+              {isBirthdayToday && (
+                <span className="absolute -right-1 -top-1 text-base leading-none">
+                  🎂
+                </span>
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle className="truncate text-lg sm:text-xl">
+                  {member.name}
+                </DialogTitle>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                    isMemberActive
+                      ? CUOTA_TONE_CLASS.success
+                      : CUOTA_TONE_CLASS.muted,
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      isMemberActive ? "bg-emerald-500" : "bg-muted-foreground/50",
+                    )}
+                  />
+                  {isMemberActive ? "Activo" : "Inactivo"}
+                </Badge>
+              </div>
+
+              <DialogDescription asChild>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                  {member.email && (
+                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                      <Mail className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{member.email}</span>
+                    </span>
+                  )}
+                  {member.phone && (
+                    <a
+                      href={`tel:${member.phone}`}
+                      className="inline-flex items-center gap-1.5 hover:text-foreground"
+                    >
+                      <Phone className="h-3.5 w-3.5" />
+                      {member.phone}
+                    </a>
+                  )}
+                  {birthDate && age !== null && (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5",
+                        isBirthdayToday && "font-medium text-pink-500",
+                      )}
+                    >
+                      <Cake className="h-3.5 w-3.5" />
+                      {isBirthdayToday
+                        ? `¡Cumple ${age} hoy!`
+                        : `${age} años · ${format(birthDate, "d MMM", { locale: es })}`}
+                    </span>
+                  )}
+                  {joinedAtTimestamp && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5" />
+                      Miembro desde{" "}
+                      {format(new Date(joinedAtTimestamp), "MMM yyyy", {
+                        locale: es,
+                      })}{" "}
+                      · {formatTenure(joinedAtTimestamp)}
+                    </span>
+                  )}
+                </div>
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         {/* MEMBERSHIP & CUOTA */}
-        <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3 sm:p-4">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 sm:p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Wallet className="h-4 w-4 text-primary" />
@@ -840,7 +1080,10 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
             </div>
             {financeSummary && (
               <span className="truncate text-xs text-muted-foreground">
-                Plan · {financeSummary.plan.name}
+                {financeSummary.plan.name} · desde{" "}
+                {format(new Date(financeSummary.activatedAt), "d MMM yyyy", {
+                  locale: es,
+                })}
               </span>
             )}
           </div>
@@ -863,89 +1106,142 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <div className="rounded-lg bg-background/60 p-3">
-                  <p className="text-xs text-muted-foreground">
-                    Cuota{" "}
-                    {billingPeriodLabel(
-                      financeSummary.currentPeriod.billingPeriod,
-                    )}
-                  </p>
-                  <p className="mt-0.5 text-lg font-semibold">
-                    {formatArs(financeSummary.currentPeriod.payableAmountArs)}
-                  </p>
-                  {(() => {
-                    const cuota = getCuotaBadge(
-                      financeSummary.currentPeriod,
-                      financeSummary.memberStatus,
-                    );
-                    return (
-                      <span
-                        className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] ${cuota.className}`}
-                      >
-                        {cuota.label}
-                        {financeSummary.currentPeriod.dueAt
-                          ? ` · vence ${format(
-                              new Date(financeSummary.currentPeriod.dueAt),
-                              "d MMM",
+              {(() => {
+                const cuota = getCuotaStatus(
+                  financeSummary.currentPeriod,
+                  financeSummary.memberStatus,
+                  financeSummary.suspendedAt,
+                );
+                return (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <StatTile
+                      label={`Cuota ${billingPeriodLabel(
+                        financeSummary.currentPeriod.billingPeriod,
+                      )}`}
+                      value={formatArs(
+                        financeSummary.currentPeriod.payableAmountArs,
+                      )}
+                    >
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span
+                          className={cn(
+                            "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                            CUOTA_TONE_CLASS[cuota.tone],
+                          )}
+                        >
+                          {cuota.label}
+                        </span>
+                        {cuota.detail && (
+                          <span className="text-xs text-muted-foreground">
+                            {cuota.detail}
+                          </span>
+                        )}
+                      </div>
+                    </StatTile>
+
+                    <StatTile
+                      label="Último pago"
+                      value={
+                        financeSummary.lastPayment
+                          ? format(
+                              new Date(financeSummary.lastPayment.paidAt),
+                              "d MMM yyyy",
                               { locale: es },
-                            )}`
-                          : ""}
-                      </span>
-                    );
-                  })()}
-                </div>
+                            )
+                          : "Sin pagos"
+                      }
+                      detail={
+                        financeSummary.lastPayment
+                          ? `${formatArs(financeSummary.lastPayment.amountArs)} · ${
+                              PAYMENT_METHOD_LABEL[
+                                financeSummary.lastPayment.method
+                              ] ?? "Pago"
+                            }`
+                          : "Todavía no registró pagos"
+                      }
+                    />
 
-                <div className="rounded-lg bg-background/60 p-3">
-                  <p className="text-xs text-muted-foreground">Suscripción</p>
-                  <p
-                    className={`mt-0.5 text-lg font-semibold ${
-                      financeSummary.memberStatus === "active"
-                        ? "text-green-500"
-                        : "text-red-500"
-                    }`}
-                  >
-                    {financeSummary.memberStatus === "active"
-                      ? "Activa"
-                      : "Suspendida"}
-                  </p>
-                  <span className="mt-1 inline-block text-[11px] text-muted-foreground">
-                    Desde{" "}
-                    {format(
-                      new Date(financeSummary.activatedAt),
-                      "d MMM yyyy",
-                      { locale: es },
-                    )}
+                    <StatTile
+                      label="Clases del plan"
+                      value={
+                        !planClassesEnabled
+                          ? "Sin acceso"
+                          : financeSummary.plan.weeklyClassLimit >=
+                              UNLIMITED_WEEKLY_CLASS_LIMIT
+                            ? "Ilimitadas"
+                            : `${financeSummary.plan.weeklyClassLimit} / semana`
+                      }
+                      detail={
+                        <span className="line-clamp-2">
+                          {allowedClassNames === null
+                            ? "Todas las clases"
+                            : `Sólo: ${allowedClassNames}`}
+                        </span>
+                      }
+                    />
+                  </div>
+                );
+              })()}
+
+              {financeSummary.history.length > 1 && (
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <span className="text-xs text-muted-foreground">
+                    Últimos meses
                   </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {financeSummary.history.map((entry) => {
+                      const tone: CuotaTone =
+                        entry.status === "approved"
+                          ? "success"
+                          : entry.status === "in_review"
+                            ? "info"
+                            : entry.isCurrent
+                              ? "warning"
+                              : "danger";
+                      const statusLabel =
+                        entry.status === "approved"
+                          ? "Pagado"
+                          : entry.status === "in_review"
+                            ? "En revisión"
+                            : entry.isCurrent
+                              ? "Pendiente"
+                              : "Sin pagar";
+                      return (
+                        <Tooltip key={entry.period}>
+                          <TooltipTrigger asChild>
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-full border bg-background/60 px-2 py-0.5 text-[11px] capitalize",
+                                entry.isCurrent && "border-foreground/30",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "h-1.5 w-1.5 rounded-full",
+                                  CUOTA_DOT_CLASS[tone],
+                                )}
+                              />
+                              {format(
+                                new Date(`${entry.period}-01T00:00:00`),
+                                "MMM",
+                                { locale: es },
+                              )}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <span className="capitalize">
+                              {billingPeriodLabel(entry.period)}
+                            </span>
+                            : {statusLabel}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
 
-                <div className="rounded-lg bg-background/60 p-3">
-                  <p className="text-xs text-muted-foreground">
-                    Clases del plan
-                  </p>
-                  <p className="mt-0.5 text-lg font-semibold">
-                    {!planClassesEnabled
-                      ? "Sin acceso"
-                      : financeSummary.plan.weeklyClassLimit >=
-                          UNLIMITED_WEEKLY_CLASS_LIMIT
-                        ? "Ilimitadas"
-                        : `${financeSummary.plan.weeklyClassLimit} / semana`}
-                  </p>
-                  {financeSummary.coveredMemberCount > 1 && (
-                    <span className="mt-1 inline-block text-[11px] text-muted-foreground">
-                      Grupo familiar · {financeSummary.coveredMemberCount}{" "}
-                      miembros
-                    </span>
-                  )}
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {allowedClassNames === null
-                      ? "Habilita todas las clases"
-                      : `Sólo: ${allowedClassNames}`}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-primary/10 pt-3">
                 <Button
                   size="sm"
                   onClick={handleOpenRecordPayment}
@@ -957,8 +1253,16 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
 
                 {financeSummary.isFamilyChild ||
                 financeSummary.coveredMemberCount > 1 ? (
-                  <span className="self-center text-xs text-muted-foreground">
-                    Plan familiar · gestioná el plan desde finanzas
+                  <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    <Users className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">
+                      Grupo familiar · {financeSummary.coveredMemberCount}{" "}
+                      miembros
+                      {financeSummary.familyAssociatedNames.length > 0
+                        ? ` (${financeSummary.familyAssociatedNames.join(", ")})`
+                        : ""}
+                      . El plan se gestiona desde finanzas.
+                    </span>
                   </span>
                 ) : (
                   <>
@@ -973,7 +1277,7 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                     </Button>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
                       className="text-destructive hover:text-destructive"
                       onClick={handleRemovePlan}
                       disabled={membershipBusy}
@@ -988,191 +1292,214 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
           )}
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-8">
-          {/* LEFT */}
-          <div className="space-y-4 sm:space-y-6">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <Avatar className="h-14 w-14 sm:h-16 sm:w-16">
-                {member.imageUrl && <AvatarImage src={member.imageUrl} />}
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
-
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-lg font-semibold sm:text-xl">
-                  {member.name}
-                </p>
-
-                {member.email && (
-                  <p className="truncate text-sm text-muted-foreground">
-                    {member.email}
-                  </p>
-                )}
-
-                {member.username && (
-                  <p className="text-xs text-muted-foreground">
-                    @{member.username}
-                  </p>
-                )}
+        {/* ACTIVITY (Métricas) */}
+        {canSeeAttendance && (
+          <div className="rounded-xl border p-3 sm:p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Actividad</span>
               </div>
+              <span className="text-xs text-muted-foreground">
+                Últimos 30 días
+              </span>
             </div>
-
-            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-              <div>
-                <p className="text-muted-foreground">Estado</p>
-                <StatusBadge
-                  status={
-                    member.status?.toLowerCase() === "activo"
-                      ? "active"
-                      : (member.status?.toLowerCase() ?? "inactive")
+            {memberAttendance === undefined ? (
+              <p className="text-sm text-muted-foreground">Cargando…</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <StatTile
+                  className="bg-muted/30"
+                  label="Última visita"
+                  value={(() => {
+                    const days = memberAttendance?.daysSinceLastActivity ?? null;
+                    const tone =
+                      days === null || days > 14
+                        ? "bg-red-500"
+                        : days > 7
+                          ? "bg-amber-500"
+                          : "bg-emerald-500";
+                    return (
+                      <span className="inline-flex items-center gap-2">
+                        <span className={cn("h-2 w-2 rounded-full", tone)} />
+                        {days === null
+                          ? "Sin visitas"
+                          : days === 0
+                            ? "Hoy"
+                            : days === 1
+                              ? "Ayer"
+                              : `Hace ${days} días`}
+                      </span>
+                    );
+                  })()}
+                  detail={
+                    memberAttendance?.lastActivityAt
+                      ? format(
+                          new Date(memberAttendance.lastActivityAt),
+                          "EEEE d MMM",
+                          { locale: es },
+                        )
+                      : "Sin registros en el período"
+                  }
+                />
+                <StatTile
+                  className="bg-muted/30"
+                  label="Visitas"
+                  value={memberAttendance?.activeDays ?? 0}
+                  detail={`${(memberAttendance?.perWeek ?? 0).toLocaleString("es-AR")} por semana`}
+                />
+                <StatTile
+                  className="bg-muted/30"
+                  label="Asistencia a clases"
+                  value={
+                    memberAttendance?.attendanceRate != null
+                      ? `${memberAttendance.attendanceRate.toLocaleString("es-AR")}%`
+                      : "—"
+                  }
+                  detail={
+                    memberAttendance && memberAttendance.closedReservations > 0
+                      ? `${plural(memberAttendance.noShow, "ausencia", "ausencias")} · ${plural(memberAttendance.upcoming, "reserva", "reservas")} próx.`
+                      : "Sin reservas en el período"
+                  }
+                />
+                <StatTile
+                  className="bg-muted/30"
+                  label="Suele venir"
+                  value={memberAttendance?.favoriteDay?.label ?? "—"}
+                  detail={
+                    memberAttendance?.favoriteClass
+                      ? `Clase favorita: ${memberAttendance.favoriteClass.name}`
+                      : memberAttendance?.sessionsLogged
+                        ? `${plural(memberAttendance.sessionsLogged, "entrenamiento", "entrenamientos")} registrados`
+                        : "—"
                   }
                 />
               </div>
+            )}
+          </div>
+        )}
 
-              <div>
-                <p className="text-muted-foreground">Miembro desde</p>
-                <p>
-                  {safeDate(member.joinedAt)
-                    ? format(safeDate(member.joinedAt)!, "d MMM yyyy", {
-                        locale: es,
-                      })
-                    : "-"}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+          {/* LEFT */}
+          <div className="space-y-4">
+            {/* ENTRENAMIENTO */}
+            <div className="space-y-4 rounded-xl border p-3 sm:p-4">
+              <div className="flex items-center gap-2">
+                <Dumbbell className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Entrenamiento</span>
+              </div>
+
+              <label className="flex cursor-pointer items-center justify-between gap-4">
+                <span className="space-y-0.5">
+                  <span className="block text-sm">Usa planificación</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Incluirlo en el seguimiento de planificaciones.
+                  </span>
+                </span>
+                <Switch
+                  checked={usesPlanification}
+                  onCheckedChange={(checked) => {
+                    void handleUsesPlanificationChange(checked);
+                  }}
+                />
+              </label>
+
+              <div className="space-y-1.5">
+                <p className="text-sm">Responsable</p>
+                <StaffSelect
+                  staff={staffOptions}
+                  value={responsibleUserId}
+                  onChange={(next) => void handleResponsibleChange(next)}
+                  placeholder="Asignar responsable…"
+                  noneLabel="Sin responsable"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Encargado de mantener la planificación al día.
                 </p>
               </div>
-
-              <div>
-                <p className="text-muted-foreground">Fecha de nacimiento</p>
-                <p>
-                  {birthDate && age !== null
-                    ? `${format(birthDate, "dd/MM/yyyy")} (${age} años)`
-                    : "-"}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-muted-foreground">Teléfono</p>
-                <p>{member.phone ?? "-"}</p>
-              </div>
-
-              <div>
-                <p className="text-muted-foreground">Usa planificación</p>
-                <div className="mt-1 inline-flex rounded-md border bg-background p-0.5">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={usesPlanification ? "default" : "ghost"}
-                    className="h-6 px-2 text-xs"
-                    onClick={() => {
-                      void handleUsesPlanificationChange(true);
-                    }}
-                  >
-                    Si
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={!usesPlanification ? "default" : "ghost"}
-                    className="h-6 px-2 text-xs"
-                    onClick={() => {
-                      void handleUsesPlanificationChange(false);
-                    }}
-                  >
-                    No
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* RESPONSABLE */}
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Responsable</p>
-              <StaffSelect
-                staff={staffOptions}
-                value={responsibleUserId}
-                onChange={(next) => void handleResponsibleChange(next)}
-                placeholder="Asignar responsable…"
-                noneLabel="Sin responsable"
-              />
-              <p className="text-xs text-muted-foreground">
-                Encargado de mantener la planificación al día.
-              </p>
             </div>
 
             {/* TURNOS */}
-            <div className="space-y-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">Turnos fijos</p>
+            <div className="space-y-3 rounded-xl border p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Turnos fijos</span>
+                  {fixedSlots && fixedSlots.length > 0 && (
+                    <Badge variant="secondary" className="rounded-full px-1.5 py-0 text-[11px]">
+                      {fixedSlots.length}
+                    </Badge>
+                  )}
+                </div>
 
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1 self-start sm:self-auto"
+                  className="h-8 gap-1"
                   onClick={() => setAddFixedSlotOpen(true)}
                 >
                   <Plus className="h-4 w-4" />
-                  Agregar turno fijo
+                  Agregar
                 </Button>
               </div>
 
-              <div className="space-y-2 rounded-lg border p-3">
-                {fixedSlots === undefined ? (
-                  <p className="text-sm text-muted-foreground">Cargando…</p>
-                ) : fixedSlots.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Sin turnos fijos. El miembro se agregará automáticamente a
-                    cada clase que coincida con el horario asignado.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      {fixedSlots.length} turno
-                      {fixedSlots.length === 1 ? "" : "s"}
-                    </p>
-
-                    <div className="h-[108px] overflow-y-auto pr-1 sm:pr-2">
-                      <ul className="space-y-1.5">
-                        {fixedSlots.map(
-                          (
-                            slot: Doc<"fixedClassSlots"> & {
-                              className?: string | null;
-                            },
-                          ) => (
-                            <li
-                              key={slot._id}
-                              className="flex items-center justify-between gap-2 rounded-md border border-border/50 px-2.5 py-2 text-sm"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate font-medium leading-none">
-                                  {slot.className ?? "-"}
-                                </p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {DAYS_OF_WEEK.find(
-                                    (d) => d.value === slot.dayOfWeek,
-                                  )?.label ?? slot.dayOfWeek}{" "}
-                                  {formatSlotTime(slot.startTimeMinutes)}
-                                </p>
-                              </div>
-
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 w-7 shrink-0 p-0 text-destructive/80 hover:text-destructive"
-                                onClick={() => handleRemoveFixedSlot(slot._id)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </li>
-                          ),
-                        )}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-              </div>
+              {fixedSlots === undefined ? (
+                <p className="text-sm text-muted-foreground">Cargando…</p>
+              ) : fixedSlots.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Sin turnos fijos. El miembro se agregará automáticamente a
+                  cada clase que coincida con el horario asignado.
+                </p>
+              ) : (
+                <ul className="max-h-[188px] space-y-1.5 overflow-y-auto pr-1">
+                  {[...fixedSlots]
+                    .sort(
+                      (a, b) =>
+                        ((a.dayOfWeek + 6) % 7) - ((b.dayOfWeek + 6) % 7) ||
+                        a.startTimeMinutes - b.startTimeMinutes,
+                    )
+                    .map(
+                      (
+                        slot: Doc<"fixedClassSlots"> & {
+                          className?: string | null;
+                        },
+                      ) => (
+                        <li
+                          key={slot._id}
+                          className="group flex items-center gap-3 rounded-md border border-border/50 px-2.5 py-2 text-sm"
+                        >
+                          <span className="w-16 shrink-0 text-xs text-muted-foreground">
+                            {(
+                              DAYS_OF_WEEK.find(
+                                (d) => d.value === slot.dayOfWeek,
+                              )?.label ?? String(slot.dayOfWeek)
+                            ).slice(0, 3)}{" "}
+                            <span className="font-medium tabular-nums text-foreground">
+                              {formatSlotTime(slot.startTimeMinutes)}
+                            </span>
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {slot.className ?? "-"}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => handleRemoveFixedSlot(slot._id)}
+                            aria-label="Eliminar turno fijo"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </li>
+                      ),
+                    )}
+                </ul>
+              )}
             </div>
           </div>
 
           {/* RIGHT */}
-          <div className="flex flex-col gap-4 rounded-lg border p-3 sm:p-4 lg:self-start">
+          <div className="flex flex-col gap-4 rounded-xl border p-3 sm:p-4 lg:self-start">
             <div className="flex flex-col gap-3">
               <div className="min-w-0 space-y-1">
                 {assignments === undefined ? (
@@ -1286,7 +1613,10 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                     </div>
                   </>
                 ) : (
-                  <Badge variant="secondary">Sin planificación</Badge>
+                  <div className="flex items-center gap-2">
+                    <CalendarClock className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold">Planificación</span>
+                  </div>
                 )}
               </div>
 
@@ -1391,8 +1721,23 @@ export default function MemberDetailDialog({ member, open, onClose }: Props) {
                   </div>
                 )
               ) : (
-                <div className="text-sm text-muted-foreground">
-                  Sin planificación activa
+                <div className="flex flex-col items-center gap-3 self-center py-6 text-center">
+                  <p className="text-sm font-medium">
+                    {usesPlanification
+                      ? "Sin planificación activa"
+                      : "No usa planificación"}
+                  </p>
+                  <p className="max-w-xs text-xs text-muted-foreground">
+                    {usesPlanification
+                      ? "Asignale un bloque para que pueda ver sus entrenamientos en la app."
+                      : "Activá “Usa planificación” para hacerle seguimiento."}
+                  </p>
+                  {usesPlanification && showAssignButton && (
+                    <Button size="sm" onClick={handleOpenAssignPlan}>
+                      <CalendarPlus className="mr-1 h-4 w-4" />
+                      Asignar planificación
+                    </Button>
+                  )}
                 </div>
               )}
             </div>

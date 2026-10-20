@@ -29,11 +29,13 @@ import matWolfLooking from "@/assets/mat-wolf-looking.png";
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   // useReactTable returns unstable refs; component is opted out via "use no memo"
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table API incompatible with React Compiler memoization
@@ -72,6 +74,8 @@ export function DataTable<TData, TValue>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && "selected"}
+                className={onRowClick ? "cursor-pointer" : undefined}
+                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>

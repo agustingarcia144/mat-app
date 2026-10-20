@@ -2,20 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
-import { MoreHorizontal, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { DataTable } from "@/components/ui/data-table";
 import DataTableSkeleton from "@/components/ui/data-table-skeleton";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -27,9 +20,13 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import PlatformSummaryCards from "@/components/features/platform/platform-summary-cards";
 import RecordPaymentDialog from "@/components/features/platform/billing/record-payment-dialog";
 import PaymentHistoryDialog from "@/components/features/platform/billing/payment-history-dialog";
+import GrantTrialDialog from "@/components/features/platform/billing/grant-trial-dialog";
+import CancelSubscriptionDialog from "@/components/features/platform/billing/cancel-subscription-dialog";
 import {
+  OrganizationActionsMenu,
   getColumns,
   getOrganizationInitials,
+  type PlatformOrgActions,
 } from "@/components/features/platform/table/columns";
 import {
   BILLING_STATUS_LABELS,
@@ -40,7 +37,6 @@ import {
   SOURCE_LABELS,
   SOURCE_ORDER,
   SOURCE_VARIANTS,
-  canRecordManualPayment,
   formatDay,
   getPlanLabel,
   getPlanVariant,
@@ -69,14 +65,19 @@ export default function OrganizationsTab() {
     null,
   );
 
-  const columns = useMemo(
-    () =>
-      getColumns({
-        onRecordPayment: setPaymentTarget,
-        onViewPayments: setHistoryTarget,
-      }),
+  const [trialTarget, setTrialTarget] = useState<PlatformOrgRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<PlatformOrgRow | null>(null);
+
+  const actions = useMemo<PlatformOrgActions>(
+    () => ({
+      onRecordPayment: setPaymentTarget,
+      onViewPayments: setHistoryTarget,
+      onGrantTrial: setTrialTarget,
+      onCancelSubscription: setCancelTarget,
+    }),
     [],
   );
+  const columns = useMemo(() => getColumns(actions), [actions]);
 
   const filtered = useMemo(() => {
     const searchValue = normalize(search);
@@ -184,27 +185,7 @@ export default function OrganizationsTab() {
                       Alta: {formatDay(org.createdAt)}
                     </p>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Acciones</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        disabled={!canRecordManualPayment(org)}
-                        onSelect={() => setPaymentTarget(org)}
-                      >
-                        {canRecordManualPayment(org)
-                          ? "Registrar pago"
-                          : "Registrar pago (solo legacy/manual)"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setHistoryTarget(org)}>
-                        Ver pagos
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <OrganizationActionsMenu org={org} actions={actions} />
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-2 pl-12">
@@ -244,6 +225,16 @@ export default function OrganizationsTab() {
         organization={historyTarget}
         open={historyTarget !== null}
         onOpenChange={(open) => !open && setHistoryTarget(null)}
+      />
+      <GrantTrialDialog
+        organization={trialTarget}
+        open={trialTarget !== null}
+        onOpenChange={(open) => !open && setTrialTarget(null)}
+      />
+      <CancelSubscriptionDialog
+        organization={cancelTarget}
+        open={cancelTarget !== null}
+        onOpenChange={(open) => !open && setCancelTarget(null)}
       />
     </div>
   );

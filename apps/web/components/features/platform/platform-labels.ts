@@ -134,6 +134,33 @@ export function canRecordManualPayment(row: PlatformOrgRow): boolean {
   return row.source === "legacy" || row.source === "manual";
 }
 
+/**
+ * Cutting access is only offered off MercadoPago (MP subscriptions are
+ * cancelled in MP) and only while the org still has some access to cut.
+ */
+export function canCancelSubscription(row: PlatformOrgRow): boolean {
+  return (
+    row.source !== null &&
+    row.source !== "mercadopago" &&
+    row.billingStatus !== "inactive" &&
+    row.billingStatus !== "pending"
+  );
+}
+
+/**
+ * Mirrors `grantTrial`: refused for orgs with active access and for live
+ * MercadoPago preapprovals, whose webhook would overwrite the trial.
+ */
+export function canGrantTrial(row: PlatformOrgRow): boolean {
+  if (row.entitlementStatus === "active") return false;
+  if (row.source !== "mercadopago") return true;
+  return (
+    row.subscriptionStatus === "pending" ||
+    row.subscriptionStatus === "cancelled" ||
+    row.subscriptionStatus === "expired"
+  );
+}
+
 export function getSourceLabel(source: PlatformOrgRow["source"]): string {
   return source ? SOURCE_LABELS[source] : EMPTY_VALUE;
 }
