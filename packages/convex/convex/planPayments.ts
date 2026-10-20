@@ -1888,9 +1888,17 @@ export const recordPayment = mutation({
     // Settling an advance charge in cash/transfer collects the whole span, not
     // a single month.
     const advanceCharge = existing?.advanceMonths ? existing : null;
+    // A bonified member owes the discounted amount, as billed by
+    // generateBonificationPayments.
     const defaultAmountArs = advanceCharge
       ? (advanceCharge.totalAmountArs ?? advanceCharge.amountArs)
-      : plan.priceArs * coveredMemberCount;
+      : activeBonification
+        ? computeBonificationAmount(
+            plan.priceArs,
+            activeBonification.discountType,
+            activeBonification.discountValue,
+          )
+        : plan.priceArs * coveredMemberCount;
     const amountArs = args.amountArs ?? defaultAmountArs;
 
     if (existing) {

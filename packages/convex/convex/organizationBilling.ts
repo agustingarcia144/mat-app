@@ -916,6 +916,161 @@ async function suspendOrganizationAccess(ctx: any, organizationId: any) {
   return { subscriptionId: subscription._id };
 }
 
+// --- Super-admin access controls from the Platform page --------------------
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_GRANTED_TRIAL_DAYS = 365;
+
+/**
+ * Cut an organization's MAT access now. Only for subscriptions that are not
+ * billed through MercadoPago: an MP preapproval keeps charging until it is
+ * cancelled in MP, and its next webhook would re-sync the entitlement anyway.
+ */
+export const cancelOffMercadoPagoSubscription = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
+
+    const subscription = await ctx.db
+      .query("organizationBillingSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("desc")
+      .first();
+
+    if (!subscription) {
+      throw new Error("La organizacion no tiene una suscripcion");
+    }
+    if (!subscription.source || subscription.source === "mercadopago") {
+      throw new Error(
+        "Las suscripciones de Mercado Pago se cancelan desde Mercado Pago",
+      );
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(subscription._id, {
+      status: "cancelled",
+      entitlementStatus: "inactive",
+      graceUntil: undefined,
+      // Close any unused paid period / trial at the cut, so "Vence" shows the
+      // cut date and a later manual payment restarts from that day instead of
+      // stacking on days the gym no longer had.
+      currentPeriodEnd:
+        typeof subscription.currentPeriodEnd === "number"
+          ? Math.min(subscription.currentPeriodEnd, now)
+          : undefined,
+      trialEndsAt:
+        typeof subscription.trialEndsAt === "number"
+          ? Math.min(subscription.trialEndsAt, now)
+          : undefined,
+      updatedAt: now,
+    });
+
+    return { subscriptionId: subscription._id };
+  },
+});
+
+/**
+ * Give an organization full trial access for `days` days from now, using the
+ * same `entitlementStatus: "trial"` + `trialEndsAt` shape as the signup trial.
+ * An existing row keeps its plan and origin (so a legacy gym can still have
+ * manual payments recorded afterwards, and a pending MP checkout stays
+ * pending); an org with no subscription gets a PRO trial row, like signup.
+ */
+export const grantTrial = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    days: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { identity } = await requireSuperAdmin(ctx);
+
+    if (
+      !Number.isInteger(args.days) ||
+      args.days < 1 ||
+      args.days > MAX_GRANTED_TRIAL_DAYS
+    ) {
+      throw new Error(
+        `La prueba debe durar entre 1 y ${MAX_GRANTED_TRIAL_DAYS} dias`,
+      );
+    }
+
+    const organization = await ctx.db.get(args.organizationId);
+    if (!organization) {
+      throw new Error("La organizacion no existe");
+    }
+
+    const now = Date.now();
+    const trialEndsAt = now + args.days * DAY_MS;
+
+    const existing = await ctx.db
+      .query("organizationBillingSubscriptions")
+      .withIndex("by_organization", (q) =>
+        q.eq("organizationId", args.organizationId),
+      )
+      .order("desc")
+      .first();
+
+    if (existing) {
+      if (existing.entitlementStatus === "active") {
+        throw new Error("La organizacion ya tiene una suscripcion activa");
+      }
+      // A live MP preapproval (authorized / paused / failing) is re-synced by
+      // the webhook, which would overwrite the trial. Pending checkouts are
+      // fine: `prepareCheckoutInternal` already preserves trial access on them.
+      if (
+        existing.source === "mercadopago" &&
+        existing.status !== "pending" &&
+        existing.status !== "cancelled" &&
+        existing.status !== "expired"
+      ) {
+        throw new Error(
+          "La organizacion tiene una suscripcion de Mercado Pago vigente",
+        );
+      }
+
+      await ctx.db.patch(existing._id, {
+        entitlementStatus: "trial",
+        trialEndsAt,
+        graceUntil: undefined,
+        updatedAt: now,
+      });
+      return { subscriptionId: existing._id, trialEndsAt };
+    }
+
+    const proPriceArsRaw = Number(process.env.MERCADOPAGO_PRO_PRICE_ARS);
+    const proPriceArs =
+      Number.isFinite(proPriceArsRaw) && proPriceArsRaw >= 1
+        ? Math.round(proPriceArsRaw)
+        : undefined;
+    const proPlanId = await ctx.runMutation(
+      unsafeInternal.appBillingPlans.ensureProPlanInternal,
+      proPriceArs !== undefined ? { priceArs: proPriceArs } : {},
+    );
+
+    const subscriptionId = await ctx.db.insert(
+      "organizationBillingSubscriptions",
+      {
+        organizationId: args.organizationId,
+        billingPlanId: proPlanId,
+        source: "trial",
+        externalReference: `trial:${args.organizationId}:${now}`,
+        status: "authorized",
+        entitlementStatus: "trial",
+        trialEndsAt,
+        createdBy: identity.subject,
+        createdAt: now,
+        updatedAt: now,
+      },
+    );
+
+    return { subscriptionId, trialEndsAt };
+  },
+});
+
 // --- Manual payments for off-MercadoPago organizations ---------------------
 //
 // Legacy / manually billed orgs pay by transfer or cash, so nothing advances

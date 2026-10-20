@@ -9,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -16,6 +17,8 @@ import {
   BILLING_STATUS_VARIANTS,
   EMPTY_VALUE,
   SOURCE_VARIANTS,
+  canCancelSubscription,
+  canGrantTrial,
   canRecordManualPayment,
   formatDay,
   formatRelative,
@@ -29,6 +32,56 @@ import {
 export interface PlatformOrgActions {
   onRecordPayment: (org: PlatformOrgRow) => void;
   onViewPayments: (org: PlatformOrgRow) => void;
+  onGrantTrial: (org: PlatformOrgRow) => void;
+  onCancelSubscription: (org: PlatformOrgRow) => void;
+}
+
+export function OrganizationActionsMenu({
+  org,
+  actions,
+}: {
+  org: PlatformOrgRow;
+  actions: PlatformOrgActions;
+}) {
+  const canRecord = canRecordManualPayment(org);
+  const canCancel = canCancelSubscription(org);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8">
+          <MoreHorizontal className="h-4 w-4" />
+          <span className="sr-only">Acciones</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          disabled={!canRecord}
+          onSelect={() => actions.onRecordPayment(org)}
+        >
+          {canRecord ? "Registrar pago" : "Registrar pago (solo legacy/manual)"}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => actions.onViewPayments(org)}>
+          Ver pagos
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={!canGrantTrial(org)}
+          onSelect={() => actions.onGrantTrial(org)}
+        >
+          Otorgar prueba
+        </DropdownMenuItem>
+        {org.source !== "mercadopago" && (
+          <DropdownMenuItem
+            disabled={!canCancel}
+            className="text-destructive focus:text-destructive"
+            onSelect={() => actions.onCancelSubscription(org)}
+          >
+            Cortar suscripción
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export function getOrganizationInitials(name: string): string {
@@ -192,32 +245,8 @@ export const getColumns = (
   {
     id: "actions",
     header: "",
-    cell: ({ row }) => {
-      const org = row.original;
-      const canRecord = canRecordManualPayment(org);
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Acciones</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              disabled={!canRecord}
-              onSelect={() => actions.onRecordPayment(org)}
-            >
-              {canRecord
-                ? "Registrar pago"
-                : "Registrar pago (solo legacy/manual)"}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => actions.onViewPayments(org)}>
-              Ver pagos
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
-    },
+    cell: ({ row }) => (
+      <OrganizationActionsMenu org={row.original} actions={actions} />
+    ),
   },
 ];

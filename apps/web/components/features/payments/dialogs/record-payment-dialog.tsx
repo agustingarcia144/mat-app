@@ -390,8 +390,15 @@ export default function RecordPaymentDialog({
                   selectedSubscription.payableAmountArs ??
                   selectedSubscription.plan.priceArs
                 ).toLocaleString("es-AR")}
-                {(selectedSubscription.coveredMemberCount ?? 1) > 1 &&
-                  ` (${selectedSubscription.coveredMemberCount} miembros x $${selectedSubscription.plan.priceArs.toLocaleString("es-AR")})`}
+                {selectedSubscription.activeBonification
+                  ? ` (con bonificación ${
+                      selectedSubscription.activeBonification.discountType ===
+                      "percentage"
+                        ? `del ${selectedSubscription.activeBonification.discountValue}%`
+                        : `de $${selectedSubscription.activeBonification.discountValue.toLocaleString("es-AR")}`
+                    } sobre $${selectedSubscription.plan.priceArs.toLocaleString("es-AR")})`
+                  : (selectedSubscription.coveredMemberCount ?? 1) > 1 &&
+                    ` (${selectedSubscription.coveredMemberCount} miembros x $${selectedSubscription.plan.priceArs.toLocaleString("es-AR")})`}
               </FieldDescription>
             )}
           </Field>

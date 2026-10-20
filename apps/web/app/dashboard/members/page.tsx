@@ -5,9 +5,13 @@ import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { DataTable } from '@/components/ui/data-table'
 import {
+  AT_RISK_DAYS,
   getColumns,
   isBirthdayToday,
+  PLAN_PAYMENT_STATUS_DOT,
+  PLAN_PAYMENT_STATUS_LABEL,
   type MemberTableRow,
+  type PlanPaymentStatus,
 } from '@/components/features/members/table/columns'
 import { mapMembershipsToMembers } from '@repo/core/utils'
 import type { Member } from '@repo/core'
@@ -18,10 +22,11 @@ import { JoinRequestsCard } from '@/components/features/members/join-requests-ca
 import { MemberInviteQrDialog } from '@/components/features/members/member-invite-qr-dialog'
 import { Search, SlidersHorizontal } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import StatusBadge from '@/components/shared/badges/status-badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useCanQueryCurrentOrganization } from '@/hooks/use-can-query-current-organization'
+import { useOrganizationEntitlement } from '@/hooks/use-organization-entitlement'
+import { cn } from '@/lib/utils'
 import { DashboardPageContainer } from '@/components/shared/responsive/dashboard-page-container'
 import { ResponsiveActionButton } from '@/components/ui/responsive-action-button'
 import { Button } from '@/components/ui/button'
@@ -45,6 +50,31 @@ const normalize = (value?: string) =>
 
 type FilterableMemberTableRow = MemberTableRow & {
   createdAtTimestamp: number
+}
+
+type ActivityFilter = 'all' | 'at_risk'
+
+const SUMMARY_STATUSES: PlanPaymentStatus[] = [
+  'pago',
+  'pendiente',
+  'en_revision',
+  'vencido',
+  'none',
+]
+
+function isAtRisk(member: MemberTableRow) {
+  return (
+    member.daysSinceLastActivity === null ||
+    (typeof member.daysSinceLastActivity === 'number' &&
+      member.daysSinceLastActivity > AT_RISK_DAYS)
+  )
+}
+
+/** Close of the payment window for calendar plans, in the given "YYYY-MM". */
+function getCalendarDueAt(plan: any, billingPeriod: string) {
+  const [year, month] = billingPeriod.split('-').map(Number)
+  if (!year || !month || !plan?.paymentWindowEndDay) return null
+  return new Date(year, month - 1, plan.paymentWindowEndDay).getTime()
 }
 
 type BillingMode = 'calendar' | 'join_date'
@@ -86,6 +116,13 @@ export default function MembersPage() {
     api.planPayments.getByOrganization,
     canQueryCurrentOrganization ? {} : 'skip'
   )
+  const entitlement = useOrganizationEntitlement()
+  // Attendance is a Métricas feature; gyms without it don't get the column.
+  const canSeeAttendance = entitlement?.modules.includes('metrics') ?? false
+  const attendance = useQuery(
+    api.classMetrics.getMemberAttendanceMetrics,
+    canQueryCurrentOrganization && canSeeAttendance ? { rangeDays: 30 } : 'skip'
+  )
 
   const members = mapMembershipsToMembers(memberships || [])
 
@@ -99,15 +136,23 @@ export default function MembersPage() {
   const [filterPlan, setFilterPlan] = useState('all')
   const [filterPlanStatus, setFilterPlanStatus] = useState('all')
   const [filterStatus, setFilterStatus] = useState('active')
+  const [filterActivity, setFilterActivity] = useState<ActivityFilter>('all')
   const [nameOrder, setNameOrder] = useState('default')
   const [createdFrom, setCreatedFrom] = useState('')
   const [createdTo, setCreatedTo] = useState('')
   const [sheetFilterPlan, setSheetFilterPlan] = useState('all')
   const [sheetFilterPlanStatus, setSheetFilterPlanStatus] = useState('all')
   const [sheetFilterStatus, setSheetFilterStatus] = useState('active')
+  const [sheetFilterActivity, setSheetFilterActivity] =
+    useState<ActivityFilter>('all')
   const [sheetNameOrder, setSheetNameOrder] = useState('default')
   const [sheetCreatedFrom, setSheetCreatedFrom] = useState('')
   const [sheetCreatedTo, setSheetCreatedTo] = useState('')
+
+  const attendanceByUser = useMemo(() => {
+    if (!attendance) return null
+    return new Map(attendance.members.map((m) => [m.userId, m]))
+  }, [attendance])
 
   const currentBillingPeriod = useMemo(() => {
     const now = new Date()
@@ -117,10 +162,15 @@ export default function MembersPage() {
   const membersWithPlanData = useMemo<FilterableMemberTableRow[]>(() => {
     const latestSubscriptionByUser = new Map<string, any>()
     const membershipCreatedAtByUser = new Map<string, number>()
+    const membershipJoinedAtByUser = new Map<string, number>()
     const nameByUserId = new Map<string, string>()
 
     for (const membership of memberships ?? []) {
       membershipCreatedAtByUser.set(membership.userId, membership.createdAt ?? 0)
+      membershipJoinedAtByUser.set(
+        membership.userId,
+        membership.joinedAt ?? membership.createdAt ?? 0
+      )
       const displayName =
         membership.fullName ||
         [membership.firstName, membership.lastName].filter(Boolean).join(' ') ||
@@ -141,9 +191,23 @@ export default function MembersPage() {
       }
     }
 
+    const subscriptionById = new Map<string, any>()
+    for (const subscription of subscriptions ?? []) {
+      subscriptionById.set(String(subscription._id), subscription)
+    }
+
     const latestPaymentBySubscriptionPeriod = new Map<string, any>()
+    const lastPaidAtBySubscription = new Map<string, number>()
 
     for (const payment of payments ?? []) {
+      if (payment.status === 'approved') {
+        const paidAt = payment.reviewedAt ?? payment.updatedAt ?? payment.createdAt
+        const subscriptionKey = String(payment.subscriptionId)
+        if (paidAt > (lastPaidAtBySubscription.get(subscriptionKey) ?? 0)) {
+          lastPaidAtBySubscription.set(subscriptionKey, paidAt)
+        }
+      }
+
       const key = `${payment.subscriptionId}:${payment.billingPeriod}`
       const previous = latestPaymentBySubscriptionPeriod.get(key)
       const previousUpdatedAt = previous?.updatedAt ?? previous?.createdAt ?? 0
@@ -182,9 +246,18 @@ export default function MembersPage() {
         planPaymentStatus = 'vencido'
       } else if (currentPayment?.status === 'approved') {
         planPaymentStatus = 'pago'
+      } else if (currentPayment?.status === 'in_review') {
+        planPaymentStatus = 'en_revision'
       } else {
         planPaymentStatus = 'pendiente'
       }
+
+      const isFamilyDependent =
+        !!subscription && billingSubscriptionId !== String(subscription._id)
+      const familyPayer = isFamilyDependent
+        ? subscriptionById.get(billingSubscriptionId!)
+        : null
+      const attendanceStats = attendanceByUser?.get(member.id)
 
       return {
         ...member,
@@ -192,23 +265,81 @@ export default function MembersPage() {
         planBillingMode,
         planDueDayLabel,
         planPaymentStatus,
+        planAmountArs:
+          subscription && !isFamilyDependent
+            ? (subscription.payableAmountArs ?? null)
+            : null,
+        familyMemberCount: subscription?.coveredMemberCount ?? 1,
+        familyPayerName: familyPayer
+          ? (nameByUserId.get(familyPayer.userId) ?? 'Grupo familiar')
+          : null,
+        paymentDueAt:
+          currentPayment?.dueAt ??
+          (planBillingMode === 'calendar' && subscription
+            ? getCalendarDueAt(subscription.plan, subscriptionBillingPeriod)
+            : null),
+        lastPaidAt: billingSubscriptionId
+          ? (lastPaidAtBySubscription.get(billingSubscriptionId) ?? null)
+          : null,
+        suspendedAt:
+          subscription?.status === 'suspended'
+            ? (subscription.suspendedAt ?? null)
+            : null,
+        joinedAtTimestamp: membershipJoinedAtByUser.get(member.id) ?? 0,
+        daysSinceLastActivity: attendanceByUser
+          ? (attendanceStats?.daysSinceLastActivity ?? null)
+          : undefined,
+        activeDaysLast30: attendanceStats?.activeDays ?? 0,
         responsibleName: member.responsibleUserId
           ? (nameByUserId.get(member.responsibleUserId) ?? null)
           : null,
         createdAtTimestamp: membershipCreatedAtByUser.get(member.id) ?? 0,
       }
     })
-  }, [currentBillingPeriod, memberships, onlyMembers, payments, subscriptions])
+  }, [
+    attendanceByUser,
+    currentBillingPeriod,
+    memberships,
+    onlyMembers,
+    payments,
+    subscriptions,
+  ])
 
-  const showPlanDueDayColumn = useMemo(
-    () => membersWithPlanData.some((member) => member.planBillingMode === 'join_date'),
+  const showResponsibleColumn = useMemo(
+    () => membersWithPlanData.some((member) => Boolean(member.responsibleName)),
     [membersWithPlanData]
   )
 
   const columns = useMemo(
-    () => getColumns({ showPlanDueDayColumn }),
-    [showPlanDueDayColumn]
+    () =>
+      getColumns({
+        showLastVisitColumn: canSeeAttendance,
+        showResponsibleColumn,
+      }),
+    [canSeeAttendance, showResponsibleColumn]
   )
+
+  // Tiles count the roster the status filter is showing (active by default),
+  // so the numbers match what clicking a tile reveals.
+  const summary = useMemo(() => {
+    const roster = membersWithPlanData.filter(
+      (m) =>
+        filterStatus === 'all' ||
+        normalizeMemberStatus(m.status) === normalizeMemberStatus(filterStatus)
+    )
+    const byStatus = Object.fromEntries(
+      SUMMARY_STATUSES.map((status) => [
+        status,
+        roster.filter((m) => m.planPaymentStatus === status).length,
+      ])
+    ) as Record<PlanPaymentStatus, number>
+
+    return {
+      total: roster.length,
+      byStatus,
+      atRisk: roster.filter(isAtRisk).length,
+    }
+  }, [filterStatus, membersWithPlanData])
 
   const filteredMembers = useMemo(() => {
     const searchValue = normalize(search)
@@ -234,7 +365,8 @@ export default function MembersPage() {
         (filterStatus === 'all' ||
           normalizedStatus === normalizeMemberStatus(filterStatus)) &&
         (createdFromTime === null || m.createdAtTimestamp >= createdFromTime) &&
-        (createdToTime === null || m.createdAtTimestamp <= createdToTime)
+        (createdToTime === null || m.createdAtTimestamp <= createdToTime) &&
+        (filterActivity === 'all' || isAtRisk(m))
       )
     })
 
@@ -264,6 +396,7 @@ export default function MembersPage() {
     createdTo,
     filterPlan,
     filterPlanStatus,
+    filterActivity,
     filterStatus,
     membersWithPlanData,
     nameOrder,
@@ -289,6 +422,7 @@ export default function MembersPage() {
     filterPlanStatus !== 'all' ? filterPlanStatus : '',
     filterStatus !== 'active' ? filterStatus : '',
     nameOrder !== 'default' ? nameOrder : '',
+    filterActivity !== 'all' ? filterActivity : '',
     createdFrom,
     createdTo,
   ].filter(Boolean).length
@@ -300,7 +434,7 @@ export default function MembersPage() {
   ) {
     return (
       <DashboardPageContainer className='py-6 md:py-10'>
-        <DataTableSkeleton columns={8} rows={10} />
+        <DataTableSkeleton columns={6} rows={10} />
       </DashboardPageContainer>
     )
   }
@@ -327,6 +461,7 @@ export default function MembersPage() {
               setSheetFilterPlan(filterPlan)
               setSheetFilterPlanStatus(filterPlanStatus)
               setSheetFilterStatus(filterStatus)
+              setSheetFilterActivity(filterActivity)
               setSheetNameOrder(nameOrder)
               setSheetCreatedFrom(createdFrom)
               setSheetCreatedTo(createdTo)
@@ -343,6 +478,43 @@ export default function MembersPage() {
           ) : null}
         </div>
         <MemberInviteQrDialog />
+      </div>
+
+      <div className='grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7'>
+        <SummaryTile
+          label={filterStatus === 'inactive' ? 'Inactivos' : 'Miembros'}
+          value={summary.total}
+          active={filterPlanStatus === 'all' && filterActivity === 'all'}
+          onClick={() => {
+            setFilterPlanStatus('all')
+            setFilterActivity('all')
+          }}
+        />
+        {SUMMARY_STATUSES.map((status) => (
+          <SummaryTile
+            key={status}
+            label={PLAN_PAYMENT_STATUS_LABEL[status]}
+            value={summary.byStatus[status]}
+            total={summary.total}
+            dotClassName={PLAN_PAYMENT_STATUS_DOT[status]}
+            active={filterPlanStatus === status}
+            onClick={() =>
+              setFilterPlanStatus(filterPlanStatus === status ? 'all' : status)
+            }
+          />
+        ))}
+        {canSeeAttendance ? (
+          <SummaryTile
+            label={`Sin venir +${AT_RISK_DAYS} días`}
+            value={attendance ? summary.atRisk : null}
+            total={summary.total}
+            dotClassName='bg-red-500'
+            active={filterActivity === 'at_risk'}
+            onClick={() =>
+              setFilterActivity(filterActivity === 'at_risk' ? 'all' : 'at_risk')
+            }
+          />
+        ) : null}
       </div>
 
       {isMobile ? (
@@ -381,15 +553,31 @@ export default function MembersPage() {
                         <p className='truncate text-xs text-muted-foreground'>
                           {member.email || 'Sin email'}
                         </p>
-                        {member.planBillingMode === 'join_date' ? (
-                          <p className='truncate text-xs text-muted-foreground'>
-                            {member.assignedPlanName} - Vence{' '}
-                            {member.planDueDayLabel}
-                          </p>
-                        ) : null}
+                        <p className='truncate text-xs text-muted-foreground'>
+                          {member.assignedPlanName}
+                          {member.planBillingMode === 'join_date'
+                            ? ` · Vence ${member.planDueDayLabel.toLowerCase()}`
+                            : ''}
+                        </p>
                       </div>
                     </div>
-                    <StatusBadge status={isActive ? 'active' : 'inactive'} />
+                    <span
+                      className={cn(
+                        'inline-flex shrink-0 items-center gap-1.5 text-xs font-medium',
+                        !isActive && 'text-muted-foreground'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full',
+                          PLAN_PAYMENT_STATUS_DOT[member.planPaymentStatus]
+                        )}
+                        aria-hidden
+                      />
+                      {isActive
+                        ? PLAN_PAYMENT_STATUS_LABEL[member.planPaymentStatus]
+                        : 'Inactivo'}
+                    </span>
                   </div>
                 </button>
               )
@@ -397,7 +585,11 @@ export default function MembersPage() {
           )}
         </div>
       ) : (
-        <DataTable columns={columns} data={filteredMembers as MemberTableRow[]} />
+        <DataTable
+          columns={columns}
+          data={filteredMembers as MemberTableRow[]}
+          onRowClick={(member) => setSelectedMember(member)}
+        />
       )}
 
       <MemberDetailDialog
@@ -461,7 +653,7 @@ export default function MembersPage() {
             </div>
 
             <div className='space-y-2'>
-              <p className='text-sm font-medium'>Estado del plan</p>
+              <p className='text-sm font-medium'>Pago</p>
               <Select
                 value={sheetFilterPlanStatus}
                 onValueChange={setSheetFilterPlanStatus}
@@ -471,10 +663,11 @@ export default function MembersPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='all'>Todos</SelectItem>
-                  <SelectItem value='pago'>Pago</SelectItem>
-                  <SelectItem value='pendiente'>Pendiente</SelectItem>
-                  <SelectItem value='vencido'>Vencido</SelectItem>
-                  <SelectItem value='none'>Sin plan</SelectItem>
+                  {SUMMARY_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {PLAN_PAYMENT_STATUS_LABEL[status]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -492,6 +685,28 @@ export default function MembersPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {canSeeAttendance ? (
+              <div className='space-y-2'>
+                <p className='text-sm font-medium'>Asistencia</p>
+                <Select
+                  value={sheetFilterActivity}
+                  onValueChange={(value) =>
+                    setSheetFilterActivity(value as ActivityFilter)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder='Todos' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='all'>Todos</SelectItem>
+                    <SelectItem value='at_risk'>
+                      Sin venir hace más de {AT_RISK_DAYS} días
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
           </div>
 
           <SheetFooter>
@@ -501,12 +716,14 @@ export default function MembersPage() {
                 setSheetFilterPlan('all')
                 setSheetFilterPlanStatus('all')
                 setSheetFilterStatus('active')
+                setSheetFilterActivity('all')
                 setSheetNameOrder('default')
                 setSheetCreatedFrom('')
                 setSheetCreatedTo('')
                 setFilterPlan('all')
                 setFilterPlanStatus('all')
                 setFilterStatus('active')
+                setFilterActivity('all')
                 setNameOrder('default')
                 setCreatedFrom('')
                 setCreatedTo('')
@@ -520,6 +737,7 @@ export default function MembersPage() {
                 setFilterPlan(sheetFilterPlan)
                 setFilterPlanStatus(sheetFilterPlanStatus)
                 setFilterStatus(sheetFilterStatus)
+                setFilterActivity(sheetFilterActivity)
                 setNameOrder(sheetNameOrder)
                 setCreatedFrom(sheetCreatedFrom)
                 setCreatedTo(sheetCreatedTo)
@@ -532,5 +750,49 @@ export default function MembersPage() {
         </SheetContent>
       </Sheet>
     </DashboardPageContainer>
+  )
+}
+
+function SummaryTile({
+  label,
+  value,
+  total,
+  dotClassName,
+  active,
+  onClick,
+}: {
+  label: string
+  value: number | null
+  total?: number
+  dotClassName?: string
+  active: boolean
+  onClick: () => void
+}) {
+  const share =
+    total && value !== null && total > 0 ? Math.round((value / total) * 100) : null
+
+  return (
+    <button
+      type='button'
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        'flex flex-col gap-1 rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-accent/40',
+        active && 'border-foreground/40 bg-accent/60'
+      )}
+    >
+      <span className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+        {dotClassName ? (
+          <span className={cn('h-1.5 w-1.5 rounded-full', dotClassName)} aria-hidden />
+        ) : null}
+        <span className='truncate'>{label}</span>
+      </span>
+      <span className='flex items-baseline gap-1.5'>
+        <span className='text-xl font-semibold tabular-nums'>{value ?? '…'}</span>
+        {share !== null ? (
+          <span className='text-xs text-muted-foreground tabular-nums'>{share}%</span>
+        ) : null}
+      </span>
+    </button>
   )
 }

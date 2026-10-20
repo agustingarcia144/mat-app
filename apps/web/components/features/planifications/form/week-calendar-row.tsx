@@ -13,6 +13,7 @@ import {
   GripHorizontal,
   MoreVertical,
   ChevronDown,
+  ArrowRightLeft,
 } from "lucide-react";
 import {
   DragDropProvider,
@@ -34,21 +35,25 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const DAY_CARD_PREFIX = "day-card-";
-const WEEKDAY_DROP_PREFIX = "weekday-drop-";
-const TypedDragDropProvider = DragDropProvider as ComponentType<{
+// Ids encode `${weekIndex}-${dayIndex}` / `${weekIndex}-${dow}` so drops can cross weeks.
+export const DAY_CARD_PREFIX = "day-card-";
+export const WEEKDAY_DROP_PREFIX = "weekday-drop-";
+export const TypedDragDropProvider = DragDropProvider as ComponentType<{
   children?: ReactNode;
 }>;
 const EMPTY_WORKOUT_DAYS: PlanificationForm["workoutWeeks"][0]["workoutDays"] =
   [];
 
 /** Must be a direct child of DragDropProvider so useDragDropMonitor receives the manager. */
-function DragEndMonitor({
+export function DragEndMonitor({
   onDragEnd,
   children,
 }: {
@@ -173,6 +178,8 @@ function DayCardContent({
   onCopyDay,
   onRemove,
   onToggleExercisesVisible,
+  moveTargets,
+  onMoveToWeek,
   expandedContent,
 }: {
   day: any;
@@ -189,6 +196,8 @@ function DayCardContent({
   onCopyDay: (dayIndex: number) => void;
   onRemove: (dayIndex: number) => void;
   onToggleExercisesVisible: (fieldId: string) => void;
+  moveTargets: WeekMoveTarget[];
+  onMoveToWeek: (dayIndex: number, toWeekIndex: number) => void;
   expandedContent: React.ReactNode;
 }) {
   return (
@@ -232,6 +241,24 @@ function DayCardContent({
               <Copy className="h-3.5 w-3.5" />
               Duplicar
             </DropdownMenuItem>
+            {moveTargets.length > 0 && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="flex items-center gap-2">
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                  Mover a semana
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {moveTargets.map((target) => (
+                    <DropdownMenuItem
+                      key={target.weekIndex}
+                      onClick={() => onMoveToWeek(dayIndex, target.weekIndex)}
+                    >
+                      {target.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
             <DropdownMenuItem
               onClick={() => onRemove(dayIndex)}
               className="text-destructive focus:text-destructive"
@@ -329,17 +356,27 @@ function DayCardContent({
   );
 }
 
+export interface WeekMoveTarget {
+  weekIndex: number;
+  name: string;
+}
+
 interface WeekCalendarRowProps {
   form: UseFormReturn<PlanificationForm>;
   weekIndex: number;
   /** When set, calendar shows summary cards with links to day edit page. When absent (create flow), shows inline editing. */
   planificationId?: string | null;
+  /** Other weeks a day can be moved to. */
+  moveTargets?: WeekMoveTarget[];
+  onMoveDayToWeek?: (dayIndex: number, toWeekIndex: number) => void;
 }
 
 export default function WeekCalendarRow({
   form,
   weekIndex,
   planificationId,
+  moveTargets = [],
+  onMoveDayToWeek,
 }: WeekCalendarRowProps) {
   const isMobile = useIsMobile();
   const { fields, append, remove } = useFieldArray({
@@ -496,66 +533,6 @@ export default function WeekCalendarRow({
     setExercisesVisibleDayIds(next);
   };
 
-  const onDragEndCallback = useCallback(
-    (event: any, manager?: any) => {
-      if (event?.canceled) return;
-      const op =
-        event?.operation ??
-        manager?.dragOperation ??
-        manager?.operation ??
-        event?.detail?.operation;
-      const sourceId = String(op?.source?.id ?? "");
-      const targetId = String(op?.target?.id ?? "");
-      if (!sourceId || !targetId || sourceId === targetId) return;
-
-      if (!sourceId.startsWith(DAY_CARD_PREFIX)) return;
-
-      let targetDow: number;
-
-      if (targetId.startsWith(DAY_CARD_PREFIX)) {
-        // Dropped on another day card: move to that day's column
-        const targetSuffix = targetId.slice(DAY_CARD_PREFIX.length);
-        const targetParts = targetSuffix.split("-");
-        const targetWeek = parseInt(targetParts[0], 10);
-        const targetDayIndex = parseInt(targetParts[1], 10);
-        if (Number.isNaN(targetDayIndex) || targetWeek !== weekIndex) return;
-        const targetDay = form.getValues(
-          `workoutWeeks.${weekIndex}.workoutDays.${targetDayIndex}`,
-        );
-        targetDow = targetDay?.dayOfWeek ?? 1;
-        if (targetDow < 1 || targetDow > 7) targetDow = 1;
-      } else if (targetId.startsWith(WEEKDAY_DROP_PREFIX)) {
-        // Dropped on weekday zone
-        const targetSuffix = targetId.slice(WEEKDAY_DROP_PREFIX.length);
-        const targetParts = targetSuffix.split("-");
-        const targetWeek = parseInt(targetParts[0], 10);
-        targetDow = parseInt(targetParts[1], 10);
-        if (
-          Number.isNaN(targetDow) ||
-          targetWeek !== weekIndex ||
-          targetDow < 1 ||
-          targetDow > 7
-        )
-          return;
-      } else {
-        return;
-      }
-
-      const sourceSuffix = sourceId.slice(DAY_CARD_PREFIX.length);
-      const sourceParts = sourceSuffix.split("-");
-      const sourceWeek = parseInt(sourceParts[0], 10);
-      const sourceDayIndex = parseInt(sourceParts[1], 10);
-      if (Number.isNaN(sourceDayIndex) || sourceWeek !== weekIndex) return;
-
-      form.setValue(
-        `workoutWeeks.${weekIndex}.workoutDays.${sourceDayIndex}.dayOfWeek`,
-        targetDow as 1 | 2 | 3 | 4 | 5 | 6 | 7,
-        { shouldDirty: true },
-      );
-    },
-    [form, weekIndex],
-  );
-
   const copyDay = (dayIndex: number) => {
     const currentDay = form.getValues(
       `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`,
@@ -682,94 +659,97 @@ export default function WeekCalendarRow({
             onCopyDay={copyDay}
             onRemove={remove}
             onToggleExercisesVisible={toggleExercisesVisible}
+            moveTargets={onMoveDayToWeek ? moveTargets : []}
+            onMoveToWeek={(index, toWeekIndex) =>
+              onMoveDayToWeek?.(index, toWeekIndex)
+            }
             expandedContent={expandedContent}
           />
         </DraggableDayCard>
       );
     });
 
+  // Drag-and-drop provider and drop handling live in WorkoutWeeksSection so days can move across weeks.
   return (
-    <TypedDragDropProvider>
-      <DragEndMonitor onDragEnd={onDragEndCallback}>
-        {isMobile ? (
-          <div className="space-y-2">
-            {DAY_NAMES.map(({ value: dow, label }) => {
-              const dayIndices = daysByWeekday.get(dow) ?? [];
-              const isExpanded = expandedWeekdays.has(dow);
+    <>
+      {isMobile ? (
+        <div className="space-y-2">
+          {DAY_NAMES.map(({ value: dow, label }) => {
+            const dayIndices = daysByWeekday.get(dow) ?? [];
+            const isExpanded = expandedWeekdays.has(dow);
 
-              return (
-                <Collapsible key={dow} open={isExpanded}>
-                  <div className="rounded-lg border bg-muted/20">
-                    <div className="flex items-center justify-between gap-2 p-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleWeekdayExpanded(dow)}
-                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                        aria-expanded={isExpanded}
-                      >
-                        <ChevronDown
-                          className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`}
-                        />
-                        <span className="truncate text-sm font-medium text-muted-foreground">
-                          {label}
-                        </span>
-                        <span className="text-xs text-muted-foreground/80">
-                          {dayIndices.length}
-                        </span>
-                      </button>
-                      {renderAddDayButton(dow)}
-                    </div>
-                    <CollapsibleContent className="px-2 pb-2">
-                      <WeekdayDropZone
-                        weekIndex={weekIndex}
-                        dow={dow}
-                        className="rounded-lg p-1"
-                      >
-                        <div className="space-y-2">
-                          {renderDayCards(dayIndices)}
-                        </div>
-                      </WeekdayDropZone>
-                    </CollapsibleContent>
-                  </div>
-                </Collapsible>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <div className="grid min-w-[560px] grid-cols-7 gap-2">
-              {DAY_NAMES.map(({ value: dow, label }) => {
-                const dayIndices = daysByWeekday.get(dow) ?? [];
-                return (
-                  <div
-                    key={dow}
-                    className="flex min-h-[100px] flex-col rounded-lg border bg-muted/20 p-2"
-                  >
-                    <div className="mb-2 flex shrink-0 items-center justify-between">
-                      <span className="text-sm font-medium text-muted-foreground">
+            return (
+              <Collapsible key={dow} open={isExpanded}>
+                <div className="rounded-lg border bg-muted/20">
+                  <div className="flex items-center justify-between gap-2 p-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleWeekdayExpanded(dow)}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                      aria-expanded={isExpanded}
+                    >
+                      <ChevronDown
+                        className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-0" : "-rotate-90"}`}
+                      />
+                      <span className="truncate text-sm font-medium text-muted-foreground">
                         {label}
                       </span>
-                      {renderAddDayButton(dow)}
-                    </div>
-                    <div className="relative flex min-h-[60px] flex-1 flex-col">
-                      <WeekdayDropZone
-                        weekIndex={weekIndex}
-                        dow={dow}
-                        className="absolute inset-0 z-0 rounded-lg"
-                      />
-                      <div className="relative z-10 flex-1 space-y-2 pointer-events-none">
-                        <div className="pointer-events-auto">
-                          {renderDayCards(dayIndices)}
-                        </div>
+                      <span className="text-xs text-muted-foreground/80">
+                        {dayIndices.length}
+                      </span>
+                    </button>
+                    {renderAddDayButton(dow)}
+                  </div>
+                  <CollapsibleContent className="px-2 pb-2">
+                    <WeekdayDropZone
+                      weekIndex={weekIndex}
+                      dow={dow}
+                      className="rounded-lg p-1"
+                    >
+                      <div className="space-y-2">
+                        {renderDayCards(dayIndices)}
+                      </div>
+                    </WeekdayDropZone>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <div className="grid min-w-[560px] grid-cols-7 gap-2">
+            {DAY_NAMES.map(({ value: dow, label }) => {
+              const dayIndices = daysByWeekday.get(dow) ?? [];
+              return (
+                <div
+                  key={dow}
+                  className="flex min-h-[100px] flex-col rounded-lg border bg-muted/20 p-2"
+                >
+                  <div className="mb-2 flex shrink-0 items-center justify-between">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {label}
+                    </span>
+                    {renderAddDayButton(dow)}
+                  </div>
+                  <div className="relative flex min-h-[60px] flex-1 flex-col">
+                    <WeekdayDropZone
+                      weekIndex={weekIndex}
+                      dow={dow}
+                      className="absolute inset-0 z-0 rounded-lg"
+                    />
+                    <div className="relative z-10 flex-1 space-y-2 pointer-events-none">
+                      <div className="pointer-events-auto">
+                        {renderDayCards(dayIndices)}
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
-        )}
-      </DragEndMonitor>
-    </TypedDragDropProvider>
+        </div>
+      )}
+    </>
   );
 }
