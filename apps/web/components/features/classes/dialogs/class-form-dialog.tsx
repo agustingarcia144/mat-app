@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Field,
   FieldLabel,
@@ -164,203 +164,252 @@ export default function ClassFormDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>{classId ? "Editar Clase" : "Nueva Clase"}</SheetTitle>
+      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+        <SheetHeader className="border-b p-5 pr-12">
+          <SheetTitle>{classId ? "Editar clase" : "Nueva clase"}</SheetTitle>
           <SheetDescription>
             {classId
-              ? "Actualiza la información de la clase"
-              : "Crea una nueva clase para tu gimnasio"}
+              ? "Los cambios aplican a los turnos futuros."
+              : "Después vas a poder crearle turnos."}
           </SheetDescription>
         </SheetHeader>
 
         <form
           onSubmit={handleSubmit(onSubmit as any)}
-          className="space-y-6 mt-6"
+          className="flex min-h-0 flex-1 flex-col"
         >
-          {/* Name */}
-          <Field>
-            <FieldLabel>Nombre</FieldLabel>
-            <Input {...register("name")} placeholder="Ej: Yoga Avanzado" />
-            {errors.name && <FieldError>{errors.name.message}</FieldError>}
-          </Field>
+          <div className="flex-1 space-y-6 overflow-y-auto p-5">
+            <div className="space-y-4">
+              <Field>
+                <FieldLabel>Nombre</FieldLabel>
+                <Input
+                  {...register("name")}
+                  placeholder="Ej: Funcional mañana"
+                  autoFocus
+                />
+                {errors.name && <FieldError>{errors.name.message}</FieldError>}
+              </Field>
 
-          {/* Description */}
-          <Field>
-            <FieldLabel>Descripción (opcional)</FieldLabel>
-            <Textarea
-              {...register("description")}
-              placeholder="Describe la clase..."
-              rows={3}
-            />
-            {errors.description && (
-              <FieldError>{errors.description.message}</FieldError>
-            )}
-          </Field>
+              <Field>
+                <FieldLabel>
+                  Descripción{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
+                </FieldLabel>
+                <Textarea
+                  {...register("description")}
+                  placeholder="Qué se hace, nivel, qué traer..."
+                  rows={2}
+                />
+                {errors.description && (
+                  <FieldError>{errors.description.message}</FieldError>
+                )}
+              </Field>
 
-          {/* Capacity */}
-          <Field>
-            <FieldLabel>Capacidad</FieldLabel>
-            <Input
-              type="number"
-              {...register("capacity", { valueAsNumber: true })}
-              min={1}
-              max={1000}
-            />
-            <FieldDescription>
-              Número máximo de personas que pueden reservar
-            </FieldDescription>
-            {errors.capacity && (
-              <FieldError>{errors.capacity.message}</FieldError>
-            )}
-          </Field>
+              <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-3">
+                <Field>
+                  <FieldLabel>Cupos</FieldLabel>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    {...register("capacity", { valueAsNumber: true })}
+                    min={1}
+                    max={1000}
+                  />
+                </Field>
 
-          {/* Trainer */}
-          <Field>
-            <FieldLabel>Entrenador (opcional)</FieldLabel>
+                <Field>
+                  <FieldLabel>
+                    Entrenador{" "}
+                    <span className="font-normal text-muted-foreground">
+                      (opcional)
+                    </span>
+                  </FieldLabel>
+                  <Controller
+                    name="trainerId"
+                    control={control}
+                    render={({ field }) => (
+                      <Popover
+                        open={trainerComboOpen}
+                        onOpenChange={setTrainerComboOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between font-normal"
+                          >
+                            <span
+                              className={cn(
+                                "truncate",
+                                !field.value && "text-muted-foreground",
+                              )}
+                            >
+                              {field.value
+                                ? trainers.find(
+                                    (t: MembershipWithUser) =>
+                                      t.userId === field.value,
+                                  )?.fullName || "Sin entrenador"
+                                : "Sin entrenador"}
+                            </span>
+                            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[var(--radix-popover-trigger-width)] p-0"
+                          align="start"
+                        >
+                          <Command>
+                            <CommandInput placeholder="Buscar entrenador..." />
+                            <CommandList>
+                              <CommandEmpty>
+                                No se encontraron entrenadores
+                              </CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  onSelect={() => {
+                                    field.onChange(undefined);
+                                    setTrainerComboOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 size-4",
+                                      !field.value
+                                        ? "opacity-100"
+                                        : "opacity-0",
+                                    )}
+                                  />
+                                  Sin entrenador
+                                </CommandItem>
+                                {trainers.map((trainer: MembershipWithUser) => (
+                                  <CommandItem
+                                    key={trainer.userId}
+                                    value={trainer.userId}
+                                    onSelect={() => {
+                                      field.onChange(trainer.userId);
+                                      setTrainerComboOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 size-4",
+                                        field.value === trainer.userId
+                                          ? "opacity-100"
+                                          : "opacity-0",
+                                      )}
+                                    />
+                                    {trainer.fullName || trainer.email}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  />
+                </Field>
+              </div>
+              {errors.capacity && (
+                <FieldError>{errors.capacity.message}</FieldError>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Reservas
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field>
+                  <FieldLabel>Abren con</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      {...register("bookingWindowDays", {
+                        valueAsNumber: true,
+                      })}
+                      min={0}
+                      max={365}
+                      className="pr-16"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      días
+                    </span>
+                  </div>
+                  <FieldDescription>de anticipación</FieldDescription>
+                  {errors.bookingWindowDays && (
+                    <FieldError>{errors.bookingWindowDays.message}</FieldError>
+                  )}
+                </Field>
+
+                <Field>
+                  <FieldLabel>Cancelan hasta</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      {...register("cancellationWindowHours", {
+                        valueAsNumber: true,
+                      })}
+                      min={0}
+                      max={168}
+                      className="pr-16"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      horas
+                    </span>
+                  </div>
+                  <FieldDescription>antes del turno</FieldDescription>
+                  {errors.cancellationWindowHours && (
+                    <FieldError>
+                      {errors.cancellationWindowHours.message}
+                    </FieldError>
+                  )}
+                </Field>
+              </div>
+            </div>
+
             <Controller
-              name="trainerId"
+              name="isActive"
               control={control}
               render={({ field }) => (
-                <Popover
-                  open={trainerComboOpen}
-                  onOpenChange={setTrainerComboOpen}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full justify-between"
-                    >
-                      {field.value
-                        ? trainers.find(
-                            (t: MembershipWithUser) => t.userId === field.value,
-                          )?.fullName || "Seleccionar..."
-                        : "Seleccionar..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
-                    <Command>
-                      <CommandInput placeholder="Buscar entrenador..." />
-                      <CommandList>
-                        <CommandEmpty>
-                          No se encontraron entrenadores
-                        </CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            onSelect={() => {
-                              field.onChange(undefined);
-                              setTrainerComboOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                !field.value ? "opacity-100" : "opacity-0",
-                              )}
-                            />
-                            Ninguno
-                          </CommandItem>
-                          {trainers.map((trainer: MembershipWithUser) => (
-                            <CommandItem
-                              key={trainer.userId}
-                              value={trainer.userId}
-                              onSelect={() => {
-                                field.onChange(trainer.userId);
-                                setTrainerComboOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  field.value === trainer.userId
-                                    ? "opacity-100"
-                                    : "opacity-0",
-                                )}
-                              />
-                              {trainer.fullName || trainer.email}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              )}
-            />
-          </Field>
-
-          {/* Booking Window */}
-          <Field>
-            <FieldLabel>Ventana de reserva (días)</FieldLabel>
-            <Input
-              type="number"
-              {...register("bookingWindowDays", { valueAsNumber: true })}
-              min={0}
-              max={365}
-            />
-            <FieldDescription>
-              Días de anticipación con los que se puede reservar
-            </FieldDescription>
-            {errors.bookingWindowDays && (
-              <FieldError>{errors.bookingWindowDays.message}</FieldError>
-            )}
-          </Field>
-
-          {/* Cancellation Window */}
-          <Field>
-            <FieldLabel>Ventana de cancelación (horas)</FieldLabel>
-            <Input
-              type="number"
-              {...register("cancellationWindowHours", { valueAsNumber: true })}
-              min={0}
-              max={168}
-            />
-            <FieldDescription>
-              Horas mínimas de anticipación para cancelar
-            </FieldDescription>
-            {errors.cancellationWindowHours && (
-              <FieldError>{errors.cancellationWindowHours.message}</FieldError>
-            )}
-          </Field>
-
-          {/* Is Active */}
-          <Field>
-            <div className="flex items-center space-x-2">
-              <Controller
-                name="isActive"
-                control={control}
-                render={({ field }) => (
-                  <Checkbox
+                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border p-3">
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium">
+                      Clase activa
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Si la desactivás, los miembros dejan de verla.
+                    </span>
+                  </span>
+                  <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
-                )}
-              />
-              <FieldLabel className="mt-0!">Clase activa</FieldLabel>
-            </div>
-            <FieldDescription>
-              Las clases inactivas no se mostrarán a los miembros
-            </FieldDescription>
-          </Field>
+                </label>
+              )}
+            />
+          </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex gap-2 border-t p-4">
             <Button
               type="button"
               variant="outline"
+              className="flex-1"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
               {isSubmitting
                 ? "Guardando..."
                 : classId
-                  ? "Actualizar"
-                  : "Crear Clase"}
+                  ? "Guardar cambios"
+                  : "Crear clase"}
             </Button>
           </div>
         </form>

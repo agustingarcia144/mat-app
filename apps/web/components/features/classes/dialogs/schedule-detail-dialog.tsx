@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -27,45 +26,40 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import matWolfLooking from "@/assets/mat-wolf-looking.png";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import {
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Clock,
-  MoreHorizontal,
-  Eye,
-  Users,
   AlertTriangle,
+  Ban,
+  Check,
+  Eye,
+  MoreHorizontal,
+  Repeat2,
+  Trash2,
+  Users,
+  X,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useRouter } from "next/navigation";
 import { type Doc, type Id } from "@/convex/_generated/dataModel";
 import ClassStatusBadge from "@/components/shared/badges/class-status-badge";
 import { toast } from "sonner";
+
+const RESERVATION_FILTERS = [
+  { value: "all", label: "Todas" },
+  { value: "confirmed", label: "Confirmadas" },
+  { value: "attended", label: "Asistieron" },
+  { value: "no_show", label: "Ausentes" },
+  { value: "cancelled", label: "Canceladas" },
+] as const;
 
 interface ScheduleDetailDialogProps {
   open: boolean;
@@ -131,16 +125,67 @@ type ReservationWithUser = {
   } | null;
 };
 
+const RESERVATION_STATUS: Record<
+  string,
+  { label: string; dot: string; text: string }
+> = {
+  confirmed: {
+    label: "Confirmada",
+    dot: "bg-sky-500",
+    text: "text-foreground",
+  },
+  attended: {
+    label: "Asistió",
+    dot: "bg-emerald-500",
+    text: "text-emerald-600 dark:text-emerald-400",
+  },
+  no_show: {
+    label: "Ausente",
+    dot: "bg-red-500",
+    text: "text-red-600 dark:text-red-400",
+  },
+  cancelled: {
+    label: "Cancelada",
+    dot: "bg-muted-foreground/50",
+    text: "text-muted-foreground",
+  },
+};
+
+function ReservationStatus({
+  status,
+  checkedInAt,
+}: {
+  status: string;
+  checkedInAt?: number | null;
+}) {
+  const meta = RESERVATION_STATUS[status];
+  if (!meta) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium",
+        meta.text,
+      )}
+    >
+      <span className={cn("size-1.5 rounded-full", meta.dot)} aria-hidden />
+      {meta.label}
+      {status === "attended" && checkedInAt && (
+        <span className="font-normal tabular-nums text-muted-foreground">
+          {format(new Date(checkedInAt), "HH:mm")}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function ReservationRow({
   reservation,
-  getStatusBadge,
   isPastClass,
   actionLoading,
   handleCheckIn,
   handleMarkNoShow,
 }: {
   reservation: ReservationWithUser;
-  getStatusBadge: (status: string) => React.ReactNode;
   isPastClass: boolean;
   actionLoading: string | null;
   handleCheckIn: (id: Id<"classReservations">) => void;
@@ -160,6 +205,8 @@ function ReservationRow({
   );
   const planStatus = assignment ? getPlanStatus(assignment) : null;
   const showAssign = !assignment || planStatus?.status === "expired";
+  const busy = actionLoading === reservation._id;
+  const canMarkAttendance = reservation.status === "confirmed" && isPastClass;
 
   const handleViewPlan = () => {
     if (assignment?.planification?._id)
@@ -167,118 +214,121 @@ function ReservationRow({
   };
   const handleAssign = () => router.push("/dashboard/planifications");
 
-  const planBadge =
-    assignment && planStatus ? (
-      planStatus.status === "expired" ? (
-        <Badge variant="outline" className="text-xs">
-          Vencida
-        </Badge>
-      ) : planStatus.status === "active" && planStatus.daysLeft != null ? (
-        <Badge className="bg-green-600 text-xs">
-          {planStatus.daysLeft}d rest.
-        </Badge>
-      ) : planStatus.status === "expiring_soon" ? (
-        <Badge className="bg-yellow-500 text-black text-xs">Próx. vencer</Badge>
-      ) : planStatus.status === "not_started" ? (
-        <Badge variant="secondary" className="text-xs">
-          No iniciada
-        </Badge>
-      ) : null
-    ) : null;
+  const planLine = !assignment ? (
+    <span>Sin planificación</span>
+  ) : (
+    <>
+      <span className="truncate">{assignment.planification?.name}</span>
+      {planStatus?.status === "expired" ? (
+        <span className="shrink-0 text-red-600 dark:text-red-400">
+          · Vencida
+        </span>
+      ) : planStatus?.status === "expiring_soon" ? (
+        <span className="shrink-0 text-amber-600 dark:text-amber-400">
+          · Vence en {planStatus.daysLeft}d
+        </span>
+      ) : planStatus?.status === "not_started" ? (
+        <span className="shrink-0">· No iniciada</span>
+      ) : planStatus?.daysLeft != null ? (
+        <span className="shrink-0">· {planStatus.daysLeft}d restantes</span>
+      ) : null}
+    </>
+  );
+
+  const fullName =
+    reservation.user?.fullName ||
+    [reservation.user?.firstName, reservation.user?.lastName]
+      .filter(Boolean)
+      .join(" ") ||
+    "Usuario";
 
   return (
-    <div className="flex items-center justify-between gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <Avatar className="shrink-0">
-          <AvatarImage src={reservation.user?.imageUrl ?? undefined} />
-          <AvatarFallback>
-            {reservation.user?.firstName?.[0]}
-            {reservation.user?.lastName?.[0]}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-medium truncate">
-              {reservation.user?.fullName || "Usuario"}
-            </p>
-            {reservation.isFixedSlot && (
-              <Badge variant="secondary" className="text-xs font-normal">
-                Turno fijo
-              </Badge>
-            )}
-          </div>
-          {reservation.notes && (
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-              {reservation.notes}
-            </p>
-          )}
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <span className="text-xs text-muted-foreground">
-              {assignment?.planification?.name
-                ? `Planificación: ${assignment.planification.name}`
-                : "Sin planificación"}
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
+      <Avatar className="size-8 shrink-0">
+        <AvatarImage src={reservation.user?.imageUrl ?? undefined} />
+        <AvatarFallback className="text-xs">
+          {reservation.user?.firstName?.[0]}
+          {reservation.user?.lastName?.[0]}
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-sm font-medium">{fullName}</p>
+          {reservation.isFixedSlot && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <Repeat2 className="size-3" aria-hidden />
+              Fijo
             </span>
-            {planBadge}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0"
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {assignment && (
-                  <DropdownMenuItem onClick={handleViewPlan}>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Ver planificación
-                  </DropdownMenuItem>
-                )}
-                {showAssign && (
-                  <DropdownMenuItem onClick={handleAssign}>
-                    <Users className="h-4 w-4 mr-2" />
-                    Asignar planificación
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          )}
         </div>
-      </div>
-
-      <div className="flex items-center gap-2 shrink-0">
-        {getStatusBadge(reservation.status)}
-
-        {reservation.status === "confirmed" && isPastClass && (
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleCheckIn(reservation._id)}
-              disabled={actionLoading === reservation._id}
-            >
-              Registrar asistencia
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleMarkNoShow(reservation._id)}
-              disabled={actionLoading === reservation._id}
-            >
-              Marcar ausente
-            </Button>
-          </div>
-        )}
-
-        {reservation.checkedInAt && (
-          <p className="text-xs text-muted-foreground">
-            {format(new Date(reservation.checkedInAt), "HH:mm", { locale: es })}
+        <p className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          {planLine}
+        </p>
+        {reservation.notes && (
+          <p className="line-clamp-1 text-xs text-muted-foreground">
+            “{reservation.notes}”
           </p>
         )}
       </div>
-    </div>
+
+      <div className="ml-11 flex items-center gap-1.5 sm:ml-0">
+        {canMarkAttendance ? (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5"
+              onClick={() => handleCheckIn(reservation._id)}
+              disabled={busy}
+            >
+              <Check className="size-3.5 text-emerald-600" aria-hidden />
+              Presente
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5"
+              onClick={() => handleMarkNoShow(reservation._id)}
+              disabled={busy}
+            >
+              <X className="size-3.5 text-red-600" aria-hidden />
+              Ausente
+            </Button>
+          </>
+        ) : (
+          <ReservationStatus
+            status={reservation.status}
+            checkedInAt={reservation.checkedInAt}
+          />
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0"
+              aria-label={`Más acciones para ${fullName}`}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {assignment && (
+              <DropdownMenuItem onClick={handleViewPlan}>
+                <Eye className="mr-2 size-4" />
+                Ver planificación
+              </DropdownMenuItem>
+            )}
+            {showAssign && (
+              <DropdownMenuItem onClick={handleAssign}>
+                <Users className="mr-2 size-4" />
+                Asignar planificación
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </li>
   );
 }
 
@@ -365,6 +415,17 @@ export default function ScheduleDetailDialog({
         (r: Doc<"classReservations">) => r.status === "no_show",
       ).length
     : 0;
+
+  const countByStatus: Record<string, number> = {
+    confirmed: confirmedCount,
+    attended: attendedCount,
+    no_show: noShowCount,
+    cancelled: reservations
+      ? reservations.filter(
+          (r: Doc<"classReservations">) => r.status === "cancelled",
+        ).length
+      : 0,
+  };
 
   const hasActiveReservationsOrAttendance =
     confirmedCount > 0 || attendedCount > 0 || noShowCount > 0;
@@ -458,110 +519,106 @@ export default function ScheduleDetailDialog({
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "confirmed":
-        return (
-          <Badge variant="default" className="gap-1">
-            <Clock className="h-3 w-3" />
-            Confirmada
-          </Badge>
-        );
-      case "attended":
-        return (
-          <Badge variant="default" className="gap-1 bg-green-500">
-            <CheckCircle2 className="h-3 w-3" />
-            Asistió
-          </Badge>
-        );
-      case "no_show":
-        return (
-          <Badge variant="destructive" className="gap-1">
-            <XCircle className="h-3 w-3" />
-            No asistió
-          </Badge>
-        );
-      case "cancelled":
-        return (
-          <Badge variant="secondary" className="gap-1">
-            <AlertCircle className="h-3 w-3" />
-            Cancelada
-          </Badge>
-        );
-      default:
-        return null;
-    }
-  };
-
   const isPastClass = schedule ? schedule.startTime < Date.now() : false;
   const isCancelled = schedule?.status === "cancelled";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="sr-only">
-          <DialogTitle>
-            {schedule?.class?.name ?? "Detalle del turno"}
-          </DialogTitle>
-          <DialogDescription>
-            Información y reservas del turno seleccionado.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="flex max-h-[90dvh] w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-2xl">
         {!schedule || !reservations ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <p className="text-muted-foreground">Cargando detalles...</p>
+          <>
+            <DialogHeader className="sr-only">
+              <DialogTitle>Detalle del turno</DialogTitle>
+              <DialogDescription>Cargando el turno.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 p-5">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-64" />
+              <div className="grid grid-cols-3 gap-2">
+                {Array.from({ length: 3 }, (_, i) => (
+                  <Skeleton key={i} className="h-16 rounded-lg" />
+                ))}
+              </div>
+              <Skeleton className="h-32 rounded-lg" />
             </div>
-          </div>
+          </>
         ) : (
           <>
-            <DialogHeader>
-              <DialogTitle>{schedule.class?.name}</DialogTitle>
-              <DialogDescription>
-                {format(
-                  new Date(schedule.startTime),
-                  "EEEE d 'de' MMMM 'a las' HH:mm",
-                  {
-                    locale: es,
-                  },
-                )}
+            <DialogHeader className="space-y-1 border-b p-5 pr-12 text-left">
+              <div className="flex items-center gap-2">
+                <DialogTitle className="truncate">
+                  {schedule.class?.name ?? "Turno"}
+                </DialogTitle>
+                <ClassStatusBadge status={schedule.status} />
+              </div>
+              <DialogDescription className="first-letter:uppercase">
+                {format(new Date(schedule.startTime), "EEEE d 'de' MMMM", {
+                  locale: es,
+                })}{" "}
+                · {format(new Date(schedule.startTime), "HH:mm")}–
+                {format(new Date(schedule.endTime), "HH:mm")}
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-6">
-              {/* Schedule Info */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-                <div>
-                  <p className="text-sm text-muted-foreground">Capacidad</p>
-                  <p className="text-lg font-semibold">
-                    {schedule.currentReservations} / {schedule.capacity}
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg border px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground">Reservas</p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {schedule.currentReservations}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      /{schedule.capacity}
+                    </span>
+                  </p>
+                  <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn(
+                        "h-full rounded-full",
+                        schedule.currentReservations >= schedule.capacity
+                          ? "bg-red-500"
+                          : schedule.currentReservations / schedule.capacity >
+                              0.6
+                            ? "bg-amber-500"
+                            : "bg-emerald-500",
+                      )}
+                      style={{
+                        width: `${
+                          schedule.capacity > 0
+                            ? Math.min(
+                                (schedule.currentReservations /
+                                  schedule.capacity) *
+                                  100,
+                                100,
+                              )
+                            : 100
+                        }%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="rounded-lg border px-3 py-2.5">
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                    Asistieron
+                  </p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {attendedCount}
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Estado</p>
-                  <ClassStatusBadge status={schedule.status} />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Confirmadas</p>
-                  <p className="text-lg font-semibold">{confirmedCount}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Asistencias</p>
-                  <p className="text-lg font-semibold">
-                    {attendedCount}
-                    {noShowCount > 0 && (
-                      <span className="text-sm text-muted-foreground ml-2">
-                        ({noShowCount} ausentes)
-                      </span>
-                    )}
+                <div className="rounded-lg border px-3 py-2.5">
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="size-1.5 rounded-full bg-red-500" />
+                    Ausentes
+                  </p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {noShowCount}
                   </p>
                 </div>
               </div>
 
-              {/* In charge */}
               {!isCancelled && (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">A cargo</p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-medium">A cargo</p>
                   <StaffSelect
                     staff={staffOptions}
                     value={schedule.inChargeUserId ?? null}
@@ -569,80 +626,62 @@ export default function ScheduleDetailDialog({
                     placeholder="Sin asignar"
                     noneLabel="Sin asignar"
                     disabled={inChargeSaving}
-                    className="sm:max-w-xs"
+                    className="sm:w-64"
                   />
                 </div>
               )}
 
-              {/* Actions */}
-              {!isCancelled && (
-                <div className="flex justify-between items-center">
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Filtrar por estado" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="confirmed">Confirmadas</SelectItem>
-                      <SelectItem value="attended">Asistieron</SelectItem>
-                      <SelectItem value="no_show">No asistieron</SelectItem>
-                      <SelectItem value="cancelled">Canceladas</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRequestCancelOrRemove("cancel")}
-                      disabled={isRemoving}
-                    >
-                      {isRemoving ? "Procesando..." : "Cancelar turno"}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleRequestCancelOrRemove("remove")}
-                      disabled={isRemoving}
-                    >
-                      {isRemoving ? "Procesando..." : "Eliminar turno"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Reservations List */}
               <div className="space-y-2">
-                <h3 className="font-semibold">
-                  Reservas ({filteredReservations.length})
-                </h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-medium">Reservas</h3>
+                  {isPastClass && confirmedCount > 0 && !isCancelled && (
+                    <span className="text-xs text-amber-600 dark:text-amber-400">
+                      {confirmedCount} sin marcar asistencia
+                    </span>
+                  )}
+                </div>
+
+                {reservations.length > 0 && (
+                  <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {RESERVATION_FILTERS.filter(
+                      (f) => f.value === "all" || countByStatus[f.value] > 0,
+                    ).map((f) => (
+                      <button
+                        key={f.value}
+                        type="button"
+                        aria-pressed={statusFilter === f.value}
+                        onClick={() => setStatusFilter(f.value)}
+                        className={cn(
+                          "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
+                          statusFilter === f.value
+                            ? "border-foreground bg-foreground text-background"
+                            : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                        )}
+                      >
+                        {f.label}
+                        <span className="tabular-nums opacity-60">
+                          {f.value === "all"
+                            ? reservations.length
+                            : countByStatus[f.value]}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {filteredReservations.length === 0 ? (
-                  <Empty className="py-8">
-                    <EmptyHeader>
-                      <EmptyMedia>
-                        <Image
-                          src={matWolfLooking}
-                          alt=""
-                          className="h-16 w-16 object-contain"
-                        />
-                      </EmptyMedia>
-                      <EmptyTitle>No hay reservas</EmptyTitle>
-                      <EmptyDescription>
-                        {statusFilter === "all"
-                          ? "No hay reservas para este turno"
-                          : "No hay reservas con este estado"}
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
+                  <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                    {reservations.length === 0
+                      ? "Todavía nadie reservó este turno."
+                      : "No hay reservas con este estado."}
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <ul className="divide-y rounded-lg border">
                     {filteredReservations.map(
                       (reservation: ReservationWithUser) => (
                         <ReservationRow
                           key={reservation._id}
                           reservation={reservation}
-                          getStatusBadge={getStatusBadge}
                           isPastClass={isPastClass}
                           actionLoading={actionLoading}
                           handleCheckIn={handleCheckIn}
@@ -650,10 +689,34 @@ export default function ScheduleDetailDialog({
                         />
                       ),
                     )}
-                  </div>
+                  </ul>
                 )}
               </div>
             </div>
+
+            {!isCancelled && (
+              <div className="flex items-center justify-end gap-2 border-t px-5 py-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => handleRequestCancelOrRemove("remove")}
+                  disabled={isRemoving}
+                >
+                  <Trash2 className="mr-1.5 size-4" aria-hidden />
+                  Eliminar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRequestCancelOrRemove("cancel")}
+                  disabled={isRemoving}
+                >
+                  <Ban className="mr-1.5 size-4" aria-hidden />
+                  {isRemoving ? "Procesando..." : "Cancelar turno"}
+                </Button>
+              </div>
+            )}
           </>
         )}
       </DialogContent>
@@ -665,13 +728,11 @@ export default function ScheduleDetailDialog({
           if (!open) setConfirmAction(null);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100%-1.5rem)] rounded-xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              {confirmAction === "cancel"
-                ? "Cancelar turno"
-                : "Eliminar turno"}
+              {confirmAction === "cancel" ? "Cancelar turno" : "Eliminar turno"}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
@@ -691,9 +752,7 @@ export default function ScheduleDetailDialog({
                   {attendedCount > 0 && (
                     <li>
                       Hay{" "}
-                      <strong>
-                        {attendedCount} asistencias registradas
-                      </strong>{" "}
+                      <strong>{attendedCount} asistencias registradas</strong>{" "}
                       que se verán afectadas.
                     </li>
                   )}

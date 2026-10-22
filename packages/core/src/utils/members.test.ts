@@ -56,12 +56,9 @@ describe("mapMembershipToMember", () => {
     expect(member.id).toBe("user_123");
     expect(member.role).toBe("member");
     expect(member.status).toBe("active");
-    expect(member.createdAt).toBe(
-      new Date(baseMembership.createdAt).toLocaleDateString(),
-    );
-    expect(member.joinedAt).toBe(
-      new Date(baseMembership.joinedAt).toLocaleDateString(),
-    );
+    // es-AR, day first, regardless of the runtime's locale.
+    expect(member.createdAt).toBe("15/01/2026");
+    expect(member.joinedAt).toBe("20/02/2026");
   });
 });
 

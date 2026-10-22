@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import {
-  ArrowLeft,
   ChevronDown,
   ChevronRight,
   Search,
@@ -16,8 +14,20 @@ import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  MetricsEmpty,
+  MetricsPageHeader,
+} from "@/components/features/metrics/metrics-ui";
 import {
   Select,
   SelectContent,
@@ -138,20 +148,20 @@ const DEFAULT_COLUMNS: ColumnKey[] = [
 const COLUMN_OPTIONS: { key: ColumnKey; label: string }[] = [
   { key: "trend", label: "Tendencia" },
   { key: "firstWeight", label: "Primer peso" },
-  { key: "latestWeight", label: "Ultimo peso" },
-  { key: "delta", label: "Evolucion" },
+  { key: "latestWeight", label: "Último peso" },
+  { key: "delta", label: "Evolución" },
   { key: "bestWeight", label: "Mejor peso" },
   { key: "averageReps", label: "Promedio reps" },
-  { key: "latestReps", label: "Ultimas reps" },
-  { key: "lastDate", label: "Ultima fecha" },
+  { key: "latestReps", label: "Últimas reps" },
+  { key: "lastDate", label: "Última fecha" },
 ];
 
 const CHART_GRANULARITY_OPTIONS: { value: ChartGranularity; label: string }[] =
   [
-    { value: "day", label: "Dias" },
+    { value: "day", label: "Días" },
     { value: "week", label: "Semanas" },
     { value: "month", label: "Meses" },
-    { value: "year", label: "Anios" },
+    { value: "year", label: "Años" },
   ];
 
 const CHART_METRIC_OPTIONS: { value: ChartMetric; label: string }[] = [
@@ -198,7 +208,9 @@ function getCommentsForDate(
   comments: ExerciseComment[] | undefined,
   performedOn: string,
 ) {
-  return (comments ?? []).filter((comment) => comment.performedOn === performedOn);
+  return (comments ?? []).filter(
+    (comment) => comment.performedOn === performedOn,
+  );
 }
 
 function formatDelta(value?: number | null) {
@@ -313,7 +325,7 @@ function aggregateChartPoints(
 function TrendBadge({ trend }: { trend: Trend }) {
   if (trend === "up") {
     return (
-      <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10">
+      <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400">
         <TrendingUp className="mr-1 size-3" />
         Sube
       </Badge>
@@ -322,7 +334,7 @@ function TrendBadge({ trend }: { trend: Trend }) {
 
   if (trend === "down") {
     return (
-      <Badge className="border-red-500/30 bg-red-500/10 text-red-600 hover:bg-red-500/10">
+      <Badge className="border-red-500/30 bg-red-500/10 text-red-600 hover:bg-red-500/10 dark:text-red-400">
         <TrendingDown className="mr-1 size-3" />
         Baja
       </Badge>
@@ -330,7 +342,7 @@ function TrendBadge({ trend }: { trend: Trend }) {
   }
 
   return (
-    <Badge className="border-blue-500/30 bg-blue-500/10 text-blue-600 hover:bg-blue-500/10">
+    <Badge variant="outline" className="font-normal text-muted-foreground">
       Estable
     </Badge>
   );
@@ -360,7 +372,7 @@ function MetricLineChart({
 
   if (points.length === 0 || values.length === 0) {
     return (
-      <div className="flex h-44 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
+      <div className="flex h-44 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
         Sin datos de {metric === "weight" ? "peso" : "repeticiones"} para este
         ejercicio.
       </div>
@@ -403,7 +415,7 @@ function MetricLineChart({
 
   return (
     <div className="space-y-2">
-      <div className="rounded-xl border bg-background/60 p-2">
+      <div className="rounded-lg border bg-background p-2">
         <svg viewBox={`0 0 ${width} ${height}`} className="h-52 w-full">
           {axisTicks.map((ratio) => {
             const y =
@@ -483,7 +495,6 @@ function MetricLineChart({
           ))}
         </svg>
       </div>
-
     </div>
   );
 }
@@ -674,29 +685,24 @@ export default function ExerciseMetricsPage() {
 
   return (
     <DashboardPageContainer className="flex h-[calc(100vh-68px)] flex-col gap-4 overflow-hidden py-4 md:py-5">
-      <div className="shrink-0 space-y-2">
-        <Link
-          href="/dashboard/metrics"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Volver a metricas
-        </Link>
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold">
-            Metricas de Ejercicios de alumnos
-          </h1>
-          <p className="max-w-3xl text-sm text-muted-foreground">
-            Elegi un miembro, filtralo por plani y expandi el ejercicio que
-            quieras revisar con grafico e historial.
-          </p>
-        </div>
+      <div className="shrink-0">
+        <MetricsPageHeader
+          title="Ejercicios"
+          description="Elegí un miembro, filtrá por plani y abrí un ejercicio para ver su gráfico e historial."
+        />
       </div>
 
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col gap-4 rounded-2xl border bg-card/70 p-4">
+        <aside className="flex min-h-0 flex-col gap-4 rounded-xl border bg-card p-4 max-xl:max-h-80">
           <div className="shrink-0 space-y-2">
-            <p className="text-sm font-medium">Miembros</p>
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-sm font-semibold">Miembros</h2>
+              {totalMembers > 0 ? (
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {totalMembers}
+                </span>
+              ) : null}
+            </div>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -709,13 +715,18 @@ export default function ExerciseMetricsPage() {
           </div>
 
           {activeMemberListData === null ? (
-            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-              Cargando alumnos...
+            <div className="space-y-2">
+              {Array.from({ length: 5 }, (_, i) => (
+                <div
+                  key={i}
+                  className="h-[66px] animate-pulse rounded-lg bg-muted"
+                />
+              ))}
             </div>
           ) : members.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+            <MetricsEmpty className="py-6">
               No hay miembros activos para mostrar.
-            </div>
+            </MetricsEmpty>
           ) : (
             <div
               ref={membersScrollRef}
@@ -727,7 +738,7 @@ export default function ExerciseMetricsPage() {
                   loadMoreMembers();
                 }
               }}
-              className={cn("space-y-2 pr-1", METRICS_LIST_MAX_HEIGHT_CLASS)}
+              className={cn("space-y-1.5 pr-1", METRICS_LIST_MAX_HEIGHT_CLASS)}
             >
               {members.map((member) => {
                 const activePlanification = member.planifications.find(
@@ -745,29 +756,29 @@ export default function ExerciseMetricsPage() {
                       setExerciseSearch("");
                     }}
                     className={cn(
-                      "w-full rounded-xl border px-3 py-3 text-left transition-colors",
+                      "w-full rounded-lg border px-3 py-2.5 text-left transition-colors",
                       member.userId === selectedMemberId
-                        ? "border-primary bg-primary/5"
-                        : "bg-background/50 hover:border-primary/40 hover:bg-accent/30",
+                        ? "border-primary/60 bg-accent/50"
+                        : "border-transparent hover:bg-accent/40",
                     )}
                   >
-                    <div className="flex items-start gap-3">
-                      <Avatar className="size-10 border">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="size-9 border">
                         <AvatarImage src={member.imageUrl ?? undefined} />
                         <AvatarFallback>
                           {getInitials(member.name)}
                         </AvatarFallback>
                       </Avatar>
-                      <div className="min-w-0 space-y-1">
-                        <p className="truncate font-medium">{member.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {member.totalSessions} sesiones
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {member.name}
                         </p>
-                        {activePlanification ? (
-                          <p className="truncate text-xs text-muted-foreground">
-                            Activa: {activePlanification.planificationName}
-                          </p>
-                        ) : null}
+                        <p className="truncate text-xs text-muted-foreground">
+                          {member.totalSessions} sesiones
+                          {activePlanification
+                            ? ` · ${activePlanification.planificationName}`
+                            : ""}
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -776,11 +787,11 @@ export default function ExerciseMetricsPage() {
               {hasMoreMembers ? (
                 <div
                   ref={loadMoreMembersRef}
-                  className="rounded-xl border border-dashed p-3 text-center text-xs text-muted-foreground"
+                  className="p-3 text-center text-xs text-muted-foreground"
                 >
                   {isLoadingAdditionalMembers
-                    ? "Cargando mas alumnos..."
-                    : "Baja para cargar mas alumnos"}
+                    ? "Cargando más alumnos..."
+                    : "Bajá para cargar más alumnos"}
                 </div>
               ) : totalMembers > MEMBERS_PAGE_SIZE && !isSearchingMembers ? (
                 <div className="p-2 text-center text-xs text-muted-foreground">
@@ -792,52 +803,24 @@ export default function ExerciseMetricsPage() {
         </aside>
 
         <section className="flex min-h-0 flex-col gap-4">
-          <div className="shrink-0 rounded-2xl border bg-card/70 p-4">
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <SlidersHorizontal className="size-4" />
-                Columnas visibles
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {COLUMN_OPTIONS.map((option) => {
-                  const checked = visibleColumns.includes(option.key);
-                  return (
-                    <label
-                      key={option.key}
-                      className="flex items-center gap-2 rounded-full border px-3 py-2 text-sm"
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(value) =>
-                          toggleColumn(option.key, value === true)
-                        }
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             {!selectedMemberId ? (
-              <div className="rounded-2xl border border-dashed p-8 text-sm text-muted-foreground">
-                Selecciona un miembro para ver sus metricas.
-              </div>
+              <MetricsEmpty className="py-16">
+                Seleccioná un miembro para ver sus métricas.
+              </MetricsEmpty>
             ) : isSelectedMemberLoading ? (
-              <div className="rounded-2xl border border-dashed p-8 text-sm text-muted-foreground">
-                Cargando metricas de{" "}
+              <MetricsEmpty className="py-16">
+                Cargando métricas de{" "}
                 {selectedMemberSummary?.name ?? "este alumno"}...
-              </div>
+              </MetricsEmpty>
             ) : !selectedMember ? (
-              <div className="rounded-2xl border border-dashed p-8 text-sm text-muted-foreground">
-                No se encontraron metricas para este alumno.
-              </div>
+              <MetricsEmpty className="py-16">
+                No se encontraron métricas para este alumno.
+              </MetricsEmpty>
             ) : (
               <div className="space-y-4">
-                <div className="rounded-2xl border bg-card/70 p-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="rounded-xl border bg-card p-4">
+                  <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">
                         <Avatar className="size-11 border">
@@ -849,7 +832,7 @@ export default function ExerciseMetricsPage() {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <h2 className="text-xl font-semibold">
+                          <h2 className="text-lg font-semibold">
                             {selectedMember.name}
                           </h2>
                           <p className="text-sm text-muted-foreground">
@@ -858,14 +841,14 @@ export default function ExerciseMetricsPage() {
                         </div>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Ultima actividad:{" "}
+                        Última actividad:{" "}
                         {formatDate(selectedMember.lastPerformedOn)}
                       </p>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-2 xl:min-w-[520px]">
+                    <div className="grid gap-3 sm:grid-cols-2 2xl:w-[520px] 2xl:shrink-0">
                       <div className="space-y-2">
-                        <p className="text-sm font-medium">Plani</p>
+                        <p className="text-xs text-muted-foreground">Plani</p>
                         <Select
                           value={selectedPlanificationId ?? undefined}
                           onValueChange={(value) => {
@@ -874,7 +857,7 @@ export default function ExerciseMetricsPage() {
                           }}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Elegi una plani" />
+                            <SelectValue placeholder="Elegí una plani" />
                           </SelectTrigger>
                           <SelectContent>
                             {selectedMember.planifications.map(
@@ -886,7 +869,7 @@ export default function ExerciseMetricsPage() {
                                   {planification.planificationName}
                                   {planification.status === "active"
                                     ? " (Activa)"
-                                    : " (Historica)"}
+                                    : " (Histórica)"}
                                 </SelectItem>
                               ),
                             )}
@@ -895,7 +878,9 @@ export default function ExerciseMetricsPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <p className="text-sm font-medium">Buscar ejercicio</p>
+                        <p className="text-xs text-muted-foreground">
+                          Buscar ejercicio
+                        </p>
                         <div className="relative">
                           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                           <Input
@@ -913,13 +898,13 @@ export default function ExerciseMetricsPage() {
                 </div>
 
                 {selectedMember.effortSessions.length > 0 ? (
-                  <div className="rounded-2xl border bg-card/70 p-4">
+                  <div className="rounded-xl border bg-card p-4">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                      <div className="flex flex-col items-center justify-center rounded-xl border bg-background px-6 py-4 lg:min-w-[140px]">
-                        <p className="text-sm text-muted-foreground">
-                          Esfuerzo prom.
+                      <div className="flex flex-col justify-center rounded-lg border bg-background px-4 py-3 lg:min-w-[140px]">
+                        <p className="text-xs text-muted-foreground">
+                          Esfuerzo promedio
                         </p>
-                        <p className="text-4xl font-semibold">
+                        <p className="text-3xl font-semibold tabular-nums">
                           {selectedMember.averageEffort ?? "—"}
                           <span className="text-lg text-muted-foreground">
                             /10
@@ -928,9 +913,9 @@ export default function ExerciseMetricsPage() {
                       </div>
 
                       <div className="flex-1 space-y-3">
-                        <p className="text-sm font-medium">
+                        <h3 className="text-sm font-semibold">
                           Esfuerzo por sesión
-                        </p>
+                        </h3>
                         <div className="flex items-end gap-1.5">
                           {selectedMember.effortSessions
                             .slice(-16)
@@ -983,7 +968,9 @@ export default function ExerciseMetricsPage() {
                       (session) => session.note,
                     ) ? (
                       <div className="mt-4 space-y-2 border-t pt-4">
-                        <p className="text-sm font-medium">Notas del alumno</p>
+                        <h3 className="text-sm font-semibold">
+                          Notas del alumno
+                        </h3>
                         <div className="space-y-2">
                           {[...selectedMember.effortSessions]
                             .reverse()
@@ -1001,7 +988,9 @@ export default function ExerciseMetricsPage() {
                                   {formatDate(session.performedOn)}
                                 </Badge>
                                 {session.mood ? (
-                                  <span>{MOOD_DISPLAY[session.mood].emoji}</span>
+                                  <span>
+                                    {MOOD_DISPLAY[session.mood].emoji}
+                                  </span>
                                 ) : null}
                                 <p className="text-muted-foreground">
                                   {session.note}
@@ -1014,16 +1003,48 @@ export default function ExerciseMetricsPage() {
                   </div>
                 ) : null}
 
-                <div className="rounded-2xl border bg-card/70">
-                  <div className="border-b px-4 py-3 text-sm text-muted-foreground">
-                    {selectedPlanificationId
-                      ? "Ejercicios filtrados por la plani seleccionada."
-                      : "Mostrando todos los ejercicios."}
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold">Ejercicios</h3>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {visibleExercises.length}{" "}
+                        {selectedPlanificationId
+                          ? "en la plani seleccionada"
+                          : "en total"}
+                      </p>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-1.5">
+                          <SlidersHorizontal className="size-3.5" />
+                          Columnas
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel>Columnas visibles</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {COLUMN_OPTIONS.map((option) => (
+                          <DropdownMenuCheckboxItem
+                            key={option.key}
+                            checked={visibleColumns.includes(option.key)}
+                            onCheckedChange={(value) =>
+                              toggleColumn(option.key, value === true)
+                            }
+                            onSelect={(event) => event.preventDefault()}
+                          >
+                            {option.label}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   {visibleExercises.length === 0 ? (
-                    <div className="p-6 text-sm text-muted-foreground">
-                      No hay ejercicios para esa plani con el filtro actual.
+                    <div className="p-4">
+                      <MetricsEmpty>
+                        No hay ejercicios para esa plani con el filtro actual.
+                      </MetricsEmpty>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
@@ -1040,10 +1061,10 @@ export default function ExerciseMetricsPage() {
                               <TableHead>Primer peso</TableHead>
                             ) : null}
                             {visibleColumns.includes("latestWeight") ? (
-                              <TableHead>Ultimo peso</TableHead>
+                              <TableHead>Último peso</TableHead>
                             ) : null}
                             {visibleColumns.includes("delta") ? (
-                              <TableHead>Evolucion</TableHead>
+                              <TableHead>Evolución</TableHead>
                             ) : null}
                             {visibleColumns.includes("bestWeight") ? (
                               <TableHead>Mejor peso</TableHead>
@@ -1052,10 +1073,10 @@ export default function ExerciseMetricsPage() {
                               <TableHead>Promedio reps</TableHead>
                             ) : null}
                             {visibleColumns.includes("latestReps") ? (
-                              <TableHead>Ultimas reps</TableHead>
+                              <TableHead>Últimas reps</TableHead>
                             ) : null}
                             {visibleColumns.includes("lastDate") ? (
-                              <TableHead>Ultima fecha</TableHead>
+                              <TableHead>Última fecha</TableHead>
                             ) : null}
                           </TableRow>
                         </TableHeader>
@@ -1077,7 +1098,7 @@ export default function ExerciseMetricsPage() {
                                 <TableRow
                                   className={cn(
                                     "cursor-pointer",
-                                    isOpen && "bg-accent/30 hover:bg-accent/30",
+                                    isOpen && "bg-accent/40 hover:bg-accent/40",
                                   )}
                                   onClick={() =>
                                     setSelectedExerciseId((current) =>
@@ -1127,10 +1148,10 @@ export default function ExerciseMetricsPage() {
                                       className={cn(
                                         exercise.weightDelta !== null &&
                                           exercise.weightDelta > 0 &&
-                                          "text-emerald-600",
+                                          "text-emerald-600 dark:text-emerald-400",
                                         exercise.weightDelta !== null &&
                                           exercise.weightDelta < 0 &&
-                                          "text-red-600",
+                                          "text-red-600 dark:text-red-400",
                                       )}
                                     >
                                       {formatDelta(exercise.weightDelta)}
@@ -1162,55 +1183,53 @@ export default function ExerciseMetricsPage() {
                                   <TableRow>
                                     <TableCell
                                       colSpan={1 + visibleColumns.length}
-                                      className="bg-background/40 p-0"
+                                      className="bg-muted/30 p-0"
                                     >
                                       <div className="space-y-3 px-4 py-4">
-                                        <div className="grid grid-cols-5 gap-2">
-                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
-                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                                          <div className="rounded-lg border bg-card px-3 py-2">
+                                            <p className="text-xs text-muted-foreground">
                                               Primer peso
                                             </p>
-                                            <p className="mt-1 text-sm font-semibold">
+                                            <p className="mt-0.5 text-sm font-semibold tabular-nums">
                                               {formatMetricValue(
                                                 exercise.firstWeight,
                                               )}
                                             </p>
                                           </div>
-                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
-                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                              Ultimo peso
+                                          <div className="rounded-lg border bg-card px-3 py-2">
+                                            <p className="text-xs text-muted-foreground">
+                                              Último peso
                                             </p>
-                                            <p className="mt-1 text-sm font-semibold">
+                                            <p className="mt-0.5 text-sm font-semibold tabular-nums">
                                               {formatMetricValue(
                                                 exercise.latestWeight,
                                               )}
                                             </p>
                                           </div>
-                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
-                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                          <div className="rounded-lg border bg-card px-3 py-2">
+                                            <p className="text-xs text-muted-foreground">
                                               Mejor peso
                                             </p>
-                                            <p className="mt-1 text-sm font-semibold">
+                                            <p className="mt-0.5 text-sm font-semibold tabular-nums">
                                               {formatMetricValue(
                                                 exercise.bestWeight,
                                               )}
                                             </p>
                                           </div>
-                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
-                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                              Evolucion
+                                          <div className="rounded-lg border bg-card px-3 py-2">
+                                            <p className="text-xs text-muted-foreground">
+                                              Evolución
                                             </p>
                                             <p
                                               className={cn(
-                                                "mt-1 text-sm font-semibold",
+                                                "mt-0.5 text-sm font-semibold tabular-nums",
                                                 exercise.weightDelta !== null &&
                                                   exercise.weightDelta > 0 &&
-                                                  "text-emerald-600",
+                                                  "text-emerald-600 dark:text-emerald-400",
                                                 exercise.weightDelta !== null &&
                                                   exercise.weightDelta < 0 &&
-                                                  "text-red-600",
-                                                exercise.weightDelta === 0 &&
-                                                  "text-blue-600",
+                                                  "text-red-600 dark:text-red-400",
                                               )}
                                             >
                                               {formatDelta(
@@ -1218,11 +1237,11 @@ export default function ExerciseMetricsPage() {
                                               )}
                                             </p>
                                           </div>
-                                          <div className="rounded-lg border bg-background/60 px-3 py-2">
-                                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                              Ultimas reps
+                                          <div className="rounded-lg border bg-card px-3 py-2">
+                                            <p className="text-xs text-muted-foreground">
+                                              Últimas reps
                                             </p>
-                                            <p className="mt-1 text-sm font-semibold">
+                                            <p className="mt-0.5 text-sm font-semibold tabular-nums">
                                               {formatMetricValue(
                                                 latestReps,
                                                 "rep",
@@ -1231,10 +1250,10 @@ export default function ExerciseMetricsPage() {
                                           </div>
                                         </div>
 
-                                        <div className="space-y-2 rounded-xl border bg-card/40 p-3">
-                                          <div className="flex items-center justify-between gap-3">
-                                            <p className="text-sm font-medium">
-                                              Evolucion por ejercicio
+                                        <div className="space-y-2 rounded-lg border bg-card p-3">
+                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <p className="text-sm font-semibold">
+                                              Evolución
                                             </p>
 
                                             <div className="flex gap-2">
@@ -1246,7 +1265,7 @@ export default function ExerciseMetricsPage() {
                                                   )
                                                 }
                                               >
-                                                <SelectTrigger>
+                                                <SelectTrigger className="h-8 w-[140px]">
                                                   <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1271,7 +1290,7 @@ export default function ExerciseMetricsPage() {
                                                   )
                                                 }
                                               >
-                                                <SelectTrigger>
+                                                <SelectTrigger className="h-8 w-[140px]">
                                                   <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1297,12 +1316,12 @@ export default function ExerciseMetricsPage() {
                                           />
                                         </div>
 
-<div className="space-y-2 rounded-xl border bg-card/40 p-3">
-                                          <p className="text-sm font-medium">
+                                        <div className="space-y-2 rounded-lg border bg-card p-3">
+                                          <p className="text-sm font-semibold">
                                             Historial
                                           </p>
 
-                                          <div className="max-h-52 overflow-y-auto rounded-xl border">
+                                          <div className="max-h-52 overflow-y-auto rounded-lg border">
                                             <Table>
                                               <TableHeader className="sticky top-0 z-10 bg-card">
                                                 <TableRow>

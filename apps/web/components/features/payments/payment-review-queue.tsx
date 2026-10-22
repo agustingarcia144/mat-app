@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { type Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Clock, Eye, Loader2, Receipt } from "lucide-react";
+import { cn } from "@/lib/utils";
 import PaymentReviewDialog from "./dialogs/payment-review-dialog";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 import {
@@ -33,6 +34,18 @@ function formatBillingPeriod(period: string): string {
   return `${monthNames[monthIndex]} ${year}`;
 }
 
+/** How long a receipt has been waiting, so the oldest ones get attention. */
+function waitingLabel(timestamp: number) {
+  const hours = Math.floor((Date.now() - timestamp) / (60 * 60 * 1000));
+  if (hours < 1) return { text: "Recién subido", stale: false };
+  if (hours < 24) return { text: `Hace ${hours} h`, stale: false };
+  const days = Math.floor(hours / 24);
+  return {
+    text: `Esperando hace ${days} ${days === 1 ? "día" : "días"}`,
+    stale: days >= 2,
+  };
+}
+
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("es-AR", {
     day: "numeric",
@@ -47,6 +60,18 @@ export default function PaymentReviewQueue() {
   const pendingPayments = useQuery(
     api.planPayments.getPendingByOrganization,
     canQuery ? {} : "skip",
+  );
+
+  const sortedPayments = useMemo(
+    () =>
+      pendingPayments
+        ? [...pendingPayments].sort(
+            (a, b) =>
+              (a.proofUploadedAt ?? a.createdAt) -
+              (b.proofUploadedAt ?? b.createdAt),
+          )
+        : undefined,
+    [pendingPayments],
   );
 
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -77,13 +102,13 @@ export default function PaymentReviewQueue() {
 
   return (
     <>
-      {pendingPayments === undefined ? (
+      {sortedPayments === undefined ? (
         <FinanceStatePanel
           icon={Loader2}
           iconClassName="animate-spin"
           title="Cargando pagos..."
         />
-      ) : pendingPayments.length === 0 ? (
+      ) : sortedPayments.length === 0 ? (
         <FinanceStatePanel
           icon={Receipt}
           title="No hay pagos pendientes"
@@ -91,15 +116,21 @@ export default function PaymentReviewQueue() {
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {pendingPayments.map((payment) => {
+          {sortedPayments.map((payment) => {
             const amountArs =
               payment.payableAmountArs ??
               payment.totalAmountArs ??
               payment.amountArs;
+            const waiting = payment.proofUploadedAt
+              ? waitingLabel(payment.proofUploadedAt)
+              : null;
             return (
               <div
                 key={payment._id}
-                className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm transition-colors hover:border-border"
+                className={cn(
+                  "flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm transition-colors hover:border-border",
+                  waiting?.stale && "border-amber-500/40",
+                )}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -115,7 +146,7 @@ export default function PaymentReviewQueue() {
                       </p>
                     ) : null}
                   </div>
-                  <Chip className="border-amber-500/25 bg-amber-500/10 text-amber-600">
+                  <Chip className="border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-400">
                     <Clock className="size-3" />
                     En revisión
                   </Chip>
@@ -130,9 +161,21 @@ export default function PaymentReviewQueue() {
                   </span>
                 </div>
 
-                {payment.proofUploadedAt && (
-                  <p className="text-xs text-muted-foreground">
-                    Subido: {formatDate(payment.proofUploadedAt)}
+                {payment.proofUploadedAt && waiting && (
+                  <p
+                    className="text-xs text-muted-foreground"
+                    title={`Subido: ${formatDate(payment.proofUploadedAt)}`}
+                  >
+                    <span
+                      className={cn(
+                        waiting.stale &&
+                          "font-medium text-amber-600 dark:text-amber-400",
+                      )}
+                    >
+                      {waiting.text}
+                    </span>
+                    {" · "}
+                    {formatDate(payment.proofUploadedAt)}
                   </p>
                 )}
 

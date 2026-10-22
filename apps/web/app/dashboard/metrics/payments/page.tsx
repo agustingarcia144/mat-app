@@ -1,14 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ComponentType } from "react";
+import { useState } from "react";
 import { useQuery } from "convex/react";
-import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowUp,
-  Landmark,
-} from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp } from "lucide-react";
 import {
   Bar,
   CartesianGrid,
@@ -23,6 +18,7 @@ import {
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -86,45 +82,6 @@ function formatDelta(
   return `${prefix}${value.toLocaleString("es-AR")}`;
 }
 
-function MetricCard({
-  title,
-  value,
-  detail,
-  icon: Icon,
-  tone = "default",
-}: {
-  title: string;
-  value: string;
-  detail: string;
-  icon: ComponentType<{ className?: string }>;
-  tone?: "default" | "green" | "amber" | "red" | "blue";
-}) {
-  const toneClasses = {
-    default: "text-foreground",
-    green: "text-emerald-600",
-    amber: "text-amber-600",
-    red: "text-red-600",
-    blue: "text-blue-600",
-  };
-
-  return (
-    <Card className="bg-card/70">
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-        <Icon className={cn("size-4", toneClasses[tone])} />
-      </CardHeader>
-      <CardContent>
-        <div className={cn("text-2xl font-semibold", toneClasses[tone])}>
-          {value}
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 function DeltaPill({
   value,
   kind,
@@ -134,33 +91,85 @@ function DeltaPill({
   kind?: "currency" | "percent" | "count";
   invert?: boolean;
 }) {
-  if (value === null || value === undefined) {
-    return (
-      <span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">
-        Sin comparacion
-      </span>
-    );
-  }
+  if (value === null || value === undefined || value === 0) return null;
 
-  const isPositive = value > 0;
-  const isNegative = value < 0;
-  const isGood = invert ? isNegative : isPositive;
-  const isBad = invert ? isPositive : isNegative;
+  const isGood = invert ? value < 0 : value > 0;
+  const Icon = value > 0 ? ArrowUp : ArrowDown;
 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs",
-        isGood && "border-emerald-500/30 bg-emerald-500/10 text-emerald-600",
-        isBad && !invert && "border-red-500/30 bg-red-500/10 text-red-600",
-        isBad && invert && "border-orange-500/30 bg-orange-500/10 text-orange-600",
-        !isPositive && !isNegative && "border-blue-500/30 bg-blue-500/10 text-blue-600",
+        "inline-flex items-center gap-1 text-xs",
+        isGood
+          ? "text-emerald-600 dark:text-emerald-400"
+          : "text-red-600 dark:text-red-400",
       )}
     >
-      {isPositive ? <ArrowUp className="size-3" /> : null}
-      {isNegative ? <ArrowDown className="size-3" /> : null}
+      <Icon className="size-3" aria-hidden />
       {formatDelta(value, kind)}
     </span>
+  );
+}
+
+function KpiTile({
+  label,
+  value,
+  valueClassName,
+  delta,
+  detail,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+  delta?: React.ReactNode;
+  detail?: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1 rounded-xl border bg-card p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "truncate text-2xl font-semibold tabular-nums md:text-3xl",
+          valueClassName,
+        )}
+      >
+        {value}
+      </p>
+      {delta}
+      {detail ? (
+        <div className="text-xs text-muted-foreground">{detail}</div>
+      ) : null}
+    </div>
+  );
+}
+
+/** A labelled share bar: name, amount/count on the right, bar underneath. */
+function ShareRow({
+  label,
+  right,
+  share,
+  barClassName,
+}: {
+  label: string;
+  right: string;
+  share: number;
+  barClassName: string;
+}) {
+  return (
+    <li className="space-y-1">
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="truncate">{label}</span>
+        <span className="shrink-0 tabular-nums text-muted-foreground">
+          {right}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn("h-full rounded-full", barClassName)}
+          style={{ width: `${Math.min(Math.max(share, 0), 100)}%` }}
+        />
+      </div>
+    </li>
   );
 }
 
@@ -172,119 +181,109 @@ type MonthlyOverviewItem = {
   collectionRatePct: number;
 };
 
+function profitability(item: { totalIncomeArs: number; expenseArs: number }) {
+  return item.totalIncomeArs > 0 && item.expenseArs > 0
+    ? Math.round(
+        ((item.totalIncomeArs - item.expenseArs) / item.totalIncomeArs) * 1000,
+      ) / 10
+    : null;
+}
+
+/**
+ * Income, expenses and net result share one money axis. Profitability (a %)
+ * lives in the table below instead of a second y-axis.
+ */
 function MonthlyFinanceChart({
   monthlyOverview,
+  hasAnyExpense,
 }: {
   monthlyOverview: MonthlyOverviewItem[];
+  hasAnyExpense: boolean;
 }) {
   const chartData = [...monthlyOverview]
-    .reverse()
+    .sort((a, b) => a.billingPeriod.localeCompare(b.billingPeriod))
     .map((item) => ({
       period: formatBillingPeriod(item.billingPeriod),
-      rawPeriod: item.billingPeriod,
       Ingresos: item.totalIncomeArs,
-      Egresos: item.expenseArs > 0 ? item.expenseArs : null,
-      rentabilidad:
-        item.totalIncomeArs > 0 && item.expenseArs > 0
-          ? Math.round(
-              ((item.totalIncomeArs - item.expenseArs) /
-                item.totalIncomeArs) *
-                1000,
-            ) / 10
-          : null,
+      Egresos: item.expenseArs,
+      Resultado: hasAnyExpense ? item.netResultArs : null,
     }));
 
-  const hasAnyExpense = chartData.some((d) => d.Egresos !== null);
-
   return (
-    <Card className="bg-card/70">
-      <CardHeader>
-        <CardTitle>Ingresos, egresos y rentabilidad mensual</CardTitle>
+    <Card className="bg-card">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Evolución mensual</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Comparacion mensual de ingresos vs egresos con porcentaje de
-          rentabilidad.{" "}
-          {!hasAnyExpense && (
-            <span className="text-amber-600">
-              · Sin egresos registrados en ningún periodo mostrado.
-            </span>
-          )}
+          {hasAnyExpense
+            ? "Ingresos y egresos por mes, con el resultado neto."
+            : "Ingresos por mes. Cargá egresos en Ingresos y egresos para ver el resultado."}
         </p>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={320}>
+        <ResponsiveContainer width="100%" height={300}>
           <ComposedChart
             data={chartData}
-            margin={{ top: 8, right: 24, left: 0, bottom: 8 }}
+            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+            barGap={2}
           >
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+            <CartesianGrid
+              vertical={false}
+              strokeDasharray="3 3"
+              className="stroke-border/50"
+            />
             <XAxis
               dataKey="period"
+              tickLine={false}
+              axisLine={false}
               tick={{ fontSize: 11 }}
               tickFormatter={(v: string) => {
-                const parts = v.split(" ");
-                const word = parts[0] ?? v;
+                const word = v.split(" ")[0] ?? v;
                 return word.charAt(0).toUpperCase() + word.slice(1, 3);
               }}
             />
             <YAxis
-              yAxisId="money"
+              tickLine={false}
+              axisLine={false}
               tickFormatter={(v: number) =>
-                v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`
+                Math.abs(v) >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`
               }
               tick={{ fontSize: 11 }}
               width={56}
             />
-            <YAxis
-              yAxisId="pct"
-              orientation="right"
-              tickFormatter={(v: number) => `${v}%`}
-              tick={{ fontSize: 11 }}
-              domain={[-100, 100]}
-              width={44}
-            />
             <Tooltip
-              formatter={(value, name) => {
-                const v = Number(value);
-                if (name === "rentabilidad")
-                  return [`${v}%`, "Rentabilidad"];
-return [
-                  `$${Math.round(v).toLocaleString("es-AR")}`,
-                  String(name),
-                ];
-              }}
-              contentStyle={{
-                fontSize: 12,
-                borderRadius: 8,
-              }}
+              cursor={{ className: "fill-muted/40" }}
+              formatter={(value, name) => [
+                formatCurrency(Number(value)),
+                String(name),
+              ]}
+              labelClassName="capitalize"
+              contentStyle={{ fontSize: 12, borderRadius: 8 }}
             />
-            <Legend
-              formatter={(value: string) =>
-                value === "rentabilidad" ? "Rentabilidad %" : value
-              }
-            />
+            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
             <Bar
-              yAxisId="money"
               dataKey="Ingresos"
               fill="#10b981"
-              radius={[3, 3, 0, 0]}
-              maxBarSize={40}
+              radius={[4, 4, 0, 0]}
+              maxBarSize={32}
             />
-            <Bar
-              yAxisId="money"
-              dataKey="Egresos"
-              fill="#ef4444"
-              radius={[3, 3, 0, 0]}
-              maxBarSize={40}
-            />
-<Line
-              yAxisId="pct"
-              type="monotone"
-              dataKey="rentabilidad"
-              stroke="#6366f1"
-              strokeWidth={2}
-              dot={{ r: 4, fill: "#6366f1" }}
-              connectNulls={false}
-            />
+            {hasAnyExpense && (
+              <Bar
+                dataKey="Egresos"
+                fill="#f43f5e"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={32}
+              />
+            )}
+            {hasAnyExpense && (
+              <Line
+                type="monotone"
+                dataKey="Resultado"
+                stroke="currentColor"
+                className="text-foreground"
+                strokeWidth={2}
+                dot={{ r: 4, strokeWidth: 2 }}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
       </CardContent>
@@ -304,31 +303,61 @@ export default function PaymentMetricsPage() {
     canQuery && isAdmin ? { selectedPeriod } : "skip",
   );
 
-  const selectedPeriodLabel = data?.selectedPeriod
-    ? formatBillingPeriod(data.selectedPeriod)
-    : "";
-  const previousPeriodLabel = data?.previousPeriod
-    ? formatBillingPeriod(data.previousPeriod)
-    : null;
+  const header = (
+    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <div className="space-y-2">
+        <Link
+          href="/dashboard/finance"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Finanzas
+        </Link>
+        <h1 className="text-2xl font-bold md:text-3xl">Balance financiero</h1>
+        {data?.previousPeriod ? (
+          <p className="text-sm text-muted-foreground">
+            <span className="capitalize">
+              {formatBillingPeriod(data.selectedPeriod)}
+            </span>{" "}
+            comparado con {formatBillingPeriod(data.previousPeriod)}
+          </p>
+        ) : null}
+      </div>
+      {data && (
+        <Select
+          value={data.selectedPeriod}
+          onValueChange={(value) => setSelectedPeriod(value)}
+        >
+          <SelectTrigger className="w-full capitalize md:w-60">
+            <SelectValue placeholder="Elegí un período" />
+          </SelectTrigger>
+          <SelectContent>
+            {data.availablePeriods.map((period) => (
+              <SelectItem key={period} value={period} className="capitalize">
+                {formatBillingPeriod(period)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
 
-  if (
-    !canQuery ||
-    membership === undefined ||
-    (isAdmin && data === undefined)
-  ) {
+  if (!canQuery || membership === undefined || (isAdmin && data === undefined)) {
     return (
       <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold md:text-3xl">Balance Financiero</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-            Cargando resumen financiero y comparaciones entre periodos...
-          </p>
+        {header}
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-[120px] rounded-xl" />
+          ))}
         </div>
+        <Skeleton className="h-[380px] rounded-xl" />
       </DashboardPageContainer>
     );
   }
 
-  if (!isAdmin) {
+  if (!isAdmin || data === undefined) {
     return (
       <DashboardPageContainer className="space-y-6 py-6 md:py-10">
         <div className="rounded-lg border px-4 py-8 text-center text-sm text-muted-foreground">
@@ -338,394 +367,362 @@ export default function PaymentMetricsPage() {
     );
   }
 
-  if (data === undefined) {
-    return null;
-  }
-
   const {
     paymentMethods,
     planBreakdown,
     monthlyOverview,
-    availablePeriods,
     selectedOverview,
     comparison,
     financialBalance,
   } = data;
+  const hasAnyExpense = monthlyOverview.some((m) => m.expenseArs > 0);
+  const expenseByCategory = financialBalance.expenseByCategory ?? [];
+  const pendingTotal =
+    (selectedOverview?.pendingPayments ?? 0) +
+    (selectedOverview?.inReviewPayments ?? 0);
 
   return (
     <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-      <div className="space-y-3">
-        <Link
-          href="/dashboard/finance"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Volver a finanzas
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold md:text-3xl">Balance Financiero</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-            El foco principal es el dinero que ingreso al gimnasio y el estado
-            del balance del periodo.
-          </p>
-        </div>
-      </div>
+      {header}
 
-      {/* 1. Balance del periodo */}
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Balance del periodo</h2>
-            <p className="text-sm text-muted-foreground">
-              {selectedPeriodLabel}
-              {previousPeriodLabel
-                ? ` comparado con ${previousPeriodLabel}`
-                : ""}
-            </p>
-          </div>
-          <div className="w-full md:w-72">
-            <Select
-              value={data.selectedPeriod}
-              onValueChange={(value) => setSelectedPeriod(value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Elegi un periodo" />
-              </SelectTrigger>
-              <SelectContent>
-                {availablePeriods.map((period) => (
-                  <SelectItem key={period} value={period}>
-                    {formatBillingPeriod(period)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-          <Card className="bg-card/80">
-            <CardHeader className="pb-2 pt-4">
-              <CardTitle className="flex items-center gap-2 text-sm text-muted-foreground font-medium">
-                <Landmark className="size-3.5 text-emerald-600" />
-                Resumen principal
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 pb-4">
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-xl border bg-emerald-500/5 px-4 py-3">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Ingresos totales
-                  </p>
-                  <div className="mt-1.5 flex items-baseline gap-3">
-                    <p className="text-3xl font-semibold text-emerald-600">
-                      {formatCurrency(financialBalance.incomeArs)}
-                    </p>
-                    <DeltaPill
-                      value={financialBalance.incomeDeltaArs}
-                      kind="currency"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-xl border bg-red-500/5 px-4 py-3">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Egresos totales
-                  </p>
-                  <div className="mt-1.5 flex items-baseline gap-3">
-                    <p className="text-3xl font-semibold text-red-600">
-                      {formatCurrency(financialBalance.expenseArs)}
-                    </p>
-                    <DeltaPill
-                      value={financialBalance.expenseDeltaArs}
-                      kind="currency"
-                      invert
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-xl border bg-background/60 px-4 py-3">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Resultado neto
-                  </p>
-                  <div className="mt-1.5 flex items-baseline gap-3">
-                    <p className={cn(
-                      "text-3xl font-semibold",
-                      financialBalance.netResultArs >= 0 ? "text-emerald-600" : "text-red-600"
-                    )}>
-                      {formatCurrency(financialBalance.netResultArs)}
-                    </p>
-                    <DeltaPill
-                      value={financialBalance.netResultDeltaArs}
-                      kind="currency"
-                    />
-                  </div>
-                </div>
-              </div>
-
-
-              <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
-                <div className="rounded-lg border bg-background/50 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Membresias</p>
-                  <p className="mt-1 text-lg font-semibold text-emerald-600">
-                    {formatCurrency(financialBalance.membershipIncomeArs)}
-                  </p>
-                </div>
-
-                <div className="rounded-lg border bg-background/50 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Otros ingresos</p>
-                  <p className="mt-1 text-lg font-semibold text-emerald-600">
-                    {formatCurrency(financialBalance.otherIncomeArs)}
-                  </p>
-                </div>
-
-                <div className="rounded-lg border bg-background/50 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Interes</p>
-                  <p className="mt-1 text-lg font-semibold text-blue-600">
-                    {formatCurrency(financialBalance.interestIncomeArs)}
-                  </p>
-                </div>
-
-                <div className="rounded-lg border bg-background/50 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Rentabilidad</p>
-                  <p className="mt-1 text-lg font-semibold">
-                    {financialBalance.hasExpenseData
-                      ? formatPercent(financialBalance.profitabilityPct)
-                      : "-"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Desglose de egresos por categoria */}
-          <Card className="bg-card/80">
-            <CardHeader className="pb-2 pt-4">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Egresos por categoría
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4">
-              {(financialBalance.expenseByCategory ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Sin egresos registrados para este periodo.
-                </p>
-              ) : (
-                <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
-                  {(financialBalance.expenseByCategory ?? []).map((item) => (
-                    <div key={item.category} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium truncate pr-2">{item.category}</span>
-                        <span className="text-red-600 font-medium shrink-0">
-                          {formatCurrency(item.amountArs)}
-                        </span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-muted">
-                        <div
-                          className="h-1.5 rounded-full bg-red-500/70 transition-all"
-                          style={{
-                            width: `${financialBalance.expenseArs > 0 ? Math.min((item.amountArs / financialBalance.expenseArs) * 100, 100) : 0}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+      {/* 1. Balance del período */}
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <KpiTile
+          label="Ingresos totales"
+          value={formatCurrency(financialBalance.incomeArs)}
+          valueClassName="text-emerald-600 dark:text-emerald-400"
+          delta={
+            <DeltaPill value={financialBalance.incomeDeltaArs} kind="currency" />
+          }
+          detail={
+            <>
+              Membresías {formatCurrency(financialBalance.membershipIncomeArs)}
+              {financialBalance.otherIncomeArs > 0 &&
+                ` · Otros ${formatCurrency(financialBalance.otherIncomeArs)}`}
+              {financialBalance.interestIncomeArs > 0 &&
+                ` · Interés ${formatCurrency(financialBalance.interestIncomeArs)}`}
+            </>
+          }
+        />
+        <KpiTile
+          label="Egresos"
+          value={
+            financialBalance.hasExpenseData
+              ? formatCurrency(financialBalance.expenseArs)
+              : "Sin cargar"
+          }
+          valueClassName={
+            financialBalance.hasExpenseData
+              ? "text-rose-600 dark:text-rose-400"
+              : "text-muted-foreground"
+          }
+          delta={
+            <DeltaPill
+              value={financialBalance.expenseDeltaArs}
+              kind="currency"
+              invert
+            />
+          }
+          detail={
+            financialBalance.hasExpenseData ? (
+              expenseByCategory[0] ? (
+                `Mayor gasto: ${expenseByCategory[0].category}`
+              ) : null
+            ) : (
+              <Link
+                href="/dashboard/income-expenses"
+                className="underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Registrar egresos
+              </Link>
+            )
+          }
+        />
+        <KpiTile
+          label="Resultado neto"
+          value={formatCurrency(financialBalance.netResultArs)}
+          valueClassName={
+            financialBalance.netResultArs < 0
+              ? "text-red-600 dark:text-red-400"
+              : undefined
+          }
+          delta={
+            <DeltaPill
+              value={financialBalance.netResultDeltaArs}
+              kind="currency"
+            />
+          }
+          detail={
+            financialBalance.incomeTrend
+              ? `Ingresos ${financialBalance.incomeTrend.trendPct >= 0 ? "+" : ""}${formatPercent(financialBalance.incomeTrend.trendPct)} vs promedio de ${financialBalance.incomeTrend.periodCount} meses`
+              : null
+          }
+        />
+        <KpiTile
+          label="Rentabilidad"
+          value={
+            financialBalance.hasExpenseData
+              ? formatPercent(financialBalance.profitabilityPct)
+              : "—"
+          }
+          detail={
+            financialBalance.hasExpenseData
+              ? "Resultado sobre ingresos"
+              : "Necesita egresos cargados"
+          }
+        />
       </section>
 
-      {/* 2. Grafico mensual */}
-      <section>
-        <MonthlyFinanceChart monthlyOverview={monthlyOverview} />
-      </section>
+      {/* 2. Evolución */}
+      <MonthlyFinanceChart
+        monthlyOverview={monthlyOverview}
+        hasAnyExpense={hasAnyExpense}
+      />
 
-      {/* 3. Metodos de pago + Rendimiento por plan */}
-      <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card className="bg-card/70">
-          <CardHeader>
-            <CardTitle>Metodos de pago</CardTitle>
+      {/* 3. Cobranza, métodos y egresos */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Card className="bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Cobranza de cuotas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-3xl font-semibold tabular-nums">
+                  {formatPercent(selectedOverview?.collectionRatePct)}
+                </span>
+                <DeltaPill
+                  value={comparison?.collectionRateDeltaPct}
+                  kind="percent"
+                />
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-emerald-500"
+                  style={{
+                    width: `${Math.min(selectedOverview?.collectionRatePct ?? 0, 100)}%`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formatCurrency(selectedOverview?.approvedAmountArs)} de{" "}
+                {formatCurrency(selectedOverview?.expectedAmountArs)} esperado
+              </p>
+            </div>
+            <dl className="grid grid-cols-2 gap-3 border-t pt-3 text-sm">
+              <div>
+                <dt className="text-xs text-muted-foreground">Aprobados</dt>
+                <dd className="flex items-baseline gap-2 font-medium tabular-nums">
+                  {selectedOverview?.approvedPayments ?? 0}
+                  <DeltaPill
+                    value={comparison?.approvedPaymentsDelta}
+                    kind="count"
+                  />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">
+                  Pendientes / en revisión
+                </dt>
+                <dd className="flex items-baseline gap-2 font-medium tabular-nums">
+                  {pendingTotal}
+                  <DeltaPill
+                    value={comparison?.pendingPaymentsDelta}
+                    kind="count"
+                    invert
+                  />
+                </dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Métodos de pago</CardTitle>
+          </CardHeader>
+          <CardContent>
             {paymentMethods.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Todavia no hay metodos de pago registrados en la base.
+                Todavía no hay pagos registrados.
               </p>
             ) : (
-              paymentMethods.map((method) => (
-                <div key={method.method} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">
-                      {formatPaymentMethod(method.method)}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {formatPercent(method.percentage)} · {method.count}
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted">
-                    <div
-                      className="h-2 rounded-full bg-primary transition-all"
-                      style={{ width: `${Math.min(method.percentage, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))
+              <ul className="space-y-3">
+                {paymentMethods.map((method) => (
+                  <ShareRow
+                    key={method.method}
+                    label={formatPaymentMethod(method.method)}
+                    right={`${formatPercent(method.percentage)} · ${method.count}`}
+                    share={method.percentage}
+                    barClassName="bg-foreground/70"
+                  />
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
 
-        <Card className="bg-card/70 flex flex-col">
-          <CardHeader>
-            <CardTitle>Rendimiento por plan</CardTitle>
+        <Card className="bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Egresos por categoría</CardTitle>
           </CardHeader>
-          <CardContent className="p-0 flex-1">
-            <div className="max-h-64 overflow-y-auto">
-              <Table>
-                <TableHeader className="sticky top-0 bg-card z-10">
-                  <TableRow>
-                    <TableHead>Plan</TableHead>
-                    <TableHead>Miembros</TableHead>
-                    <TableHead>Cobrado</TableHead>
-                    <TableHead>% de cobro</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {planBreakdown.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-muted-foreground px-4">
-                        No hay planes activos para resumir.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    planBreakdown.map((plan) => (
-                      <TableRow key={plan.planId}>
-                        <TableCell className="font-medium">
-                          {plan.planName}
-                        </TableCell>
-                        <TableCell>{plan.members}</TableCell>
-                        <TableCell>
-                          {formatCurrency(plan.approvedRevenueArs)}
-                        </TableCell>
-                        <TableCell>
-                          {formatPercent(plan.collectionRatePct)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+          <CardContent>
+            {expenseByCategory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Sin egresos registrados para este período.
+              </p>
+            ) : (
+              <ul className="max-h-48 space-y-3 overflow-y-auto pr-1">
+                {expenseByCategory.map((item) => (
+                  <ShareRow
+                    key={item.category}
+                    label={item.category}
+                    right={formatCurrency(item.amountArs)}
+                    share={
+                      financialBalance.expenseArs > 0
+                        ? (item.amountArs / financialBalance.expenseArs) * 100
+                        : 0
+                    }
+                    barClassName="bg-rose-500/70"
+                  />
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       </section>
 
-      {/* 4. Comparacion con el mes anterior */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold">Comparacion mensual</h2>
-          <p className="text-sm text-muted-foreground">
-            Variacion del periodo seleccionado contra el mes anterior.
-          </p>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Card className="bg-card/70">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                % de cobro vs mes anterior
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-2xl font-semibold">
-                {formatPercent(selectedOverview?.collectionRatePct)}
-              </p>
-              <DeltaPill
-                value={comparison?.collectionRateDeltaPct}
-                kind="percent"
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/70">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Aprobados vs mes anterior
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-2xl font-semibold">
-                {selectedOverview?.approvedPayments ?? 0}
-              </p>
-              <DeltaPill
-                value={comparison?.approvedPaymentsDelta}
-                kind="count"
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/70">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pendientes vs mes anterior
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-2xl font-semibold">
-                {(selectedOverview?.pendingPayments ?? 0) +
-                  (selectedOverview?.inReviewPayments ?? 0)}
-              </p>
-              <DeltaPill
-                value={comparison?.pendingPaymentsDelta}
-                kind="count"
-              />
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* 5. Tabla historica */}
-      <section>
-        <Card className="bg-card/70">
-          <CardHeader>
-            <CardTitle>Ultimos periodos</CardTitle>
-          </CardHeader>
-          <CardContent>
+      {/* 4. Rendimiento por plan */}
+      <Card className="bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Rendimiento por plan</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-72 overflow-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
-                  <TableHead>Periodo</TableHead>
-                  <TableHead>Pagos</TableHead>
-                  <TableHead>Aprobados</TableHead>
-                  <TableHead>En revision</TableHead>
-                  <TableHead>% de cobro</TableHead>
+                  <TableHead className="pl-6">Plan</TableHead>
+                  <TableHead className="text-right">Miembros</TableHead>
+                  <TableHead className="text-right">Cobrado</TableHead>
+                  <TableHead className="w-[40%] pr-6">% de cobro</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {monthlyOverview.map((period) => (
-                  <TableRow
-                    key={period.billingPeriod}
-                    className={cn(
-                      period.billingPeriod === data.selectedPeriod &&
-                        "bg-accent/20",
-                    )}
-                  >
-                    <TableCell className="font-medium">
-                      {formatBillingPeriod(period.billingPeriod)}
-                    </TableCell>
-                    <TableCell>{period.totalPayments}</TableCell>
-                    <TableCell>{period.approvedPayments}</TableCell>
-                    <TableCell>{period.inReviewPayments}</TableCell>
-                    <TableCell>
-                      {formatPercent(period.collectionRatePct)}
+                {planBreakdown.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="px-6 text-muted-foreground"
+                    >
+                      No hay planes activos para resumir.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  planBreakdown.map((plan) => (
+                    <TableRow key={plan.planId}>
+                      <TableCell className="pl-6 font-medium">
+                        {plan.planName}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {plan.members}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrency(plan.approvedRevenueArs)}
+                      </TableCell>
+                      <TableCell className="pr-6">
+                        <div className="flex items-center gap-3">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full bg-emerald-500"
+                              style={{
+                                width: `${Math.min(plan.collectionRatePct, 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="w-12 text-right text-xs tabular-nums text-muted-foreground">
+                            {formatPercent(plan.collectionRatePct)}
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-      </section>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 5. Historial por período */}
+      <Card className="bg-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Últimos períodos</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Tocá un período para verlo en detalle.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Período</TableHead>
+                  <TableHead className="text-right">Ingresos</TableHead>
+                  <TableHead className="text-right">Egresos</TableHead>
+                  <TableHead className="text-right">Resultado</TableHead>
+                  <TableHead className="text-right">Rentabilidad</TableHead>
+                  <TableHead className="pr-6 text-right">% de cobro</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {monthlyOverview.map((period) => {
+                  const isSelected =
+                    period.billingPeriod === data.selectedPeriod;
+                  return (
+                    <TableRow
+                      key={period.billingPeriod}
+                      onClick={() => setSelectedPeriod(period.billingPeriod)}
+                      className={cn(
+                        "cursor-pointer",
+                        isSelected && "bg-accent/40 hover:bg-accent/50",
+                      )}
+                      aria-selected={isSelected}
+                    >
+                      <TableCell className="pl-6 font-medium capitalize">
+                        {formatBillingPeriod(period.billingPeriod)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrency(period.totalIncomeArs)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {period.expenseArs > 0
+                          ? formatCurrency(period.expenseArs)
+                          : "—"}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-medium tabular-nums",
+                          period.netResultArs < 0 &&
+                            "text-red-600 dark:text-red-400",
+                        )}
+                      >
+                        {formatCurrency(period.netResultArs)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatPercent(profitability(period))}
+                      </TableCell>
+                      <TableCell className="pr-6 text-right tabular-nums">
+                        {formatPercent(period.collectionRatePct)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </DashboardPageContainer>
   );
 }

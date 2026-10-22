@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -249,21 +249,28 @@ function DayEditDndContent({
   );
 
   const contentArea = (
-    <div className="space-y-6 p-6 min-w-0 flex-1 min-h-0 overflow-auto">
-      <div className="flex items-end justify-between gap-4">
+    <div className="flex-1 min-h-0 min-w-0 space-y-5 overflow-auto bg-muted/10 p-3 md:p-5">
+      <div className="flex flex-wrap items-end justify-between gap-3 rounded-xl border bg-card p-4">
         <Controller
           name={`workoutWeeks.${weekIndex}.workoutDays.${dayIndex}.name`}
           control={form.control}
           render={({ field, fieldState }) => (
-            <Field data-invalid={fieldState.invalid} className="flex-1 min-w-0">
-              <label className="text-sm font-medium mb-1.5 block">
+            <Field
+              data-invalid={fieldState.invalid}
+              className="min-w-40 flex-1"
+            >
+              <label
+                htmlFor="workout-day-name"
+                className="text-xs font-medium text-muted-foreground mb-1.5 block"
+              >
                 Nombre del día
               </label>
               <Input
                 {...field}
                 aria-invalid={fieldState.invalid}
+                id="workout-day-name"
                 placeholder="Ej: Día 1, Piernas, etc."
-                className="h-10"
+                className="h-10 text-base font-semibold"
               />
               {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
             </Field>
@@ -311,7 +318,7 @@ function DayEditDndContent({
   return (
     <TypedDragDropProvider>
       <DayEditDragEndMonitor onDragEnd={handleDragEnd}>
-        <div className="rounded-lg border bg-background overflow-hidden h-full min-h-0 flex flex-col relative">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-background">
           {isCompactLayout ? (
             <>
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -349,8 +356,8 @@ function DayEditDndContent({
               className="flex-1 min-h-0 w-full items-stretch"
             >
               <ResizablePanel
-                defaultSize={75}
-                minSize={55}
+                defaultSize="70%"
+                minSize="40%"
                 className="min-w-0 flex flex-col min-h-0"
               >
                 {contentArea}
@@ -359,18 +366,21 @@ function DayEditDndContent({
               <ResizableHandle withHandle />
 
               <ResizablePanel
-                defaultSize={25}
-                minSize={18}
+                defaultSize="30%"
+                minSize="320px"
                 collapsible
                 collapsedSize={0}
                 className="min-w-0 flex flex-col min-h-0"
               >
-                <div className="p-4 flex flex-col flex-1 min-h-0">
+                <div className="flex min-h-0 flex-1 flex-col bg-card p-4">
                   <h2 className="text-sm font-semibold mb-3 shrink-0">
                     Biblioteca de ejercicios
                   </h2>
                   <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                    <ExerciseSelector className="flex-1 min-h-0" />
+                    <ExerciseSelector
+                      className="flex-1 min-h-0"
+                      onSelect={(ex) => onAddExercise(ex, undefined)}
+                    />
                   </div>
                 </div>
               </ResizablePanel>
@@ -537,6 +547,32 @@ export function DayEditPageContent({
   const isCompactLayout = !useMediaQuery(`(min-width: ${XL_BREAKPOINT}px)`);
   const [librarySheetOpen, setLibrarySheetOpen] = useState(false);
   const [weekDaysDialogOpen, setWeekDaysDialogOpen] = useState(false);
+  const editorPageRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const page = editorPageRef.current;
+    const main = page?.closest("main");
+    if (!page || !main) return;
+
+    // Fit the whole page, including its header and padding, into the space
+    // below the dashboard header (and optional trial banner).
+    const fitPage = () => {
+      const inset = main.parentElement;
+      const bottomSpace =
+        parseFloat(getComputedStyle(main).paddingBottom) +
+        (inset ? parseFloat(getComputedStyle(inset).marginBottom) : 0);
+      const top = page.getBoundingClientRect().top + window.scrollY;
+      page.style.height = `${Math.max(0, window.innerHeight - top - bottomSpace)}px`;
+    };
+    fitPage();
+    const observer = new ResizeObserver(fitPage);
+    observer.observe(main);
+    window.addEventListener("resize", fitPage);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fitPage);
+    };
+  }, []);
 
   const week = form.watch(`workoutWeeks.${weekIndex}`);
   const weekDays = week?.workoutDays ?? [];
@@ -548,7 +584,7 @@ export function DayEditPageContent({
 
   if (dayIndex < 0 || dayIndex >= fields.length) {
     return (
-      <div className="w-full py-6">
+      <div className="mx-auto w-full max-w-[1800px] px-3 py-5 md:px-6">
         <Button
           variant="link"
           className="mt-2 gap-0 px-2 md:gap-2 md:px-3"
@@ -564,12 +600,15 @@ export function DayEditPageContent({
   }
 
   return (
-    <div className="w-full py-6">
-      <div className="flex items-center justify-between gap-2 mr-6">
+    <div
+      ref={editorPageRef}
+      className="mx-auto flex min-h-0 w-full max-w-[1800px] flex-col px-3 py-5 md:px-6"
+    >
+      <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
         <Button
           variant="ghost"
           size="sm"
-          className="gap-0 px-2 md:gap-2 md:px-3"
+          className="-ml-2 gap-2 px-2 text-muted-foreground"
           onClick={handleBackClick}
           aria-label="Volver"
         >
@@ -647,7 +686,23 @@ export function DayEditPageContent({
           </DialogContent>
         </Dialog>
       </div>
-      <div className="w-full p-3 md:p-6 flex flex-col min-h-0 h-[calc(100vh-6rem)]">
+      <div className="mb-5 shrink-0 space-y-1">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {week?.name} · Editar entrenamiento
+        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {day?.name || "Nuevo día"}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {day?.blocks?.filter((block) => block.id !== SIN_BLOQUE_ID).length ??
+            0}{" "}
+          bloques · {day?.exercises?.length ?? 0} ejercicios{" "}
+          <span className="hidden sm:inline">
+            · Tocá un ejercicio para editar sus series y repeticiones.
+          </span>
+        </p>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex-1 min-h-0 flex flex-col">
           <LibraryExerciseNamesProvider>
             <DayEditDndContent

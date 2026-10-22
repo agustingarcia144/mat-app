@@ -1,20 +1,31 @@
 "use client";
 
-import Link from "next/link";
-import { useState, type ComponentType } from "react";
+import { useState } from "react";
 import { useQuery } from "convex/react";
 import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowUp,
-  Percent,
-  UserMinus,
-  UserPlus,
-  Users,
-} from "lucide-react";
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  CHART_AXIS_PROPS,
+  CHART_TOOLTIP_PROPS,
+  DeltaPill,
+  KpiGrid,
+  KpiTile,
+  MetricsEmpty,
+  MetricsPageHeader,
+  MetricsSection,
+  formatPercent,
+} from "@/components/features/metrics/metrics-ui";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -33,100 +44,20 @@ import {
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 import { cn } from "@/lib/utils";
 
-function formatPercent(value?: number | null) {
-  if (value === null || value === undefined) return "-";
-  return `${value.toLocaleString("es-AR", {
-    minimumFractionDigits: value % 1 === 0 ? 0 : 1,
-    maximumFractionDigits: 1,
-  })}%`;
+function formatPeriod(period: string, month: "long" | "short" = "long") {
+  const [year, monthNumber] = period.split("-").map(Number);
+  const label = new Intl.DateTimeFormat("es-AR", {
+    month,
+    year: month === "long" ? "numeric" : "2-digit",
+  }).format(new Date(year, monthNumber - 1, 1));
+  // CSS `capitalize` would also turn "de" into "De".
+  return month === "long"
+    ? label.charAt(0).toUpperCase() + label.slice(1)
+    : label;
 }
 
-function formatPeriod(period: string) {
-  const [year, month] = period.split("-");
-  return new Intl.DateTimeFormat("es-AR", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date(Number(year), Number(month) - 1, 1));
-}
-
-function MetricCard({
-  title,
-  value,
-  detail,
-  icon: Icon,
-  tone = "default",
-}: {
-  title: string;
-  value: string;
-  detail: string;
-  icon: ComponentType<{ className?: string }>;
-  tone?: "default" | "green" | "amber" | "red" | "blue";
-}) {
-  const toneClasses = {
-    default: "text-foreground",
-    green: "text-emerald-600",
-    amber: "text-amber-600",
-    red: "text-red-600",
-    blue: "text-blue-600",
-  };
-
-  return (
-    <Card className="bg-card/70">
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-        <Icon className={cn("size-4", toneClasses[tone])} />
-      </CardHeader>
-      <CardContent>
-        <div className={cn("text-2xl font-semibold", toneClasses[tone])}>
-          {value}
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DeltaPill({
-  value,
-  suffix = "",
-}: {
-  value?: number | null;
-  suffix?: string;
-}) {
-  if (value === null || value === undefined) {
-    return (
-      <span className="rounded-full border px-2 py-1 text-xs text-muted-foreground">
-        Sin comparacion
-      </span>
-    );
-  }
-
-  const isPositive = value > 0;
-  const isNegative = value < 0;
-
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs",
-        isPositive &&
-          "border-emerald-500/30 bg-emerald-500/10 text-emerald-600",
-        isNegative && "border-red-500/30 bg-red-500/10 text-red-600",
-        !isPositive &&
-          !isNegative &&
-          "border-blue-500/30 bg-blue-500/10 text-blue-600",
-      )}
-    >
-      {isPositive ? <ArrowUp className="size-3" /> : null}
-      {isNegative ? <ArrowDown className="size-3" /> : null}
-      {value > 0 ? "+" : ""}
-      {value.toLocaleString("es-AR", {
-        maximumFractionDigits: 1,
-      })}
-      {suffix}
-    </span>
-  );
+function signed(value: number) {
+  return `${value > 0 ? "+" : ""}${value}`;
 }
 
 export default function ChurnMetricsPage() {
@@ -139,6 +70,41 @@ export default function ChurnMetricsPage() {
     canQuery && isAdmin ? { selectedPeriod } : "skip",
   );
 
+  const header = (
+    <MetricsPageHeader
+      title="Churn"
+      description={
+        data?.previousPeriod ? (
+          <>
+            {formatPeriod(data.selectedPeriod)} comparado con{" "}
+            {formatPeriod(data.previousPeriod).toLowerCase()}
+          </>
+        ) : (
+          "Bajas de alumnos contra la base activa al inicio de cada mes."
+        )
+      }
+      actions={
+        data ? (
+          <Select
+            value={data.selectedPeriod}
+            onValueChange={(value) => setSelectedPeriod(value)}
+          >
+            <SelectTrigger className="w-full md:w-60">
+              <SelectValue placeholder="Elegí un período" />
+            </SelectTrigger>
+            <SelectContent>
+              {data.availablePeriods.map((period) => (
+                <SelectItem key={period} value={period}>
+                  {formatPeriod(period)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null
+      }
+    />
+  );
+
   if (
     !canQuery ||
     membership === undefined ||
@@ -146,187 +112,207 @@ export default function ChurnMetricsPage() {
   ) {
     return (
       <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-        <h1 className="text-2xl font-bold md:text-3xl">Churn</h1>
-        <p className="text-sm text-muted-foreground">
-          Cargando retencion y bajas de alumnos...
-        </p>
+        {header}
+        <KpiGrid>
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-[120px] rounded-xl" />
+          ))}
+        </KpiGrid>
+        <Skeleton className="h-[340px] rounded-xl" />
       </DashboardPageContainer>
     );
   }
 
-  if (!isAdmin) {
+  if (!isAdmin || data === undefined) {
     return (
       <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-        <div className="rounded-lg border px-4 py-8 text-center text-sm text-muted-foreground">
-          Solo administradores pueden ver churn.
-        </div>
+        {header}
+        <MetricsEmpty>Solo administradores pueden ver el churn.</MetricsEmpty>
       </DashboardPageContainer>
     );
-  }
-
-  if (data === undefined) {
-    return null;
   }
 
   const selected = data.selectedOverview;
-  const previousPeriodLabel = data.previousPeriod
-    ? formatPeriod(data.previousPeriod)
-    : null;
+  const comparison = data.comparison;
+  const chartData = [...data.monthlyOverview]
+    .sort((a, b) => a.period.localeCompare(b.period))
+    .map((period) => ({
+      period: period.period,
+      Altas: period.newMembers,
+      Bajas: period.churnedMembers,
+    }));
 
   return (
     <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-      <div className="space-y-3">
-        <Link
-          href="/dashboard/metrics"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          Volver a metricas
-        </Link>
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold md:text-3xl">Churn</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-            Bajas de alumnos contra la base activa al inicio del periodo.
-          </p>
-        </div>
-      </div>
+      {header}
 
-      <section className="space-y-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Retencion del periodo</h2>
-            <p className="text-sm text-muted-foreground">
-              {formatPeriod(data.selectedPeriod)}
-              {previousPeriodLabel
-                ? ` comparado con ${previousPeriodLabel}`
-                : ""}
-            </p>
-          </div>
-          <div className="w-full md:w-72">
-            <Select
-              value={data.selectedPeriod}
-              onValueChange={(value) => setSelectedPeriod(value)}
+      <KpiGrid>
+        <KpiTile
+          label="Churn"
+          value={formatPercent(selected.churnRatePct)}
+          valueClassName={
+            selected.churnRatePct > 0
+              ? "text-red-600 dark:text-red-400"
+              : undefined
+          }
+          delta={
+            <DeltaPill
+              value={comparison?.churnRateDeltaPct}
+              suffix=" pp"
+              invert
+            />
+          }
+          detail={`${selected.churnedMembers} bajas sobre ${selected.churnBaseMembers} alumnos`}
+        />
+        <KpiTile
+          label="Retención"
+          value={formatPercent(selected.retentionRatePct)}
+          detail="Alumnos iniciales que siguieron activos"
+        />
+        <KpiTile
+          label="Altas"
+          value={`${selected.newMembers}`}
+          detail="Nuevas suscripciones del mes"
+        />
+        <KpiTile
+          label="Crecimiento neto"
+          value={signed(selected.netGrowth)}
+          valueClassName={
+            selected.netGrowth < 0
+              ? "text-red-600 dark:text-red-400"
+              : selected.netGrowth > 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : undefined
+          }
+          delta={
+            <DeltaPill
+              value={comparison?.endingMembersDelta}
+              label="en la base"
+            />
+          }
+          detail={`${selected.endingMembers} alumnos vigentes al cierre`}
+        />
+      </KpiGrid>
+
+      <MetricsSection
+        title="Altas y bajas"
+        description="Nuevas suscripciones contra bajas, mes a mes."
+      >
+        {chartData.length === 0 ? (
+          <MetricsEmpty>Todavía no hay períodos para comparar.</MetricsEmpty>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart
+              data={chartData}
+              margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+              barGap={2}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Elegi un periodo" />
-              </SelectTrigger>
-              <SelectContent>
-                {data.availablePeriods.map((period) => (
-                  <SelectItem key={period} value={period}>
-                    {formatPeriod(period)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+              <CartesianGrid
+                vertical={false}
+                strokeDasharray="3 3"
+                className="stroke-border/50"
+              />
+              <XAxis
+                dataKey="period"
+                {...CHART_AXIS_PROPS}
+                tickFormatter={(v: string) =>
+                  formatPeriod(v, "short").replace(".", "")
+                }
+              />
+              <YAxis {...CHART_AXIS_PROPS} allowDecimals={false} width={32} />
+              <Tooltip
+                {...CHART_TOOLTIP_PROPS}
+                labelFormatter={(v) => formatPeriod(String(v))}
+              />
+              <Legend
+                iconType="circle"
+                iconSize={8}
+                wrapperStyle={{ fontSize: 12 }}
+              />
+              <Bar
+                dataKey="Altas"
+                fill="#10b981"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={28}
+              />
+              <Bar
+                dataKey="Bajas"
+                fill="#f43f5e"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={28}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
+      </MetricsSection>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            title="Churn"
-            value={formatPercent(selected.churnRatePct)}
-            detail={`${selected.churnedMembers} bajas sobre ${selected.churnBaseMembers} alumnos del periodo`}
-            icon={Percent}
-            tone={selected.churnRatePct > 0 ? "red" : "green"}
-          />
-          <MetricCard
-            title="Retencion"
-            value={formatPercent(selected.retentionRatePct)}
-            detail="Alumnos iniciales que siguieron activos"
-            icon={Users}
-            tone="green"
-          />
-          <MetricCard
-            title="Altas"
-            value={`${selected.newMembers}`}
-            detail="Nuevas suscripciones del periodo"
-            icon={UserPlus}
-            tone="blue"
-          />
-          <MetricCard
-            title="Crecimiento neto"
-            value={`${selected.netGrowth > 0 ? "+" : ""}${selected.netGrowth}`}
-            detail={`${selected.endingMembers} alumnos vigentes al cierre`}
-            icon={selected.netGrowth < 0 ? UserMinus : Users}
-            tone={selected.netGrowth < 0 ? "red" : "green"}
-          />
-        </div>
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="bg-card/70">
-          <CardHeader>
-            <CardTitle>Ultimos periodos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Periodo</TableHead>
-                  <TableHead>Inicio</TableHead>
-                  <TableHead>Altas</TableHead>
-                  <TableHead>Bajas</TableHead>
-                  <TableHead>Cierre</TableHead>
-                  <TableHead>Churn</TableHead>
-                  <TableHead>Variacion</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.monthlyOverview.map((period) => (
+      <MetricsSection
+        title="Últimos períodos"
+        description="Tocá un período para verlo en detalle."
+        contentClassName="p-0"
+      >
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">Período</TableHead>
+                <TableHead className="text-right">Inicio</TableHead>
+                <TableHead className="text-right">Altas</TableHead>
+                <TableHead className="text-right">Bajas</TableHead>
+                <TableHead className="text-right">Cierre</TableHead>
+                <TableHead className="text-right">Churn</TableHead>
+                <TableHead className="pr-6 text-right">Variación</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.monthlyOverview.map((period) => {
+                const isSelected = period.period === data.selectedPeriod;
+                return (
                   <TableRow
                     key={period.period}
+                    onClick={() => setSelectedPeriod(period.period)}
                     className={cn(
-                      period.period === data.selectedPeriod && "bg-accent/20",
+                      "cursor-pointer",
+                      isSelected && "bg-accent/40 hover:bg-accent/50",
                     )}
+                    aria-selected={isSelected}
                   >
-                    <TableCell className="font-medium">
+                    <TableCell className="pl-6 font-medium">
                       {formatPeriod(period.period)}
                     </TableCell>
-                    <TableCell>{period.startingMembers}</TableCell>
-                    <TableCell>{period.newMembers}</TableCell>
-                    <TableCell>{period.churnedMembers}</TableCell>
-                    <TableCell>{period.endingMembers}</TableCell>
-                    <TableCell>{formatPercent(period.churnRatePct)}</TableCell>
-                    <TableCell>
-                      {period.netGrowth > 0 ? "+" : ""}
-                      {period.netGrowth}
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {period.startingMembers}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {period.newMembers}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {period.churnedMembers}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {period.endingMembers}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatPercent(period.churnRatePct)}
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        "pr-6 text-right font-medium tabular-nums",
+                        period.netGrowth < 0 &&
+                          "text-red-600 dark:text-red-400",
+                        period.netGrowth > 0 &&
+                          "text-emerald-600 dark:text-emerald-400",
+                      )}
+                    >
+                      {signed(period.netGrowth)}
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card/70">
-          <CardHeader>
-            <CardTitle className="text-base">Comparacion mensual</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-muted-foreground">
-                Churn vs mes anterior
-              </span>
-              <DeltaPill
-                value={data.comparison?.churnRateDeltaPct}
-                suffix="%"
-              />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-muted-foreground">
-                Bajas vs mes anterior
-              </span>
-              <DeltaPill value={data.comparison?.churnedMembersDelta} />
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-muted-foreground">
-                Base final vs mes anterior
-              </span>
-              <DeltaPill value={data.comparison?.endingMembersDelta} />
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </MetricsSection>
     </DashboardPageContainer>
   );
 }

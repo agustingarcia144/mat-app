@@ -44,7 +44,7 @@ export default function EditPlanificationPage({
 
   if (planification === undefined) {
     return (
-      <div className="w-full py-6">
+      <div className="mx-auto w-full max-w-[1600px] px-3 py-6 md:px-6 md:py-8">
         <Skeleton className="h-10 w-40 mb-6" />
         <Skeleton className="h-8 w-64 mb-6" />
         <Skeleton className="h-96" />
@@ -61,28 +61,38 @@ export default function EditPlanificationPage({
   }
 
   return (
-    <div className="w-full py-6">
+    <div className="mx-auto w-full max-w-[1600px] px-3 py-6 md:px-6 md:py-8">
       <Button
         variant="ghost"
         size="sm"
-        className="mb-4 gap-0 px-2 md:gap-2 md:px-3"
+        className="mb-6 -ml-2 gap-2 px-2 text-muted-foreground"
         onClick={handleBackClick}
         aria-label="Volver"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden />
         <span className="sr-only md:not-sr-only">Volver</span>
       </Button>
-      <div className="w-full p-3 md:p-6">
+      <div className="w-full">
         <div className="mb-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <h1 className="text-2xl font-bold md:text-3xl">
-              Editar planificación - {planification.name}
-            </h1>
+            <div className="min-w-0 space-y-1.5">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Editar planificación
+              </p>
+              <h1 className="break-words text-2xl font-semibold tracking-tight md:text-3xl">
+                {planification.name}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Organizá las semanas y abrí un día para preparar su
+                entrenamiento.
+              </p>
+            </div>
             <ResponsiveActionButton
               type="button"
               onClick={() => setEditDialogOpen(true)}
               icon={<Pencil className="h-4 w-4" aria-hidden />}
-              label="Editar información básica"
+              variant="outline"
+              label="Información básica"
               tooltip="Editar información básica"
             />
           </div>

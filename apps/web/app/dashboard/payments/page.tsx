@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,8 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ChevronDown,
-  Clock,
-  CreditCard,
+  FileSearch,
   Gift,
   Plus,
   UserPlus,
@@ -36,9 +35,84 @@ import { cn } from "@/lib/utils";
 const TABS = ["pendientes", "planes", "bonificaciones", "historial"] as const;
 type PaymentsTab = (typeof TABS)[number];
 
+function formatArs(value: number) {
+  return `$${Math.round(value).toLocaleString("es-AR")}`;
+}
+
+function StatTile({
+  label,
+  value,
+  detail,
+  active,
+  onClick,
+  valueClassName,
+  children,
+}: {
+  label: string;
+  value: React.ReactNode;
+  detail?: React.ReactNode;
+  active?: boolean;
+  onClick?: () => void;
+  valueClassName?: string;
+  children?: React.ReactNode;
+}) {
+  const content = (
+    <>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "truncate text-2xl font-semibold tabular-nums",
+          valueClassName,
+        )}
+      >
+        {value}
+      </p>
+      {children}
+      {detail ? (
+        <div className="text-xs text-muted-foreground">{detail}</div>
+      ) : null}
+    </>
+  );
+  const className = cn(
+    "flex min-w-0 flex-col gap-1 rounded-xl border bg-card p-4 text-left",
+    onClick &&
+      "outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring",
+    active && "border-foreground/30 bg-accent/40",
+  );
+
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={className}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={className}>{content}</div>
+  );
+}
+
 export default function PagosPage() {
   const canQuery = useCanQueryCurrentOrganization();
-  const [tab, setTab] = useState<PaymentsTab>("pendientes");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // The tab lives in the URL so other pages (e.g. Finanzas) can link to one.
+  const tabParam = searchParams.get("tab");
+  const tab: PaymentsTab = TABS.includes(tabParam as PaymentsTab)
+    ? (tabParam as PaymentsTab)
+    : "pendientes";
+  const setTab = (next: PaymentsTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "pendientes") params.delete("tab");
+    else params.set("tab", next);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  };
   const [recordOpen, setRecordOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [bonificationOpen, setBonificationOpen] = useState(false);
@@ -55,43 +129,17 @@ export default function PagosPage() {
     api.planBonifications.getByOrganization,
     canQuery ? { status: "active" } : "skip",
   );
+  const membership = useQuery(api.organizationMemberships.getCurrentMembership);
+  const isAdmin = membership?.role === "admin";
+  const metrics = useQuery(
+    api.planPayments.getOrganizationMetrics,
+    canQuery && isAdmin ? {} : "skip",
+  );
+  const overview = metrics?.overview;
 
   const pendingCount = pendingPayments?.length;
   const activePlansCount = plans?.filter((plan) => plan.isActive).length;
   const bonificationCount = bonifications?.length;
-
-  const stats = [
-    {
-      key: "pendientes" as const,
-      title: "Pendientes de revisión",
-      value: pendingCount,
-      detail: "Comprobantes por aprobar",
-      icon: Clock,
-      iconClassName: "border-amber-500/25 bg-amber-500/10 text-amber-600",
-      valueClassName: pendingCount ? "text-amber-600" : "text-foreground",
-    },
-    {
-      key: "planes" as const,
-      title: "Planes activos",
-      value: activePlansCount,
-      detail:
-        plans === undefined
-          ? "Disponibles para miembros"
-          : `${plans.length} plan${plans.length === 1 ? "" : "es"} en total`,
-      icon: CreditCard,
-      iconClassName: "border-blue-500/25 bg-blue-500/10 text-blue-600",
-      valueClassName: "text-foreground",
-    },
-    {
-      key: "bonificaciones" as const,
-      title: "Miembros bonificados",
-      value: bonificationCount,
-      detail: "Con descuento activo",
-      icon: Gift,
-      iconClassName: "border-purple-500/25 bg-purple-500/10 text-purple-600",
-      valueClassName: "text-foreground",
-    },
-  ];
 
   return (
     <DashboardPageContainer className="space-y-6 py-6 md:py-10">
@@ -106,10 +154,15 @@ export default function PagosPage() {
             historial de pagos.
           </p>
         </div>
+        <div className="flex shrink-0 gap-2">
+        <Button className="gap-2" onClick={() => setRecordOpen(true)}>
+          <Plus className="size-4" />
+          Registrar pago
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="shrink-0 gap-2">
-              Acciones
+            <Button variant="outline" className="gap-2">
+              Más acciones
               <ChevronDown className="size-4 opacity-80" />
             </Button>
           </DropdownMenuTrigger>
@@ -119,14 +172,6 @@ export default function PagosPage() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {[
-              {
-                onClick: () => setRecordOpen(true),
-                icon: Plus,
-                iconClassName:
-                  "border-emerald-500/25 bg-emerald-500/10 text-emerald-600",
-                title: "Registrar pago",
-                description: "Cargá un pago en efectivo o transferencia",
-              },
               {
                 onClick: () => setAssignOpen(true),
                 icon: UserPlus,
@@ -169,51 +214,75 @@ export default function PagosPage() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map((stat) => (
-          <Card
-            key={stat.key}
-            className="border-border/70 shadow-sm transition-colors hover:border-border"
-          >
-            <CardContent className="p-0">
-              <button
-                type="button"
-                onClick={() => setTab(stat.key)}
-                aria-pressed={tab === stat.key}
-                className={cn(
-                  "flex w-full items-start justify-between gap-4 rounded-xl p-5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring",
-                  tab === stat.key && "bg-muted/30",
-                )}
-              >
-                <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {stat.title}
-                  </p>
-                  <p
-                    className={cn(
-                      "text-2xl font-semibold tracking-tight tabular-nums",
-                      stat.valueClassName,
-                    )}
-                  >
-                    {stat.value ?? "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{stat.detail}</p>
-                </div>
-                <span
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-full border",
-                    stat.iconClassName,
-                  )}
-                >
-                  <stat.icon className="size-4" />
-                </span>
-              </button>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Stat tiles */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {isAdmin ? (
+          <>
+            <StatTile
+              label="Cobrado este mes"
+              value={overview ? formatArs(overview.approvedRevenueArs) : "—"}
+              detail={
+                overview
+                  ? `${overview.collectionRatePct}% de ${formatArs(overview.expectedRevenueArs)}`
+                  : "Cargando…"
+              }
+            >
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{
+                    width: `${Math.min(overview?.collectionRatePct ?? 0, 100)}%`,
+                  }}
+                />
+              </div>
+            </StatTile>
+            <StatTile
+              label="Por cobrar"
+              value={overview ? formatArs(overview.outstandingRevenueArs) : "—"}
+              detail={
+                overview
+                  ? overview.unpaidCount > 0
+                    ? `${overview.unpaidCount} ${overview.unpaidCount === 1 ? "miembro" : "miembros"} sin pagar`
+                    : "Todos pagaron"
+                  : "Cargando…"
+              }
+              onClick={() => router.push("/dashboard/members")}
+            />
+          </>
+        ) : null}
+        <StatTile
+          label="Para revisar"
+          value={
+            <span className="inline-flex items-center gap-2">
+              {pendingCount ?? "—"}
+              {pendingCount ? (
+                <FileSearch className="size-4 text-sky-500" aria-hidden />
+              ) : null}
+            </span>
+          }
+          valueClassName={
+            pendingCount ? "text-sky-600 dark:text-sky-400" : undefined
+          }
+          detail={
+            pendingCount ? "Comprobantes subidos por miembros" : "Nada pendiente"
+          }
+          active={tab === "pendientes"}
+          onClick={() => setTab("pendientes")}
+        />
+        <StatTile
+          label="Bonificados"
+          value={bonificationCount ?? "—"}
+          detail={
+            activePlansCount !== undefined
+              ? `${activePlansCount} ${activePlansCount === 1 ? "plan activo" : "planes activos"}`
+              : "Con descuento activo"
+          }
+          active={tab === "bonificaciones"}
+          onClick={() => setTab("bonificaciones")}
+        />
       </div>
 
       <RecordPaymentDialog open={recordOpen} onOpenChange={setRecordOpen} />

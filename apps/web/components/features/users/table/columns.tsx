@@ -39,12 +39,17 @@ function UserNameCell({ member }: { member: Member }) {
     member.email?.[0]?.toUpperCase() ||
     "?";
   return (
-    <div className="flex items-center gap-3">
-      <Avatar className="h-8 w-8">
+    <div className="flex min-w-0 items-center gap-3">
+      <Avatar className="size-8 shrink-0">
         {member.imageUrl && <AvatarImage src={member.imageUrl} />}
         <AvatarFallback>{initials}</AvatarFallback>
       </Avatar>
-      <span className="font-medium">{member.name}</span>
+      <div className="min-w-0">
+        <p className="truncate font-medium">{member.name}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {member.email || "Sin email"}
+        </p>
+      </div>
     </div>
   );
 }
@@ -79,11 +84,11 @@ function UserActionsCell({ member }: { member: Member }) {
   };
 
   return (
-    <>
+    <div className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <MoreHorizontal className="h-4 w-4" />
+          <Button variant="ghost" size="icon" className="size-8">
+            <MoreHorizontal className="size-4" />
             <span className="sr-only">Abrir menú</span>
           </Button>
         </DropdownMenuTrigger>
@@ -143,22 +148,18 @@ function UserActionsCell({ member }: { member: Member }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 
 const nameColumn: ColumnDef<Member> = {
   accessorKey: "name",
-  header: () => <div className="pl-1">Nombre</div>,
+  header: "Nombre",
   cell: ({ row }) => <UserNameCell member={row.original} />,
 };
 
 export const getColumns = (): ColumnDef<Member>[] => [
   nameColumn,
-  {
-    accessorKey: "email",
-    header: "Email",
-  },
   {
     accessorKey: "role",
     header: "Rol",
@@ -176,23 +177,26 @@ export const getColumns = (): ColumnDef<Member>[] => [
         commissionPercentage,
       } = row.original;
 
+      const money = (value: number) => `$${value.toLocaleString("es-AR")}`;
       const parts: string[] = [];
       if (payrollType === "monthly") {
-        if (pricePerMonth !== undefined) parts.push(`$${pricePerMonth}/mes`);
+        if (pricePerMonth !== undefined)
+          parts.push(`${money(pricePerMonth)}/mes`);
       } else {
-        if (pricePerHour !== undefined) parts.push(`$${pricePerHour}/h`);
-        if (pricePerClass !== undefined) parts.push(`$${pricePerClass}/clase`);
+        if (pricePerHour !== undefined) parts.push(`${money(pricePerHour)}/h`);
+        if (pricePerClass !== undefined)
+          parts.push(`${money(pricePerClass)}/clase`);
       }
       if (commissionPercentage) {
         parts.push(`${commissionPercentage}% comisión`);
       }
 
       if (parts.length === 0) {
-        return <span className="text-sm text-muted-foreground">—</span>;
+        return (
+          <span className="text-sm text-muted-foreground">Sin cargar</span>
+        );
       }
-      return (
-        <div className="text-sm text-muted-foreground">{parts.join(" · ")}</div>
-      );
+      return <div className="text-sm tabular-nums">{parts.join(" · ")}</div>;
     },
   },
   {
@@ -204,7 +208,14 @@ export const getColumns = (): ColumnDef<Member>[] => [
   },
   {
     accessorKey: "createdAt",
-    header: "Creado el",
+    header: "Se unió",
+    cell: ({ row }) => (
+      <span className="text-sm tabular-nums text-muted-foreground">
+        {typeof row.original.createdAt === "string"
+          ? row.original.createdAt
+          : new Date(row.original.createdAt).toLocaleDateString("es-AR")}
+      </span>
+    ),
   },
   {
     id: "actions",

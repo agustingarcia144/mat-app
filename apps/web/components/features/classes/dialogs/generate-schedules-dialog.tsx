@@ -29,9 +29,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CalendarPlus, CalendarRange, Layers3 } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { es } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { type Id } from "@/convex/_generated/dataModel";
@@ -61,10 +62,31 @@ const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({
   value: String(i).padStart(2, "0"),
   label: `${String(i).padStart(2, "0")}:00`,
 }));
-const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => ({
-  value: String(i).padStart(2, "0"),
-  label: String(i).padStart(2, "0"),
-}));
+
+const MINUTE_STEP_OPTIONS = Array.from({ length: 12 }, (_, i) =>
+  String(i * 5).padStart(2, "0"),
+);
+
+const MODE_OPTIONS = [
+  {
+    value: "timeWindow",
+    label: "Varios turnos",
+    description: "Cada cierto tiempo, en un rango de fechas.",
+    icon: CalendarRange,
+  },
+  {
+    value: "single",
+    label: "Un turno",
+    description: "Una fecha y hora puntual.",
+    icon: CalendarPlus,
+  },
+  {
+    value: "modelWeek",
+    label: "Semana modelo",
+    description: "Se repite cada semana como plantilla.",
+    icon: Layers3,
+  },
+] as const;
 
 function parseTimeHHmm(value: string | undefined): {
   hour: string;
@@ -437,560 +459,437 @@ export default function GenerateSchedulesDialog({
     }
   };
 
+  const isMobile = useIsMobile();
+  const exceedsLimit =
+    mode === "timeWindow" &&
+    approximateCount != null &&
+    approximateCount > MAX_SLOTS_PER_GENERATION;
+
+  const timeFields = (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <Field>
+        <FieldLabel>Desde</FieldLabel>
+        <Controller
+          name="timeWindowStart"
+          control={form.control}
+          render={({ field }) => (
+            <TimeSelect value={field.value} onChange={field.onChange} />
+          )}
+        />
+        {errors.timeWindowStart && (
+          <FieldError>{errors.timeWindowStart.message}</FieldError>
+        )}
+      </Field>
+      <Field>
+        <FieldLabel>Hasta</FieldLabel>
+        <Controller
+          name="timeWindowEnd"
+          control={form.control}
+          render={({ field }) => (
+            <TimeSelect value={field.value} onChange={field.onChange} />
+          )}
+        />
+        {errors.timeWindowEnd && (
+          <FieldError>{errors.timeWindowEnd.message}</FieldError>
+        )}
+      </Field>
+      <Field className="col-span-2 sm:col-span-1">
+        <FieldLabel>Frecuencia</FieldLabel>
+        <Controller
+          name="slotIntervalMinutes"
+          control={form.control}
+          render={({ field }) => (
+            <Select
+              value={String(field.value ?? 60)}
+              onValueChange={(v) => field.onChange(Number(v))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SLOT_INTERVAL_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        />
+      </Field>
+    </div>
+  );
+
+  const toggleDay = (day: number) => {
+    const current = daysOfWeek ?? [];
+    const next = current.includes(day)
+      ? current.filter((d: number) => d !== day)
+      : [...current, day].sort((a, b) => a - b);
+    setValue("daysOfWeek", next.length > 0 ? next : undefined);
+  };
+
+  const summary =
+    approximateCount == null || approximateCount < 0 ? null : mode ===
+      "modelWeek" ? (
+      <>
+        Se agregan{" "}
+        <strong className="text-foreground">{approximateCount}</strong> horarios
+        a la semana modelo
+      </>
+    ) : mode === "timeWindow" ? (
+      exceedsLimit ? (
+        <span className="text-destructive">
+          {approximateCount} turnos: el máximo es {MAX_SLOTS_PER_GENERATION}.
+          Acortá el rango o elegí menos días.
+        </span>
+      ) : (
+        <>
+          Se crean{" "}
+          <strong className="text-foreground">{approximateCount}</strong> turnos
+        </>
+      )
+    ) : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Generar turnos</DialogTitle>
+      <DialogContent className="flex max-h-[90dvh] w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-2xl">
+        <DialogHeader className="space-y-1 border-b p-5 pr-12 text-left">
+          <DialogTitle>Crear turnos</DialogTitle>
           <DialogDescription>
             {initialClassTitle
-              ? `Crear turnos para la clase "${initialClassTitle}"`
-              : "Elige una clase y define cuándo se crearán los turnos."}
+              ? `Para la clase "${initialClassTitle}".`
+              : "Elegí la clase y cuándo se dicta."}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-5">
-          {/* Class selector */}
-          <Field>
-            <FieldLabel>Clase</FieldLabel>
-            <Controller
-              name="classId"
-              control={form.control}
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={!!initialClassId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona una clase" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes?.map((c: Doc<"classes">) => (
-                      <SelectItem key={c._id} value={c._id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.classId && (
-              <FieldError>{errors.classId.message}</FieldError>
-            )}
-          </Field>
-
-          {/* Mode */}
-          <Field>
-            <FieldLabel>Tipo</FieldLabel>
-            <Controller
-              name="mode"
-              control={form.control}
-              render={({ field }) => (
-                <RadioGroup
-                  value={field.value}
-                  onValueChange={(v) => field.onChange(v as Mode)}
-                  className="flex flex-col gap-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="timeWindow" id="mode-timeWindow" />
-                    <Label htmlFor="mode-timeWindow" className="font-normal">
-                      Rango de tiempo por día (ej. cada hora de 8:00 a 20:00)
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="single" id="mode-single" />
-                    <Label htmlFor="mode-single" className="font-normal">
-                      Un solo turno
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="modelWeek" id="mode-modelWeek" />
-                    <Label htmlFor="mode-modelWeek" className="font-normal">
-                      Semana modelo (agrega slots como plantilla recurrente)
-                    </Label>
-                  </div>
-                </RadioGroup>
-              )}
-            />
-          </Field>
-
-          {mode === "timeWindow" && (
-            <>
-              <Field>
-                <FieldLabel>Rango de fechas</FieldLabel>
-                <FieldDescription>
-                  Desde qué día hasta qué día se crearán turnos.
-                </FieldDescription>
-                <Calendar
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={(range) => {
-                    if (range?.from) {
-                      setValue("rangeStartDate", range.from);
-                      // Single day when only start is picked; otherwise use range
-                      setValue("rangeEndDate", range.to ?? range.from);
-                    }
-                  }}
-                  numberOfMonths={2}
-                  showOutsideDays={false}
-                  locale={es}
-                  disabled={(date) => date < todayStart}
-                  className="rounded-md border"
-                />
-                {errors.rangeStartDate && (
-                  <FieldError>{errors.rangeStartDate.message}</FieldError>
+        <form
+          onSubmit={handleSubmit(onSubmit as any)}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="flex-1 space-y-6 overflow-y-auto p-5">
+            <Field>
+              <FieldLabel>Clase</FieldLabel>
+              <Controller
+                name="classId"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={!!initialClassId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Elegí una clase" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes?.map((c: Doc<"classes">) => (
+                        <SelectItem key={c._id} value={c._id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
-                {errors.rangeEndDate && (
-                  <FieldError>{errors.rangeEndDate.message}</FieldError>
-                )}
-              </Field>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Field>
-                  <FieldLabel>Hora inicio (por día)</FieldLabel>
-                  <Controller
-                    name="timeWindowStart"
-                    control={form.control}
-                    render={({ field }) => {
-                      const { hour, minute } = parseTimeHHmm(field.value);
-                      return (
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={hour}
-                            onValueChange={(h) =>
-                              field.onChange(`${h}:${minute}`)
-                            }
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Hora" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {HOUR_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <span className="text-muted-foreground">:</span>
-                          <Select
-                            value={minute}
-                            onValueChange={(m) =>
-                              field.onChange(`${hour}:${m}`)
-                            }
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Min" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {MINUTE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      );
-                    }}
-                  />
-                  {errors.timeWindowStart && (
-                    <FieldError>{errors.timeWindowStart.message}</FieldError>
-                  )}
-                </Field>
-                <Field>
-                  <FieldLabel>Hora fin (por día)</FieldLabel>
-                  <Controller
-                    name="timeWindowEnd"
-                    control={form.control}
-                    render={({ field }) => {
-                      const { hour, minute } = parseTimeHHmm(field.value);
-                      return (
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={hour}
-                            onValueChange={(h) =>
-                              field.onChange(`${h}:${minute}`)
-                            }
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Hora" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {HOUR_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <span className="text-muted-foreground">:</span>
-                          <Select
-                            value={minute}
-                            onValueChange={(m) =>
-                              field.onChange(`${hour}:${m}`)
-                            }
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Min" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {MINUTE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      );
-                    }}
-                  />
-                  {errors.timeWindowEnd && (
-                    <FieldError>{errors.timeWindowEnd.message}</FieldError>
-                  )}
-                </Field>
-              </div>
-
-              <Field>
-                <FieldLabel>Frecuencia dentro del día</FieldLabel>
-                <Controller
-                  name="slotIntervalMinutes"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select
-                      value={String(field.value ?? 60)}
-                      onValueChange={(v) => field.onChange(Number(v))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SLOT_INTERVAL_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={String(opt.value)}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel>Días de la semana (opcional)</FieldLabel>
-                <FieldDescription>
-                  Si no eliges ninguno, se crean turnos todos los días.
-                </FieldDescription>
-                <div className="flex flex-wrap gap-3 pt-1">
-                  {DAYS_OF_WEEK.map((day) => (
-                    <div
-                      key={day.value}
-                      className="flex items-center space-x-2"
-                    >
-                      <Checkbox
-                        id={`dow-${day.value}`}
-                        checked={(daysOfWeek ?? []).includes(day.value)}
-                        onCheckedChange={(checked) => {
-                          const current = daysOfWeek ?? [];
-                          const next = checked
-                            ? [...current, day.value].sort((a, b) => a - b)
-                            : current.filter((d: number) => d !== day.value);
-                          setValue(
-                            "daysOfWeek",
-                            next.length > 0 ? next : undefined,
-                          );
-                        }}
-                      />
-                      <Label
-                        htmlFor={`dow-${day.value}`}
-                        className="text-sm font-normal"
-                      >
-                        {day.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </Field>
-
-              {approximateCount != null && approximateCount >= 0 && (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    Se crearán aproximadamente{" "}
-                    <strong>{approximateCount}</strong> turnos.
-                  </p>
-                  {approximateCount > MAX_SLOTS_PER_GENERATION && (
-                    <p className="text-sm text-destructive">
-                      Máximo {MAX_SLOTS_PER_GENERATION} turnos por vez. Reducí
-                      el rango de fechas o los días.
-                    </p>
-                  )}
-                </>
+              />
+              {errors.classId && (
+                <FieldError>{errors.classId.message}</FieldError>
               )}
-            </>
-          )}
+            </Field>
 
-          {mode === "single" && (
-            <>
-              <Field>
-                <FieldLabel>Fecha</FieldLabel>
-                <Controller
-                  name="startDate"
-                  control={form.control}
-                  render={({ field }) => (
+            <Field>
+              <FieldLabel>Cómo crearlos</FieldLabel>
+              <Controller
+                name="mode"
+                control={form.control}
+                render={({ field }) => (
+                  <div role="radiogroup" className="grid gap-2 sm:grid-cols-3">
+                    {MODE_OPTIONS.map((option) => {
+                      const active = field.value === option.value;
+                      const Icon = option.icon;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() => field.onChange(option.value)}
+                          className={cn(
+                            "flex items-start gap-3 rounded-lg border p-3 text-left transition-colors sm:flex-col sm:gap-2",
+                            active
+                              ? "border-foreground bg-accent/50"
+                              : "hover:bg-accent/40",
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              "mt-0.5 size-4 shrink-0 sm:mt-0",
+                              active
+                                ? "text-foreground"
+                                : "text-muted-foreground",
+                            )}
+                            aria-hidden
+                          />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium">
+                              {option.label}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                              {option.description}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              />
+            </Field>
+
+            {mode === "timeWindow" && (
+              <>
+                <Field>
+                  <FieldLabel>Fechas</FieldLabel>
+                  <div className="flex justify-center rounded-lg border">
                     <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      disabled={(date) => date < todayStart}
+                      mode="range"
+                      defaultMonth={dateRange?.from}
+                      selected={dateRange}
+                      onSelect={(range) => {
+                        if (range?.from) {
+                          setValue("rangeStartDate", range.from);
+                          // Single day when only start is picked; otherwise use range
+                          setValue("rangeEndDate", range.to ?? range.from);
+                        }
+                      }}
+                      numberOfMonths={isMobile ? 1 : 2}
+                      showOutsideDays={false}
                       locale={es}
-                      className="rounded-md border"
+                      disabled={(date) => date < todayStart}
                     />
+                  </div>
+                  {dateRange?.from && (
+                    <FieldDescription className="first-letter:uppercase">
+                      {format(dateRange.from, "EEEE d 'de' MMMM", {
+                        locale: es,
+                      })}
+                      {dateRange.to &&
+                      dateRange.to.getTime() !== dateRange.from.getTime()
+                        ? ` → ${format(dateRange.to, "EEEE d 'de' MMMM", { locale: es })}`
+                        : ""}
+                    </FieldDescription>
                   )}
-                />
-                {errors.startDate && (
-                  <FieldError>{errors.startDate.message}</FieldError>
-                )}
-              </Field>
-              <Field>
-                <FieldLabel>Hora de inicio</FieldLabel>
-                <Input
-                  type="time"
-                  {...register("startTime")}
-                  placeholder="09:00"
-                />
-                {errors.startTime && (
-                  <FieldError>{errors.startTime.message}</FieldError>
-                )}
-              </Field>
-            </>
-          )}
+                  {errors.rangeStartDate && (
+                    <FieldError>{errors.rangeStartDate.message}</FieldError>
+                  )}
+                  {errors.rangeEndDate && (
+                    <FieldError>{errors.rangeEndDate.message}</FieldError>
+                  )}
+                </Field>
 
-          {mode === "modelWeek" && (
-            <>
-              <Field>
-                <FieldLabel>Días de la semana</FieldLabel>
-                <FieldDescription>
-                  Los slots se agregarán a la semana modelo para los días
-                  seleccionados.
-                </FieldDescription>
-                <div className="flex flex-wrap gap-3 pt-1">
-                  {DAYS_OF_WEEK.map((day) => (
-                    <div
-                      key={day.value}
-                      className="flex items-center space-x-2"
-                    >
-                      <Checkbox
-                        id={`mw-dow-${day.value}`}
-                        checked={(daysOfWeek ?? []).includes(day.value)}
-                        onCheckedChange={(checked) => {
-                          const current = daysOfWeek ?? [];
-                          const next = checked
-                            ? [...current, day.value].sort((a, b) => a - b)
-                            : current.filter((d: number) => d !== day.value);
-                          setValue(
-                            "daysOfWeek",
-                            next.length > 0 ? next : undefined,
-                          );
-                        }}
-                      />
-                      <Label
-                        htmlFor={`mw-dow-${day.value}`}
-                        className="text-sm font-normal"
-                      >
-                        {day.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-                {errors.daysOfWeek && (
-                  <FieldError>{errors.daysOfWeek.message}</FieldError>
-                )}
-              </Field>
-
-              <div className="grid grid-cols-2 gap-4">
                 <Field>
-                  <FieldLabel>Hora inicio (por día)</FieldLabel>
+                  <FieldLabel>
+                    Días{" "}
+                    <span className="font-normal text-muted-foreground">
+                      (vacío = todos)
+                    </span>
+                  </FieldLabel>
+                  <DayChips selected={daysOfWeek ?? []} onToggle={toggleDay} />
+                </Field>
+
+                {timeFields}
+              </>
+            )}
+
+            {mode === "single" && (
+              <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-start">
+                <Field>
+                  <FieldLabel>Fecha</FieldLabel>
                   <Controller
-                    name="timeWindowStart"
+                    name="startDate"
                     control={form.control}
-                    render={({ field }) => {
-                      const { hour, minute } = parseTimeHHmm(field.value);
-                      return (
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={hour}
-                            onValueChange={(h) =>
-                              field.onChange(`${h}:${minute}`)
-                            }
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Hora" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {HOUR_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <span className="text-muted-foreground">:</span>
-                          <Select
-                            value={minute}
-                            onValueChange={(m) =>
-                              field.onChange(`${hour}:${m}`)
-                            }
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Min" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {MINUTE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      );
-                    }}
+                    render={({ field }) => (
+                      <div className="flex justify-center rounded-lg border">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date < todayStart}
+                          locale={es}
+                        />
+                      </div>
+                    )}
                   />
-                  {errors.timeWindowStart && (
-                    <FieldError>{errors.timeWindowStart.message}</FieldError>
+                  {errors.startDate && (
+                    <FieldError>{errors.startDate.message}</FieldError>
                   )}
                 </Field>
                 <Field>
-                  <FieldLabel>Hora fin (por día)</FieldLabel>
+                  <FieldLabel>Hora</FieldLabel>
                   <Controller
-                    name="timeWindowEnd"
+                    name="startTime"
                     control={form.control}
-                    render={({ field }) => {
-                      const { hour, minute } = parseTimeHHmm(field.value);
-                      return (
-                        <div className="flex items-center gap-2">
-                          <Select
-                            value={hour}
-                            onValueChange={(h) =>
-                              field.onChange(`${h}:${minute}`)
-                            }
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Hora" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {HOUR_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <span className="text-muted-foreground">:</span>
-                          <Select
-                            value={minute}
-                            onValueChange={(m) =>
-                              field.onChange(`${hour}:${m}`)
-                            }
-                          >
-                            <SelectTrigger className="flex-1">
-                              <SelectValue placeholder="Min" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {MINUTE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      );
-                    }}
+                    render={({ field }) => (
+                      <TimeSelect
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    )}
                   />
-                  {errors.timeWindowEnd && (
-                    <FieldError>{errors.timeWindowEnd.message}</FieldError>
+                  {errors.startTime && (
+                    <FieldError>{errors.startTime.message}</FieldError>
                   )}
                 </Field>
               </div>
-
-              <Field>
-                <FieldLabel>Frecuencia dentro del día</FieldLabel>
-                <Controller
-                  name="slotIntervalMinutes"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select
-                      value={String(field.value ?? 60)}
-                      onValueChange={(v) => field.onChange(Number(v))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SLOT_INTERVAL_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={String(opt.value)}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </Field>
-
-              {approximateCount != null && approximateCount >= 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Se agregarán aproximadamente{" "}
-                  <strong>{approximateCount}</strong> slots a la semana modelo.
-                </p>
-              )}
-            </>
-          )}
-
-          <Field>
-            <FieldLabel>Duración (minutos)</FieldLabel>
-            <Input
-              type="number"
-              {...register("duration", { valueAsNumber: true })}
-              min={15}
-              max={480}
-              step={15}
-            />
-            <FieldDescription>Duración de cada turno.</FieldDescription>
-            {errors.duration && (
-              <FieldError>{errors.duration.message}</FieldError>
             )}
-          </Field>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={
-                isSubmitting ||
-                (mode === "timeWindow" &&
-                  approximateCount != null &&
-                  approximateCount > MAX_SLOTS_PER_GENERATION) ||
-                (mode === "modelWeek" &&
-                  (approximateCount === 0 || approximateCount === null))
-              }
-            >
-              {isSubmitting ? "Generando..." : "Generar turnos"}
-            </Button>
+            {mode === "modelWeek" && (
+              <>
+                <Field>
+                  <FieldLabel>Días</FieldLabel>
+                  <DayChips selected={daysOfWeek ?? []} onToggle={toggleDay} />
+                  {errors.daysOfWeek && (
+                    <FieldError>{errors.daysOfWeek.message}</FieldError>
+                  )}
+                </Field>
+                {timeFields}
+              </>
+            )}
+
+            <Field className="max-w-[200px]">
+              <FieldLabel>Duración de cada turno</FieldLabel>
+              <div className="relative">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  {...register("duration", { valueAsNumber: true })}
+                  min={15}
+                  max={480}
+                  step={15}
+                  className="pr-12"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  min
+                </span>
+              </div>
+              {errors.duration && (
+                <FieldError>{errors.duration.message}</FieldError>
+              )}
+            </Field>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">{summary}</p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 sm:flex-none"
+                onClick={() => onOpenChange(false)}
+                disabled={isSubmitting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="flex-1 sm:flex-none"
+                disabled={
+                  isSubmitting ||
+                  exceedsLimit ||
+                  (mode === "modelWeek" &&
+                    (approximateCount === 0 || approximateCount === null))
+                }
+              >
+                {isSubmitting
+                  ? "Creando..."
+                  : mode === "modelWeek"
+                    ? "Agregar a la semana"
+                    : "Crear turnos"}
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function TimeSelect({
+  value,
+  onChange,
+}: {
+  value: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  const { hour, minute } = parseTimeHHmm(value);
+  // Keep an odd saved minute selectable even though the list steps by 5.
+  const minutes = MINUTE_STEP_OPTIONS.includes(minute)
+    ? MINUTE_STEP_OPTIONS
+    : [...MINUTE_STEP_OPTIONS, minute].sort();
+  return (
+    <div className="flex items-center gap-1">
+      <Select value={hour} onValueChange={(h) => onChange(`${h}:${minute}`)}>
+        <SelectTrigger
+          className="min-w-0 flex-1 tabular-nums"
+          aria-label="Hora"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {HOUR_OPTIONS.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.value}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-muted-foreground">:</span>
+      <Select value={minute} onValueChange={(m) => onChange(`${hour}:${m}`)}>
+        <SelectTrigger
+          className="min-w-0 flex-1 tabular-nums"
+          aria-label="Minutos"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {minutes.map((m) => (
+            <SelectItem key={m} value={m}>
+              {m}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function DayChips({
+  selected,
+  onToggle,
+}: {
+  selected: number[];
+  onToggle: (day: number) => void;
+}) {
+  return (
+    <div className="flex gap-1">
+      {DAYS_OF_WEEK.map((day) => {
+        const active = selected.includes(day.value);
+        return (
+          <button
+            key={day.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onToggle(day.value)}
+            className={cn(
+              "h-9 flex-1 rounded-md border text-sm font-medium transition-colors",
+              active
+                ? "border-foreground bg-foreground text-background"
+                : "text-muted-foreground hover:bg-accent/60",
+            )}
+          >
+            {day.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }

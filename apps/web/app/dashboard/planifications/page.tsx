@@ -3,7 +3,15 @@
 import { useQuery, useMutation } from "convex/react";
 import type { Doc } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
-import { Plus, FileStack, FolderTree, Search } from "lucide-react";
+import {
+  ChevronDown,
+  FileStack,
+  Folder,
+  LayoutGrid,
+  List,
+  Plus,
+  Search,
+} from "lucide-react";
 import { useOrgSettings } from "@/hooks/use-org-settings";
 import { FeatureDisabledPage } from "@/components/shared/feature-disabled-page";
 import {
@@ -26,6 +34,14 @@ import {
 } from "@/components/features/planifications/planification-folder-dnd";
 
 const PLANIFICATIONS_LIST_VIEW_KEY = "planifications-list-view";
+
+type SortOrder = "recent" | "oldest" | "name";
+
+const SORT_LABEL: Record<SortOrder, string> = {
+  recent: "Más recientes",
+  oldest: "Más antiguas",
+  name: "Nombre A–Z",
+};
 const TypedDragDropProvider = DragDropProvider as ComponentType<{
   children?: ReactNode;
 }>;
@@ -72,6 +88,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PlanificationList from "@/components/features/planifications/library/planification-list";
 import PlanificationListTable from "@/components/features/planifications/library/planification-list-table";
 import FolderTreeSidebar from "@/components/features/planifications/folder-tree/folder-tree";
@@ -135,6 +153,7 @@ export default function PlanificationsPage() {
     }
   }, []);
   const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
+  const [sortOrder, setSortOrder] = useState<SortOrder>("recent");
 
   const folders = useQuery(
     api.folders.getTree,
@@ -251,29 +270,87 @@ export default function PlanificationsPage() {
   );
 
   const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
-  const filteredPlanifications = (planifications || []).filter(
-    (planification) => {
+  const filteredPlanifications = (planifications || [])
+    .filter((planification) => {
       if (!normalizedSearch) return true;
 
       return `${planification.name} ${planification.description ?? ""}`
         .toLowerCase()
         .includes(normalizedSearch);
-    },
-  );
+    })
+    .sort((a, b) =>
+      sortOrder === "name"
+        ? a.name.localeCompare(b.name, "es")
+        : sortOrder === "oldest"
+          ? a.createdAt - b.createdAt
+          : b.createdAt - a.createdAt,
+    );
+  const isFiltered = normalizedSearch.length > 0;
+  const openCreate = () => {
+    setDialogFolderId(selectedFolderId || undefined);
+    setCreateDialogOpen(true);
+  };
+  const countLabel =
+    planifications === undefined
+      ? "Cargando..."
+      : `${filteredPlanifications.length} ${
+          filteredPlanifications.length === 1
+            ? "planificación"
+            : "planificaciones"
+        }`;
 
   if (orgSettings && !orgSettings.planificationsEnabled) {
     return <FeatureDisabledPage featureName="Planificaciones" />;
   }
 
   const searchInput = (
-    <div className="relative w-full md:max-w-md">
+    <div className="relative w-full md:max-w-sm">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Buscar planificaciones..."
-        className="h-10 pl-10"
+        placeholder="Buscar por nombre..."
+        className="h-9 pl-9"
         aria-label="Buscar planificaciones"
+      />
+    </div>
+  );
+
+  const sortSelect = (
+    <Select
+      value={sortOrder}
+      onValueChange={(v) => setSortOrder(v as SortOrder)}
+    >
+      <SelectTrigger className="h-9 w-[150px] shrink-0" aria-label="Ordenar">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {(Object.keys(SORT_LABEL) as SortOrder[]).map((key) => (
+          <SelectItem key={key} value={key}>
+            {SORT_LABEL[key]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const headerActions = (
+    <div className="flex shrink-0 items-center gap-2">
+      <ResponsiveActionButton
+        variant="outline"
+        onClick={() => setTemplatesDialogOpen(true)}
+        icon={<FileStack className="h-4 w-4" aria-hidden />}
+        label="Plantillas"
+        tooltip="Plantillas"
+      />
+      <ResponsiveActionButton
+        onClick={() => {
+          setDialogFolderId(undefined);
+          setCreateDialogOpen(true);
+        }}
+        icon={<Plus className="h-4 w-4" aria-hidden />}
+        label="Nueva planificación"
+        tooltip="Nueva planificación"
       />
     </div>
   );
@@ -282,6 +359,8 @@ export default function PlanificationsPage() {
     <PlanificationList
       planifications={filteredPlanifications}
       isLoading={planifications === undefined}
+      isFiltered={isFiltered}
+      onCreate={openCreate}
       onUseTemplate={handleUseTemplate}
     />
   );
@@ -295,12 +374,7 @@ export default function PlanificationsPage() {
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          <ContextMenuItem
-            onClick={() => {
-              setDialogFolderId(selectedFolderId || undefined);
-              setCreateDialogOpen(true);
-            }}
-          >
+          <ContextMenuItem onClick={openCreate}>
             Nueva Planificación
           </ContextMenuItem>
         </ContextMenuContent>
@@ -310,6 +384,8 @@ export default function PlanificationsPage() {
         <PlanificationListTable
           planifications={filteredPlanifications}
           isLoading={planifications === undefined}
+          isFiltered={isFiltered}
+          onCreate={openCreate}
           onUseTemplate={handleUseTemplate}
         />
       </div>
@@ -342,67 +418,57 @@ export default function PlanificationsPage() {
 
   if (isMobile) {
     return (
-      <DashboardPageContainer className="space-y-4 py-4 md:py-6">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold">Planificaciones</h1>
-          <p className="text-sm text-muted-foreground">
-            Gestiona programas de entrenamiento
-          </p>
+      <DashboardPageContainer className="space-y-4 py-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <h1 className="text-2xl font-bold">Planificaciones</h1>
+            <p className="text-sm text-muted-foreground">{countLabel}</p>
+          </div>
+          {headerActions}
         </div>
 
-        <div className="flex items-center gap-2">
-          <ResponsiveActionButton
-            variant="outline"
-            onClick={() => setTemplatesDialogOpen(true)}
-            icon={<FileStack className="h-4 w-4" aria-hidden />}
-            label="Ver Plantillas"
-            tooltip="Ver Plantillas"
-          />
-          <ResponsiveActionButton
-            onClick={() => {
-              setDialogFolderId(undefined);
-              setCreateDialogOpen(true);
-            }}
-            icon={<Plus className="h-4 w-4" aria-hidden />}
-            label="Nueva planificación"
-            tooltip="Nueva planificación"
-          />
-          <Sheet open={mobileFoldersOpen} onOpenChange={setMobileFoldersOpen}>
-            <SheetTrigger asChild>
-              <ResponsiveActionButton
-                variant="outline"
-                icon={<FolderTree className="h-4 w-4" aria-hidden />}
-                label="Carpetas"
-                tooltip="Seleccionar carpeta"
-              />
-            </SheetTrigger>
-            <SheetContent side="right" className="w-full sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>Carpetas</SheetTitle>
-              </SheetHeader>
-              <div className="mt-4 overflow-y-auto">
-                <FolderTreeSidebar
-                  folders={folders || []}
-                  selectedId={selectedFolderId}
-                  onSelect={(id) => {
-                    setSelectedFolderId(id);
-                    setMobileFoldersOpen(false);
-                  }}
-                  deletableFolderIds={deletableFolderIds ?? []}
-                />
-              </div>
-            </SheetContent>
-          </Sheet>
+        <div className="space-y-2">
+          {searchInput}
+          <div className="flex items-center gap-2">
+            <Sheet open={mobileFoldersOpen} onOpenChange={setMobileFoldersOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 min-w-0 flex-1 justify-between gap-2 font-normal"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Folder className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{selectedFolderName}</span>
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                side="bottom"
+                className="max-h-[80dvh] rounded-t-2xl"
+              >
+                <SheetHeader>
+                  <SheetTitle>Carpetas</SheetTitle>
+                </SheetHeader>
+                <div className="mt-2 overflow-y-auto">
+                  <FolderTreeSidebar
+                    folders={folders || []}
+                    selectedId={selectedFolderId}
+                    onSelect={(id) => {
+                      setSelectedFolderId(id);
+                      setMobileFoldersOpen(false);
+                    }}
+                    deletableFolderIds={deletableFolderIds ?? []}
+                    hideTitle
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
+            {sortSelect}
+          </div>
         </div>
 
-        <div className="pt-1">{searchInput}</div>
-
-        <div className="rounded-lg border p-3">
-          <p className="text-xs text-muted-foreground">Carpeta activa</p>
-          <p className="truncate text-sm font-medium">{selectedFolderName}</p>
-        </div>
-
-        <div className="rounded-lg border p-3">{planificationsGrid}</div>
+        {planificationsGrid}
 
         {dialogs}
       </DashboardPageContainer>
@@ -411,31 +477,14 @@ export default function PlanificationsPage() {
 
   return (
     <DashboardPageContainer className="flex h-[calc(100svh-6rem)] flex-col py-6">
-      <div className="flex shrink-0 items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-3xl font-bold">Planificaciones</h1>
-          <p className="mt-1 text-muted-foreground">
-            Gestiona programas de entrenamiento
+      <div className="flex shrink-0 items-end justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <h1 className="text-2xl font-bold md:text-3xl">Planificaciones</h1>
+          <p className="text-sm text-muted-foreground md:text-base">
+            Programas de entrenamiento organizados en carpetas.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <ResponsiveActionButton
-            variant="outline"
-            onClick={() => setTemplatesDialogOpen(true)}
-            icon={<FileStack className="h-4 w-4" aria-hidden />}
-            label="Ver Plantillas"
-            tooltip="Ver Plantillas"
-          />
-          <ResponsiveActionButton
-            onClick={() => {
-              setDialogFolderId(undefined);
-              setCreateDialogOpen(true);
-            }}
-            icon={<Plus className="h-4 w-4" aria-hidden />}
-            label="Nueva planificación"
-            tooltip="Nueva planificación"
-          />
-        </div>
+        {headerActions}
       </div>
 
       {dialogs}
@@ -444,12 +493,12 @@ export default function PlanificationsPage() {
         <PlanificationsDragEndMonitor onDragEnd={handleDragEnd}>
           <ResizablePanelGroup
             orientation="horizontal"
-            className="mt-6 min-h-0 flex-1 overflow-hidden rounded-lg border"
+            className="mt-6 min-h-0 flex-1 overflow-hidden rounded-xl border"
           >
             <ResizablePanel
-              defaultSize={25}
+              defaultSize={22}
               minSize={15}
-              className="overflow-y-auto bg-card p-4"
+              className="overflow-y-auto bg-card p-3"
             >
               <FolderTreeSidebar
                 folders={folders || []}
@@ -460,42 +509,42 @@ export default function PlanificationsPage() {
               />
             </ResizablePanel>
             <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={75} minSize={40} className="relative">
+            <ResizablePanel defaultSize={78} minSize={40} className="relative">
               <div className="absolute inset-0 flex flex-col">
-                <div className="flex shrink-0 items-center gap-4 border-b px-4 py-3">
+                <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
                   <div className="min-w-0 shrink-0">
                     <p className="truncate text-sm font-medium">
                       {selectedFolderName}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {planifications === undefined
-                        ? "Cargando..."
-                        : `${filteredPlanifications.length} ${
-                            filteredPlanifications.length === 1
-                              ? "planificación"
-                              : "planificaciones"
-                          }`}
+                      {countLabel}
                     </p>
                   </div>
 
-                  <div className="min-w-0 flex-1">{searchInput}</div>
-
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      Vista:
-                    </span>
-                    <Select
+                  <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2">
+                    {searchInput}
+                    {sortSelect}
+                    <Tabs
                       value={listView}
                       onValueChange={(v) => setListView(v as "grid" | "table")}
                     >
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue placeholder="Vista" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="grid">Cuadrícula</SelectItem>
-                        <SelectItem value="table">Tabla</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      <TabsList className="h-9">
+                        <TabsTrigger
+                          value="grid"
+                          className="px-2"
+                          aria-label="Vista de tarjetas"
+                        >
+                          <LayoutGrid className="size-4" />
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="table"
+                          className="px-2"
+                          aria-label="Vista de lista"
+                        >
+                          <List className="size-4" />
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
                   </div>
                 </div>
                 {desktopListContent}

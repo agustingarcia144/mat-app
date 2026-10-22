@@ -45,9 +45,10 @@ function formatMinutes(totalMinutes: number): string {
 
 function capacityColor(fixedCount: number, capacity: number): string {
   const ratio = capacity > 0 ? fixedCount / capacity : 0;
-  if (ratio >= 1) return "bg-red-600";
-  if (ratio >= 0.7) return "bg-orange-500";
-  return "bg-indigo-600";
+  // Only the left accent bar is colored, matching the turnos grid.
+  if (ratio >= 1) return "bg-red-500";
+  if (ratio >= 0.7) return "bg-amber-500";
+  return "bg-emerald-500";
 }
 
 export default function ModelWeekTimeline({
@@ -113,9 +114,9 @@ export default function ModelWeekTimeline({
           return (
             <section
               key={day.dayOfWeek}
-              className="overflow-hidden rounded-lg border"
+              className="overflow-hidden rounded-xl border bg-card"
             >
-              <header className="flex items-center justify-between border-b bg-muted px-3 py-2">
+              <header className="flex items-center justify-between border-b px-3 py-2">
                 <p className="text-sm font-semibold">{day.label}</p>
                 {onEmptyCellClick && (
                   <button
@@ -175,20 +176,18 @@ export default function ModelWeekTimeline({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border">
+    <div className="overflow-hidden rounded-xl border bg-card">
       <div className="overflow-x-auto">
         <div className="min-w-[800px]">
           {/* Day headers */}
-          <div className="grid grid-cols-8 bg-muted">
-            <div className="border-r border-b p-2 text-sm font-medium text-muted-foreground">
-              Hora
-            </div>
+          <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b">
+            <div />
             {DAYS_OF_WEEK.map((day) => (
               <div
                 key={day.dayOfWeek}
-                className="border-r border-b p-2 text-center"
+                className="border-l py-2.5 text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
               >
-                <div className="font-medium">{day.label}</div>
+                {day.label}
               </div>
             ))}
           </div>
@@ -197,9 +196,9 @@ export default function ModelWeekTimeline({
           {HOURS.map((hour) => (
             <div
               key={hour}
-              className="grid grid-cols-8 border-b last:border-b-0"
+              className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-border/60 last:border-b-0"
             >
-              <div className="border-r p-2 text-sm text-muted-foreground">
+              <div className="pr-2 pt-1 text-right text-[11px] tabular-nums text-muted-foreground">
                 {hour.toString().padStart(2, "0")}:00
               </div>
               {DAYS_OF_WEEK.map((day, dayIndex) => {
@@ -210,10 +209,10 @@ export default function ModelWeekTimeline({
                   <div
                     key={day.dayOfWeek}
                     className={cn(
-                      "group relative min-h-[60px] border-r p-1",
+                      "group relative min-h-[56px] border-l p-1",
                       onEmptyCellClick &&
                         cellBlocks.length === 0 &&
-                        "cursor-pointer hover:bg-accent/30",
+                        "cursor-pointer hover:bg-accent/40",
                     )}
                     onClick={() => {
                       if (cellBlocks.length === 0 && onEmptyCellClick) {
@@ -242,22 +241,26 @@ export default function ModelWeekTimeline({
                             e.stopPropagation();
                             onSlotClick(block.slot._id);
                           }}
-                          className={cn(
-                            "mb-1 w-full rounded p-2 text-left text-xs text-white transition-opacity hover:opacity-80",
-                            colorClass,
-                          )}
+                          className="relative mb-1 flex w-full flex-col gap-0.5 overflow-hidden rounded-md border bg-background py-1.5 pl-2.5 pr-1.5 text-left text-xs shadow-sm transition-colors hover:border-foreground/30"
                           style={{
                             minHeight: `${Math.max(durationHours * 50, 40)}px`,
                           }}
                         >
+                          <span
+                            className={cn(
+                              "absolute inset-y-0 left-0 w-1",
+                              colorClass,
+                            )}
+                            aria-hidden
+                          />
                           <div className="truncate font-medium">
                             {block.slot.class?.name ?? "Clase"}
                           </div>
-                          <div className="text-[10px] opacity-90">
+                          <div className="text-[11px] tabular-nums text-muted-foreground">
                             {formatMinutes(block.slot.startTimeMinutes)} –{" "}
                             {formatMinutes(endMinutes)}
                           </div>
-                          <div className="mt-1 text-[10px] opacity-90">
+                          <div className="mt-auto text-[11px] font-medium tabular-nums">
                             {block.fixedCount}/{cap} fijos
                           </div>
                         </button>
@@ -272,18 +275,18 @@ export default function ModelWeekTimeline({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 border-t bg-muted/30 p-3 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-4 border-t p-3 text-xs text-muted-foreground">
         <span>Capacidad fija:</span>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded bg-indigo-600" />
+          <div className="h-3 w-1 rounded-full bg-emerald-500" />
           <span>&lt;70%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded bg-orange-500" />
+          <div className="h-3 w-1 rounded-full bg-amber-500" />
           <span>70–99%</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded bg-red-600" />
+          <div className="h-3 w-1 rounded-full bg-red-500" />
           <span>Lleno</span>
         </div>
       </div>

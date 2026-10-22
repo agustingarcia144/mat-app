@@ -61,7 +61,8 @@ export default function QuickActions() {
   if (actions.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    // Phones scroll the shortcuts sideways instead of wrapping into rows.
+    <div className="-mx-3 flex gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
       {actions.map((action) => {
         const Icon = action.icon;
 
@@ -69,9 +70,11 @@ export default function QuickActions() {
           <Link
             key={action.href}
             href={action.href}
-            className="inline-flex items-center gap-2 rounded-lg border bg-background/60 px-3 py-2 text-sm transition-colors hover:bg-accent/40"
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg border bg-card py-1.5 pl-1.5 pr-3 text-sm font-medium transition-colors hover:bg-accent/40"
           >
-            <Icon className="h-4 w-4 text-muted-foreground" />
+            <span className="flex size-7 items-center justify-center rounded-md bg-muted">
+              <Icon className="size-4 text-muted-foreground" aria-hidden />
+            </span>
             {action.label}
           </Link>
         );

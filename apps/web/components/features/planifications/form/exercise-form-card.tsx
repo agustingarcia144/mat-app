@@ -202,63 +202,50 @@ export default function ExerciseFormCard({
 
   return (
     <>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={openDialog}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            openDialog();
-          }
-        }}
-        className="w-full shrink-0 flex flex-col rounded-md overflow-hidden border border-border bg-card transition-colors aspect-4/3 relative cursor-pointer hover:border-primary/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-      >
-        {dragHandle}
-        {/* Remove button: top right of card */}
-        <Button
+      <div className="group relative overflow-hidden rounded-lg border bg-background transition-colors hover:border-primary/40">
+        <div className="relative pr-8">
+          {dragHandle}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={`Eliminar ${exercise?.exerciseName ?? "ejercicio"}`}
+            onClick={onRemove}
+            className="absolute right-0 top-0 size-7 text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+        <button
           type="button"
-          variant="secondary"
-          size="icon"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="absolute top-0.5 right-0.5 z-10 h-5 w-5 shrink-0 rounded text-muted-foreground hover:text-destructive"
+          onClick={openDialog}
+          className="flex w-full items-center gap-3 p-3 text-left outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          aria-label={`Editar ${exercise?.exerciseName ?? "ejercicio"}`}
         >
-          <Trash2 className="h-3 w-3" />
-        </Button>
-
-        <div className="flex-1 min-h-0 relative bg-muted backface-hidden transform-[translateZ(0)]">
-          {thumbnailUrl ? (
+          <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted">
             <Image
-              src={thumbnailUrl}
-              alt={`Miniatura de ${exercise?.exerciseName ?? "ejercicio"}`}
+              src={thumbnailUrl ?? matWolfPlaceholder}
+              alt=""
               fill
-              className="object-cover"
-              sizes="192px"
-              unoptimized
+              className={thumbnailUrl ? "object-cover" : "object-contain p-1"}
+              sizes="56px"
+              unoptimized={Boolean(thumbnailUrl)}
             />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-muted/50 p-4">
-              <Image
-                src={matWolfPlaceholder}
-                alt="Sin miniatura"
-                fill
-                className="object-contain"
-                sizes="192px"
-              />
-            </div>
-          )}
-        </div>
-        <div className="p-1.5 shrink-0 border-t">
-          <h4 className="font-medium text-[11px] truncate mb-0.5">
-            {exercise?.exerciseName}
-          </h4>
-          <p className="text-[10px] text-muted-foreground leading-tight">
-            {summaryText}
-          </p>
-        </div>
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            <h4 className="text-sm font-medium leading-snug">
+              {exercise?.exerciseName}
+            </h4>
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {summaryText}
+            </p>
+            {exercise?.notes && (
+              <p className="line-clamp-2 text-xs text-muted-foreground">
+                {exercise.notes}
+              </p>
+            )}
+          </div>
+        </button>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

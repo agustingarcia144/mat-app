@@ -121,7 +121,7 @@ export const DASHBOARD_NAV_ITEMS: readonly DashboardNavItem[] = [
     ],
   },
   {
-    label: "Metricas",
+    label: "Métricas",
     icon: BarChart3,
     url: "/metrics",
     billingModule: "metrics",

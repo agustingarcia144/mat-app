@@ -1,17 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useQuery } from "convex/react";
 import {
-  ArrowLeft,
-  Calendar,
-  CheckCircle2,
-  Users,
-  XCircle,
-} from "lucide-react";
-import {
   Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
@@ -19,12 +13,23 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  Cell,
 } from "recharts";
 
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  CHART_AXIS_PROPS,
+  CHART_TOOLTIP_PROPS,
+  KpiGrid,
+  KpiTile,
+  MetricsEmpty,
+  MetricsPageHeader,
+  MetricsSection,
+  RateBadge,
+  formatCount,
+  formatPercent,
+} from "@/components/features/metrics/metrics-ui";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -33,83 +38,39 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
-
-function formatPercent(value?: number | null, digits = 1) {
-  if (value === null || value === undefined) return "-";
-  return `${value.toLocaleString("es-AR", {
-    minimumFractionDigits: value % 1 === 0 ? 0 : digits,
-    maximumFractionDigits: digits,
-  })}%`;
-}
 
 function formatPeriod(period: string) {
   const [year, month] = period.split("-");
-  return new Intl.DateTimeFormat("es-AR", { month: "short", year: "2-digit" }).format(
-    new Date(Number(year), Number(month) - 1, 1),
-  );
+  return new Intl.DateTimeFormat("es-AR", { month: "short", year: "2-digit" })
+    .format(new Date(Number(year), Number(month) - 1, 1))
+    .replace(".", "");
 }
 
 function formatHour(h: number) {
-  return new Intl.DateTimeFormat("es-AR", { hour: "numeric", hour12: false }).format(
-    new Date(2000, 0, 1, h),
-  );
+  return `${String(h).padStart(2, "0")}hs`;
 }
 
-// ── KPI Tile ────────────────────────────────────────────────────────────────
-function KpiTile({
-  label,
-  value,
-  sub,
-  tone,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "green" | "red" | "amber" | "blue" | "default";
-  icon?: React.ComponentType<{ className?: string }>;
-}) {
-  const valueClass =
-    tone === "green"
-      ? "text-emerald-600"
-      : tone === "red"
-        ? "text-red-600"
-        : tone === "amber"
-          ? "text-amber-600"
-          : tone === "blue"
-            ? "text-blue-600"
-            : "";
-  return (
-    <div className="flex min-h-[100px] flex-col rounded-2xl border bg-card/80 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        {Icon && <Icon className={cn("h-4 w-4 text-muted-foreground", valueClass)} />}
-      </div>
-      <p className={cn("mt-2 text-2xl font-semibold md:text-3xl", valueClass)}>
-        {value}
-      </p>
-      {sub && <p className="mt-auto pt-2 text-[11px] text-muted-foreground">{sub}</p>}
-    </div>
-  );
+/** Colors a rate green / amber / red against its thresholds. */
+function rateClass(
+  value: number | null,
+  good: number,
+  fair: number,
+  lowerIsBetter = false,
+) {
+  if (value === null) return undefined;
+  const isGood = lowerIsBetter ? value <= good : value >= good;
+  const isFair = lowerIsBetter ? value <= fair : value >= fair;
+  if (isGood) return "text-emerald-600 dark:text-emerald-400";
+  if (isFair) return "text-amber-600 dark:text-amber-400";
+  return "text-red-600 dark:text-red-400";
 }
 
-// ── Attendance badge ─────────────────────────────────────────────────────────
-function AttendanceBadge({ pct }: { pct: number | null }) {
-  if (pct === null) return <span className="text-muted-foreground">-</span>;
-  const color =
-    pct >= 80
-      ? "text-emerald-600 bg-emerald-500/10"
-      : pct >= 50
-        ? "text-amber-600 bg-amber-500/10"
-        : "text-red-600 bg-red-500/10";
-  return (
-    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", color)}>
-      {formatPercent(pct)}
-    </span>
-  );
-}
+const HEADER_PROPS = {
+  title: "Clases",
+  description:
+    "Asistencia, ocupación, horarios pico y tendencia mensual de todas las clases.",
+};
 
 export default function ClassMetricsPage() {
   const canQuery = useCanQueryCurrentOrganization();
@@ -121,158 +82,132 @@ export default function ClassMetricsPage() {
   if (!canQuery || data === undefined) {
     return (
       <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-        <div className="flex animate-pulse flex-col gap-4">
-          <div className="h-8 w-48 rounded-lg bg-muted" />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 rounded-2xl bg-muted" />
-            ))}
-          </div>
-        </div>
+        <MetricsPageHeader {...HEADER_PROPS} />
+        <KpiGrid>
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-[112px] rounded-xl" />
+          ))}
+        </KpiGrid>
+        <Skeleton className="h-[340px] rounded-xl" />
       </DashboardPageContainer>
     );
   }
 
-  const { overview, busiestHours, busiestDays, popularClasses, monthlyTrend } = data;
+  const { overview, busiestHours, busiestDays, popularClasses, monthlyTrend } =
+    data;
+  const closedReservations = overview.totalAttended + overview.totalNoShow;
 
-  // Sort busiest hours for the bar chart (ascending by hour)
   const hourChartData = [...busiestHours]
     .sort((a, b) => a.hour - b.hour)
-    .map((h) => ({ label: `${formatHour(h.hour)}hs`, count: h.count }));
+    .map((h) => ({ label: formatHour(h.hour), count: h.count }));
+  const maxHourCount = Math.max(...hourChartData.map((h) => h.count), 0);
 
-  const maxHourCount = Math.max(...hourChartData.map((h) => h.count), 1);
+  const dayChartData = busiestDays.map((d) => ({
+    label: d.label,
+    count: d.count,
+  }));
+  const maxDayCount = Math.max(...dayChartData.map((d) => d.count), 0);
 
   const trendChartData = monthlyTrend.map((m) => ({
     label: formatPeriod(m.period),
     clases: m.schedulesHeld,
     reservas: m.totalReservations,
-    asistidos: m.attended,
     asistencia: m.attendanceRate,
   }));
 
   return (
     <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/dashboard/metrics"
-          className="inline-flex items-center gap-1.5 rounded-lg border bg-background/60 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/50"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Métricas
-        </Link>
-      </div>
+      <MetricsPageHeader {...HEADER_PROPS} />
 
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold md:text-3xl">Métricas de Clases</h1>
-        <p className="text-sm text-muted-foreground">
-          Asistencia, ocupación, horas pico y tendencia mensual de todas las clases.
-        </p>
-      </div>
-
-      {/* KPI row */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <KpiGrid>
         <KpiTile
-          label="% de Asistencia"
+          label="Asistencia"
           value={formatPercent(overview.attendanceRate)}
-          sub={`${overview.totalAttended} asistidos / ${overview.totalAttended + overview.totalNoShow} cerrados`}
-          tone={
-            overview.attendanceRate == null
-              ? "default"
-              : overview.attendanceRate >= 80
-                ? "green"
-                : overview.attendanceRate >= 50
-                  ? "amber"
-                  : "red"
-          }
-          icon={CheckCircle2}
+          valueClassName={rateClass(overview.attendanceRate, 80, 50)}
+          detail={`${formatCount(overview.totalAttended)} de ${formatCount(closedReservations)} reservas cerradas`}
         />
         <KpiTile
-          label="Tasa de No-show"
+          label="No-show"
           value={formatPercent(overview.noShowRate)}
-          sub={`${overview.totalNoShow} no se presentaron`}
-          tone={
-            overview.noShowRate == null
-              ? "default"
-              : overview.noShowRate <= 10
-                ? "green"
-                : overview.noShowRate <= 25
-                  ? "amber"
-                  : "red"
-          }
-          icon={XCircle}
+          valueClassName={rateClass(overview.noShowRate, 10, 25, true)}
+          detail={`${formatCount(overview.totalNoShow)} no se presentaron`}
         />
         <KpiTile
-          label="Tasa de Cancelación"
-          value={formatPercent(overview.cancellationRate)}
-          sub={`Sobre ${overview.totalReservations + (overview.totalNoShow ?? 0)} reservas totales`}
-          tone="default"
-          icon={Calendar}
-        />
-        <KpiTile
-          label="Ocupación Promedio"
+          label="Ocupación promedio"
           value={formatPercent(overview.avgOccupancyRate)}
-          sub={`${overview.totalSchedulesHeld} clases dictadas`}
-          tone={
-            overview.avgOccupancyRate == null
-              ? "default"
-              : overview.avgOccupancyRate >= 70
-                ? "green"
-                : overview.avgOccupancyRate >= 40
-                  ? "amber"
-                  : "red"
-          }
-          icon={Users}
+          valueClassName={rateClass(overview.avgOccupancyRate, 70, 40)}
+          detail={`${formatCount(overview.totalSchedulesHeld)} clases dictadas`}
         />
-      </div>
+        <KpiTile
+          label="Cancelación"
+          value={formatPercent(overview.cancellationRate)}
+          detail={`${formatCount(overview.totalConfirmedPending)} reservas pendientes a futuro`}
+        />
+      </KpiGrid>
 
-      {/* Tendency chart */}
-      <Card className="border-border/60 bg-card/80">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">Tendencia Mensual</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Clases dictadas y % de asistencia por mes
-          </p>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={240}>
-            <ComposedChart data={trendChartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+      <MetricsSection
+        title="Tendencia mensual"
+        description="Clases dictadas y reservas por mes, con el % de asistencia."
+      >
+        {trendChartData.length === 0 ? (
+          <MetricsEmpty>Todavía no hay clases dictadas.</MetricsEmpty>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart
+              data={trendChartData}
+              margin={{ top: 8, right: 0, left: 0, bottom: 0 }}
+              barGap={2}
+            >
+              <CartesianGrid
+                vertical={false}
+                strokeDasharray="3 3"
+                className="stroke-border/50"
+              />
+              <XAxis dataKey="label" {...CHART_AXIS_PROPS} />
               <YAxis
                 yAxisId="left"
-                tick={{ fontSize: 11 }}
+                {...CHART_AXIS_PROPS}
                 allowDecimals={false}
                 width={32}
               />
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                tick={{ fontSize: 11 }}
+                {...CHART_AXIS_PROPS}
                 domain={[0, 100]}
                 unit="%"
                 width={40}
               />
               <Tooltip
-                formatter={(value: unknown, name: unknown) => {
-                  const v = Number(value);
-                  const n = String(name);
-                  if (n === "% Asistencia") return [`${v}%`, n];
-                  return [v, n];
-                }}
-                contentStyle={{
-                  backgroundColor: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                  fontSize: 12,
-                  color: "hsl(var(--popover-foreground))",
-                }}
-                labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-                itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                {...CHART_TOOLTIP_PROPS}
+                labelClassName="capitalize"
+                formatter={(value, name) =>
+                  name === "% Asistencia"
+                    ? [formatPercent(Number(value)), name]
+                    : [Number(value), String(name)]
+                }
               />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar yAxisId="left" dataKey="clases" name="Clases dictadas" fill="#6366f1" opacity={0.8} radius={[3, 3, 0, 0]} />
-              <Bar yAxisId="left" dataKey="reservas" name="Reservas" fill="#10b981" opacity={0.7} radius={[3, 3, 0, 0]} />
+              <Legend
+                iconType="circle"
+                iconSize={8}
+                wrapperStyle={{ fontSize: 12 }}
+              />
+              <Bar
+                yAxisId="left"
+                dataKey="clases"
+                name="Clases dictadas"
+                fill="#94a3b8"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={28}
+              />
+              <Bar
+                yAxisId="left"
+                dataKey="reservas"
+                name="Reservas"
+                fill="#10b981"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={28}
+              />
               <Line
                 yAxisId="right"
                 type="monotone"
@@ -280,178 +215,136 @@ export default function ClassMetricsPage() {
                 name="% Asistencia"
                 stroke="#f59e0b"
                 strokeWidth={2}
-                dot={{ r: 3 }}
+                dot={{ r: 3, strokeWidth: 2 }}
                 connectNulls
               />
             </ComposedChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
+        )}
+      </MetricsSection>
 
-      {/* Horas y días */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* Busiest hours */}
-        <Card className="border-border/60 bg-card/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Horas más ocupadas</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Cantidad de clases por franja horaria
-            </p>
-          </CardHeader>
-          <CardContent>
-            {hourChartData.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Sin datos suficientes
-              </p>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <ComposedChart data={hourChartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} width={28} />
-                  <Tooltip
-                    formatter={(value: unknown) => [Number(value), "Clases"]}
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--popover))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: 12,
-                      color: "hsl(var(--popover-foreground))",
-                    }}
-                    labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-                    itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-                  />
-                  <Bar dataKey="count" name="Clases" radius={[3, 3, 0, 0]}>
-                    {hourChartData.map((entry, index) => (
-                      <Cell
-                        key={index}
-                        fill={entry.count === maxHourCount ? "#6366f1" : "#6366f180"}
-                      />
-                    ))}
-                  </Bar>
-                </ComposedChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Busiest days */}
-        <Card className="border-border/60 bg-card/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Días más concurridos</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Clases dictadas por día de la semana
-            </p>
-          </CardHeader>
-          <CardContent>
-            {busiestDays.every((d) => d.count === 0) ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
-                Sin datos suficientes
-              </p>
-            ) : (
-              <div className="flex items-end gap-2 pt-2">
-                {(() => {
-                  const maxCount = Math.max(...busiestDays.map((d) => d.count), 1);
-                  return busiestDays.map((d) => {
-                    const heightPct = Math.max((d.count / maxCount) * 100, d.count > 0 ? 8 : 0);
-                    const isMax = d.count === maxCount && d.count > 0;
-                    return (
-                      <div key={d.day} className="flex flex-1 flex-col items-center gap-1">
-                        <span className="text-[10px] font-medium text-muted-foreground">
-                          {d.count > 0 ? d.count : ""}
-                        </span>
-                        <div className="flex w-full justify-center" style={{ height: 120 }}>
-                          <div className="flex w-full max-w-[36px] items-end">
-                            <div
-                              className={cn(
-                                "w-full rounded-t-sm transition-all",
-                                d.count === 0
-                                  ? "bg-muted"
-                                  : isMax
-                                    ? "bg-indigo-500"
-                                    : "bg-indigo-500/50",
-                              )}
-                              style={{ height: `${heightPct}%` }}
-                            />
-                          </div>
-                        </div>
-                        <span className="text-[11px] text-muted-foreground">{d.label}</span>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Popular classes table */}
-      <Card className="border-border/60 bg-card/80">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">Clases más populares</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Ordenadas por reservas totales
-          </p>
-        </CardHeader>
-        <CardContent className="p-0">
-          {popularClasses.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Sin datos de clases
-            </p>
+      <section className="grid gap-4 lg:grid-cols-2">
+        <MetricsSection
+          title="Horarios más ocupados"
+          description="Clases dictadas por franja horaria."
+        >
+          {hourChartData.length === 0 ? (
+            <MetricsEmpty>Sin datos suficientes.</MetricsEmpty>
           ) : (
+            <PeakBarChart
+              data={hourChartData}
+              max={maxHourCount}
+              unit="Clases"
+            />
+          )}
+        </MetricsSection>
+
+        <MetricsSection
+          title="Días más concurridos"
+          description="Clases dictadas por día de la semana."
+        >
+          {maxDayCount === 0 ? (
+            <MetricsEmpty>Sin datos suficientes.</MetricsEmpty>
+          ) : (
+            <PeakBarChart data={dayChartData} max={maxDayCount} unit="Clases" />
+          )}
+        </MetricsSection>
+      </section>
+
+      <MetricsSection
+        title="Clases más populares"
+        description="Ordenadas por reservas totales."
+        contentClassName="p-0"
+      >
+        {popularClasses.length === 0 ? (
+          <div className="px-6 pb-6">
+            <MetricsEmpty>Todavía no hay reservas.</MetricsEmpty>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Clase</TableHead>
+                  <TableHead className="pl-6">Clase</TableHead>
                   <TableHead className="text-right">Sesiones</TableHead>
                   <TableHead className="text-right">Reservas</TableHead>
                   <TableHead className="text-right">Asistidos</TableHead>
-                  <TableHead className="text-right">% Asistencia</TableHead>
+                  <TableHead className="pr-6 text-right">Asistencia</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {popularClasses.map((cls) => (
                   <TableRow key={cls.classId}>
-                    <TableCell className="font-medium">{cls.name}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">
+                    <TableCell className="pl-6 font-medium">
+                      {cls.name}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
                       {cls.schedules}
                     </TableCell>
-                    <TableCell className="text-right">{cls.reservations}</TableCell>
-                    <TableCell className="text-right">{cls.attended}</TableCell>
-                    <TableCell className="text-right">
-                      <AttendanceBadge pct={cls.attendanceRate} />
+                    <TableCell className="text-right tabular-nums">
+                      {cls.reservations}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {cls.attended}
+                    </TableCell>
+                    <TableCell className="pr-6 text-right">
+                      <RateBadge value={cls.attendanceRate} />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Extra stat tiles */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border bg-card/80 p-4">
-          <p className="text-xs text-muted-foreground">Clases dictadas</p>
-          <p className="mt-1 text-3xl font-semibold">{overview.totalSchedulesHeld}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">Total histórico</p>
-        </div>
-        <div className="rounded-2xl border bg-card/80 p-4">
-          <p className="text-xs text-muted-foreground">Reservas activas pendientes</p>
-          <p className="mt-1 text-3xl font-semibold text-amber-600">
-            {overview.totalConfirmedPending}
-          </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">En clases futuras</p>
-        </div>
-        <div className="rounded-2xl border bg-card/80 p-4">
-          <p className="text-xs text-muted-foreground">Total reservas históricas</p>
-          <p className="mt-1 text-3xl font-semibold">{overview.totalReservations}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            {overview.totalAttended} asistidos · {overview.totalNoShow} no-shows
-          </p>
-        </div>
-      </div>
+          </div>
+        )}
+        <p className="border-t px-6 py-3 text-xs text-muted-foreground">
+          Histórico: {formatCount(overview.totalSchedulesHeld)} clases ·{" "}
+          {formatCount(overview.totalReservations)} reservas ·{" "}
+          {formatCount(overview.totalAttended)} asistidos ·{" "}
+          {formatCount(overview.totalNoShow)} no-shows
+        </p>
+      </MetricsSection>
     </DashboardPageContainer>
+  );
+}
+
+/** Single-series bar chart that highlights the peak bucket. */
+function PeakBarChart({
+  data,
+  max,
+  unit,
+}: {
+  data: { label: string; count: number }[];
+  max: number;
+  unit: string;
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <BarChart data={data} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+        <CartesianGrid
+          vertical={false}
+          strokeDasharray="3 3"
+          className="stroke-border/50"
+        />
+        <XAxis
+          dataKey="label"
+          {...CHART_AXIS_PROPS}
+          interval="preserveStartEnd"
+        />
+        <YAxis {...CHART_AXIS_PROPS} allowDecimals={false} width={28} />
+        <Tooltip
+          {...CHART_TOOLTIP_PROPS}
+          formatter={(value) => [Number(value), unit]}
+        />
+        <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={36}>
+          {data.map((entry) => (
+            <Cell
+              key={entry.label}
+              fill={entry.count === max && max > 0 ? "#10b981" : "#94a3b8"}
+              fillOpacity={entry.count === max && max > 0 ? 1 : 0.6}
+            />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 }

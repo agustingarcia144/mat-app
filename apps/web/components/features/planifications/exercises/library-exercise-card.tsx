@@ -3,7 +3,6 @@
 import { useDraggable } from "@dnd-kit/react";
 import Image from "next/image";
 import { getVideoThumbnailUrl } from "@repo/core/utils";
-import { Badge } from "@/components/ui/badge";
 
 import fallbackThumbnail from "@/assets/mat-wolf-looking.png";
 
@@ -44,32 +43,28 @@ export default function LibraryExerciseCard({
   return (
     <div
       ref={ref as (el: HTMLDivElement | null) => void}
-      className={`h-[240px] flex flex-col border rounded-lg overflow-hidden transition-colors cursor-grab active:cursor-grabbing touch-none select-none ${
+      className={`min-h-20 flex items-center gap-3 border bg-background p-2.5 rounded-lg overflow-hidden transition-colors cursor-grab active:cursor-grabbing touch-none select-none ${
         isDragging ? "opacity-50 ring-2 ring-primary" : "hover:border-primary"
       }`}
     >
-      <div className="aspect-video w-full shrink-0 bg-muted relative">
+      <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted">
         <Image
           src={thumbnailUrl ?? fallbackThumbnail}
           alt={`Miniatura de ${exercise.name}`}
           fill
-          className="object-cover"
-          sizes="(max-width: 512px) 100vw, 512px"
+          className={thumbnailUrl ? "object-cover" : "object-contain p-1"}
+          sizes="56px"
           unoptimized={Boolean(thumbnailUrl)}
         />
       </div>
-      <div className="p-3 flex-1 min-h-0 flex flex-col">
-        <h4 className="font-medium truncate">{exercise.name}</h4>
-        {exercise.description && (
-          <p className="text-sm text-muted-foreground line-clamp-2 mt-1 shrink-0">
-            {exercise.description}
-          </p>
-        )}
-        <div className="flex items-center gap-2 mt-auto pt-2 flex-wrap min-h-0">
+      <div className="min-w-0 flex-1 space-y-1">
+        <h4 className="text-sm font-medium leading-snug">{exercise.name}</h4>
+
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {exercise.category && (
-            <Badge variant="secondary" className="text-xs shrink-0">
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
               {exercise.category}
-            </Badge>
+            </span>
           )}
           {exercise.equipment && (
             <span className="text-xs text-muted-foreground truncate min-w-0">

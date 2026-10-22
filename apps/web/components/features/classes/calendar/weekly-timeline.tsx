@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format, addDays, startOfWeek, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Check,
   ChevronLeft,
   ChevronRight,
   Plus,
@@ -52,10 +51,192 @@ interface WeeklyTimelineProps {
   ) => void;
 }
 
-const HOURS = Array.from({ length: 17 }, (_, i) => i + 6); // 6am to 10pm
+/** Hours always shown; the grid grows past them only when a class needs it. */
+const DEFAULT_FIRST_HOUR = 7;
+const DEFAULT_LAST_HOUR = 21;
 const DAYS_IN_WEEK = 7;
+const HOUR_ROW_PX = 56;
 
-type ScheduleWithClass = TimelineSchedule;
+type Occupancy = "cancelled" | "done" | "full" | "almost" | "open";
+
+function getOccupancy(schedule: Doc<"classSchedules">): Occupancy {
+  if (schedule.status === "cancelled") return "cancelled";
+  if (schedule.status === "completed") return "done";
+  if (schedule.capacity <= 0) return "full";
+  const percentFull = (schedule.currentReservations / schedule.capacity) * 100;
+  if (percentFull >= 100) return "full";
+  if (percentFull > 60) return "almost";
+  return "open";
+}
+
+/** Color only marks how full a class is; the block itself stays neutral. */
+const OCCUPANCY: Record<
+  Occupancy,
+  { label: string; bar: string; dot: string }
+> = {
+  open: { label: "Disponible", bar: "bg-emerald-500", dot: "bg-emerald-500" },
+  almost: { label: "Pocos cupos", bar: "bg-amber-500", dot: "bg-amber-500" },
+  full: { label: "Completo", bar: "bg-red-500", dot: "bg-red-500" },
+  done: {
+    label: "Completada",
+    bar: "bg-muted-foreground/40",
+    dot: "bg-muted-foreground/40",
+  },
+  cancelled: {
+    label: "Cancelada",
+    bar: "bg-muted-foreground/30",
+    dot: "bg-muted-foreground/30",
+  },
+};
+
+const LEGEND: Occupancy[] = ["open", "almost", "full", "cancelled"];
+
+function getReservationBreakdown(schedule: TimelineSchedule) {
+  const fixedSlot = schedule.reservationBreakdown?.fixedSlot ?? 0;
+  const regular =
+    schedule.reservationBreakdown?.regular ??
+    Math.max(0, schedule.currentReservations - fixedSlot);
+  return { fixedSlot, regular };
+}
+
+function ReservationBreakdown({
+  schedule,
+  className,
+}: {
+  schedule: TimelineSchedule;
+  className?: string;
+}) {
+  const { fixedSlot, regular } = getReservationBreakdown(schedule);
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-2 text-[11px] text-muted-foreground",
+        className,
+      )}
+    >
+      <span
+        className="inline-flex items-center gap-0.5"
+        title={`${fixedSlot} fija${fixedSlot === 1 ? "" : "s"}`}
+      >
+        <Repeat2 className="size-3" aria-hidden />
+        {fixedSlot}
+        <span className="sr-only">fijas</span>
+      </span>
+      <span
+        className="inline-flex items-center gap-0.5"
+        title={`${regular} regular${regular === 1 ? "" : "es"}`}
+      >
+        <UserPlus className="size-3" aria-hidden />
+        {regular}
+        <span className="sr-only">regulares</span>
+      </span>
+    </span>
+  );
+}
+
+export function WeekRangeLabel({ weekStart }: { weekStart: Date }) {
+  const weekEnd = addDays(weekStart, 6);
+  const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+  return (
+    <>
+      {format(weekStart, sameMonth ? "d" : "d MMM", { locale: es })} –{" "}
+      {format(weekEnd, "d MMM yyyy", { locale: es })}
+    </>
+  );
+}
+
+export function WeekNavigation({
+  currentDate,
+  onDateChange,
+}: {
+  currentDate: Date;
+  onDateChange: (date: Date) => void;
+}) {
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
+  const isCurrentWeek = isSameDay(
+    weekStart,
+    startOfWeek(new Date(), { weekStartsOn: 1 }),
+  );
+  return (
+    <div className="flex items-center gap-1">
+      <Button
+        variant="outline"
+        size="icon"
+        className="size-9"
+        onClick={() => onDateChange(addDays(currentDate, -7))}
+        aria-label="Semana anterior"
+      >
+        <ChevronLeft className="size-4" aria-hidden />
+      </Button>
+      <Button
+        variant="outline"
+        className="h-9 px-3"
+        onClick={() => onDateChange(new Date())}
+        disabled={isCurrentWeek}
+      >
+        Hoy
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        className="size-9"
+        onClick={() => onDateChange(addDays(currentDate, 7))}
+        aria-label="Semana siguiente"
+      >
+        <ChevronRight className="size-4" aria-hidden />
+      </Button>
+      <span className="ml-2 whitespace-nowrap text-sm font-medium tabular-nums">
+        <WeekRangeLabel weekStart={weekStart} />
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Checkbox look for selection mode. Decorative only: the whole block is the
+ * toggle (a real checkbox would be a <button> nested inside a <button>).
+ */
+function SelectionMark({
+  selected,
+  size = "md",
+}: {
+  selected: boolean;
+  size?: "sm" | "md";
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-sm border border-primary",
+        size === "sm" ? "size-3.5" : "size-4",
+        selected && "bg-primary text-primary-foreground",
+      )}
+    >
+      {selected && <Check className={size === "sm" ? "size-2.5" : "size-3"} />}
+    </span>
+  );
+}
+
+function OccupancyMeter({ schedule }: { schedule: Doc<"classSchedules"> }) {
+  const occupancy = getOccupancy(schedule);
+  const pct =
+    schedule.capacity > 0
+      ? Math.min((schedule.currentReservations / schedule.capacity) * 100, 100)
+      : 100;
+  return (
+    <span className="flex items-center gap-2">
+      <span className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
+        <span
+          className={cn("block h-full rounded-full", OCCUPANCY[occupancy].bar)}
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span className="text-xs tabular-nums text-muted-foreground">
+        {schedule.currentReservations}/{schedule.capacity}
+      </span>
+    </span>
+  );
+}
 
 export default function WeeklyTimeline({
   schedules,
@@ -71,181 +252,54 @@ export default function WeeklyTimeline({
   onSelectionChange,
 }: WeeklyTimelineProps) {
   const isMobile = useIsMobile();
+  const [today] = useState(() => new Date());
   const weekStart = useMemo(
     () => startOfWeek(currentDate, { weekStartsOn: 1 }),
     [currentDate],
   );
 
-  const weekDays = useMemo(() => {
-    return Array.from({ length: DAYS_IN_WEEK }, (_, i) =>
-      addDays(weekStart, i),
-    );
-  }, [weekStart]);
+  const weekDays = useMemo(
+    () => Array.from({ length: DAYS_IN_WEEK }, (_, i) => addDays(weekStart, i)),
+    [weekStart],
+  );
 
   const schedulesByDay = useMemo(() => {
-    const groupedByDay: ScheduleWithClass[][] = Array.from(
+    const groupedByDay: TimelineSchedule[][] = Array.from(
       { length: DAYS_IN_WEEK },
       () => [],
     );
-
     schedules.forEach((schedule) => {
-      const scheduleDate = new Date(schedule.startTime);
       const dayIndex = weekDays.findIndex((day) =>
-        isSameDay(day, scheduleDate),
+        isSameDay(day, new Date(schedule.startTime)),
       );
       if (dayIndex !== -1) groupedByDay[dayIndex].push(schedule);
     });
-
-    groupedByDay.forEach((daySchedules) => {
-      daySchedules.sort((a, b) => a.startTime - b.startTime);
-    });
-
+    groupedByDay.forEach((daySchedules) =>
+      daySchedules.sort((a, b) => a.startTime - b.startTime),
+    );
     return groupedByDay;
   }, [schedules, weekDays]);
 
-  // Group schedules by day/hour for desktop calendar grid
-  const schedulesByDayHour = useMemo(() => {
-    const map = new Map<string, ScheduleWithClass[]>();
-    if (isMobile) return map;
+  const hours = useMemo(() => {
+    let first = DEFAULT_FIRST_HOUR;
+    let last = DEFAULT_LAST_HOUR;
+    for (const s of schedules) {
+      first = Math.min(first, new Date(s.startTime).getHours());
+      last = Math.max(last, new Date(s.endTime - 1).getHours());
+    }
+    return Array.from({ length: last - first + 1 }, (_, i) => first + i);
+  }, [schedules]);
 
+  const schedulesByDayHour = useMemo(() => {
+    const map = new Map<string, TimelineSchedule[]>();
     schedulesByDay.forEach((daySchedules, dayIndex) => {
       daySchedules.forEach((schedule) => {
-        const hour = new Date(schedule.startTime).getHours();
-        const key = `${dayIndex}-${hour}`;
-        const existing = map.get(key) || [];
-        map.set(key, [...existing, schedule]);
+        const key = `${dayIndex}-${new Date(schedule.startTime).getHours()}`;
+        map.set(key, [...(map.get(key) ?? []), schedule]);
       });
     });
-
     return map;
-  }, [schedulesByDay, isMobile]);
-
-  const goToPreviousWeek = () => {
-    onDateChange(addDays(currentDate, -7));
-  };
-
-  const goToNextWeek = () => {
-    onDateChange(addDays(currentDate, 7));
-  };
-
-  const goToToday = () => {
-    onDateChange(new Date());
-  };
-
-  const getScheduleColor = (schedule: Doc<"classSchedules">) => {
-    if (schedule.status === "cancelled") return "bg-gray-400";
-    if (schedule.status === "completed") return "bg-gray-300";
-
-    if (schedule.capacity <= 0) return "bg-red-500";
-
-    const percentFull =
-      (schedule.currentReservations / schedule.capacity) * 100;
-    if (percentFull >= 100) return "bg-red-500";
-    if (percentFull > 60) return "bg-orange-500";
-    return "bg-green-500";
-  };
-
-  const getScheduleStatusLabel = (schedule: Doc<"classSchedules">) => {
-    if (schedule.status === "cancelled") return "Cancelada";
-    if (schedule.status === "completed") return "Completada";
-    if (schedule.capacity <= 0) return "Completo";
-
-    const percentFull =
-      (schedule.currentReservations / schedule.capacity) * 100;
-    if (percentFull >= 100) return "Completo";
-    if (percentFull > 60) return "Pocos cupos";
-    return "Disponible";
-  };
-
-  const getReservationBreakdown = (schedule: TimelineSchedule) => {
-    const fixedSlot = schedule.reservationBreakdown?.fixedSlot ?? 0;
-    const regular =
-      schedule.reservationBreakdown?.regular ??
-      Math.max(0, schedule.currentReservations - fixedSlot);
-
-    return { fixedSlot, regular };
-  };
-
-  const ReservationBreakdown = ({
-    schedule,
-    compact = false,
-    className,
-  }: {
-    schedule: TimelineSchedule;
-    compact?: boolean;
-    className?: string;
-  }) => {
-    const { fixedSlot, regular } = getReservationBreakdown(schedule);
-
-    return (
-      <div
-        className={cn(
-          "flex flex-wrap items-center gap-2",
-          compact
-            ? "text-[10px] text-white/90"
-            : "text-xs text-muted-foreground",
-          className,
-        )}
-      >
-        <span
-          className="inline-flex items-center gap-1"
-          title={`${fixedSlot} reserva${fixedSlot === 1 ? "" : "s"} fija${
-            fixedSlot === 1 ? "" : "s"
-          }`}
-          aria-label={`${fixedSlot} reserva${
-            fixedSlot === 1 ? "" : "s"
-          } fija${fixedSlot === 1 ? "" : "s"}`}
-        >
-          <Repeat2 className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
-          <span>{fixedSlot}</span>
-          {!compact && <span>fijas</span>}
-        </span>
-        <span
-          className="inline-flex items-center gap-1"
-          title={`${regular} reserva${regular === 1 ? "" : "s"} regular${
-            regular === 1 ? "" : "es"
-          }`}
-          aria-label={`${regular} reserva${
-            regular === 1 ? "" : "s"
-          } regular${regular === 1 ? "" : "es"}`}
-        >
-          <UserPlus className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
-          <span>{regular}</span>
-          {!compact && <span>regulares</span>}
-        </span>
-      </div>
-    );
-  };
-
-  const weekNavigation = showWeekNavigation && (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={goToPreviousWeek}
-          aria-label="Semana anterior"
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden />
-        </Button>
-        <Button variant="outline" onClick={goToToday}>
-          Hoy
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={goToNextWeek}
-          aria-label="Semana siguiente"
-        >
-          <ChevronRight className="h-4 w-4" aria-hidden />
-        </Button>
-      </div>
-      <h2 className="text-base font-semibold sm:text-lg">
-        {format(weekStart, "d", { locale: es })} -{" "}
-        {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", { locale: es })}
-      </h2>
-    </div>
-  );
+  }, [schedulesByDay]);
 
   const handleScheduleItemClick = (scheduleId: Id<"classSchedules">) => {
     if (selectionMode && onSelectionChange) {
@@ -256,152 +310,143 @@ export default function WeeklyTimeline({
     }
   };
 
+  const staffName = (schedule: TimelineSchedule) =>
+    schedule.inChargeUserId
+      ? staffNameById?.get(schedule.inChargeUserId)
+      : undefined;
+
+  const weekNavigation = showWeekNavigation && (
+    <WeekNavigation currentDate={currentDate} onDateChange={onDateChange} />
+  );
+
   if (isMobile) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         {weekNavigation}
-
-        <div className="space-y-3">
+        <div className="space-y-2">
           {weekDays.map((day, dayIndex) => {
             const daySchedules = schedulesByDay[dayIndex] || [];
-            const isToday = isSameDay(day, new Date());
+            const isToday = isSameDay(day, today);
+            const isEmpty = daySchedules.length === 0;
 
             return (
               <section
                 key={day.toISOString()}
                 className={cn(
-                  "overflow-hidden rounded-lg border",
-                  isToday && "border-primary/40",
+                  "overflow-hidden rounded-xl border bg-card",
+                  isToday && "border-foreground/30",
                 )}
               >
                 <header
                   className={cn(
-                    "flex items-center justify-between border-b px-3 py-2",
-                    isToday && "bg-primary/5",
+                    "flex items-center gap-3 px-3 py-2",
+                    !isEmpty && "border-b",
                   )}
                 >
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {format(day, "EEEE", { locale: es })}
+                  <span
+                    className={cn(
+                      "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+                      isToday ? "bg-foreground text-background" : "bg-muted",
+                    )}
+                  >
+                    {format(day, "d")}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium capitalize">
+                      {isToday ? "Hoy" : format(day, "EEEE", { locale: es })}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {format(day, "d 'de' MMMM", { locale: es })}
+                      {isEmpty
+                        ? "Sin turnos"
+                        : `${daySchedules.length} turno${daySchedules.length === 1 ? "" : "s"}`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {isToday && <Badge variant="secondary">Hoy</Badge>}
-                    {onDayHeaderAction && daySchedules.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => onDayHeaderAction(day)}
-                        aria-label="Cancelar turnos del día"
-                      >
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {onEmptyCellClick && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-primary"
-                        onClick={() => onEmptyCellClick(day, 9)}
-                        aria-label="Crear turno"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+                  {onDayHeaderAction && !isEmpty && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-9 text-muted-foreground hover:text-destructive"
+                      onClick={() => onDayHeaderAction(day)}
+                      aria-label="Cancelar turnos del día"
+                    >
+                      <XCircle className="size-4" />
+                    </Button>
+                  )}
+                  {onEmptyCellClick && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-9 text-muted-foreground"
+                      onClick={() => onEmptyCellClick(day, 9)}
+                      aria-label="Crear turno"
+                    >
+                      <Plus className="size-4" />
+                    </Button>
+                  )}
                 </header>
 
-                <div className="space-y-2 p-3">
-                  {daySchedules.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Sin turnos</p>
-                  ) : (
-                    daySchedules.map((schedule) => {
-                      const startTime = new Date(schedule.startTime);
-                      const endTime = new Date(schedule.endTime);
+                {!isEmpty && (
+                  <ul className="divide-y">
+                    {daySchedules.map((schedule) => {
+                      const occupancy = getOccupancy(schedule);
                       const isSelected =
                         selectionMode &&
                         (selectedScheduleIds?.has(schedule._id) ?? false);
-
+                      const name = staffName(schedule);
                       return (
-                        <div key={schedule._id} className="relative">
-                          {selectionMode && (
-                            <div className="absolute left-3 top-3 z-10">
-                              <Checkbox
-                                checked={isSelected}
-                                className="shrink-0"
-                                onClick={(e) => e.stopPropagation()}
-                                onCheckedChange={(checked) => {
-                                  onSelectionChange?.(
-                                    schedule._id,
-                                    !!checked,
-                                  );
-                                }}
-                              />
-                            </div>
-                          )}
+                        <li key={schedule._id}>
                           <button
                             type="button"
                             onClick={() =>
                               handleScheduleItemClick(schedule._id)
                             }
+                            aria-pressed={
+                              selectionMode ? isSelected : undefined
+                            }
                             className={cn(
-                              "w-full rounded-md border p-3 text-left transition-colors hover:bg-accent/40",
-                              selectionMode && "pl-9",
-                              isSelected && "ring-2 ring-primary bg-primary/5",
+                              "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-accent/40",
+                              isSelected && "bg-accent",
+                              occupancy === "cancelled" && "opacity-60",
                             )}
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex min-w-0 items-center gap-2">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-medium">
-                                    {schedule.class?.name || "Clase"}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {format(startTime, "HH:mm")} -{" "}
-                                    {format(endTime, "HH:mm")}
-                                    {schedule.inChargeUserId &&
-                                      staffNameById?.get(
-                                        schedule.inChargeUserId,
-                                      ) &&
-                                      ` · ${staffNameById.get(
-                                        schedule.inChargeUserId,
-                                      )}`}
-                                  </p>
-                                </div>
-                              </div>
-                              <Badge
-                                variant="outline"
-                                className="shrink-0 text-[10px]"
-                              >
-                                {getScheduleStatusLabel(schedule)}
-                              </Badge>
-                            </div>
-                            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                            {selectionMode && (
+                              <SelectionMark selected={isSelected} />
+                            )}
+                            <span className="w-12 shrink-0 text-sm font-medium tabular-nums">
+                              {format(schedule.startTime, "HH:mm")}
+                            </span>
+                            <span className="min-w-0 flex-1">
                               <span
                                 className={cn(
-                                  "inline-block h-2.5 w-2.5 rounded-full",
-                                  getScheduleColor(schedule),
+                                  "block truncate text-sm",
+                                  occupancy === "cancelled" && "line-through",
                                 )}
-                              />
-                              <span>
-                                {schedule.currentReservations}/
-                                {schedule.capacity} reservados
+                              >
+                                {schedule.class?.name || "Clase"}
                               </span>
-                            </div>
-                            <ReservationBreakdown
-                              schedule={schedule}
-                              className="mt-2"
-                            />
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {occupancy === "cancelled"
+                                  ? "Cancelada"
+                                  : [
+                                      `hasta ${format(schedule.endTime, "HH:mm")}`,
+                                      name,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" · ")}
+                              </span>
+                            </span>
+                            {occupancy !== "cancelled" && (
+                              <span className="flex shrink-0 flex-col items-end gap-1">
+                                <OccupancyMeter schedule={schedule} />
+                                <ReservationBreakdown schedule={schedule} />
+                              </span>
+                            )}
                           </button>
-                        </div>
+                        </li>
                       );
-                    })
-                  )}
-                </div>
+                    })}
+                  </ul>
+                )}
               </section>
             );
           })}
@@ -411,50 +456,43 @@ export default function WeeklyTimeline({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {weekNavigation}
 
-      {/* Calendar grid */}
-      <div className="overflow-hidden rounded-lg border">
+      <div className="overflow-hidden rounded-xl border bg-card">
         <div className="overflow-x-auto">
-          <div className="min-w-[800px]">
+          <div className="min-w-[860px]">
             {/* Day headers */}
-            <div className="grid grid-cols-8 bg-muted">
-              <div className="border-r border-b p-2 text-sm font-medium">
-                Hora
-              </div>
+            <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b">
+              <div />
               {weekDays.map((day, index) => {
-                const isToday = isSameDay(day, new Date());
+                const isToday = isSameDay(day, today);
                 const dayHasSchedules =
                   (schedulesByDay[index] || []).length > 0;
                 return (
                   <div
                     key={index}
-                    className={cn(
-                      "group relative border-r border-b p-2 text-center",
-                      isToday && "bg-primary/10",
-                    )}
+                    className="group relative flex flex-col items-center gap-1 border-l py-2"
                   >
-                    <div className="font-medium">
-                      {format(day, "EEE", { locale: es })}
-                    </div>
-                    <div
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {format(day, "EEE", { locale: es }).replace(".", "")}
+                    </span>
+                    <span
                       className={cn(
-                        "text-sm",
-                        isToday
-                          ? "text-primary font-semibold"
-                          : "text-muted-foreground",
+                        "flex size-7 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
+                        isToday && "bg-foreground text-background",
                       )}
                     >
                       {format(day, "d")}
-                    </div>
+                    </span>
                     {onDayHeaderAction && dayHasSchedules && (
                       <button
+                        type="button"
                         onClick={() => onDayHeaderAction(day)}
-                        className="absolute right-1 top-1 hidden rounded p-0.5 text-muted-foreground hover:text-destructive group-hover:block"
-                        aria-label="Cancelar turnos del día"
+                        className="absolute right-1 top-1 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+                        aria-label={`Cancelar turnos del ${format(day, "EEEE d", { locale: es })}`}
                       >
-                        <XCircle className="h-3.5 w-3.5" />
+                        <XCircle className="size-3.5" />
                       </button>
                     )}
                   </div>
@@ -463,111 +501,113 @@ export default function WeeklyTimeline({
             </div>
 
             {/* Time rows */}
-            {HOURS.map((hour) => (
-              <div key={hour} className="grid grid-cols-8 border-b">
-                <div className="border-r p-2 text-sm text-muted-foreground">
+            {hours.map((hour) => (
+              <div
+                key={hour}
+                className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-border/60 last:border-b-0"
+              >
+                <div className="pr-2 pt-1 text-right text-[11px] tabular-nums text-muted-foreground">
                   {hour.toString().padStart(2, "0")}:00
                 </div>
                 {weekDays.map((day, dayIndex) => {
-                  const key = `${dayIndex}-${hour}`;
-                  const cellSchedules = schedulesByDayHour.get(key) || [];
-                  const isToday = isSameDay(day, new Date());
+                  const cellSchedules =
+                    schedulesByDayHour.get(`${dayIndex}-${hour}`) || [];
+                  const isToday = isSameDay(day, today);
                   const isEmpty = cellSchedules.length === 0;
 
                   return (
                     <div
-                      key={`${dayIndex}-${hour}`}
+                      key={dayIndex}
                       className={cn(
-                        "group/cell relative min-h-[60px] border-r p-1",
-                        isToday && "bg-primary/5",
+                        "group/cell relative space-y-1 border-l p-1",
+                        isToday && "bg-muted/40",
                         isEmpty &&
                           onEmptyCellClick &&
-                          "cursor-pointer hover:bg-accent/30",
+                          "cursor-pointer hover:bg-accent/40",
                       )}
+                      style={{ minHeight: HOUR_ROW_PX }}
                       onClick={
                         isEmpty && onEmptyCellClick
-                          ? () => onEmptyCellClick(weekDays[dayIndex], hour)
+                          ? () => onEmptyCellClick(day, hour)
                           : undefined
                       }
                     >
                       {isEmpty && onEmptyCellClick && (
-                        <div className="absolute inset-0 hidden items-center justify-center group-hover/cell:flex">
-                          <Plus className="h-5 w-5 text-muted-foreground/50" />
-                        </div>
+                        <Plus className="absolute inset-0 m-auto size-4 text-muted-foreground opacity-0 group-hover/cell:opacity-60" />
                       )}
                       {cellSchedules.map((schedule) => {
-                        const startTime = new Date(schedule.startTime);
-                        const endTime = new Date(schedule.endTime);
+                        const occupancy = getOccupancy(schedule);
                         const durationHours =
-                          (endTime.getTime() - startTime.getTime()) /
-                          (1000 * 60 * 60);
+                          (schedule.endTime - schedule.startTime) / 3_600_000;
                         const isSelected =
                           selectionMode &&
                           (selectedScheduleIds?.has(schedule._id) ?? false);
+                        const name = staffName(schedule);
 
                         return (
-                          <div key={schedule._id} className="relative mb-1">
-                            {selectionMode && (
-                              <div className="absolute right-1 top-1 z-10">
-                                <Checkbox
-                                  checked={isSelected}
-                                  className="border-white data-[state=checked]:bg-white data-[state=checked]:text-primary"
-                                  onClick={(e) => e.stopPropagation()}
-                                  onCheckedChange={(checked) => {
-                                    onSelectionChange?.(
-                                      schedule._id,
-                                      !!checked,
-                                    );
-                                  }}
-                                />
-                              </div>
+                          <button
+                            key={schedule._id}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleScheduleItemClick(schedule._id);
+                            }}
+                            title={`${schedule.class?.name || "Clase"} · ${OCCUPANCY[occupancy].label}`}
+                            aria-pressed={
+                              selectionMode ? isSelected : undefined
+                            }
+                            className={cn(
+                              "relative flex w-full flex-col gap-0.5 overflow-hidden rounded-md border bg-background py-1.5 pl-2.5 pr-1.5 text-left text-xs shadow-sm transition-colors hover:border-foreground/30",
+                              occupancy === "cancelled" &&
+                                "border-dashed bg-transparent opacity-60 shadow-none",
+                              isSelected && "ring-2 ring-ring",
                             )}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleScheduleItemClick(schedule._id);
-                              }}
+                            style={{
+                              minHeight: `${Math.max(durationHours * (HOUR_ROW_PX - 8), 40)}px`,
+                            }}
+                          >
+                            <span
                               className={cn(
-                                "w-full rounded p-2 text-left text-xs text-white transition-opacity hover:opacity-80",
-                                selectionMode && "pr-7",
-                                getScheduleColor(schedule),
-                                isSelected &&
-                                  "ring-2 ring-primary ring-offset-1",
+                                "absolute inset-y-0 left-0 w-1",
+                                OCCUPANCY[occupancy].bar,
                               )}
-                              style={{
-                                minHeight: `${Math.max(
-                                  durationHours * 50,
-                                  40,
-                                )}px`,
-                              }}
-                            >
-                              <div className="truncate font-medium">
-                                {schedule.class?.name || "Clase"}
-                              </div>
-                              <div className="text-[10px] opacity-90">
-                                {format(startTime, "HH:mm")} -{" "}
-                                {format(endTime, "HH:mm")}
-                              </div>
-                              {schedule.inChargeUserId &&
-                                staffNameById?.get(schedule.inChargeUserId) && (
-                                  <div className="truncate text-[10px] opacity-90">
-                                    {staffNameById.get(schedule.inChargeUserId)}
-                                  </div>
+                              aria-hidden
+                            />
+                            <span className="flex items-start justify-between gap-1">
+                              <span
+                                className={cn(
+                                  "truncate font-medium",
+                                  occupancy === "cancelled" && "line-through",
                                 )}
-                              <div className="mt-1 flex items-center justify-between gap-2 text-[10px] opacity-90">
-                                <span>
+                              >
+                                {schedule.class?.name || "Clase"}
+                              </span>
+                              {selectionMode && (
+                                <SelectionMark
+                                  selected={isSelected}
+                                  size="sm"
+                                />
+                              )}
+                            </span>
+                            <span className="text-[11px] tabular-nums text-muted-foreground">
+                              {format(schedule.startTime, "HH:mm")}–
+                              {format(schedule.endTime, "HH:mm")}
+                            </span>
+                            {name && (
+                              <span className="truncate text-[11px] text-muted-foreground">
+                                {name}
+                              </span>
+                            )}
+                            {occupancy !== "cancelled" && (
+                              <span className="mt-auto flex items-center justify-between gap-1 pt-0.5">
+                                <span className="text-[11px] font-medium tabular-nums">
                                   {schedule.currentReservations}/
                                   {schedule.capacity}
                                 </span>
-                                <ReservationBreakdown
-                                  schedule={schedule}
-                                  compact
-                                  className="justify-end"
-                                />
-                              </div>
-                            </button>
-                          </div>
+                                <ReservationBreakdown schedule={schedule} />
+                              </span>
+                            )}
+                          </button>
                         );
                       })}
                     </div>
@@ -580,24 +620,19 @@ export default function WeeklyTimeline({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 text-sm">
-        <span className="text-muted-foreground">Estado:</span>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-green-500" />
-          <span>Disponible</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-orange-500" />
-          <span>Pocos cupos</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-red-500" />
-          <span>Completo</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded bg-gray-400" />
-          <span>Cancelada</span>
-        </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {LEGEND.map((key) => (
+          <span key={key} className="inline-flex items-center gap-1.5">
+            <span className={cn("h-3 w-1 rounded-full", OCCUPANCY[key].bar)} />
+            {OCCUPANCY[key].label}
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1">
+          <Repeat2 className="size-3" aria-hidden /> fijas
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <UserPlus className="size-3" aria-hidden /> regulares
+        </span>
       </div>
     </div>
   );
