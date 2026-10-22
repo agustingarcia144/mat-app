@@ -48,7 +48,7 @@
     }
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24.22.1 <25"
   },
   "name": "mat-app",
   "packageManager": "pnpm@10.28.2"
