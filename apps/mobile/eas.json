@@ -11,22 +11,26 @@
       "ios": {
         "simulator": true
       },
-      "channel": "development"
+      "channel": "development",
+      "node": "24.22.1"
     },
     "preview": {
       "distribution": "internal",
       "environment": "preview",
-      "channel": "preview"
+      "channel": "preview",
+      "node": "24.22.1"
     },
     "testflight": {
       "autoIncrement": true,
       "environment": "preview",
-      "channel": "testflight"
+      "channel": "testflight",
+      "node": "24.22.1"
     },
     "production": {
       "autoIncrement": true,
       "environment": "production",
-      "channel": "production"
+      "channel": "production",
+      "node": "24.22.1"
     },
     "development-simulator": {
       "developmentClient": true,
@@ -35,7 +39,8 @@
         "simulator": true
       },
       "environment": "development",
-      "channel": "development-simulator"
+      "channel": "development-simulator",
+      "node": "24.22.1"
     }
   },
   "submit": {
