@@ -1,53 +1,109 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useQuery } from "convex/react";
-import {
-  BarChart3,
-  CheckCircle2,
-  Clock3,
-  TrendingUp,
-  Wallet,
-} from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
-import { Card } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 import { cn } from "@/lib/utils";
+import { Panel, PanelSkeleton } from "./dashboard-panel";
 
-function formatCurrency(value?: number | null) {
-  if (value === null || value === undefined) return "-";
-  return `$${Math.round(value).toLocaleString("es-AR")}`;
+function formatPeriod(period: string, month: "long" | "short" = "long") {
+  const [year, monthNumber] = period.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-AR", {
+    month,
+    ...(month === "long" ? { year: "numeric" } : {}),
+  })
+    .format(new Date(year, monthNumber - 1, 1))
+    .replace(".", "");
 }
 
-function formatCompactCurrency(value?: number | null) {
-  if (value === null || value === undefined) return "-";
-
+/** "$969 mil", "$5,1 M": short enough to fit a tile at any width. */
+function formatCompactArs(value: number) {
   const rounded = Math.round(value);
   const compact = new Intl.NumberFormat("es-AR", {
     notation: "compact",
-    compactDisplay: "short",
-    maximumFractionDigits: rounded >= 1000000 ? 1 : 0,
-  }).format(rounded);
-
-  return `$${compact}`;
+    maximumFractionDigits: Math.abs(rounded) >= 1_000_000 ? 1 : 0,
+  }).format(Math.abs(rounded));
+  return `${rounded < 0 ? "−" : ""}$${compact}`;
 }
 
-function formatPercent(value?: number | null) {
-  if (value === null || value === undefined) return "-";
-  return `${value.toLocaleString("es-AR", {
-    minimumFractionDigits: value % 1 === 0 ? 0 : 1,
-    maximumFractionDigits: 1,
-  })}%`;
+function formatPercent(value: number) {
+  return `${value.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
 }
 
-function formatShortPeriod(period: string) {
-  const [year, month] = period.split("-");
-  return new Intl.DateTimeFormat("es-AR", {
-    month: "short",
-  }).format(new Date(Number(year), Number(month) - 1, 1));
+type Tone = "neutral" | "good" | "bad" | "warning";
+
+const TILE_TONE: Record<Tone, string> = {
+  neutral: "",
+  good: "border-emerald-500/25 bg-emerald-500/5",
+  bad: "border-red-500/25 bg-red-500/5",
+  warning: "border-amber-500/25 bg-amber-500/5",
+};
+
+const VALUE_TONE: Record<Tone, string> = {
+  neutral: "",
+  good: "text-emerald-600 dark:text-emerald-400",
+  bad: "text-red-600 dark:text-red-400",
+  warning: "text-amber-600 dark:text-amber-400",
+};
+
+function FinanceTile({
+  label,
+  value,
+  detail,
+  tone = "neutral",
+  href,
+  children,
+}: {
+  label: string;
+  value: string;
+  detail?: ReactNode;
+  tone?: Tone;
+  href?: string;
+  children?: ReactNode;
+}) {
+  const className = cn(
+    "flex min-h-[120px] min-w-0 flex-col gap-1 rounded-lg border p-3",
+    TILE_TONE[tone],
+    href && "transition-colors hover:bg-accent/40",
+  );
+  const content = (
+    <>
+      <p className="truncate text-xs text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "truncate text-2xl font-semibold tabular-nums",
+          VALUE_TONE[tone],
+        )}
+      >
+        {value}
+      </p>
+      {children}
+      {detail ? (
+        <div className="mt-auto line-clamp-2 pt-1 text-xs text-muted-foreground">
+          {detail}
+        </div>
+      ) : null}
+    </>
+  );
+
+  return href ? (
+    <Link href={href} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <div className={className}>{content}</div>
+  );
 }
 
+/** Org-wide money for the month: income and expenses aren't per staff member. */
 export default function PaymentsOverview() {
   const canQuery = useCanQueryCurrentOrganization();
   const data = useQuery(
@@ -55,158 +111,174 @@ export default function PaymentsOverview() {
     canQuery ? {} : "skip",
   );
 
-  const chartData = !data?.monthlyOverview?.length
-    ? []
-    : (() => {
-        const periods = [...data.monthlyOverview].slice(0, 6).reverse();
-        const maxAmount = Math.max(
-          ...periods.map((period) => Math.abs(period.netResultArs)),
-          1,
-        );
+  if (!canQuery || data === undefined) return <PanelSkeleton rows={3} />;
 
-        return periods.map((period) => ({
-          ...period,
-          heightPct: Math.max(
-            (Math.abs(period.netResultArs) / maxAmount) * 100,
-            10,
-          ),
-        }));
-      })();
+  const { overview, financialBalance: balance, selectedOverview } = data;
+  const hasExpenses = balance.hasExpenseData;
+  const collectionRate = selectedOverview?.collectionRatePct ?? 0;
+  const expectedArs = selectedOverview?.expectedAmountArs ?? 0;
+  const pendingCount =
+    (selectedOverview?.pendingPayments ?? 0) +
+    (selectedOverview?.inReviewPayments ?? 0);
 
-  if (!canQuery || data === undefined) {
-    return (
-      <Card className="flex h-full min-h-[220px] w-full flex-col rounded-2xl border bg-background/60 p-4 md:h-[220px] md:p-5">
-        <div className="text-sm text-muted-foreground">Pagos</div>
-        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-          Cargando resumen financiero...
-        </div>
-      </Card>
-    );
-  }
+  // Profitability per month, oldest first, for the sparkline.
+  const months = [...data.monthlyOverview]
+    .sort((a, b) => a.billingPeriod.localeCompare(b.billingPeriod))
+    .slice(-6)
+    .map((month) => ({
+      period: month.billingPeriod,
+      pct:
+        month.totalIncomeArs > 0 && month.expenseArs > 0
+          ? Math.round(
+              ((month.totalIncomeArs - month.expenseArs) /
+                month.totalIncomeArs) *
+                1000,
+            ) / 10
+          : null,
+    }));
+  const maxAbsPct = Math.max(
+    1,
+    ...months.map((month) => Math.abs(month.pct ?? 0)),
+  );
 
-  const selectedOverview = data.selectedOverview;
-  const selectedNetResultArs = selectedOverview?.netResultArs ?? 0;
-  const selectedIncomeArs = selectedOverview?.totalIncomeArs ?? 0;
-  const selectedExpenseArs = selectedOverview?.expenseArs ?? 0;
-  const balanceTone =
-    selectedNetResultArs < 0 ? "text-red-600" : "text-emerald-600";
+  const profitability = balance.profitabilityPct;
 
   return (
-    <Card className="flex h-full min-h-[220px] w-full flex-col overflow-hidden rounded-2xl border bg-background/60 p-4 md:h-[220px] md:px-5 md:pb-5 md:pt-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-semibold">Balance Financiero</h3>
-          {/* Always org-wide: income/expenses are not attributable to a
-              responsible staff member. */}
-          <p className="text-xs text-muted-foreground">Toda la organización</p>
-        </div>
-        <Link
-          href="/dashboard/metrics/payments"
-          className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-background/40 px-3 py-1.5 text-sm text-foreground shadow-sm transition-colors hover:bg-accent/40"
+    <Panel
+      title="Balance financiero"
+      description={
+        <>
+          <span className="inline-block first-letter:uppercase">
+            {formatPeriod(data.currentPeriod)}
+          </span>{" "}
+          · toda la organización
+        </>
+      }
+      href="/dashboard/metrics/payments"
+      linkLabel="Ver más"
+      className="@container"
+    >
+      <div className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
+        {hasExpenses ? (
+          <FinanceTile
+            label="Resultado del mes"
+            value={formatCompactArs(balance.netResultArs)}
+            tone={balance.netResultArs < 0 ? "bad" : "good"}
+            detail={`${formatCompactArs(balance.incomeArs)} − ${formatCompactArs(balance.expenseArs)}`}
+          />
+        ) : (
+          <FinanceTile
+            label="Ingresos del mes"
+            value={formatCompactArs(balance.incomeArs)}
+            tone={balance.incomeArs > 0 ? "good" : "neutral"}
+            detail="Sin egresos cargados"
+            href="/dashboard/income-expenses"
+          />
+        )}
+
+        <FinanceTile
+          label="Cobranza"
+          value={formatPercent(collectionRate)}
+          detail={`Sobre ${formatCompactArs(expectedArs)} esperado`}
         >
-          <BarChart3 className="h-4 w-4" />
-          Ver mas +
-        </Link>
-      </div>
-
-      <div className="mt-3 grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1fr)_220px] xl:items-stretch">
-        <div className="grid gap-3 sm:grid-cols-3 sm:items-stretch">
-          <div className="flex h-full min-h-[112px] flex-col rounded-2xl border bg-emerald-500/5 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">
-                Balance de cuentas
-              </span>
-              <Wallet className={`h-4 w-4 ${balanceTone}`} />
-            </div>
-            <p
-              className={`mt-2 text-xl font-semibold md:text-2xl ${balanceTone}`}
-            >
-              {formatCompactCurrency(selectedNetResultArs)}
-            </p>
-            <p className="mt-auto pt-2 text-[11px] text-muted-foreground">
-              {formatCompactCurrency(selectedIncomeArs)} -{" "}
-              {formatCompactCurrency(selectedExpenseArs)}
-            </p>
+          <div
+            className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-valuenow={collectionRate}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className="h-full rounded-full bg-emerald-500"
+              style={{ width: `${Math.min(collectionRate, 100)}%` }}
+            />
           </div>
+        </FinanceTile>
 
-          <div className="flex h-full min-h-[112px] flex-col rounded-2xl border bg-background/70 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">Cobranza</span>
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-            </div>
-            <p className="mt-2 text-2xl font-semibold">
-              {formatPercent(selectedOverview?.collectionRatePct ?? 0)}
-            </p>
-            <p className="mt-auto pt-2 text-[11px] text-muted-foreground">
-              Sobre{" "}
-              {formatCompactCurrency(selectedOverview?.expectedAmountArs ?? 0)}
-            </p>
-          </div>
+        <FinanceTile
+          label="Pendientes"
+          value={`${pendingCount}`}
+          tone={pendingCount > 0 ? "warning" : "neutral"}
+          detail={
+            overview.outstandingRevenueArs > 0
+              ? `${formatCompactArs(overview.outstandingRevenueArs)} por cobrar`
+              : "Pagos sin cerrar"
+          }
+          href="/dashboard/payments"
+        />
 
-          <div className="flex h-full min-h-[112px] flex-col rounded-2xl border bg-amber-500/5 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted-foreground">Pendientes</span>
-              <Clock3 className="h-4 w-4 text-amber-600" />
-            </div>
-            <p className="mt-2 text-2xl font-semibold text-amber-600">
-              {(selectedOverview?.pendingPayments ?? 0) +
-                (selectedOverview?.inReviewPayments ?? 0)}
-            </p>
-            <p className="mt-auto pt-2 text-[11px] text-muted-foreground">
-              Pagos sin cerrar
-            </p>
-          </div>
-        </div>
-
-        <div className="flex h-full min-h-[112px] flex-col rounded-2xl border bg-background/40 p-3 xl:max-w-[220px]">
-          <p className="text-xs text-muted-foreground">Rentabilidad</p>
-          {data.financialBalance.profitabilityPct != null ? (
-            <p className={cn(
-              "mt-1 text-4xl font-semibold",
-              data.financialBalance.profitabilityPct >= 0 ? "text-emerald-600" : "text-red-600",
-            )}>
-              {data.financialBalance.profitabilityPct > 0 ? "+" : ""}
-              {data.financialBalance.profitabilityPct}%
-            </p>
-          ) : (
-            <p className="mt-1 text-2xl font-semibold text-muted-foreground">-</p>
-          )}
-
-          {chartData.length > 0 && (() => {
-            const profData = chartData.map((p) => ({
-              label: formatShortPeriod(p.billingPeriod),
-              pct: p.totalIncomeArs > 0 && p.expenseArs > 0
-                ? Math.round(((p.totalIncomeArs - p.expenseArs) / p.totalIncomeArs) * 1000) / 10
-                : null,
-              isCurrent: p.billingPeriod === data.selectedPeriod,
-            }));
-            const maxAbs = Math.max(...profData.map((d) => Math.abs(d.pct ?? 0)), 1);
-            return (
-              <div className="mt-auto flex items-end gap-1 pt-2">
-                {profData.map((d, i) => {
-                  const heightPct = d.pct != null ? Math.max((Math.abs(d.pct) / maxAbs) * 40, 4) : 4;
-                  const isPos = (d.pct ?? 0) >= 0;
-                  return (
-                    <div key={i} className="flex flex-1 flex-col items-center gap-0.5">
-                      <div className="flex h-[40px] w-full items-end justify-center">
+        <FinanceTile
+          label="Rentabilidad"
+          value={
+            profitability === null
+              ? "—"
+              : `${profitability > 0 ? "+" : ""}${formatPercent(profitability)}`
+          }
+          tone={
+            profitability === null
+              ? "neutral"
+              : profitability < 0
+                ? "bad"
+                : "good"
+          }
+          detail={profitability === null ? "Necesita egresos" : undefined}
+        >
+          {profitability !== null && (
+            <div className="mt-auto">
+              <div
+                className="flex h-8 items-end gap-1"
+                role="img"
+                aria-label="Rentabilidad de los últimos meses"
+              >
+                {months.map((month) => (
+                  <Tooltip key={month.period}>
+                    <TooltipTrigger asChild>
+                      <div className="flex h-full flex-1 cursor-default items-end">
                         <div
                           className={cn(
-                            "w-full max-w-[18px] rounded-t-sm transition-all",
-                            d.pct == null ? "bg-muted" : isPos ? "bg-emerald-500/70" : "bg-red-500/70",
-                            d.isCurrent ? "opacity-100" : "opacity-40",
+                            "w-full rounded-sm",
+                            month.pct === null
+                              ? "bg-muted"
+                              : month.pct < 0
+                                ? "bg-red-500/70"
+                                : "bg-emerald-500/70",
+                            month.period === data.currentPeriod &&
+                              month.pct !== null &&
+                              (month.pct < 0 ? "bg-red-500" : "bg-emerald-500"),
                           )}
-                          style={{ height: `${heightPct}px` }}
+                          style={{
+                            height: `${month.pct === null ? 8 : Math.max((Math.abs(month.pct) / maxAbsPct) * 100, 8)}%`,
+                          }}
                         />
                       </div>
-                      <p className="text-[9px] text-muted-foreground">{d.label}</p>
-                    </div>
-                  );
-                })}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="first-letter:uppercase">
+                        {formatPeriod(month.period)}
+                      </p>
+                      <p>
+                        {month.pct === null
+                          ? "Sin egresos cargados"
+                          : `${formatPercent(month.pct)} de rentabilidad`}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
               </div>
-            );
-          })()}
-        </div>
+              <div className="mt-1 flex gap-1">
+                {months.map((month) => (
+                  <span
+                    key={month.period}
+                    className="flex-1 truncate text-center text-[10px] text-muted-foreground"
+                  >
+                    {formatPeriod(month.period, "short")}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </FinanceTile>
       </div>
-    </Card>
+    </Panel>
   );
 }

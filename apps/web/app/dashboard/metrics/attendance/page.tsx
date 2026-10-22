@@ -1,17 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
-import {
-  ArrowLeft,
-  CalendarClock,
-  Dumbbell,
-  Flame,
-  Search,
-  Snowflake,
-  UserX,
-} from "lucide-react";
+import { Flame, Search, Snowflake } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -25,8 +16,20 @@ import {
 
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
+import {
+  CHART_AXIS_PROPS,
+  CHART_TOOLTIP_PROPS,
+  KpiGrid,
+  KpiTile,
+  MetricsEmpty,
+  MetricsPageHeader,
+  MetricsSection,
+  RateBadge,
+  ShareBar,
+  formatCount,
+  formatPercent,
+} from "@/components/features/metrics/metrics-ui";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -35,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -72,19 +76,19 @@ type AttendanceMember = {
 };
 
 const RANGE_OPTIONS = [
-  { value: "30", label: "Ultimos 30 dias" },
-  { value: "90", label: "Ultimos 90 dias" },
-  { value: "180", label: "Ultimos 6 meses" },
-  { value: "0", label: "Historico completo" },
+  { value: "30", label: "Últimos 30 días" },
+  { value: "90", label: "Últimos 90 días" },
+  { value: "180", label: "Últimos 6 meses" },
+  { value: "0", label: "Histórico completo" },
 ] as const;
 
 type SortKey = "most" | "least" | "rate" | "cold";
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: "most", label: "Mas dias presentes" },
-  { value: "least", label: "Menos dias presentes" },
+  { value: "most", label: "Más días presentes" },
+  { value: "least", label: "Menos días presentes" },
   { value: "rate", label: "Peor % en clases" },
-  { value: "cold", label: "Mas dias sin venir" },
+  { value: "cold", label: "Más días sin venir" },
 ];
 
 const SOURCE_LABEL: Record<AttendanceSource, string> = {
@@ -98,28 +102,20 @@ const SOURCE_LABEL: Record<AttendanceSource, string> = {
 const TABLE_PAGE_SIZE = 15;
 
 const SOURCE_CLASS: Record<AttendanceSource, string> = {
-  classes: "bg-indigo-500/10 text-indigo-600",
-  planification: "bg-sky-500/10 text-sky-600",
-  mixed: "bg-emerald-500/10 text-emerald-600",
+  classes: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+  planification: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  mixed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   none: "bg-muted text-muted-foreground",
 };
 
 function formatDate(ts: number | null) {
-  if (ts === null) return "-";
+  if (ts === null) return "—";
   return new Intl.DateTimeFormat("es-AR", {
     day: "2-digit",
     month: "short",
     year: "2-digit",
     timeZone: "UTC",
   }).format(new Date(ts));
-}
-
-function formatPercent(value: number | null) {
-  if (value === null) return "-";
-  return `${value.toLocaleString("es-AR", {
-    minimumFractionDigits: value % 1 === 0 ? 0 : 1,
-    maximumFractionDigits: 1,
-  })}%`;
 }
 
 function initials(name: string) {
@@ -135,7 +131,7 @@ function lastVisitLabel(member: AttendanceMember) {
   if (member.daysSinceLastActivity === null) return "Sin actividad";
   if (member.daysSinceLastActivity === 0) return "Hoy";
   if (member.daysSinceLastActivity === 1) return "Ayer";
-  return `Hace ${member.daysSinceLastActivity} dias`;
+  return `Hace ${member.daysSinceLastActivity} días`;
 }
 
 /** How the member registers presence: check-in, planification, or both. */
@@ -143,7 +139,7 @@ function SourceBadge({ source }: { source: AttendanceSource }) {
   return (
     <span
       className={cn(
-        "rounded-full px-2 py-0.5 text-[10px] font-medium",
+        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
         SOURCE_CLASS[source],
       )}
     >
@@ -152,44 +148,20 @@ function SourceBadge({ source }: { source: AttendanceSource }) {
   );
 }
 
-function KpiTile({
-  label,
-  value,
-  sub,
-  tone,
-  icon: Icon,
+function MemberAvatar({
+  member,
+  className = "size-8",
 }: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "green" | "red" | "amber" | "blue" | "default";
-  icon?: React.ComponentType<{ className?: string }>;
+  member: Pick<AttendanceMember, "name" | "imageUrl">;
+  className?: string;
 }) {
-  const valueClass =
-    tone === "green"
-      ? "text-emerald-600"
-      : tone === "red"
-        ? "text-red-600"
-        : tone === "amber"
-          ? "text-amber-600"
-          : tone === "blue"
-            ? "text-blue-600"
-            : "";
   return (
-    <div className="flex min-h-[100px] flex-col rounded-2xl border bg-card/80 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">{label}</span>
-        {Icon && (
-          <Icon className={cn("h-4 w-4 text-muted-foreground", valueClass)} />
-        )}
-      </div>
-      <p className={cn("mt-2 text-2xl font-semibold md:text-3xl", valueClass)}>
-        {value}
-      </p>
-      {sub && (
-        <p className="mt-auto pt-2 text-[11px] text-muted-foreground">{sub}</p>
-      )}
-    </div>
+    <Avatar className={cn("shrink-0", className)}>
+      <AvatarImage src={member.imageUrl ?? undefined} alt={member.name} />
+      <AvatarFallback className="text-[11px]">
+        {initials(member.name)}
+      </AvatarFallback>
+    </Avatar>
   );
 }
 
@@ -214,16 +186,11 @@ function RankRow({
     .join(" · ");
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5">
+    <li className="flex items-center gap-3 px-6 py-2.5">
       <span className="w-5 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
         {position}
       </span>
-      <Avatar className="size-8 shrink-0">
-        <AvatarImage src={member.imageUrl ?? undefined} alt={member.name} />
-        <AvatarFallback className="text-[11px]">
-          {initials(member.name)}
-        </AvatarFallback>
-      </Avatar>
+      <MemberAvatar member={member} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <span className="flex min-w-0 items-center gap-1.5">
@@ -234,22 +201,18 @@ function RankRow({
             {member.activeDays}
           </span>
         </div>
-        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className={cn(
-              "h-full rounded-full",
-              tone === "hot" ? "bg-emerald-500" : "bg-amber-500",
-            )}
-            style={{ width: `${widthPct}%` }}
-          />
-        </div>
-        <p className="mt-1 truncate text-[11px] text-muted-foreground">
+        <ShareBar
+          share={widthPct}
+          className="mt-1"
+          barClassName={tone === "hot" ? "bg-emerald-500" : "bg-amber-500"}
+        />
+        <p className="mt-1 truncate text-xs text-muted-foreground">
           {lastVisitLabel(member)}
           {breakdown && ` · ${breakdown}`}
           {member.perWeek > 0 && ` · ${member.perWeek}/sem`}
         </p>
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -360,17 +323,39 @@ export default function AttendanceMetricsPage() {
     return () => observer.disconnect();
   }, [hasMoreRows]);
 
+  const header = (
+    <MetricsPageHeader
+      title="Asistencia por miembro"
+      description="Días presentes de cada miembro, sumando check-ins de clases y planis completadas. Cada día cuenta una sola vez."
+      actions={
+        <Select value={range} onValueChange={handleRangeChange}>
+          <SelectTrigger className="w-full md:w-52">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {RANGE_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      }
+    />
+  );
+
   if (!canQuery || data === undefined) {
     return (
       <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-        <div className="flex animate-pulse flex-col gap-4">
-          <div className="h-8 w-48 rounded-lg bg-muted" />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-24 rounded-2xl bg-muted" />
-            ))}
-          </div>
-          <div className="h-72 rounded-2xl bg-muted" />
+        {header}
+        <KpiGrid>
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-[112px] rounded-xl" />
+          ))}
+        </KpiGrid>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-[420px] rounded-xl" />
+          <Skeleton className="h-[420px] rounded-xl" />
         </div>
       </DashboardPageContainer>
     );
@@ -387,7 +372,13 @@ export default function AttendanceMetricsPage() {
   const maxActiveDays = topMembers[0]?.activeDays ?? 0;
   const rangeLabel =
     RANGE_OPTIONS.find((option) => option.value === range)?.label ??
-    "Historico completo";
+    "Histórico completo";
+  const attendingSharePct =
+    overview.activeMembers > 0
+      ? Math.round(
+          (overview.membersWithAttendance / overview.activeMembers) * 1000,
+        ) / 10
+      : null;
 
   const distributionData = distribution.map((bucket) => ({
     label: bucket.label,
@@ -401,503 +392,381 @@ export default function AttendanceMetricsPage() {
   }));
   const maxWeekdayCount = Math.max(...weekdayData.map((d) => d.asistencias), 0);
 
+  const sourceSplit = [
+    ["mixed", bySource.mixed, "Clases + plani"],
+    ["classes", bySource.classes, "Solo clases"],
+    ["planification", bySource.planification, "Solo plani"],
+    ["none", bySource.none, "Sin registro"],
+  ] as const;
+
   return (
     <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link
-          href="/dashboard/metrics"
-          className="inline-flex items-center gap-1.5 rounded-lg border bg-background/60 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/50"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Metricas
-        </Link>
-      </div>
+      {header}
 
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold md:text-3xl">
-            Asistencia por Miembro
-          </h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Dias presentes por miembro, contando tanto el check-in de clases
-            como las planificaciones completadas. Un dia cuenta una sola vez.
-          </p>
-        </div>
-        <Select value={range} onValueChange={handleRangeChange}>
-          <SelectTrigger className="w-[190px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {RANGE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* KPI row */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <KpiGrid>
         <KpiTile
-          label="Dias de asistencia"
-          value={overview.totalActiveDays.toLocaleString("es-AR")}
-          sub={`${rangeLabel.toLowerCase()} · ${rangeInfo.weeks} semanas`}
-          icon={CalendarClock}
+          label="Días de asistencia"
+          value={formatCount(overview.totalActiveDays)}
+          detail={`${rangeLabel} · ${rangeInfo.weeks} semanas`}
         />
         <KpiTile
           label="Promedio por miembro"
           value={overview.avgActiveDaysPerMember.toLocaleString("es-AR")}
-          sub={`Mediana ${overview.medianActiveDays} · ${overview.avgPerWeek}/semana`}
-          tone="blue"
-          icon={Dumbbell}
+          detail={`Mediana ${overview.medianActiveDays} · ${overview.avgPerWeek} por semana`}
         />
         <KpiTile
           label="Miembros que vinieron"
           value={`${overview.membersWithAttendance}/${overview.activeMembers}`}
-          sub={`${formatPercent(
-            overview.activeMembers > 0
-              ? Math.round(
-                  (overview.membersWithAttendance / overview.activeMembers) *
-                    1000,
-                ) / 10
-              : null,
-          )} del padron activo`}
-          tone="green"
-          icon={Flame}
-        />
+          detail={`${formatPercent(attendingSharePct)} del padrón activo`}
+        >
+          <ShareBar
+            share={attendingSharePct ?? 0}
+            className="mt-1"
+            barClassName="bg-emerald-500"
+          />
+        </KpiTile>
         <KpiTile
           label="Sin ninguna actividad"
-          value={overview.inactiveMembers.toLocaleString("es-AR")}
-          sub={`Ni check-in de clase ni plani registrada`}
-          tone={overview.inactiveMembers > 0 ? "red" : "green"}
-          icon={UserX}
+          value={formatCount(overview.inactiveMembers)}
+          valueClassName={
+            overview.inactiveMembers > 0
+              ? "text-red-600 dark:text-red-400"
+              : undefined
+          }
+          detail="Ni check-in de clase ni plani registrada"
         />
-      </div>
+      </KpiGrid>
 
-      {/* Signal split — makes it explicit how members register presence */}
-      <Card className="border-border/60 bg-card/80">
-        <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-3 py-4">
-          <div className="text-xs text-muted-foreground">
-            Como registran presencia:
-          </div>
-          {(
-            [
-              ["mixed", bySource.mixed, "Clases + plani"],
-              ["classes", bySource.classes, "Solo clases"],
-              ["planification", bySource.planification, "Solo plani"],
-              ["none", bySource.none, "Sin registro"],
-            ] as const
-          ).map(([key, count, label]) => (
-            <div key={key} className="flex items-center gap-2">
+      {/* How members register presence */}
+      <section className="flex flex-col gap-3 rounded-xl border bg-card p-4 lg:flex-row lg:items-center lg:gap-6">
+        <h2 className="shrink-0 text-sm font-semibold">
+          Cómo registran presencia
+        </h2>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          {sourceSplit.map(([key, count, label]) => (
+            <span key={key} className="flex items-center gap-2">
               <span className="text-lg font-semibold tabular-nums">
                 {count}
               </span>
               <span
                 className={cn(
-                  "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                  "rounded-full px-2 py-0.5 text-xs font-medium",
                   SOURCE_CLASS[key],
                 )}
               >
                 {label}
               </span>
-            </div>
+            </span>
           ))}
-          <div className="ml-auto text-[11px] text-muted-foreground">
-            {overview.totalClassAttended} check-ins ·{" "}
-            {overview.totalSessionsLogged} planis · {overview.totalNoShow}{" "}
-            no-shows
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+        <p className="text-xs text-muted-foreground lg:ml-auto">
+          {formatCount(overview.totalClassAttended)} check-ins ·{" "}
+          {formatCount(overview.totalSessionsLogged)} planis ·{" "}
+          {formatCount(overview.totalNoShow)} no-shows
+        </p>
+      </section>
 
       {/* Top / bottom rankings */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/60 bg-card/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Flame className="size-4 text-emerald-600" />
-              Los que mas vienen
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Top 10 por dias presentes en el periodo
-            </p>
-          </CardHeader>
-          <CardContent className="p-0 pb-3">
-            {topMembers.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                Sin actividad registrada en el periodo
-              </p>
-            ) : (
-              <div className="divide-y divide-border/50">
-                {topMembers.map((member, index) => (
-                  <RankRow
-                    key={member.userId}
-                    position={index + 1}
-                    member={member}
-                    max={maxActiveDays}
-                    tone="hot"
-                  />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <section className="grid gap-4 lg:grid-cols-2">
+        <MetricsSection
+          title={
+            <span className="flex items-center gap-2">
+              <Flame className="size-4 text-emerald-600 dark:text-emerald-400" />
+              Los que más vienen
+            </span>
+          }
+          description="Top 10 por días presentes en el período."
+          contentClassName="px-0"
+        >
+          {topMembers.length === 0 ? (
+            <div className="px-6">
+              <MetricsEmpty>
+                Sin actividad registrada en el período.
+              </MetricsEmpty>
+            </div>
+          ) : (
+            <ol className="divide-y divide-border/60">
+              {topMembers.map((member, index) => (
+                <RankRow
+                  key={member.userId}
+                  position={index + 1}
+                  member={member}
+                  max={maxActiveDays}
+                  tone="hot"
+                />
+              ))}
+            </ol>
+          )}
+        </MetricsSection>
 
-        <Card className="border-border/60 bg-card/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Snowflake className="size-4 text-amber-600" />
+        <MetricsSection
+          title={
+            <span className="flex items-center gap-2">
+              <Snowflake className="size-4 text-amber-600 dark:text-amber-400" />
               Los que menos vienen
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Miembros activos con menos dias presentes en el periodo
-            </p>
-          </CardHeader>
-          <CardContent className="p-0 pb-3">
-            {bottomMembers.length === 0 ? (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                Sin miembros activos
-              </p>
-            ) : (
-              <div className="divide-y divide-border/50">
-                {bottomMembers.map((member, index) => (
-                  <RankRow
-                    key={member.userId}
-                    position={index + 1}
-                    member={member}
-                    max={maxActiveDays}
-                    tone="cold"
+            </span>
+          }
+          description="Miembros activos con menos días presentes en el período."
+          contentClassName="px-0"
+        >
+          {bottomMembers.length === 0 ? (
+            <div className="px-6">
+              <MetricsEmpty>Sin miembros activos.</MetricsEmpty>
+            </div>
+          ) : (
+            <ol className="divide-y divide-border/60">
+              {bottomMembers.map((member, index) => (
+                <RankRow
+                  key={member.userId}
+                  position={index + 1}
+                  member={member}
+                  max={maxActiveDays}
+                  tone="cold"
+                />
+              ))}
+            </ol>
+          )}
+        </MetricsSection>
+      </section>
+
+      {/* How many days members show up, and on which days */}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <MetricsSection
+          title="Distribución de asistencia"
+          description="Cuántos miembros hay en cada rango de días presentes."
+        >
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart
+              data={distributionData}
+              margin={{ top: 8, right: 0, left: 0, bottom: 0 }}
+            >
+              <CartesianGrid
+                vertical={false}
+                strokeDasharray="3 3"
+                className="stroke-border/50"
+              />
+              <XAxis dataKey="label" {...CHART_AXIS_PROPS} />
+              <YAxis {...CHART_AXIS_PROPS} allowDecimals={false} width={28} />
+              <Tooltip
+                {...CHART_TOOLTIP_PROPS}
+                formatter={(value) => [Number(value), "Miembros"]}
+                labelFormatter={(label) => `${label} días`}
+              />
+              <Bar dataKey="miembros" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                {distributionData.map((entry) => (
+                  <Cell
+                    key={entry.key}
+                    fill={entry.key === "none" ? "#f43f5e" : "#94a3b8"}
                   />
                 ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </MetricsSection>
 
-      {/* Two balanced charts: how many days members show up, and on which days */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/60 bg-card/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">
-              Distribucion de asistencia
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Cuantos miembros hay en cada rango de dias presentes
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart
-                data={distributionData}
-                margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(var(--border))"
-                  strokeOpacity={0.5}
-                />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  allowDecimals={false}
-                  width={28}
-                />
-                <Tooltip
-                  formatter={(value: unknown) => [Number(value), "Miembros"]}
-                  labelFormatter={(label: unknown) => `${label} dias`}
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: 12,
-                    color: "hsl(var(--popover-foreground))",
-                  }}
-                  labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-                  itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-                />
-                <Bar dataKey="miembros" radius={[3, 3, 0, 0]}>
-                  {distributionData.map((entry) => (
-                    <Cell
-                      key={entry.key}
-                      fill={entry.key === "none" ? "#ef4444" : "#6366f1"}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/60 bg-card/80">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">
-              Dias que mas vienen
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Dias de asistencia por dia de la semana (clases + planis)
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart
-                data={weekdayData}
-                margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(var(--border))"
-                  strokeOpacity={0.5}
-                />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  allowDecimals={false}
-                  width={28}
-                />
-                <Tooltip
-                  formatter={(value: unknown) => [Number(value), "Asistencias"]}
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: 12,
-                    color: "hsl(var(--popover-foreground))",
-                  }}
-                  labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-                  itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-                />
-                <Bar dataKey="asistencias" radius={[3, 3, 0, 0]}>
-                  {weekdayData.map((entry) => (
+        <MetricsSection
+          title="Días que más vienen"
+          description="Asistencias por día de la semana (clases + planis)."
+        >
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart
+              data={weekdayData}
+              margin={{ top: 8, right: 0, left: 0, bottom: 0 }}
+            >
+              <CartesianGrid
+                vertical={false}
+                strokeDasharray="3 3"
+                className="stroke-border/50"
+              />
+              <XAxis dataKey="label" {...CHART_AXIS_PROPS} />
+              <YAxis {...CHART_AXIS_PROPS} allowDecimals={false} width={28} />
+              <Tooltip
+                {...CHART_TOOLTIP_PROPS}
+                formatter={(value) => [Number(value), "Asistencias"]}
+              />
+              <Bar dataKey="asistencias" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                {weekdayData.map((entry) => {
+                  const isPeak =
+                    entry.asistencias === maxWeekdayCount &&
+                    maxWeekdayCount > 0;
+                  return (
                     <Cell
                       key={entry.label}
-                      fill={
-                        entry.asistencias === maxWeekdayCount &&
-                        maxWeekdayCount > 0
-                          ? "#10b981"
-                          : "#10b98180"
-                      }
+                      fill={isPeak ? "#10b981" : "#94a3b8"}
+                      fillOpacity={isPeak ? 1 : 0.6}
                     />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+                  );
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </MetricsSection>
+      </section>
 
-      {/* Dormant members — full width so the roster spreads across two columns */}
-      <Card className="border-border/60 bg-card/80">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold">
-            Hace rato que no vienen
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Miembros con actividad previa pero 21 dias o mas sin aparecer
-          </p>
-        </CardHeader>
-        <CardContent className="p-0 pb-2">
-          {dormantMembers.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Ningun miembro en riesgo. Buen trabajo.
-            </p>
-          ) : (
-            <div className="grid sm:grid-cols-2">
-              {dormantMembers.map((member) => (
-                <div
-                  key={member.userId}
-                  className="flex items-center gap-3 border-b border-border/40 px-4 py-2.5"
-                >
-                  <Avatar className="size-8 shrink-0">
-                    <AvatarImage
-                      src={member.imageUrl ?? undefined}
-                      alt={member.name}
-                    />
-                    <AvatarFallback className="text-[11px]">
-                      {initials(member.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {member.name}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Ultima vez {formatDate(member.lastActivityAt)} ·{" "}
-                      {member.activeDays} dias en el periodo
-                    </p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600">
-                    {member.daysSinceLastActivity}d
-                  </span>
+      {/* Dormant members */}
+      <MetricsSection
+        title="Hace rato que no vienen"
+        description="Miembros con actividad previa pero 21 días o más sin aparecer."
+        contentClassName="px-0"
+      >
+        {dormantMembers.length === 0 ? (
+          <div className="px-6">
+            <MetricsEmpty>Ningún miembro en riesgo. Buen trabajo.</MetricsEmpty>
+          </div>
+        ) : (
+          <ul className="grid border-t sm:grid-cols-2">
+            {dormantMembers.map((member) => (
+              <li
+                key={member.userId}
+                className="flex items-center gap-3 border-b border-border/60 px-6 py-2.5"
+              >
+                <MemberAvatar member={member} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{member.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    Última vez {formatDate(member.lastActivityAt)} ·{" "}
+                    {member.activeDays} días en el período
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium tabular-nums text-amber-600 dark:text-amber-400">
+                  {member.daysSinceLastActivity}d
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </MetricsSection>
 
       {/* Full table */}
-      <Card className="border-border/60 bg-card/80">
-        <CardHeader className="gap-3 pb-2">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base font-semibold">
-                Todos los miembros
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">
-                Mostrando {renderedMembers.length} de {tableMembers.length}{" "}
-                miembros activos
-              </p>
+      <MetricsSection
+        title="Todos los miembros"
+        description={`Mostrando ${renderedMembers.length} de ${tableMembers.length} miembros activos.`}
+        contentClassName="p-0"
+        action={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder="Buscar miembro"
+                className="w-full pl-8 sm:w-52"
+              />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(event) => handleSearchChange(event.target.value)}
-                  placeholder="Buscar miembro"
-                  className="h-9 w-[200px] pl-8"
-                />
-              </div>
-              <Select value={sortKey} onValueChange={handleSortChange}>
-                <SelectTrigger className="h-9 w-[190px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Select value={sortKey} onValueChange={handleSortChange}>
+              <SelectTrigger className="w-full sm:w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {tableMembers.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              Sin miembros para mostrar
-            </p>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Miembro</TableHead>
-                      <TableHead className="text-right">Dias</TableHead>
-                      <TableHead className="text-right">Clases</TableHead>
-                      <TableHead className="text-right">Planis</TableHead>
-                      <TableHead className="text-right">No-show</TableHead>
-                      <TableHead className="text-right">% en clases</TableHead>
-                      <TableHead className="text-right">Por semana</TableHead>
-                      <TableHead className="text-right">Ultima vez</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {renderedMembers.map((member) => (
-                      <TableRow key={member.userId}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="size-7 shrink-0">
-                              <AvatarImage
-                                src={member.imageUrl ?? undefined}
-                                alt={member.name}
-                              />
-                              <AvatarFallback className="text-[10px]">
-                                {initials(member.name)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-                                {member.name}
-                                <SourceBadge source={member.source} />
+        }
+      >
+        {tableMembers.length === 0 ? (
+          <div className="px-6 pb-6">
+            <MetricsEmpty>Sin miembros para mostrar.</MetricsEmpty>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Miembro</TableHead>
+                    <TableHead className="text-right">Días</TableHead>
+                    <TableHead className="text-right">Clases</TableHead>
+                    <TableHead className="text-right">Planis</TableHead>
+                    <TableHead className="text-right">No-show</TableHead>
+                    <TableHead className="text-right">% en clases</TableHead>
+                    <TableHead className="text-right">Por semana</TableHead>
+                    <TableHead className="pr-6 text-right">
+                      Última vez
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {renderedMembers.map((member) => (
+                    <TableRow key={member.userId}>
+                      <TableCell className="pl-6">
+                        <div className="flex items-center gap-2.5">
+                          <MemberAvatar member={member} className="size-7" />
+                          <div className="min-w-0">
+                            <p className="flex items-center gap-1.5 text-sm font-medium">
+                              <span className="truncate">{member.name}</span>
+                              <SourceBadge source={member.source} />
+                            </p>
+                            {member.favoriteClass ? (
+                              <p className="truncate text-xs text-muted-foreground">
+                                {member.favoriteClass.name}
+                                {member.favoriteDay &&
+                                  ` · ${member.favoriteDay.label}`}
                               </p>
-                              {member.favoriteClass ? (
-                                <p className="truncate text-[11px] text-muted-foreground">
-                                  {member.favoriteClass.name}
-                                  {member.favoriteDay &&
-                                    ` · ${member.favoriteDay.label}`}
-                                </p>
-                              ) : (
-                                member.email && (
-                                  <p className="truncate text-[11px] text-muted-foreground">
-                                    {member.email}
-                                  </p>
-                                )
-                              )}
-                            </div>
+                            ) : member.email ? (
+                              <p className="truncate text-xs text-muted-foreground">
+                                {member.email}
+                              </p>
+                            ) : null}
                           </div>
-                        </TableCell>
-                        <TableCell className="text-right font-medium tabular-nums">
-                          {member.activeDays}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {member.classAttended}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {member.sessionsLogged}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {member.noShow}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {member.attendanceRate === null ? (
-                            <span
-                              className="text-muted-foreground"
-                              title="No reserva clases"
-                            >
-                              -
-                            </span>
-                          ) : (
-                            <span
-                              className={cn(
-                                "rounded-full px-2 py-0.5 text-xs font-medium",
-                                member.attendanceRate >= 80
-                                  ? "bg-emerald-500/10 text-emerald-600"
-                                  : member.attendanceRate >= 50
-                                    ? "bg-amber-500/10 text-amber-600"
-                                    : "bg-red-500/10 text-red-600",
-                              )}
-                            >
-                              {formatPercent(member.attendanceRate)}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {member.perWeek}
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            "text-right text-xs",
-                            member.daysSinceLastActivity === null
-                              ? "text-red-600"
-                              : "text-muted-foreground",
-                          )}
-                        >
-                          {lastVisitLabel(member)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {member.activeDays}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {member.classAttended}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {member.sessionsLogged}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {member.noShow}
+                      </TableCell>
+                      <TableCell
+                        className="text-right"
+                        title={
+                          member.attendanceRate === null
+                            ? "No reserva clases"
+                            : undefined
+                        }
+                      >
+                        <RateBadge value={member.attendanceRate} />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {member.perWeek}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "pr-6 text-right text-xs",
+                          member.daysSinceLastActivity === null
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {lastVisitLabel(member)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {hasMoreRows && (
+              <div
+                ref={loadMoreRef}
+                className="flex items-center justify-center gap-2 border-t py-4 text-xs text-muted-foreground"
+              >
+                <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+                Cargando más miembros...
               </div>
-              {hasMoreRows && (
-                <div
-                  ref={loadMoreRef}
-                  className="flex items-center justify-center gap-2 border-t py-4 text-xs text-muted-foreground"
-                >
-                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
-                  Cargando mas miembros...
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </>
+        )}
+      </MetricsSection>
     </DashboardPageContainer>
   );
 }

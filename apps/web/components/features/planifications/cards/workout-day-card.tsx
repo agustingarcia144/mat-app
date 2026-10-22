@@ -4,9 +4,11 @@ import { useMemo, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
 import { useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getVideoThumbnailUrl } from "@repo/core/utils";
 import Image from "next/image";
+import { Play } from "lucide-react";
 import ExerciseVideoDialog from "@/components/features/planifications/exercises/exercise-video-dialog";
 import matWolfFallback from "@/assets/mat-wolf-looking.png";
 import {
@@ -21,6 +23,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 function formatTimeSeconds(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -36,6 +39,207 @@ function formatLoad(weight?: string, prPercentage?: number): string | null {
   if (weight?.trim()) return weight.trim();
   if (prPercentage != null && prPercentage > 0) return `${prPercentage}% RM`;
   return null;
+}
+
+type DayExercise = FunctionReturnType<
+  typeof api.dayExercises.getByWorkoutDay
+>[number];
+
+/** Sets × reps × load · time, skipping whatever the trainer left empty. */
+function Prescription({
+  exercise,
+  compact,
+}: {
+  exercise: DayExercise;
+  compact: boolean;
+}) {
+  const parts = [
+    exercise.sets != null && String(exercise.sets).trim() !== ""
+      ? String(exercise.sets)
+      : null,
+    exercise.reps != null && String(exercise.reps).trim() !== ""
+      ? String(exercise.reps)
+      : null,
+    formatLoad(exercise.weight, exercise.prPercentage),
+  ].filter((part): part is string => part !== null);
+  const time =
+    exercise.timeSeconds != null && exercise.timeSeconds > 0
+      ? formatTimeSeconds(exercise.timeSeconds)
+      : null;
+
+  if (parts.length === 0 && !time) return null;
+
+  return (
+    <span
+      className={cn(
+        "flex items-center gap-1 whitespace-nowrap font-medium tabular-nums",
+        compact ? "text-xs" : "text-sm",
+      )}
+    >
+      {parts.map((part, i) => (
+        <span key={i} className="flex items-center gap-1">
+          {i > 0 && (
+            <span className="font-normal text-muted-foreground">×</span>
+          )}
+          {part}
+        </span>
+      ))}
+      {time && (
+        <>
+          {parts.length > 0 && (
+            <span className="font-normal text-muted-foreground">·</span>
+          )}
+          {time}
+        </>
+      )}
+    </span>
+  );
+}
+
+function ExerciseRow({
+  exercise,
+  index,
+  compact,
+  onPlay,
+}: {
+  exercise: DayExercise;
+  index: number;
+  compact: boolean;
+  onPlay: (url: string, name: string) => void;
+}) {
+  const name = exercise.exercise?.name || "Ejercicio eliminado";
+  const videoUrl = exercise.exercise?.videoUrl;
+  const thumbnailUrl = videoUrl ? getVideoThumbnailUrl(videoUrl) : null;
+
+  const thumbnail = (
+    <button
+      type="button"
+      disabled={!videoUrl}
+      onClick={() => videoUrl && onPlay(videoUrl, name)}
+      aria-label={videoUrl ? `Ver video de ${name}` : undefined}
+      className={cn(
+        "group relative shrink-0 overflow-hidden rounded-md bg-muted",
+        compact ? "size-9" : "size-11 sm:size-12",
+        videoUrl ? "cursor-pointer" : "cursor-default",
+      )}
+    >
+      <Image
+        src={thumbnailUrl ?? matWolfFallback}
+        alt=""
+        fill
+        className="object-cover"
+        sizes={compact ? "36px" : "48px"}
+        unoptimized={Boolean(thumbnailUrl)}
+      />
+      {videoUrl && (
+        // Touch screens can't hover, so the play hint stays visible there.
+        <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+          <Play className="size-4 fill-white text-white" aria-hidden />
+        </span>
+      )}
+    </button>
+  );
+
+  const title = (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <p
+          className={cn(
+            "min-w-0 text-sm font-medium",
+            compact ? "line-clamp-2" : "line-clamp-2 sm:truncate",
+          )}
+        >
+          {name}
+        </p>
+      </TooltipTrigger>
+      <TooltipContent>{name}</TooltipContent>
+    </Tooltip>
+  );
+
+  if (compact) {
+    return (
+      <div className="flex min-w-0 items-center gap-2.5 rounded-md px-1 py-2 transition-colors hover:bg-muted/40">
+        {thumbnail}
+        <div className="min-w-0 flex-1 space-y-0.5">
+          {title}
+          <div className="text-muted-foreground">
+            <Prescription exercise={exercise} compact />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-2.5 rounded-lg px-1 py-2 transition-colors hover:bg-muted/40 sm:gap-3 sm:px-2">
+      <span className="w-4 shrink-0 text-right text-xs tabular-nums text-muted-foreground sm:w-5">
+        {index + 1}
+      </span>
+      {thumbnail}
+      <div className="min-w-0 flex-1">
+        {title}
+        {exercise.exercise?.category && (
+          <p className="truncate text-xs text-muted-foreground">
+            {exercise.exercise.category}
+          </p>
+        )}
+        {/* Phones: the prescription drops under the name to free its width. */}
+        <div className="mt-0.5 sm:hidden">
+          <Prescription exercise={exercise} compact={false} />
+        </div>
+      </div>
+      <div className="hidden shrink-0 sm:block">
+        <Prescription exercise={exercise} compact={false} />
+      </div>
+    </div>
+  );
+}
+
+function ExerciseGroup({
+  label,
+  accent,
+  exercises,
+  compact,
+  onPlay,
+}: {
+  label: string;
+  accent: boolean;
+  exercises: DayExercise[];
+  compact: boolean;
+  onPlay: (url: string, name: string) => void;
+}) {
+  return (
+    <div className={compact ? "space-y-2" : "space-y-1"}>
+      <div
+        className={cn(
+          "flex items-baseline gap-2 text-xs",
+          accent &&
+            (compact
+              ? "border-b border-border/60 pb-2"
+              : "border-l-2 border-primary/40 pl-2"),
+          !compact && !accent && "pl-1 sm:pl-2",
+        )}
+      >
+        <span className="truncate font-medium text-muted-foreground">
+          {label}
+        </span>
+        <span className="shrink-0 tabular-nums text-muted-foreground/70">
+          {exercises.length}
+        </span>
+      </div>
+      <div className="divide-y divide-border/40">
+        {exercises.map((ex, i) => (
+          <ExerciseRow
+            key={ex._id}
+            exercise={ex}
+            index={i}
+            compact={compact}
+            onPlay={onPlay}
+          />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function WorkoutDayCard({
@@ -59,20 +263,12 @@ export default function WorkoutDayCard({
     workoutDayId: day._id,
   });
 
-  type ExerciseType = NonNullable<typeof dayExercises>[0];
+  const groups = useMemo(() => {
+    if (!dayExercises || !blocks) return [];
 
-  const { exercisesByBlock, unblockedExercises } = useMemo(() => {
-    if (!dayExercises || !blocks) {
-      return {
-        exercisesByBlock: new Map<string, ExerciseType[]>(),
-        unblockedExercises: [] as ExerciseType[],
-      };
-    }
-
-    const byBlock = new Map<string, ExerciseType[]>();
-    const unblocked: ExerciseType[] = [];
-
-    dayExercises.forEach((ex: ExerciseType) => {
+    const byBlock = new Map<string, DayExercise[]>();
+    const unblocked: DayExercise[] = [];
+    dayExercises.forEach((ex: DayExercise) => {
       if (ex.blockId) {
         const blockExercises = byBlock.get(ex.blockId) || [];
         blockExercises.push(ex);
@@ -82,13 +278,28 @@ export default function WorkoutDayCard({
       }
     });
 
-    // Sort exercises within each block by order
-    byBlock.forEach((exercises: ExerciseType[]) => {
-      exercises.sort((a: ExerciseType, b: ExerciseType) => a.order - b.order);
-    });
-    unblocked.sort((a: ExerciseType, b: ExerciseType) => a.order - b.order);
+    const byOrder = (a: { order: number }, b: { order: number }) =>
+      a.order - b.order;
+    const result = [...blocks]
+      .sort(byOrder)
+      .map((block: { _id: string; name: string }) => ({
+        key: block._id,
+        label: block.name,
+        accent: true,
+        exercises: (byBlock.get(block._id) || []).sort(byOrder),
+      }))
+      .filter((group) => group.exercises.length > 0);
 
-    return { exercisesByBlock: byBlock, unblockedExercises: unblocked };
+    if (unblocked.length > 0) {
+      result.push({
+        key: "unblocked",
+        // With no blocks at all the header would be noise.
+        label: result.length > 0 ? "Sin bloque" : "Ejercicios",
+        accent: false,
+        exercises: unblocked.sort(byOrder),
+      });
+    }
+    return result;
   }, [dayExercises, blocks]);
 
   const openVideoDialog = (url: string, name: string) => {
@@ -96,364 +307,71 @@ export default function WorkoutDayCard({
     setVideoDialogOpen(true);
   };
 
+  const exerciseCount = dayExercises?.length ?? 0;
+
   return (
     <div
-      className={`border rounded-lg bg-background min-w-0 overflow-hidden ${compact ? "p-3" : "p-5"}`}
+      className={cn(
+        "min-w-0 overflow-hidden rounded-lg border bg-background",
+        compact ? "bg-background/50 p-3 md:p-4" : "p-2 sm:p-3 md:p-4",
+      )}
     >
-      <h3
-        className={`font-semibold mb-3 truncate ${compact ? "text-sm" : "text-lg"}`}
+      <div
+        className={cn(
+          "flex items-baseline justify-between gap-2",
+          compact ? "mb-4" : "mb-2 px-1 pt-1 sm:mb-3 sm:px-2 sm:pt-0",
+        )}
       >
-        {day.name}
-      </h3>
+        <h3 className="truncate text-base font-semibold">{day.name}</h3>
+        {dayExercises !== undefined && exerciseCount > 0 && (
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+            {exerciseCount === 1
+              ? "1 ejercicio"
+              : `${exerciseCount} ejercicios`}
+          </span>
+        )}
+      </div>
 
       {dayExercises === undefined || blocks === undefined ? (
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-16" />
+            <Skeleton key={i} className={compact ? "h-12" : "h-14"} />
           ))}
         </div>
       ) : dayExercises.length === 0 ? (
-        <Empty className="py-6">
-          <EmptyHeader>
-            <EmptyMedia>
-              <Image
-                src={matWolfFallback}
-                alt=""
-                className="h-14 w-14 object-contain"
-              />
-            </EmptyMedia>
-            <EmptyTitle>No hay ejercicios</EmptyTitle>
-            <EmptyDescription>
-              No hay ejercicios en este día. Arrastra ejercicios desde la
-              biblioteca.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        compact ? (
+          <p className="px-1 py-2 text-xs text-muted-foreground">
+            Sin ejercicios
+          </p>
+        ) : (
+          <Empty className="py-6">
+            <EmptyHeader>
+              <EmptyMedia>
+                <Image
+                  src={matWolfFallback}
+                  alt=""
+                  className="h-12 w-12 object-contain"
+                />
+              </EmptyMedia>
+              <EmptyTitle>Sin ejercicios</EmptyTitle>
+              <EmptyDescription>
+                Editá la planificación para agregar ejercicios a este día.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )
       ) : (
-        <div
-          className={
-            compact ? "space-y-2 max-h-72 overflow-y-auto pr-1" : "space-y-4"
-          }
-        >
-          {/* Exercises grouped by blocks */}
-          {blocks
-            .sort(
-              (a: { order: number }, b: { order: number }) => a.order - b.order,
-            )
-            .map((block: { _id: string; name: string }) => {
-              const blockExercises = exercisesByBlock.get(block._id) || [];
-              if (blockExercises.length === 0) return null;
-
-              return (
-                <div
-                  key={block._id}
-                  className={compact ? "space-y-1" : "space-y-2"}
-                >
-                  <h4
-                    className={`font-semibold text-muted-foreground border-l-2 border-primary/30 pl-2 truncate ${compact ? "text-xs" : "text-sm"}`}
-                  >
-                    {block.name}
-                  </h4>
-                  <div
-                    className={compact ? "space-y-1 ml-1" : "space-y-2 ml-2"}
-                  >
-                    {blockExercises.map((ex: ExerciseType, i) => {
-                      const thumbnailUrl = ex.exercise?.videoUrl
-                        ? getVideoThumbnailUrl(ex.exercise.videoUrl)
-                        : null;
-                      const loadLabel = formatLoad(ex.weight, ex.prPercentage);
-                      const hasReps =
-                        ex.reps != null && String(ex.reps).trim() !== "";
-                      const hasSets =
-                        ex.sets != null && String(ex.sets).trim() !== "";
-                      const setsRepsEl = (
-                        <div
-                          className={`flex items-center gap-1 ${compact ? "text-xs" : "text-sm"}`}
-                        >
-                          {hasSets && (
-                            <span className="font-medium">{ex.sets}</span>
-                          )}
-                          {hasReps && (
-                            <>
-                              {hasSets && (
-                                <span className="text-muted-foreground">×</span>
-                              )}
-                              <span className="font-medium">{ex.reps}</span>
-                            </>
-                          )}
-                          {loadLabel && (
-                            <>
-                              {(hasSets || hasReps) && (
-                                <span className="text-muted-foreground">x</span>
-                              )}
-                              <span className="font-medium">{loadLabel}</span>
-                            </>
-                          )}
-                          {ex.timeSeconds != null && ex.timeSeconds > 0 && (
-                            <>
-                              <span className="text-muted-foreground">·</span>
-                              <span className="font-medium">
-                                {formatTimeSeconds(ex.timeSeconds)}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      );
-
-                      if (compact) {
-                        return (
-                          <div
-                            key={ex._id}
-                            className="flex flex-col gap-1.5 p-2 bg-muted/50 rounded-md min-w-0"
-                          >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-sm font-medium text-muted-foreground shrink-0">
-                                {i + 1}.
-                              </span>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <p className="font-medium truncate text-sm min-w-0">
-                                    {ex.exercise?.name || "Ejercicio eliminado"}
-                                  </p>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  {ex.exercise?.name || "Ejercicio eliminado"}
-                                </TooltipContent>
-                              </Tooltip>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  ex.exercise?.videoUrl &&
-                                  openVideoDialog(
-                                    ex.exercise.videoUrl,
-                                    ex.exercise?.name || "Ejercicio",
-                                  )
-                                }
-                                className="relative shrink-0 w-10 h-10 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
-                              >
-                                <Image
-                                  src={thumbnailUrl ?? matWolfFallback}
-                                  alt={`Video de ${ex.exercise?.name || "ejercicio"}`}
-                                  fill
-                                  className="object-cover"
-                                  sizes="40px"
-                                  unoptimized={Boolean(thumbnailUrl)}
-                                />
-                              </button>
-                              {setsRepsEl}
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={ex._id}
-                          className="flex items-center p-3 gap-4 bg-muted/50 rounded-md min-w-0"
-                        >
-                          <span className="text-sm font-medium text-muted-foreground w-5 shrink-0">
-                            {i + 1}.
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              ex.exercise?.videoUrl &&
-                              openVideoDialog(
-                                ex.exercise.videoUrl,
-                                ex.exercise?.name || "Ejercicio",
-                              )
-                            }
-                            className="relative shrink-0 w-16 h-16 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
-                          >
-                            <Image
-                              src={thumbnailUrl ?? matWolfFallback}
-                              alt={`Video de ${ex.exercise?.name || "ejercicio"}`}
-                              fill
-                              className="object-cover"
-                              sizes="64px"
-                              unoptimized={Boolean(thumbnailUrl)}
-                            />
-                          </button>
-                          <div className="flex-1 min-w-0 overflow-hidden">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <p className="font-medium truncate text-sm">
-                                  {ex.exercise?.name || "Ejercicio eliminado"}
-                                </p>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {ex.exercise?.name || "Ejercicio eliminado"}
-                              </TooltipContent>
-                            </Tooltip>
-                            {ex.exercise?.category && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {ex.exercise.category}
-                              </p>
-                            )}
-                          </div>
-                          <div className="shrink-0">{setsRepsEl}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-
-          {/* Unblocked exercises */}
-          {unblockedExercises.length > 0 && (
-            <div className={compact ? "space-y-1" : "space-y-2"}>
-              <h4
-                className={`font-semibold text-muted-foreground ${compact ? "text-xs" : "text-sm"}`}
-              >
-                Sin bloque
-              </h4>
-              <div className={compact ? "space-y-1" : "space-y-2"}>
-                {unblockedExercises.map((ex, i) => {
-                  const thumbnailUrl = ex.exercise?.videoUrl
-                    ? getVideoThumbnailUrl(ex.exercise.videoUrl)
-                    : null;
-                  const loadLabel = formatLoad(ex.weight, ex.prPercentage);
-                  const hasReps =
-                    ex.reps != null && String(ex.reps).trim() !== "";
-                  const hasSets =
-                    ex.sets != null && String(ex.sets).trim() !== "";
-                  const setsRepsEl = (
-                    <div
-                      className={`flex items-center gap-1 ${compact ? "text-xs" : "text-sm"}`}
-                    >
-                      {hasSets && (
-                        <span className="font-medium">{ex.sets}</span>
-                      )}
-                      {hasReps && (
-                        <>
-                          {hasSets && (
-                            <span className="text-muted-foreground">×</span>
-                          )}
-                          <span className="font-medium">{ex.reps}</span>
-                        </>
-                      )}
-                      {loadLabel && (
-                        <>
-                          {(hasSets || hasReps) && (
-                            <span className="text-muted-foreground">x</span>
-                          )}
-                          <span className="font-medium">{loadLabel}</span>
-                        </>
-                      )}
-                      {ex.timeSeconds != null && ex.timeSeconds > 0 && (
-                        <>
-                          <span className="text-muted-foreground">·</span>
-                          <span className="font-medium">
-                            {formatTimeSeconds(ex.timeSeconds)}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  );
-
-                  if (compact) {
-                    return (
-                      <div
-                        key={ex._id}
-                        className="flex flex-col gap-1.5 p-2 bg-muted/50 rounded-md min-w-0"
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-sm font-medium text-muted-foreground shrink-0">
-                            {i + 1}.
-                          </span>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <p className="font-medium truncate text-sm min-w-0">
-                                {ex.exercise?.name || "Ejercicio eliminado"}
-                              </p>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {ex.exercise?.name || "Ejercicio eliminado"}
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              ex.exercise?.videoUrl &&
-                              openVideoDialog(
-                                ex.exercise.videoUrl,
-                                ex.exercise?.name || "Ejercicio",
-                              )
-                            }
-                            className="relative shrink-0 w-10 h-10 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
-                          >
-                            <Image
-                              src={thumbnailUrl ?? matWolfFallback}
-                              alt={`Video de ${ex.exercise?.name || "ejercicio"}`}
-                              fill
-                              className="object-cover"
-                              sizes="40px"
-                              unoptimized={Boolean(thumbnailUrl)}
-                            />
-                          </button>
-                          {setsRepsEl}
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={ex._id}
-                      className="flex items-center p-3 gap-4 bg-muted/50 rounded-md min-w-0"
-                    >
-                      <span className="text-sm font-medium text-muted-foreground w-5 shrink-0">
-                        {i + 1}.
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          ex.exercise?.videoUrl &&
-                          openVideoDialog(
-                            ex.exercise.videoUrl,
-                            ex.exercise?.name || "Ejercicio",
-                          )
-                        }
-                        className="relative shrink-0 w-16 h-16 rounded overflow-hidden bg-muted hover:opacity-90 transition-opacity cursor-pointer"
-                      >
-                        <Image
-                          src={thumbnailUrl ?? matWolfFallback}
-                          alt={`Video de ${ex.exercise?.name || "ejercicio"}`}
-                          fill
-                          className="object-cover"
-                          sizes="64px"
-                          unoptimized={Boolean(thumbnailUrl)}
-                        />
-                      </button>
-                      <div className="flex-1 min-w-0 overflow-hidden">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <p className="font-medium truncate text-sm">
-                              {ex.exercise?.name || "Ejercicio eliminado"}
-                            </p>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {ex.exercise?.name || "Ejercicio eliminado"}
-                          </TooltipContent>
-                        </Tooltip>
-                        {ex.exercise?.category && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {ex.exercise.category}
-                          </p>
-                        )}
-                      </div>
-                      <div className="shrink-0">{setsRepsEl}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+        <div className="space-y-4">
+          {groups.map((group) => (
+            <ExerciseGroup
+              key={group.key}
+              label={group.label}
+              accent={group.accent}
+              exercises={group.exercises}
+              compact={compact}
+              onPlay={openVideoDialog}
+            />
+          ))}
         </div>
       )}
 

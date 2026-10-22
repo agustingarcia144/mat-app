@@ -43,6 +43,8 @@ interface FolderTreeSidebarProps {
   deletableFolderIds?: string[];
   /** When true, folders and root are draggable/droppable for DnD move. Default false (e.g. in picker dialogs). */
   enableDnd?: boolean;
+  /** Drop the "Carpetas" heading when the container already shows one (e.g. a sheet). */
+  hideTitle?: boolean;
 }
 
 interface FolderTreeProps {
@@ -151,9 +153,9 @@ function FolderItem({
         onClick={() => onSelect(folder._id)}
       >
         {isExpanded ? (
-          <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <FolderOpen className="h-4 w-4 shrink-0" />
         ) : (
-          <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Folder className="h-4 w-4 shrink-0" />
         )}
         <span className="text-sm truncate">{folder.name}</span>
       </div>
@@ -161,10 +163,10 @@ function FolderItem({
   );
 
   const rowClassName = cn(
-    "flex items-center gap-1 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer group",
-    isSelected && "bg-accent",
+    "group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground",
+    isSelected && "bg-accent font-medium text-foreground",
     enableDnd && isDragging && "opacity-50",
-    enableDnd && isDropTarget && "ring-2 ring-white",
+    enableDnd && isDropTarget && "ring-2 ring-ring",
   );
 
   return (
@@ -320,13 +322,13 @@ function DroppableRootRow({
     <div
       ref={enableDnd ? ref : undefined}
       className={cn(
-        "flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent cursor-pointer",
-        selectedId === null && "bg-accent",
-        enableDnd && isDropTarget && "ring-2 ring-white",
+        "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground",
+        selectedId === null && "bg-accent text-foreground",
+        enableDnd && isDropTarget && "ring-2 ring-ring",
       )}
       onClick={() => onSelect(null)}
     >
-      <Folder className="h-4 w-4 text-muted-foreground" />
+      <Folder className="h-4 w-4" />
       <span className="text-sm font-medium">{rootLabel}</span>
     </div>
   );
@@ -387,20 +389,32 @@ export default function FolderTreeSidebar({
   onSelect,
   deletableFolderIds,
   enableDnd = false,
+  hideTitle = false,
 }: FolderTreeSidebarProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const createButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+      onClick={() => setShowCreateDialog(true)}
+    >
+      <Plus className="size-3.5" aria-hidden />
+      Nueva
+    </Button>
+  );
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-bold">Carpetas</h1>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowCreateDialog(true)}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
+      {hideTitle ? (
+        <div className="mb-2 flex justify-end">{createButton}</div>
+      ) : (
+        <div className="mb-2 flex items-center justify-between pl-2">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Carpetas
+          </h2>
+          {createButton}
+        </div>
+      )}
       <FolderTree
         folders={folders}
         selectedId={selectedId}

@@ -5,29 +5,40 @@ import Link from "next/link";
 import { useQuery } from "convex/react";
 import {
   AlertTriangle,
+  CheckCircle2,
   ChevronRight,
   ClipboardList,
+  FileSearch,
   UserPlus,
-  Wallet,
   XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
-import StatsCard from "./StatsCard";
+import { Panel, PanelSkeleton, plural } from "./dashboard-panel";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 import { usePlanificationStatuses } from "@/hooks/use-planification-statuses";
 import { isOrgAdminRole } from "@/lib/security/roles";
 import { useDashboardScope } from "./dashboard-scope-context";
 
+type Tone = "danger" | "warning" | "info" | "neutral";
+
 type PendingRow = {
   key: string;
   label: string;
+  detail: string;
   count: number;
   href: string;
   icon: LucideIcon;
-  tone: string;
+  tone: Tone;
+};
+
+const TONE: Record<Tone, string> = {
+  danger: "bg-red-500/10 text-red-600 dark:text-red-400",
+  warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  info: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  neutral: "bg-muted text-muted-foreground",
 };
 
 export default function PendingActionsCard() {
@@ -91,11 +102,16 @@ export default function PendingActionsCard() {
     if (canSeePlanifications && summary.expired > 0) {
       result.push({
         key: "expired",
-        label: `${summary.expired} planificación${summary.expired === 1 ? "" : "es"} vencida${summary.expired === 1 ? "" : "s"}`,
+        label: plural(
+          summary.expired,
+          "planificación vencida",
+          "planificaciones vencidas",
+        ),
+        detail: "Extendelas o asigná una nueva.",
         count: summary.expired,
         href: "/dashboard/planifications",
         icon: XCircle,
-        tone: "text-red-600 dark:text-red-400",
+        tone: "danger",
       });
     }
 
@@ -103,43 +119,59 @@ export default function PendingActionsCard() {
       result.push({
         key: "expiring",
         label: `${summary.expiringSoon} por vencer esta semana`,
+        detail: "Preparales la próxima planificación.",
         count: summary.expiringSoon,
         href: "/dashboard/planifications",
         icon: AlertTriangle,
-        tone: "text-yellow-600 dark:text-yellow-400",
+        tone: "warning",
       });
     }
 
     if (canSeePlanifications && summary.unassigned > 0) {
       result.push({
         key: "unassigned",
-        label: `${summary.unassigned} sin planificación asignada`,
+        label: plural(
+          summary.unassigned,
+          "miembro sin planificación",
+          "miembros sin planificación",
+        ),
+        detail: "No tienen rutina para entrenar.",
         count: summary.unassigned,
         href: "/dashboard/planifications",
         icon: ClipboardList,
-        tone: "text-muted-foreground",
+        tone: "neutral",
       });
     }
 
     if (isAdmin && joinRequests && joinRequests.length > 0) {
       result.push({
         key: "join",
-        label: `${joinRequests.length} solicitud${joinRequests.length === 1 ? "" : "es"} de ingreso`,
+        label: plural(
+          joinRequests.length,
+          "solicitud de ingreso",
+          "solicitudes de ingreso",
+        ),
+        detail: "Aprobalas para sumarlos al gimnasio.",
         count: joinRequests.length,
         href: "/dashboard/members",
         icon: UserPlus,
-        tone: "text-blue-600 dark:text-blue-400",
+        tone: "info",
       });
     }
 
     if (canSeePayments && paymentsCount > 0) {
       result.push({
         key: "payments",
-        label: `${paymentsCount} pago${paymentsCount === 1 ? "" : "s"} en revisión`,
+        label: plural(
+          paymentsCount,
+          "comprobante para revisar",
+          "comprobantes para revisar",
+        ),
+        detail: "Aprobalos para dejar la cuota al día.",
         count: paymentsCount,
         href: "/dashboard/payments",
-        icon: Wallet,
-        tone: "text-green-600 dark:text-green-400",
+        icon: FileSearch,
+        tone: "info",
       });
     }
 
@@ -153,40 +185,71 @@ export default function PendingActionsCard() {
     summary,
   ]);
 
-  const total = rows.reduce((acc, row) => acc + row.count, 0);
+  const isLoading =
+    isScopeLoading ||
+    (isAdmin && joinRequests === undefined) ||
+    (canSeePayments && pendingPayments === undefined);
+  if (isLoading) return <PanelSkeleton rows={2} />;
 
   return (
-    <StatsCard
-      title={total > 0 ? `Pendientes (${total})` : "Pendientes"}
-      variant="list"
-      compact
-      className="min-h-[220px] w-full min-w-0 max-w-none md:h-auto"
+    <Panel
+      title="Para resolver"
+      description={
+        rows.length > 0
+          ? plural(
+              rows.reduce((acc, row) => acc + row.count, 0),
+              "pendiente",
+              "pendientes",
+            )
+          : undefined
+      }
     >
       {rows.length === 0 ? (
-        <div className="flex h-full flex-col items-center justify-center text-center">
-          <p className="text-sm text-muted-foreground">
-            No tenés pendientes. Todo al día 🎉
-          </p>
+        <div className="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-3 text-sm">
+          <CheckCircle2
+            className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400"
+            aria-hidden
+          />
+          <span>
+            Todo al día.{" "}
+            <span className="text-muted-foreground">
+              No hay nada pendiente.
+            </span>
+          </span>
         </div>
       ) : (
-        <div className="space-y-1">
+        <ul className="-mx-1 space-y-0.5">
           {rows.map((row) => {
             const Icon = row.icon;
-
             return (
-              <Link
-                key={row.key}
-                href={row.href}
-                className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm transition-colors hover:bg-accent/40"
-              >
-                <Icon className={`h-4 w-4 shrink-0 ${row.tone}`} />
-                <span className="min-w-0 flex-1 truncate">{row.label}</span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </Link>
+              <li key={row.key}>
+                <Link
+                  href={row.href}
+                  className="flex items-center gap-3 rounded-lg px-1 py-2 transition-colors hover:bg-accent/40"
+                >
+                  <span
+                    className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${TONE[row.tone]}`}
+                  >
+                    <Icon className="size-4" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {row.label}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {row.detail}
+                    </span>
+                  </span>
+                  <ChevronRight
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                </Link>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
-    </StatsCard>
+    </Panel>
   );
 }

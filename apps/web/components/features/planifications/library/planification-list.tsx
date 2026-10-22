@@ -1,20 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
-import { FileText, Calendar, MoreVertical } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useDraggable } from "@dnd-kit/react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Empty,
@@ -23,13 +18,12 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { formatDate } from "date-fns";
 import matWolfLooking from "@/assets/mat-wolf-looking.png";
-import DuplicatePlanificationDialog from "../dialogs/duplicate-planification-dialog";
-import DeletePlanificationDialog from "../dialogs/delete-planification-dialog";
-import AssignDialog from "../assignments/assign-dialog";
-import AssignedMembersDialog from "../assignments/assigned-members-dialog";
 import { getPlanificationDragId } from "../planification-folder-dnd";
+import {
+  AssignmentSummary,
+  PlanificationActions,
+} from "./planification-actions";
 import { cn } from "@/lib/utils";
 
 export interface PlanificationData {
@@ -46,7 +40,46 @@ export interface PlanificationData {
 interface PlanificationListProps {
   planifications: PlanificationData[];
   isLoading: boolean;
+  /** A search is active, so an empty list means "no matches". */
+  isFiltered?: boolean;
+  onCreate?: () => void;
   onUseTemplate?: (template: PlanificationData) => void;
+}
+
+export function PlanificationListEmpty({
+  isFiltered,
+  onCreate,
+}: {
+  isFiltered?: boolean;
+  onCreate?: () => void;
+}) {
+  return (
+    <Empty className="h-full w-full rounded-xl border border-dashed py-12">
+      <EmptyHeader>
+        <EmptyMedia>
+          <Image
+            src={matWolfLooking}
+            alt=""
+            className="h-16 w-16 object-contain"
+          />
+        </EmptyMedia>
+        <EmptyTitle>
+          {isFiltered ? "Sin resultados" : "Todavía no hay planificaciones"}
+        </EmptyTitle>
+        <EmptyDescription>
+          {isFiltered
+            ? "Probá con otro nombre o buscá en otra carpeta."
+            : "Creá una planificación o arrancá desde una plantilla."}
+        </EmptyDescription>
+      </EmptyHeader>
+      {!isFiltered && onCreate && (
+        <Button size="sm" className="gap-1.5" onClick={onCreate}>
+          <Plus className="size-4" aria-hidden />
+          Nueva planificación
+        </Button>
+      )}
+    </Empty>
+  );
 }
 
 function PlanificationCard({
@@ -57,17 +90,9 @@ function PlanificationCard({
   onUseTemplate?: (template: PlanificationData) => void;
 }) {
   const router = useRouter();
-  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [assignedMembersDialogOpen, setAssignedMembersDialogOpen] =
-    useState(false);
-
   const assignments = useQuery(
     api.planificationAssignments.getByPlanification,
-    {
-      planificationId: planification._id as any,
-    },
+    { planificationId: planification._id as any },
   );
 
   const dragId = getPlanificationDragId(planification._id);
@@ -77,178 +102,53 @@ function PlanificationCard({
       : { id: dragId },
   );
 
-  const cardContent = (
+  return (
     <div
+      ref={
+        planification.isTemplate
+          ? undefined
+          : (ref as (el: HTMLDivElement | null) => void)
+      }
       className={cn(
-        "group border rounded-lg p-4 hover:border-primary cursor-pointer transition-colors",
-        !planification.isTemplate && "cursor-grab active:cursor-grabbing",
+        "group flex min-h-[132px] cursor-pointer flex-col rounded-xl border bg-card p-4 transition-colors hover:border-foreground/20 hover:bg-accent/30",
+        !planification.isTemplate && "touch-none",
         isDragging && "opacity-50",
       )}
       onClick={() =>
         router.push(`/dashboard/planifications/${planification._id}`)
       }
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <h3 className="font-semibold truncate">{planification.name}</h3>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="line-clamp-2 font-medium leading-snug">
+            {planification.name}
+          </h3>
+          {planification.description && (
+            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+              {planification.description}
+            </p>
+          )}
         </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 opacity-0 group-hover:opacity-100"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                router.push(`/dashboard/planifications/${planification._id}`);
-              }}
-            >
-              Ver
-            </DropdownMenuItem>
-            {!planification.isTemplate && (
-              <>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAssignedMembersDialogOpen(true);
-                  }}
-                >
-                  Ver Asignados
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAssignDialogOpen(true);
-                  }}
-                >
-                  Asignar
-                </DropdownMenuItem>
-              </>
-            )}
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                router.push(
-                  `/dashboard/planifications/${planification._id}/edit`,
-                );
-              }}
-            >
-              Editar
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                setDuplicateDialogOpen(true);
-              }}
-            >
-              Duplicar
-            </DropdownMenuItem>
-            {planification.isTemplate && onUseTemplate && (
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUseTemplate(planification);
-                }}
-              >
-                Usar Plantilla
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeleteDialogOpen(true);
-              }}
-              className="text-destructive"
-            >
-              Eliminar
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <PlanificationActions
+          planification={planification}
+          assignments={assignments ?? []}
+          onUseTemplate={onUseTemplate}
+          className="-mr-2 -mt-1 shrink-0"
+        />
       </div>
 
-      {planification.description && (
-        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-          {planification.description}
-        </p>
-      )}
-
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <Calendar className="h-3 w-3" />
-          {formatDate(planification.createdAt, "dd/MM/yyyy")}
-        </div>
-        {planification.isTemplate && (
+      <div className="mt-auto flex items-center justify-between gap-2 pt-4">
+        {planification.isTemplate ? (
           <Badge variant="secondary" className="text-xs">
             Plantilla
           </Badge>
+        ) : (
+          <AssignmentSummary assignments={assignments} />
         )}
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+          {format(planification.createdAt, "d MMM yyyy", { locale: es })}
+        </span>
       </div>
-    </div>
-  );
-
-  return (
-    <>
-      {planification.isTemplate ? (
-        cardContent
-      ) : (
-        <div
-          ref={ref as (el: HTMLDivElement | null) => void}
-          className="touch-none"
-        >
-          {cardContent}
-        </div>
-      )}
-
-      {/* Duplicate confirmation dialog */}
-      <DuplicatePlanificationDialog
-        open={duplicateDialogOpen}
-        onOpenChange={setDuplicateDialogOpen}
-        planification={planification}
-      />
-
-      {/* Delete confirmation dialog */}
-      <DeletePlanificationDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        planification={planification}
-      />
-      {!planification.isTemplate && (
-        <>
-          <AssignDialog
-            open={assignDialogOpen}
-            onOpenChange={setAssignDialogOpen}
-            planificationId={planification._id}
-          />
-          <AssignedMembersDialog
-            open={assignedMembersDialogOpen}
-            onOpenChange={setAssignedMembersDialogOpen}
-            assignments={assignments || []}
-            planificationName={planification.name}
-          />
-        </>
-      )}
-    </>
-  );
-}
-
-function PlanificationSkeleton() {
-  return (
-    <div className="border rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Skeleton className="h-5 w-5" />
-        <Skeleton className="h-5 w-40" />
-      </div>
-      <Skeleton className="h-4 w-full mb-2" />
-      <Skeleton className="h-4 w-3/4 mb-3" />
-      <Skeleton className="h-3 w-24" />
     </div>
   );
 }
@@ -256,13 +156,15 @@ function PlanificationSkeleton() {
 export default function PlanificationList({
   planifications,
   isLoading,
+  isFiltered,
+  onCreate,
   onUseTemplate,
 }: PlanificationListProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <PlanificationSkeleton key={i} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-[132px] rounded-xl" />
         ))}
       </div>
     );
@@ -270,26 +172,12 @@ export default function PlanificationList({
 
   if (planifications.length === 0) {
     return (
-      <Empty className="h-full w-full">
-        <EmptyHeader>
-          <EmptyMedia>
-            <Image
-              src={matWolfLooking}
-              alt=""
-              className="h-20 w-20 object-contain"
-            />
-          </EmptyMedia>
-          <EmptyTitle>No hay planificaciones</EmptyTitle>
-          <EmptyDescription>
-            Crea tu primera planificación para comenzar
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <PlanificationListEmpty isFiltered={isFiltered} onCreate={onCreate} />
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {planifications.map((planification) => (
         <PlanificationCard
           key={planification._id}

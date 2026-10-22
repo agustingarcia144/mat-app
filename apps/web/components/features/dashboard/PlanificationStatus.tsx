@@ -1,10 +1,57 @@
 "use client";
 
-import StatsCard from "./StatsCard";
-import { Dumbbell, XCircle, AlertTriangle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { usePlanificationStatuses } from "@/hooks/use-planification-statuses";
+import { Panel, PanelEmpty, PanelSkeleton, plural } from "./dashboard-panel";
 import { useDashboardScope } from "./dashboard-scope-context";
+
+/** Keeps the panel close to the left column's height; the rest is one click away. */
+const ATTENTION_LIMIT = 5;
+
+const ISSUE_ORDER: Record<string, number> = {
+  expired: 0,
+  expiring_soon: 1,
+  none: 2,
+  not_started: 2,
+};
+
+function describeIssue(planStatus: {
+  status: string;
+  daysLeft: number | null;
+  daysExpired: number | null;
+}) {
+  if (planStatus.status === "expired") {
+    return {
+      dot: "bg-red-500",
+      text:
+        planStatus.daysExpired !== null
+          ? planStatus.daysExpired === 0
+            ? "Venció hoy"
+            : `Venció hace ${plural(planStatus.daysExpired, "día", "días")}`
+          : "Vencida",
+      tone: "text-red-600 dark:text-red-400",
+    };
+  }
+  if (planStatus.status === "expiring_soon") {
+    return {
+      dot: "bg-amber-500",
+      text:
+        planStatus.daysLeft !== null
+          ? planStatus.daysLeft === 0
+            ? "Vence hoy"
+            : `Vence en ${plural(planStatus.daysLeft, "día", "días")}`
+          : "Por vencer",
+      tone: "text-amber-600 dark:text-amber-400",
+    };
+  }
+  return {
+    dot: "bg-muted-foreground/50",
+    text: "Sin planificación",
+    tone: "text-muted-foreground",
+  };
+}
 
 export default function PlanificationStatus() {
   const { responsibleUserId, isLoading: isScopeLoading } = useDashboardScope();
@@ -14,176 +61,132 @@ export default function PlanificationStatus() {
     skip: isScopeLoading,
   });
 
-  const planSegments = [
-    {
-      label: "Asignadas",
-      count: summary.assigned,
-      pct: summary.assignedPct,
-      color: "rgb(34 197 94)",
-      tone: "bg-green-500",
-    },
-    {
-      label: "Por vencer",
-      count: summary.expiringSoon,
-      pct: summary.expiringSoonPct,
-      color: "rgb(234 179 8)",
-      tone: "bg-yellow-500",
-    },
-    {
-      label: "Vencidas",
-      count: summary.expired,
-      pct: summary.expiredPct,
-      color: "rgb(239 68 68)",
-      tone: "bg-red-500",
-    },
+  if (isLoading || isScopeLoading) return <PanelSkeleton rows={4} />;
+
+  const segments = [
+    { label: "Al día", count: summary.assigned, tone: "bg-emerald-500" },
+    { label: "Por vencer", count: summary.expiringSoon, tone: "bg-amber-500" },
+    { label: "Vencidas", count: summary.expired, tone: "bg-red-500" },
     {
       label: "Sin asignar",
       count: summary.unassigned,
-      pct: summary.unassignedPct,
-      color: "rgb(107 114 128)",
-      tone: "bg-gray-500",
+      tone: "bg-muted-foreground/40",
     },
   ];
 
-  const donutBackground = (() => {
-    const validSegments = planSegments.filter((segment) => segment.count > 0);
-    if (validSegments.length === 0) {
-      return "conic-gradient(rgba(107, 114, 128, 0.18) 0deg 360deg)";
-    }
-
-    let currentDeg = 0;
-    const stops = validSegments.map((segment) => {
-      const nextDeg = currentDeg + (segment.pct / 100) * 360;
-      const stop = `${segment.color} ${currentDeg}deg ${nextDeg}deg`;
-      currentDeg = nextDeg;
-      return stop;
-    });
-
-    if (currentDeg < 360) {
-      stops.push(`rgba(107, 114, 128, 0.18) ${currentDeg}deg 360deg`);
-    }
-
-    return `conic-gradient(${stops.join(", ")})`;
-  })();
-
-  if (isLoading) return null;
+  const issues = [...membersWithIssues].sort(
+    (a: any, b: any) =>
+      (ISSUE_ORDER[a.planStatus.status] ?? 3) -
+      (ISSUE_ORDER[b.planStatus.status] ?? 3),
+  );
 
   return (
-    <StatsCard
-      title="Estado de Planificaciones"
-      variant="list"
-      compact
-      className="min-h-[460px] w-full min-w-0 max-w-none md:h-auto"
-      actionLabel="Ver mas +"
-      actionHref="/dashboard/planifications"
-      actionIcon={Dumbbell}
+    <Panel
+      title="Planificaciones"
+      description={
+        summary.total > 0
+          ? `${summary.assigned} de ${summary.total} miembros al día`
+          : undefined
+      }
+      href="/dashboard/planifications"
     >
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="mb-4 rounded-xl border bg-background/30 p-3 md:p-4">
-          <div className="flex flex-col items-center gap-4 md:flex-row md:items-center md:justify-between md:gap-6 md:pl-8">
-            <div
-              className="relative flex h-20 w-20 items-center justify-center rounded-full md:h-24 md:w-24"
-              style={{ background: donutBackground }}
-            >
-              <div className="absolute inset-[10px] rounded-full bg-background/95" />
-              <div className="relative z-10 text-center">
-                <p className="text-xl font-semibold leading-none">
-                  {summary.assignedPct}%
-                </p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Activas
-                </p>
-              </div>
-            </div>
-
-            <div className="flex w-full flex-1 justify-center md:justify-center">
-              <div className="grid w-full gap-2 text-sm text-muted-foreground md:w-auto">
-                {planSegments.map((segment) => (
-                  <div key={segment.label} className="flex items-center gap-2">
-                    <span
-                      className={`h-2.5 w-2.5 rounded-full ${segment.tone}`}
-                    />
-                    <span>
-                      {segment.label}: {segment.pct}%
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {membersWithIssues.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center space-y-2 text-center">
-            <p className="text-sm text-muted-foreground">
-              {summary.total === 0
-                ? "No tenés miembros asignados todavía."
-                : "Todos tus miembros pueden entrenar. Bien hecho! 🎉"}
-            </p>
-          </div>
-        ) : (
+      {summary.total === 0 ? (
+        <PanelEmpty>No tenés miembros asignados todavía.</PanelEmpty>
+      ) : (
+        <>
           <div
-            className={`min-h-0 pr-2 md:pr-3 ${
-              membersWithIssues.length > 6
-                ? "max-h-[252px] overflow-y-auto"
-                : ""
-            }`}
+            className="flex h-2 gap-0.5 overflow-hidden rounded-full"
+            role="img"
+            aria-label={segments
+              .map((s) => `${s.label}: ${s.count}`)
+              .join(", ")}
           >
-            <div className="space-y-2">
-              {membersWithIssues.map((m: any) => (
+            {segments
+              .filter((segment) => segment.count > 0)
+              .map((segment) => (
                 <div
-                  key={m.id}
-                  className="flex flex-col justify-center border-b py-1.5 text-sm last:border-b-0"
-                >
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
-                    <span className="min-w-0 flex-1 truncate font-medium">
-                      {m.fullName || m.name}
-                    </span>
-
-                    {m.planStatus.status === "none" && (
-                      <span className="shrink-0 text-sm text-muted-foreground">
-                        Sin planificación
-                      </span>
-                    )}
-
-                    {m.planStatus.status === "expired" && (
-                      <Badge
-                        variant="outline"
-                        className="max-w-full shrink-0 gap-2 rounded-2xl border border-red-300 bg-red-100 px-3 py-1 text-left whitespace-normal text-red-700 dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-400 md:rounded-full"
-                      >
-                        <XCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
-                        Vencida
-                        {m.planStatus.daysExpired !== null && (
-                          <span className="font-normal text-red-700/80 dark:text-red-300/80">
-                            (hace {m.planStatus.daysExpired} día
-                            {m.planStatus.daysExpired !== 1 && "s"})
-                          </span>
-                        )}
-                      </Badge>
-                    )}
-
-                    {m.planStatus.status === "expiring_soon" && (
-                      <Badge
-                        variant="outline"
-                        className="max-w-full shrink-0 gap-2 rounded-2xl border border-yellow-300 bg-yellow-100 px-3 py-1 text-left whitespace-normal text-yellow-700 dark:border-yellow-500/40 dark:bg-yellow-500/20 dark:text-yellow-400 md:rounded-full"
-                      >
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
-                        Por vencer
-                        {m.planStatus.daysLeft !== null && (
-                          <span className="font-normal text-yellow-700/80 dark:text-yellow-300/80">
-                            ({m.planStatus.daysLeft} día
-                            {m.planStatus.daysLeft !== 1 && "s"})
-                          </span>
-                        )}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+                  key={segment.label}
+                  className={segment.tone}
+                  style={{ flexGrow: segment.count }}
+                />
               ))}
-            </div>
           </div>
-        )}
-      </div>
-    </StatsCard>
+          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
+            {segments.map((segment) => (
+              <div key={segment.label} className="min-w-0">
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      "size-1.5 shrink-0 rounded-full",
+                      segment.tone,
+                    )}
+                    aria-hidden
+                  />
+                  <span className="truncate">{segment.label}</span>
+                </p>
+                <p
+                  className={cn(
+                    "text-lg font-semibold tabular-nums",
+                    segment.count === 0 && "text-muted-foreground",
+                  )}
+                >
+                  {segment.count}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 border-t pt-3">
+            {issues.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Todos tus miembros tienen planificación vigente.
+              </p>
+            ) : (
+              <>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">
+                  Necesitan atención
+                </p>
+                <ul className="-mx-1 divide-y divide-border/50">
+                  {issues.slice(0, ATTENTION_LIMIT).map((member: any) => {
+                    const issue = describeIssue(member.planStatus);
+                    return (
+                      <li
+                        key={member.id}
+                        className="flex items-center gap-3 px-1 py-2 text-sm"
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {member.fullName || member.name}
+                        </span>
+                        <span
+                          className={cn(
+                            "flex shrink-0 items-center gap-1.5 text-xs",
+                            issue.tone,
+                          )}
+                        >
+                          <span
+                            className={cn("size-1.5 rounded-full", issue.dot)}
+                            aria-hidden
+                          />
+                          {issue.text}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {issues.length > ATTENTION_LIMIT && (
+                  <Link
+                    href="/dashboard/planifications"
+                    className="mt-1 inline-flex items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    Ver {issues.length - ATTENTION_LIMIT} más
+                    <ChevronRight className="size-3.5" aria-hidden />
+                  </Link>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </Panel>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
+import { Plus, Search } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { DataTable } from "@/components/ui/data-table";
 import { getColumns } from "@/components/features/users/table/columns";
@@ -9,12 +10,11 @@ import { InviteUserDialog } from "@/components/features/users/invite-user-dialog
 import { PendingInvitationsCard } from "@/components/features/users/pending-invitations-card";
 import { mapMembershipsToMembers } from "@repo/core/utils";
 import type { Member } from "@repo/core";
-import DataTableSkeleton from "@/components/ui/data-table-skeleton";
 import { Input } from "@/components/ui/input";
 import MemberDetailDialog from "@/components/features/members/table/member-detail-dialog";
 import { Button } from "@/components/ui/button";
-import { Search } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import RoleBadge from "@/components/shared/badges/role-badge";
 import StatusBadge from "@/components/shared/badges/status-badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -24,9 +24,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StaffShiftsPanel from "@/components/features/team/staff-shifts-panel";
 import PayrollPanel from "@/components/features/team/payroll-panel";
 import type { StaffOption } from "@/components/features/team/staff-select";
+import { cn } from "@/lib/utils";
 
 const normalize = (value?: string) =>
   value?.toString().trim().toLowerCase() ?? "";
+
+const ROLE_FILTERS = [
+  { value: "all", label: "Todos" },
+  { value: "admin", label: "Admins" },
+  { value: "trainer", label: "Entrenadores" },
+  { value: "employee", label: "Empleados" },
+] as const;
+
+type RoleFilter = (typeof ROLE_FILTERS)[number]["value"];
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
@@ -37,6 +47,27 @@ const ROLE_LABELS: Record<string, string> = {
 
 function getRoleLabel(role: string): string {
   return ROLE_LABELS[role?.toLowerCase()] ?? role ?? "—";
+}
+
+function getInitials(user: Member) {
+  return (
+    user.fullName
+      ?.split(" ")
+      .map((name) => name[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) ||
+    user.email?.[0]?.toUpperCase() ||
+    "?"
+  );
+}
+
+function CountPill({ count }: { count: number }) {
+  return (
+    <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs tabular-nums text-muted-foreground">
+      {count}
+    </span>
+  );
 }
 
 export default function UsuariosPage() {
@@ -60,6 +91,7 @@ export default function UsuariosPage() {
   }, [memberships]);
 
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
 
   const staffOptions = useMemo<StaffOption[]>(
@@ -73,50 +105,87 @@ export default function UsuariosPage() {
     [users],
   );
 
+  const roleCounts = useMemo(() => {
+    const counts: Record<RoleFilter, number> = {
+      all: users.length,
+      admin: 0,
+      trainer: 0,
+      employee: 0,
+    };
+    for (const user of users) {
+      const role = normalize(user.role);
+      if (role in counts) counts[role as RoleFilter] += 1;
+    }
+    return counts;
+  }, [users]);
+
   const columns = useMemo(() => getColumns(), []);
 
   const filteredUsers = useMemo(() => {
     const searchValue = normalize(search);
     return users.filter((m: Member): boolean => {
-      return (
+      const matchesRole =
+        roleFilter === "all" || normalize(m.role) === roleFilter;
+      const matchesSearch =
         !searchValue ||
         normalize(m.name).includes(searchValue) ||
         normalize(m.email).includes(searchValue) ||
-        normalize(getRoleLabel(m.role)).includes(searchValue)
-      );
+        normalize(getRoleLabel(m.role)).includes(searchValue);
+      return matchesRole && matchesSearch;
     });
-  }, [users, search]);
+  }, [users, search, roleFilter]);
+
+  const header = (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold md:text-3xl">Mi equipo</h1>
+        <p className="text-sm text-muted-foreground md:text-base">
+          Personal del gimnasio, sus turnos y sus sueldos.
+        </p>
+      </div>
+      {currentMembership?.role === "admin" && (
+        <Button
+          className="gap-1.5 self-start"
+          onClick={() => setInviteDialogOpen(true)}
+        >
+          <Plus className="size-4" />
+          Invitar al equipo
+        </Button>
+      )}
+    </div>
+  );
 
   if (memberships === undefined || currentMembership === undefined) {
     return (
-      <DashboardPageContainer className="py-6 md:py-10">
-        <DataTableSkeleton columns={6} rows={10} />
+      <DashboardPageContainer className="space-y-6 py-6 md:py-10">
+        {header}
+        <Skeleton className="h-9 w-64 rounded-lg" />
+        <Skeleton className="h-[360px] rounded-xl" />
       </DashboardPageContainer>
     );
   }
 
   if (currentMembership?.role !== "admin") {
     return (
-      <DashboardPageContainer className="py-6 md:py-10">
-        <div className="rounded-lg border px-4 py-8 text-center text-sm text-muted-foreground">
+      <DashboardPageContainer className="space-y-6 py-6 md:py-10">
+        {header}
+        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
           Solo administradores pueden gestionar el equipo.
-        </div>
+        </p>
       </DashboardPageContainer>
     );
   }
 
   return (
-    <DashboardPageContainer className="space-y-4 py-6 md:py-10">
-      <div>
-        <h1 className="text-2xl font-bold md:text-3xl">Mi Equipo</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Gestiona el personal, sus turnos y los sueldos.
-        </p>
-      </div>
+    <DashboardPageContainer className="space-y-6 py-6 md:py-10">
+      {header}
 
       <Tabs defaultValue="equipo" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="equipo">Equipo</TabsTrigger>
+        <TabsList className="h-auto max-w-full flex-wrap justify-start">
+          <TabsTrigger value="equipo" className="gap-2">
+            Equipo
+            <CountPill count={users.length} />
+          </TabsTrigger>
           <TabsTrigger value="turnos">Turnos</TabsTrigger>
           <TabsTrigger value="nomina">Sueldos</TabsTrigger>
         </TabsList>
@@ -124,81 +193,91 @@ export default function UsuariosPage() {
         <TabsContent value="equipo" className="space-y-4">
           <PendingInvitationsCard refreshKey={inviteRefreshKey} />
 
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="relative w-full md:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="radiogroup"
+              aria-label="Filtrar por rol"
+            >
+              {ROLE_FILTERS.map((filter) => {
+                const isActive = roleFilter === filter.value;
+                const count = roleCounts[filter.value];
+                if (filter.value !== "all" && count === 0) return null;
+                return (
+                  <button
+                    key={filter.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    onClick={() => setRoleFilter(filter.value)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors",
+                      isActive
+                        ? "border-foreground/20 bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent/40 hover:text-foreground",
+                    )}
+                  >
+                    {filter.label}
+                    <span className="text-xs tabular-nums opacity-70">
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="relative w-full lg:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nombre, email o rol..."
+                placeholder="Buscar por nombre, email o rol"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-10 pl-10"
+                className="pl-9"
               />
             </div>
-            <Button type="button" onClick={() => setInviteDialogOpen(true)}>
-              Invitar usuario
-            </Button>
           </div>
 
-          {isMobile ? (
-            <div className="space-y-2">
-              {filteredUsers.length === 0 ? (
-                <div className="rounded-md border px-4 py-8 text-center text-sm text-muted-foreground">
-                  No se encontraron usuarios.
-                </div>
-              ) : (
-                filteredUsers.map((user) => {
-                  const initials =
-                    user.fullName
-                      ?.split(" ")
-                      .map((name) => name[0])
-                      .join("")
-                      .toUpperCase()
-                      .slice(0, 2) ||
-                    user.email?.[0]?.toUpperCase() ||
-                    "?";
-                  const isActive = normalize(user.status) === "active";
-                  const roleLabel = getRoleLabel(user.role ?? "");
-
-                  return (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => setSelectedMember(user)}
-                      className="w-full rounded-lg border p-3 text-left transition-colors hover:bg-accent/40"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex min-w-0 flex-1 flex-col gap-1">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <Avatar className="h-9 w-9 shrink-0">
-                              {user.imageUrl && (
-                                <AvatarImage src={user.imageUrl} />
-                              )}
-                              <AvatarFallback>{initials}</AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">
-                                {user.name}
-                              </p>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {user.email || "Sin email"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 pl-12">
-                            <Badge variant="outline" className="text-xs">
-                              {roleLabel}
-                            </Badge>
-                            <StatusBadge
-                              status={isActive ? "active" : "inactive"}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
+          {filteredUsers.length === 0 ? (
+            <div className="rounded-xl border border-dashed px-4 py-10 text-center">
+              <p className="text-sm font-medium">No se encontraron usuarios</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Probá con otro nombre o cambiá el filtro de rol.
+              </p>
             </div>
+          ) : isMobile ? (
+            <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+              {filteredUsers.map((user) => (
+                <li key={user.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMember(user)}
+                    className="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-accent/40"
+                  >
+                    <Avatar className="size-9 shrink-0">
+                      {user.imageUrl && <AvatarImage src={user.imageUrl} />}
+                      <AvatarFallback>{getInitials(user)}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-medium">
+                          {user.name}
+                        </p>
+                        <StatusBadge
+                          status={
+                            normalize(user.status) === "active"
+                              ? "active"
+                              : "inactive"
+                          }
+                        />
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {user.email || "Sin email"}
+                      </p>
+                      <RoleBadge role={user.role ?? ""} />
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
           ) : (
             <DataTable columns={columns} data={filteredUsers} />
           )}

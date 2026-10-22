@@ -11,35 +11,32 @@ import {
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const METRIC_CARDS = [
+const METRIC_MODULES = [
   {
-    title: "Metricas de Ejercicios",
-    description:
-      "Seguimiento por alumno para revisar actividad, pesos y progreso por planificacion.",
+    title: "Ejercicios",
+    description: "Pesos, repeticiones y progreso de cada alumno por plani.",
     href: "/dashboard/metrics/exercises",
     icon: Dumbbell,
   },
   {
-    title: "Métricas de Clases",
+    title: "Asistencia por miembro",
     description:
-      "Porcentaje de asistencia, tasa de no-shows, horas más ocupadas y clases más populares.",
+      "Quiénes vienen más, quiénes menos y quiénes dejaron de venir.",
+    href: "/dashboard/metrics/attendance",
+    icon: UserCheck,
+  },
+  {
+    title: "Clases",
+    description: "Asistencia, no-shows, ocupación y horarios pico.",
     href: "/dashboard/metrics/classes",
     icon: CalendarDays,
     adminOnly: true,
   },
   {
-    title: "Asistencia por Miembro",
-    description:
-      "Ranking de quienes mas vienen y quienes menos, contando check-in de clases y planificaciones completadas.",
-    href: "/dashboard/metrics/attendance",
-    icon: UserCheck,
-  },
-  {
     title: "Churn",
-    description:
-      "Retencion de alumnos, bajas del periodo, altas y crecimiento neto mensual.",
+    description: "Retención, bajas, altas y crecimiento neto por mes.",
     href: "/dashboard/metrics/churn",
     icon: UserMinus,
     adminOnly: true,
@@ -48,43 +45,45 @@ const METRIC_CARDS = [
 
 export default function MetricsIndexPage() {
   const membership = useQuery(api.organizationMemberships.getCurrentMembership);
-  const visibleCards = METRIC_CARDS.filter(
-    (card) =>
-      !("adminOnly" in card && card.adminOnly) || membership?.role === "admin",
+  const isAdmin = membership?.role === "admin";
+  const visibleModules = METRIC_MODULES.filter(
+    (module) => !("adminOnly" in module && module.adminOnly) || isAdmin,
   );
 
   return (
     <DashboardPageContainer className="space-y-6 py-6 md:py-10">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold md:text-3xl">Metricas</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground md:text-base">
-          Cada metrica vive en su propia card para entrar directo al analisis
-          que necesites.
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold md:text-3xl">Métricas</h1>
+        <p className="text-sm text-muted-foreground md:text-base">
+          Progreso de los alumnos, asistencia y retención del gimnasio.
         </p>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        {visibleCards.map((card) => (
-          <Link key={card.href} href={card.href} className="block">
-            <Card className="h-full border-border/70 bg-card/80 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg">
-              <CardHeader className="space-y-4">
-                <div className="flex size-12 items-center justify-center rounded-2xl border bg-background/70">
-                  <card.icon className="size-5" />
-                </div>
-                <div className="space-y-2">
-                  <CardTitle className="text-xl">{card.title}</CardTitle>
-                  <p className="text-sm leading-6 text-muted-foreground">
-                    {card.description}
-                  </p>
-                </div>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between text-sm font-medium text-foreground">
-                <span>Abrir vista</span>
-                <ArrowRight className="size-4" />
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+      <div className="grid gap-3 md:grid-cols-2">
+        {membership === undefined
+          ? Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-[74px] rounded-xl" />
+            ))
+          : visibleModules.map((module) => (
+              <Link
+                key={module.href}
+                href={module.href}
+                className="group flex items-center gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent/30"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-background">
+                  <module.icon className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium">
+                    {module.title}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {module.description}
+                  </span>
+                </span>
+                <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            ))}
       </div>
     </DashboardPageContainer>
   );

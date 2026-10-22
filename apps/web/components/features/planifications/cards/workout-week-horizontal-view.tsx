@@ -1,19 +1,21 @@
 "use client";
 
 import { useQuery } from "convex/react";
+import { Dumbbell } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { Doc } from "@/convex/_generated/dataModel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import WorkoutDayCard from "./workout-day-card";
 
 const DAY_NAMES = [
-  { value: 1, label: "Lunes" },
-  { value: 2, label: "Martes" },
-  { value: 3, label: "Miércoles" },
-  { value: 4, label: "Jueves" },
-  { value: 5, label: "Viernes" },
-  { value: 6, label: "Sábado" },
-  { value: 7, label: "Domingo" },
+  { value: 1, label: "Lunes", short: "Lun" },
+  { value: 2, label: "Martes", short: "Mar" },
+  { value: 3, label: "Miércoles", short: "Mié" },
+  { value: 4, label: "Jueves", short: "Jue" },
+  { value: 5, label: "Viernes", short: "Vie" },
+  { value: 6, label: "Sábado", short: "Sáb" },
+  { value: 7, label: "Domingo", short: "Dom" },
 ] as const;
 
 interface WorkoutWeekHorizontalViewProps {
@@ -26,77 +28,114 @@ export default function WorkoutWeekHorizontalView({
   const workoutDays = useQuery(api.workoutDays.getByWeek, {
     weekId: week._id,
   });
-  const daysByWeekday = (() => {
-    const map = new Map<number, Doc<"workoutDays">[]>();
-    for (let dow = 1; dow <= 7; dow++) map.set(dow, []);
-    (workoutDays ?? []).forEach((day: Doc<"workoutDays">) => {
-      const dow = day.dayOfWeek ?? 1;
-      const key = dow >= 1 && dow <= 7 ? dow : 1;
-      map.get(key)!.push(day);
-    });
-    return map;
-  })();
+  const daysByWeekday = new Map<number, Doc<"workoutDays">[]>();
+  for (const day of workoutDays ?? []) {
+    const dow = day.dayOfWeek ?? 1;
+    const key = dow >= 1 && dow <= 7 ? dow : 1;
+    const days = daysByWeekday.get(key) ?? [];
+    days.push(day);
+    daysByWeekday.set(key, days);
+  }
 
   if (workoutDays === undefined) {
     return (
-      <div className="border rounded-lg p-6 bg-muted/30">
-        <Skeleton className="h-8 w-48 mb-6" />
-        <div className="overflow-x-auto w-full">
-          <div className="grid w-full gap-3 grid-cols-1 sm:min-w-[560px] sm:grid-cols-4 lg:grid-cols-7">
-            {DAY_NAMES.map(({ value: dow }) => (
-              <div
-                key={dow}
-                className="flex min-h-[100px] flex-col rounded-lg border bg-muted/20 p-2"
-              >
-                <Skeleton className="h-4 w-16 mb-2" />
-                <Skeleton className="h-32 flex-1" />
-              </div>
+      <section
+        aria-label={`Cargando ${week.name}`}
+        className="overflow-hidden rounded-xl border bg-card"
+      >
+        <div className="space-y-5 border-b p-4 md:p-5">
+          <Skeleton className="h-6 w-32" />
+          <div className="grid grid-cols-7 gap-1.5">
+            {DAY_NAMES.map(({ value }) => (
+              <Skeleton key={value} className="h-16 rounded-lg" />
             ))}
           </div>
         </div>
-      </div>
+        <div className="grid gap-4 p-4 md:grid-cols-2 md:p-5">
+          <Skeleton className="h-64 rounded-lg" />
+          <Skeleton className="h-64 rounded-lg" />
+        </div>
+      </section>
     );
   }
 
   return (
-    <div className="border rounded-lg p-6 bg-muted/30">
-      <h2 className="text-2xl font-bold mb-6">{week.name}</h2>
-      <div className="overflow-x-auto w-full">
-        {/* Mobile: single column; empty days get a narrow placeholder. */}
-        {/* sm+: flex row; empty columns stay narrow, columns with exercises grow. */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:min-w-0 sm:gap-2">
-          {DAY_NAMES.map(({ value: dow, label }) => {
-            const days = daysByWeekday.get(dow) ?? [];
-            const hasExercises = days.length > 0;
-
+    <section className="overflow-hidden rounded-xl border bg-card">
+      <div className="border-b p-4 md:p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold tracking-tight">{week.name}</h2>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Dumbbell className="size-3.5" aria-hidden />
+            {workoutDays.length}{" "}
+            {workoutDays.length === 1 ? "sesión" : "sesiones"}
+          </span>
+        </div>
+        <div
+          className="grid grid-cols-7 gap-1.5 md:gap-2"
+          aria-label="Distribución semanal"
+        >
+          {DAY_NAMES.map(({ value, label, short }) => {
+            const count = daysByWeekday.get(value)?.length ?? 0;
             return (
               <div
-                key={dow}
-                className={`
-                  flex flex-col rounded-lg border bg-muted/20 overflow-hidden
-                  min-h-[60px] max-h-[70vh]
-                  ${hasExercises ? "sm:min-w-[200px] sm:flex-1 sm:basis-0 p-2" : "sm:w-14 sm:flex-none p-1.5"}
-                `}
+                key={value}
+                className={cn(
+                  "flex min-w-0 flex-col items-center gap-2 rounded-lg border px-1 py-2.5 text-center",
+                  count > 0
+                    ? "border-primary/20 bg-primary/5"
+                    : "border-transparent bg-muted/25 text-muted-foreground",
+                )}
+                aria-label={`${label}: ${count > 0 ? `${count} ${count === 1 ? "sesión" : "sesiones"}` : "descanso"}`}
               >
-                <div className="mb-1.5 flex shrink-0">
-                  <span className="text-sm font-medium text-muted-foreground truncate block">
-                    {label}
+                <span className={cn("text-xs", count > 0 && "font-semibold")}>
+                  <span className="lg:hidden">{short}</span>
+                  <span className="hidden lg:inline">{label}</span>
+                </span>
+                {count > 0 ? (
+                  <span className="flex h-4 items-center gap-1.5 text-primary">
+                    <Dumbbell className="size-3.5" aria-hidden />
+                    <span className="hidden text-[11px] sm:inline">
+                      {count} {count === 1 ? "sesión" : "sesiones"}
+                    </span>
                   </span>
-                </div>
-                <div className="flex flex-1 flex-col gap-2 min-h-0 overflow-y-auto">
-                  {hasExercises ? (
-                    days.map((day) => (
-                      <WorkoutDayCard key={day._id} day={day} compact />
-                    ))
-                  ) : (
-                    <div className="flex-1 min-h-[32px] rounded bg-muted/20 sm:min-h-[40px]" />
-                  )}
-                </div>
+                ) : (
+                  <span
+                    className="flex h-4 items-center text-[11px] text-muted-foreground/60"
+                    aria-hidden
+                  >
+                    <span className="sm:hidden">—</span>
+                    <span className="hidden sm:inline">Descanso</span>
+                  </span>
+                )}
               </div>
             );
           })}
         </div>
       </div>
-    </div>
+      {workoutDays.length === 0 ? (
+        <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+          Esta semana todavía no tiene sesiones de entrenamiento.
+        </p>
+      ) : (
+        <div className="grid items-start gap-5 p-4 md:grid-cols-2 md:p-5 xl:grid-cols-[repeat(auto-fit,minmax(320px,1fr))]">
+          {DAY_NAMES.flatMap(({ value, label }) =>
+            (daysByWeekday.get(value) ?? []).map((day) => (
+              <div key={day._id} className="min-w-0">
+                <div className="mb-2.5 flex items-center gap-2">
+                  <span
+                    className="size-1.5 rounded-full bg-primary"
+                    aria-hidden
+                  />
+                  <h3 className="text-xs font-semibold text-muted-foreground">
+                    {label}
+                  </h3>
+                </div>
+                <WorkoutDayCard day={day} compact />
+              </div>
+            )),
+          )}
+        </div>
+      )}
+    </section>
   );
 }

@@ -23,13 +23,20 @@ export default function WorkoutWeekCard({
   });
 
   return (
-    <div className="border rounded-lg p-6 bg-muted/30">
-      <h2 className="text-2xl font-bold mb-6">{week.name}</h2>
+    <section className="rounded-xl border bg-card p-2 sm:p-3 md:p-5">
+      <div className="mb-2 flex items-baseline justify-between gap-2 px-1.5 pt-1 sm:mb-3 sm:pt-0 md:mb-4">
+        <h2 className="text-lg font-semibold">{week.name}</h2>
+        {workoutDays !== undefined && workoutDays.length > 0 && (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {workoutDays.length === 1 ? "1 día" : `${workoutDays.length} días`}
+          </span>
+        )}
+      </div>
 
       {workoutDays === undefined ? (
         <div className="space-y-4">
           {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className="h-32 rounded-lg" />
           ))}
         </div>
       ) : workoutDays.length === 0 ? (
@@ -42,19 +49,19 @@ export default function WorkoutWeekCard({
                 className="h-14 w-14 object-contain"
               />
             </EmptyMedia>
-            <EmptyTitle>No hay días en esta semana</EmptyTitle>
+            <EmptyTitle>Semana sin días</EmptyTitle>
             <EmptyDescription>
-              No hay días de entrenamiento en esta semana
+              Editá la planificación para agregar días de entrenamiento.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-2 sm:space-y-3">
           {workoutDays.map((day: Doc<"workoutDays">) => (
             <WorkoutDayCard key={day._id} day={day} />
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }

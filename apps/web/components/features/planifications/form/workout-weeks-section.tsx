@@ -61,7 +61,7 @@ function WeekHeaderDropZone({
   return (
     <div
       ref={ref as (el: HTMLDivElement | null) => void}
-      className={`flex items-center gap-3 mb-3 rounded-md ${isDropTarget ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
+      className={`flex flex-wrap items-center gap-2 rounded-md ${isDropTarget ? "ring-2 ring-primary/50 bg-primary/5" : ""}`}
     >
       {children}
     </div>
@@ -199,9 +199,19 @@ export default function WorkoutWeeksSection({
   const canDeleteWeek = fields.length > 1;
 
   return (
-    <div className="rounded-lg border p-6 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Semanas de entrenamiento</h2>
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold">
+            Semanas de entrenamiento{" "}
+            <span className="ml-1 text-sm font-normal text-muted-foreground">
+              {fields.length}
+            </span>
+          </h2>
+          <p className="hidden text-xs text-muted-foreground sm:block">
+            Arrastrá los días para reorganizarlos entre semanas.
+          </p>
+        </div>
         <ResponsiveActionButton
           type="button"
           onClick={addWeek}
@@ -246,7 +256,7 @@ export default function WorkoutWeeksSection({
                 return (
                   <div
                     key={field.id}
-                    className="border rounded-lg p-4 bg-muted/30"
+                    className="overflow-hidden rounded-xl border bg-card p-3 md:p-5"
                   >
                     <WeekHeaderDropZone weekIndex={weekIndex}>
                       <Controller
@@ -255,13 +265,14 @@ export default function WorkoutWeeksSection({
                         render={({ field, fieldState }) => (
                           <Field
                             data-invalid={fieldState.invalid}
-                            className="flex-1"
+                            className="min-w-0 flex-1 sm:max-w-64"
                           >
                             <Input
                               {...field}
                               aria-invalid={fieldState.invalid}
+                              aria-label="Nombre de la semana"
                               placeholder="Nombre de la semana"
-                              className="font-medium"
+                              className="border-transparent bg-transparent font-semibold shadow-none hover:border-input focus-visible:border-input"
                             />
                             {fieldState.invalid && (
                               <FieldError errors={[fieldState.error]} />
@@ -270,18 +281,20 @@ export default function WorkoutWeeksSection({
                         )}
                       />
 
-                      {!isExpanded && (
-                        <div className="text-sm text-muted-foreground">
-                          {dayCount} {dayCount === 1 ? "día" : "días"} •{" "}
-                          {exerciseCount}{" "}
-                          {exerciseCount === 1 ? "ejercicio" : "ejercicios"}
-                        </div>
-                      )}
+                      <div className="mr-auto hidden text-xs text-muted-foreground sm:block">
+                        {dayCount} {dayCount === 1 ? "día" : "días"} ·{" "}
+                        {exerciseCount}{" "}
+                        {exerciseCount === 1 ? "ejercicio" : "ejercicios"}
+                      </div>
 
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
+                        aria-label={
+                          isExpanded ? "Contraer semana" : "Expandir semana"
+                        }
+                        aria-expanded={isExpanded}
                         onClick={() => toggleWeekExpanded(weekIndex)}
                       >
                         {isExpanded ? (
@@ -297,6 +310,7 @@ export default function WorkoutWeeksSection({
                             type="button"
                             variant="ghost"
                             size="icon"
+                            aria-label="Duplicar semana"
                             onClick={() => copyWeek(weekIndex)}
                           >
                             <Copy className="h-4 w-4 text-muted-foreground" />
@@ -311,6 +325,7 @@ export default function WorkoutWeeksSection({
                             type="button"
                             variant="ghost"
                             size="icon"
+                            aria-label="Eliminar semana"
                             onClick={() => remove(weekIndex)}
                             disabled={!canDeleteWeek}
                           >
@@ -328,7 +343,7 @@ export default function WorkoutWeeksSection({
                     </WeekHeaderDropZone>
 
                     {isExpanded && (
-                      <div className="mt-4">
+                      <div className="mt-4 border-t pt-4">
                         <WeekCalendarRow
                           form={form}
                           weekIndex={weekIndex}

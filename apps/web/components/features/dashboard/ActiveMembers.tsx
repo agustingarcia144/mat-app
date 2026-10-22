@@ -1,20 +1,26 @@
 "use client";
 
-import Link from "next/link";
 import { useQuery } from "convex/react";
-import { CheckCircle, UserMinus } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
+import { cn } from "@/lib/utils";
+import { Panel, PanelSkeleton, TrendPill, plural } from "./dashboard-panel";
 import { useDashboardScope } from "./dashboard-scope-context";
 
-function monthLabelFromPeriod(period: string) {
-  const [year, month] = period.split("-").map(Number);
-  return new Intl.DateTimeFormat("es-AR", { month: "short" }).format(
-    new Date(year, month - 1, 1),
-  );
+function monthLabelFromPeriod(period: string, month: "short" | "long") {
+  const [year, monthNumber] = period.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-AR", {
+    month,
+    ...(month === "long" ? { year: "numeric" } : {}),
+  })
+    .format(new Date(year, monthNumber - 1, 1))
+    .replace(".", "");
 }
 
 export default function ActiveMembers() {
@@ -31,68 +37,121 @@ export default function ActiveMembers() {
       : "skip",
   );
 
-  if (!data) return null;
+  if (!data) return <PanelSkeleton rows={3} />;
 
   const { activeCount, months } = data;
-  const maxMonthlyMembers = Math.max(...months.map((month) => month.count), 1);
+  const max = Math.max(...months.map((month) => month.count), 1);
+  const lastIndex = months.length - 1;
+  const previous = months[lastIndex - 1];
+  const change = previous ? activeCount - previous.count : null;
+  const peak = Math.max(...months.map((month) => month.count), 0);
 
   return (
-    <Card className="flex min-h-[220px] w-full max-w-none flex-col rounded-2xl border bg-background/60 p-4 md:h-[220px] md:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-lg font-semibold text-foreground">
-          {scope === "mine" ? "Mis miembros activos" : "Miembros activos"}
-        </div>
-        <Link
-          href="/dashboard/metrics/churn"
-          className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-background/40 px-3 py-1.5 text-sm text-foreground shadow-sm transition-colors hover:bg-accent/40"
-        >
-          <UserMinus className="h-4 w-4" />
-          Ver mas +
-        </Link>
-      </div>
-
-      <div className="flex flex-1 items-center justify-center py-2 md:py-0">
-        <div className="grid w-full max-w-[520px] grid-cols-[auto_minmax(0,1fr)] items-center gap-5 md:gap-8">
-          <div className="flex flex-col items-center justify-center gap-3">
-            <p className="text-4xl font-semibold leading-none md:text-5xl">
+    <Panel
+      title={scope === "mine" ? "Mis miembros activos" : "Miembros activos"}
+      description={`Últimos ${months.length} meses`}
+      href="/dashboard/metrics/churn"
+      linkLabel="Ver más"
+    >
+      <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,9rem)_1fr]">
+        {/* Headline: who is active today and how it moved since last month */}
+        <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-start sm:justify-center">
+          <div>
+            <p className="text-5xl font-semibold leading-none tracking-tight tabular-nums">
               {activeCount}
             </p>
-            <Badge variant="outline" className="gap-2 px-3">
-              <CheckCircle className="h-4 w-4 shrink-0 text-green-500" />
-              Activos
-            </Badge>
+            <p className="mt-1.5 text-sm text-muted-foreground">activos hoy</p>
           </div>
+          <div className="flex flex-col items-end gap-1 sm:items-start">
+            {change !== null && change !== 0 ? (
+              <TrendPill trend={change > 0 ? "up" : "down"}>
+                {change > 0 ? "+" : "−"}
+                {Math.abs(change)} vs{" "}
+                {monthLabelFromPeriod(previous.period, "short")}
+              </TrendPill>
+            ) : change === 0 ? (
+              <TrendPill trend="neutral">
+                Igual que {monthLabelFromPeriod(previous.period, "short")}
+              </TrendPill>
+            ) : null}
+            {peak > activeCount ? (
+              <span className="text-xs text-muted-foreground">
+                Máximo: {peak}
+              </span>
+            ) : activeCount > 0 ? (
+              <span className="text-xs text-muted-foreground">
+                Máximo del período
+              </span>
+            ) : null}
+          </div>
+        </div>
 
-          <div className="flex h-[132px] min-w-0 items-end gap-2 rounded-xl border bg-background/30 px-3 pb-3 pt-4">
-            {months.map((month) => {
-              const heightPct = Math.max(
-                (month.count / maxMonthlyMembers) * 100,
-                month.count > 0 ? 16 : 8,
-              );
-
+        {/* Monthly bars with the count on top, current month highlighted */}
+        <div className="rounded-lg border bg-muted/20 p-3">
+          <div
+            className="flex h-32 items-end gap-2 sm:gap-3"
+            role="img"
+            aria-label="Miembros activos de los últimos meses"
+          >
+            {months.map((month, index) => {
+              const isCurrent = index === lastIndex;
               return (
-                <div
-                  key={month.period}
-                  className="flex h-full min-w-0 flex-1 flex-col items-center gap-2"
-                >
-                  <span className="text-sm font-semibold leading-none">
-                    {month.count}
-                  </span>
-                  <div className="flex min-h-0 w-full flex-1 items-end">
-                    <div
-                      className="w-full rounded-t-lg bg-gradient-to-t from-green-600 to-green-500"
-                      style={{ height: `${heightPct}%` }}
-                    />
-                  </div>
-                  <span className="text-[11px] capitalize text-muted-foreground">
-                    {monthLabelFromPeriod(month.period)}
-                  </span>
-                </div>
+                <Tooltip key={month.period}>
+                  <TooltipTrigger asChild>
+                    <div className="flex h-full flex-1 cursor-default flex-col items-center justify-end gap-1">
+                      <span
+                        className={cn(
+                          "text-xs font-medium tabular-nums",
+                          isCurrent
+                            ? "text-foreground"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {month.count}
+                      </span>
+                      <div
+                        className={cn(
+                          "w-full max-w-10 rounded-md transition-colors",
+                          isCurrent
+                            ? "bg-emerald-500"
+                            : month.count > 0
+                              ? "bg-emerald-500/35 hover:bg-emerald-500/50"
+                              : "bg-muted",
+                        )}
+                        style={{
+                          height: `${Math.max((month.count / max) * 78, month.count > 0 ? 6 : 3)}%`,
+                        }}
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="first-letter:uppercase">
+                      {monthLabelFromPeriod(month.period, "long")}
+                    </p>
+                    <p>
+                      {plural(month.count, "miembro", "miembros")}
+                      {month.isPaidBased ? " con la cuota paga" : " activos"}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
               );
             })}
           </div>
+          <div className="mt-2 flex gap-2 sm:gap-3">
+            {months.map((month, index) => (
+              <span
+                key={month.period}
+                className={cn(
+                  "flex-1 text-center text-xs capitalize text-muted-foreground",
+                  index === lastIndex && "font-medium text-foreground",
+                )}
+              >
+                {monthLabelFromPeriod(month.period, "short")}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
-    </Card>
+    </Panel>
   );
 }

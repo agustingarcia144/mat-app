@@ -1,6 +1,19 @@
 import { Member, MembershipData } from "../types";
 
 /**
+ * dd/mm/yyyy, fixed to es-AR so it doesn't follow the browser's language.
+ * Consumers that parse it back (e.g. the member detail dialog) expect this
+ * day-first order.
+ */
+function formatMembershipDate(timestamp: number | undefined) {
+  return new Date(timestamp as number).toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+/**
  * Maps membership data from Convex to Member type for the table
  *
  * @param membership - Membership data from Convex query
@@ -32,10 +45,10 @@ export function mapMembershipToMember(membership: MembershipData): Member {
     pricePerClass: membership.pricePerClass,
     pricePerMonth: membership.pricePerMonth,
     commissionPercentage: membership.commissionPercentage,
-    createdAt: new Date(membership.createdAt).toLocaleDateString(),
+    createdAt: formatMembershipDate(membership.createdAt),
     birthday: membership.birthday,
     phone: membership.phone,
-    joinedAt: new Date(membership.joinedAt as number).toLocaleDateString(),
+    joinedAt: formatMembershipDate(membership.joinedAt),
   };
 }
 

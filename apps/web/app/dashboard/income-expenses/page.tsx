@@ -6,7 +6,11 @@ import { CalendarDays, Loader2, Lock, Plus, Repeat } from "lucide-react";
 import { api } from "@/convex/_generated/api";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import FinanceSummaryCards from "@/components/features/finance/finance-summary-cards";
-import { FinanceStatePanel } from "@/components/features/finance/finance-display";
+import {
+  FinanceStatePanel,
+  formatCurrency,
+} from "@/components/features/finance/finance-display";
+import { cn } from "@/lib/utils";
 import FinanceTransactionDialog from "@/components/features/finance/finance-transaction-dialog";
 import FinanceTransactionList, {
   type FinanceTransactionRow,
@@ -31,6 +35,81 @@ import { FeatureDisabledPage } from "@/components/shared/feature-disabled-page";
 function currentPeriod() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function previousPeriod(period: string) {
+  const [year, month] = period.split("-").map(Number);
+  const date = new Date(year, month - 2, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Share of each category in one direction (income or expense), largest first. */
+function CategoryBreakdown({
+  title,
+  rows,
+  barClassName,
+  emptyLabel,
+}: {
+  title: string;
+  rows: { category: string; amountArs: number }[];
+  barClassName: string;
+  emptyLabel: string;
+}) {
+  const total = rows.reduce((sum, row) => sum + row.amountArs, 0);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        {total > 0 && (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {formatCurrency(total)}
+          </span>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+      ) : (
+        <ul className="space-y-2.5">
+          {rows.map((row) => {
+            const share = total > 0 ? (row.amountArs / total) * 100 : 0;
+            return (
+              <li key={row.category} className="space-y-1">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate">{row.category}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {formatCurrency(row.amountArs)}
+                    <span className="ml-1.5 text-xs">{Math.round(share)}%</span>
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn("h-full rounded-full", barClassName)}
+                    style={{ width: `${share}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function groupByCategory(
+  transactions: FinanceTransactionRow[] | undefined,
+  type: "income" | "expense",
+) {
+  const totals = new Map<string, number>();
+  for (const transaction of transactions ?? []) {
+    if (transaction.type !== type || transaction.status === "voided") continue;
+    const key = transaction.category.trim() || "Sin categoría";
+    totals.set(key, (totals.get(key) ?? 0) + transaction.amountArs);
+  }
+  return Array.from(totals, ([category, amountArs]) => ({
+    category,
+    amountArs,
+  })).sort((a, b) => b.amountArs - a.amountArs);
 }
 
 function buildPeriodOptions() {
@@ -64,6 +143,10 @@ export default function IncomeExpensesPage() {
     api.finance.getSummary,
     canLoadFinance ? { period: selectedPeriod } : "skip",
   );
+  const previousSummary = useQuery(
+    api.finance.getSummary,
+    canLoadFinance ? { period: previousPeriod(selectedPeriod) } : "skip",
+  );
   const transactions = useQuery(
     api.finance.getTransactions,
     canLoadFinance ? { period: selectedPeriod } : "skip",
@@ -74,6 +157,14 @@ export default function IncomeExpensesPage() {
   );
 
   const periodOptions = useMemo(() => buildPeriodOptions(), []);
+  const expenseByCategory = useMemo(
+    () => groupByCategory(transactions, "expense"),
+    [transactions],
+  );
+  const incomeByCategory = useMemo(
+    () => groupByCategory(transactions, "income"),
+    [transactions],
+  );
   const activeRulesCount = recurringRules?.filter(
     (rule) => rule.status !== "cancelled",
   ).length;
@@ -165,13 +256,17 @@ export default function IncomeExpensesPage() {
       </div>
 
       <FinanceSummaryCards
-        incomeArs={summary?.incomeArs ?? 0}
-        expenseArs={summary?.expenseArs ?? 0}
-        netResultArs={summary?.netResultArs ?? 0}
-        activeRecurringRules={summary?.activeRecurringRules ?? 0}
+        current={{
+          incomeArs: summary?.incomeArs ?? 0,
+          expenseArs: summary?.expenseArs ?? 0,
+          netResultArs: summary?.netResultArs ?? 0,
+          activeRecurringRules: summary?.activeRecurringRules ?? 0,
+        }}
+        previous={previousSummary ?? undefined}
       />
 
-      <Tabs defaultValue="transactions" className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <Tabs defaultValue="transactions" className="min-w-0 space-y-4">
         <TabsList>
           <TabsTrigger value="transactions" className="gap-2">
             Movimientos
@@ -213,6 +308,24 @@ export default function IncomeExpensesPage() {
           />
         </TabsContent>
       </Tabs>
+
+        <aside className="h-fit space-y-6 rounded-xl border bg-card p-4 xl:mt-[52px]">
+          <CategoryBreakdown
+            title="Egresos por categoría"
+            rows={expenseByCategory}
+            barClassName="bg-rose-500/70"
+            emptyLabel="Sin egresos en este período."
+          />
+          {incomeByCategory.length > 0 && (
+            <CategoryBreakdown
+              title="Ingresos por categoría"
+              rows={incomeByCategory}
+              barClassName="bg-emerald-500/70"
+              emptyLabel="Sin ingresos en este período."
+            />
+          )}
+        </aside>
+      </div>
 
       <FinanceTransactionDialog
         open={transactionOpen}

@@ -13,15 +13,18 @@ export default function EjerciciosPage() {
   }
 
   return (
-    <DashboardPageContainer className="py-4 md:py-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold md:text-3xl">Ejercicios</h1>
-        <p className="mt-1 text-sm text-muted-foreground md:text-base">
-          Gestiona la biblioteca de ejercicios de tu organización
-        </p>
-      </div>
-
-      <ExerciseLibrary showActions />
+    <DashboardPageContainer className="py-6 md:py-10">
+      <ExerciseLibrary
+        showActions
+        header={
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold md:text-3xl">Ejercicios</h1>
+            <p className="text-sm text-muted-foreground md:text-base">
+              La biblioteca que usás para armar planificaciones.
+            </p>
+          </div>
+        }
+      />
     </DashboardPageContainer>
   );
 }

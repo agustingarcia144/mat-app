@@ -1,93 +1,131 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, Repeat, Wallet } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import Link from "next/link";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { formatCurrency } from "@/components/features/finance/finance-display";
 import { cn } from "@/lib/utils";
 
-export default function FinanceSummaryCards({
-  incomeArs,
-  expenseArs,
-  netResultArs,
-  activeRecurringRules,
-}: {
+type Summary = {
   incomeArs: number;
   expenseArs: number;
   netResultArs: number;
   activeRecurringRules: number;
+};
+
+/**
+ * Change vs the previous period. `higherIsBetter` decides the color: more
+ * income is good, more expenses is not.
+ */
+function Delta({
+  current,
+  previous,
+  higherIsBetter,
+}: {
+  current: number;
+  previous?: number;
+  higherIsBetter: boolean;
 }) {
-  const isNegative = netResultArs < 0;
-
-  const cards = [
-    {
-      title: "Ingresos externos",
-      value: formatCurrency(incomeArs),
-      detail: "Fuera de pagos de membresía",
-      icon: ArrowDownLeft,
-      valueClassName: "text-emerald-600",
-      iconClassName: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600",
-    },
-    {
-      title: "Egresos",
-      value: formatCurrency(expenseArs),
-      detail: "Gastos del período",
-      icon: ArrowUpRight,
-      valueClassName: "text-rose-600",
-      iconClassName: "border-rose-500/25 bg-rose-500/10 text-rose-600",
-    },
-    {
-      title: "Resultado neto",
-      value: formatCurrency(netResultArs),
-      detail: "Ingresos externos menos egresos",
-      icon: Wallet,
-      valueClassName: isNegative ? "text-rose-600" : "text-foreground",
-      iconClassName: isNegative
-        ? "border-rose-500/25 bg-rose-500/10 text-rose-600"
-        : "border-border bg-muted text-foreground",
-    },
-    {
-      title: "Recurrentes activos",
-      value: `${activeRecurringRules}`,
-      detail: "Se registran solos cada mes",
-      icon: Repeat,
-      valueClassName: "text-foreground",
-      iconClassName: "border-blue-500/25 bg-blue-500/10 text-blue-600",
-    },
-  ] as const;
-
+  if (previous === undefined) return null;
+  const diff = current - previous;
+  if (diff === 0) {
+    return <span className="text-muted-foreground">Igual que el mes anterior</span>;
+  }
+  const isGood = higherIsBetter ? diff > 0 : diff < 0;
+  const Icon = diff > 0 ? ArrowUp : ArrowDown;
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {cards.map((card) => (
-        <Card
-          key={card.title}
-          className="border-border/70 shadow-sm transition-colors hover:border-border"
+    <span
+      className={cn(
+        "inline-flex items-center gap-1",
+        isGood
+          ? "text-emerald-600 dark:text-emerald-400"
+          : "text-rose-600 dark:text-rose-400",
+      )}
+    >
+      <Icon className="size-3" aria-hidden />
+      {formatCurrency(Math.abs(diff))} vs mes anterior
+    </span>
+  );
+}
+
+function Tile({
+  label,
+  value,
+  valueClassName,
+  children,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1 rounded-xl border bg-card p-4">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p
+        className={cn(
+          "truncate text-2xl font-semibold tabular-nums",
+          valueClassName,
+        )}
+      >
+        {value}
+      </p>
+      <div className="text-xs text-muted-foreground">{children}</div>
+    </div>
+  );
+}
+
+export default function FinanceSummaryCards({
+  current,
+  previous,
+}: {
+  current: Summary;
+  previous?: Summary;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <Tile
+        label="Ingresos externos"
+        value={formatCurrency(current.incomeArs)}
+        valueClassName="text-emerald-600 dark:text-emerald-400"
+      >
+        <Delta
+          current={current.incomeArs}
+          previous={previous?.incomeArs}
+          higherIsBetter
+        />
+      </Tile>
+      <Tile
+        label="Egresos"
+        value={formatCurrency(current.expenseArs)}
+        valueClassName="text-rose-600 dark:text-rose-400"
+      >
+        <Delta
+          current={current.expenseArs}
+          previous={previous?.expenseArs}
+          higherIsBetter={false}
+        />
+      </Tile>
+      <Tile
+        label="Balance de movimientos"
+        value={formatCurrency(current.netResultArs)}
+        valueClassName={
+          current.netResultArs < 0 ? "text-rose-600 dark:text-rose-400" : undefined
+        }
+      >
+        Sin membresías ·{" "}
+        <Link
+          href="/dashboard/metrics/payments"
+          className="underline-offset-2 hover:text-foreground hover:underline"
         >
-          <CardContent className="flex items-start justify-between gap-4 p-5">
-            <div className="min-w-0 space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">
-                {card.title}
-              </p>
-              <p
-                className={cn(
-                  "text-2xl font-semibold tracking-tight tabular-nums",
-                  card.valueClassName,
-                )}
-              >
-                {card.value}
-              </p>
-              <p className="text-xs text-muted-foreground">{card.detail}</p>
-            </div>
-            <span
-              className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-full border",
-                card.iconClassName,
-              )}
-            >
-              <card.icon className="size-4" />
-            </span>
-          </CardContent>
-        </Card>
-      ))}
+          ver resultado total
+        </Link>
+      </Tile>
+      <Tile
+        label="Recurrentes activos"
+        value={String(current.activeRecurringRules)}
+      >
+        Se registran solos cada mes
+      </Tile>
     </div>
   );
 }

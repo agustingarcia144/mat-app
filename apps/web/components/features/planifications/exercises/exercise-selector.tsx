@@ -72,12 +72,13 @@ export default function ExerciseSelector({
     <div
       className={`flex flex-col flex-1 min-h-0 overflow-hidden ${className ?? ""}`}
     >
-      <div className="flex flex-col gap-3 mb-4 shrink-0 lg:flex-row lg:items-center">
+      <div className="mb-4 flex shrink-0 items-center gap-2">
         <div className="relative flex-1 min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="Buscar ejercicios"
             placeholder="Buscar ejercicios..."
             className="pl-9"
           />
@@ -95,8 +96,9 @@ export default function ExerciseSelector({
       </div>
 
       <p className="text-xs text-muted-foreground mb-3 shrink-0">
-        Arrastra un ejercicio a un bloque o a &quot;Sin bloque&quot; para
-        añadirlo al día.
+        {onSelect
+          ? "Tocá un ejercicio para agregarlo o arrastralo a un bloque."
+          : "Arrastrá un ejercicio al bloque donde querés agregarlo."}
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3 shrink-0">
@@ -120,7 +122,7 @@ export default function ExerciseSelector({
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 pb-2">
+        <div className="grid grid-cols-1 gap-2 pb-2 pr-3">
           {exercises === undefined ? (
             Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="p-3 border rounded-lg">
@@ -150,10 +152,26 @@ export default function ExerciseSelector({
             exercises.map((exercise: { _id: string; name: string }) => (
               <div
                 key={exercise._id}
+                role={onSelect ? "button" : undefined}
+                tabIndex={onSelect ? 0 : undefined}
+                aria-label={onSelect ? `Agregar ${exercise.name}` : undefined}
+                onKeyDown={(event) => {
+                  if (
+                    onSelect &&
+                    (event.key === "Enter" || event.key === " ")
+                  ) {
+                    event.preventDefault();
+                    onSelect({ id: exercise._id, name: exercise.name });
+                  }
+                }}
                 onClick={() =>
                   onSelect?.({ id: exercise._id, name: exercise.name })
                 }
-                className={onSelect ? "cursor-pointer min-w-0" : "min-w-0"}
+                className={
+                  onSelect
+                    ? "min-w-0 cursor-pointer rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    : "min-w-0"
+                }
               >
                 <LibraryExerciseCard exercise={exercise} />
               </div>

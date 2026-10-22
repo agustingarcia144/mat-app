@@ -42,29 +42,68 @@ import ModelWeekTimeline, {
 } from "@/components/features/classes/calendar/model-week-timeline";
 import ModelWeekSlotDialog from "@/components/features/classes/dialogs/model-week-slot-dialog";
 import ApplyModelWeekDialog from "@/components/features/classes/dialogs/apply-model-week-dialog";
-import WeeklyTimeline from "@/components/features/classes/calendar/weekly-timeline";
+import WeeklyTimeline, {
+  WeekNavigation,
+} from "@/components/features/classes/calendar/weekly-timeline";
+import { ResponsiveActionButton } from "@/components/ui/responsive-action-button";
+import { cn } from "@/lib/utils";
 import ClassList from "@/components/features/classes/class-list";
 import {
   Plus,
   Calendar,
   List,
-  ChevronLeft,
-  ChevronRight,
   CalendarPlus,
   Users,
   Layers3,
-  MoreVertical,
+  MoreHorizontal,
   CheckSquare,
   X,
   Send,
 } from "lucide-react";
-import { startOfWeek, endOfWeek, addDays, format, isSameDay } from "date-fns";
-import { es } from "date-fns/locale";
+import { startOfWeek, endOfWeek, isSameDay } from "date-fns";
 import { type Doc, type Id } from "@/convex/_generated/dataModel";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 import { useOrgSettings } from "@/hooks/use-org-settings";
 import { FeatureDisabledPage } from "@/components/shared/feature-disabled-page";
+
+function WeekStat({
+  label,
+  value,
+  detail,
+  dotClassName,
+}: {
+  label: string;
+  value: React.ReactNode;
+  detail?: React.ReactNode;
+  dotClassName?: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1 rounded-lg border bg-card px-3 py-2.5">
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {dotClassName ? (
+          <span
+            className={cn("size-1.5 shrink-0 rounded-full", dotClassName)}
+            aria-hidden
+          />
+        ) : null}
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="flex items-baseline gap-1.5">
+        <span className="text-xl font-semibold tabular-nums">{value}</span>
+        {detail ? (
+          <span className="truncate text-xs tabular-nums text-muted-foreground">
+            {detail}
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+function TimelineSkeleton() {
+  return <Skeleton className="h-[520px] rounded-xl" />;
+}
 
 export default function ClassesPage() {
   const orgSettings = useOrgSettings();
@@ -144,10 +183,6 @@ export default function ClassesPage() {
   // Get schedules for the current week
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
-
-  const goToPreviousWeek = () => setCurrentDate((d) => addDays(d, -7));
-  const goToNextWeek = () => setCurrentDate((d) => addDays(d, 7));
-  const goToToday = () => setCurrentDate(new Date());
 
   const schedules = useQuery(
     api.classSchedules.getByOrganizationAndDateRange,
@@ -263,43 +298,66 @@ export default function ClassesPage() {
     );
   }, [enrichedSchedules, bulkCancelDayDate, bulkCancelDayOpen]);
 
+  const weekStats = useMemo(() => {
+    const active = enrichedSchedules.filter((s) => s.status !== "cancelled");
+    const reserved = active.reduce((acc, s) => acc + s.currentReservations, 0);
+    const capacity = active.reduce(
+      (acc, s) => acc + Math.max(s.capacity, 0),
+      0,
+    );
+    return {
+      total: active.length,
+      reserved,
+      occupancyPct: capacity > 0 ? Math.round((reserved / capacity) * 100) : 0,
+      full: active.filter(
+        (s) => s.capacity <= 0 || s.currentReservations >= s.capacity,
+      ).length,
+      cancelled: enrichedSchedules.length - active.length,
+    };
+  }, [enrichedSchedules]);
+
   if (orgSettings && !orgSettings.classesEnabled) {
     return <FeatureDisabledPage featureName="Clases" />;
   }
 
   return (
-    <DashboardPageContainer className="space-y-4 py-4 md:space-y-6 md:py-6">
+    <DashboardPageContainer className="space-y-4 py-6 md:space-y-6 md:py-10">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold md:text-3xl">Clases y Turnos</h1>
-          <p className="mt-1 text-sm text-muted-foreground md:text-base">
-            Gestiona las clases y los turnos de tu gimnasio
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <h1 className="text-2xl font-bold md:text-3xl">Clases</h1>
+          <p className="text-sm text-muted-foreground md:text-base">
+            Turnos, reservas y la semana modelo de tu gimnasio.
           </p>
         </div>
-        <div className="flex justify-end">
+        <div className="flex shrink-0 items-center gap-2">
+          <ResponsiveActionButton
+            variant="outline"
+            onClick={handleNewClass}
+            icon={<Plus className="h-4 w-4" aria-hidden />}
+            label="Nueva clase"
+            tooltip="Nueva clase"
+          />
+          <ResponsiveActionButton
+            onClick={() => handleOpenGenerateTurnos()}
+            icon={<CalendarPlus className="h-4 w-4" aria-hidden />}
+            label="Crear turnos"
+            tooltip="Crear turnos"
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <MoreVertical className="h-4 w-4" aria-hidden />
+              <Button variant="outline" size="icon" aria-label="Más acciones">
+                <MoreHorizontal className="h-4 w-4" aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setShowAvailableSlotsOpen(true)}>
-                <Send className="mr-2 h-4 w-4" aria-hidden />
-                Muestra turnos disponibles
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setFixedSlotsOpen(true)}>
                 <Users className="mr-2 h-4 w-4" aria-hidden />
                 Turnos fijos
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleOpenGenerateTurnos()}>
-                <CalendarPlus className="mr-2 h-4 w-4" aria-hidden />
-                Crear turnos
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleNewClass}>
-                <Plus className="mr-2 h-4 w-4" aria-hidden />
-                Nueva clase
+              <DropdownMenuItem onClick={() => setShowAvailableSlotsOpen(true)}>
+                <Send className="mr-2 h-4 w-4" aria-hidden />
+                Compartir turnos disponibles
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -307,48 +365,40 @@ export default function ClassesPage() {
       </div>
 
       {/* View toggle and filters */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <Tabs
           value={selectedView}
           onValueChange={(v) =>
             setSelectedView(v as "calendar" | "list" | "model")
           }
         >
-          <TabsList>
+          <TabsList className="w-full md:w-auto">
             <TabsTrigger
               value="calendar"
-              className="gap-0 md:gap-2"
-              aria-label="Vista calendario"
+              className="flex-1 gap-1.5 md:flex-none"
             >
-              <Calendar className="h-4 w-4" />
-              <span className="sr-only md:not-sr-only">Calendario</span>
+              <Calendar className="h-4 w-4" aria-hidden />
+              Turnos
             </TabsTrigger>
-            <TabsTrigger
-              value="model"
-              className="gap-0 md:gap-2"
-              aria-label="Vista semana modelo"
-            >
-              <Layers3 className="h-4 w-4" />
-              <span className="sr-only md:not-sr-only">Semana Modelo</span>
+            <TabsTrigger value="model" className="flex-1 gap-1.5 md:flex-none">
+              <Layers3 className="h-4 w-4" aria-hidden />
+              <span className="sm:hidden">Modelo</span>
+              <span className="hidden sm:inline">Semana modelo</span>
             </TabsTrigger>
-            <TabsTrigger
-              value="list"
-              className="gap-0 md:gap-2"
-              aria-label="Vista clases"
-            >
-              <List className="h-4 w-4" />
-              <span className="sr-only md:not-sr-only">Clases</span>
+            <TabsTrigger value="list" className="flex-1 gap-1.5 md:flex-none">
+              <List className="h-4 w-4" aria-hidden />
+              Clases
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
         {selectedView === "calendar" && (
           <div className="flex items-center gap-2">
-            <span className="hidden text-sm text-muted-foreground sm:inline">
-              Filtrar por clase:
-            </span>
             <Select value={classFilter} onValueChange={setClassFilter}>
-              <SelectTrigger className="w-full sm:w-[220px]">
+              <SelectTrigger
+                className="h-9 min-w-0 flex-1 md:w-[200px] md:flex-none"
+                aria-label="Filtrar por clase"
+              >
                 <SelectValue placeholder="Todas las clases" />
               </SelectTrigger>
               <SelectContent>
@@ -361,18 +411,16 @@ export default function ClassesPage() {
               </SelectContent>
             </Select>
             <Button
-              variant={selectionMode ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                if (selectionMode) {
-                  handleExitSelectionMode();
-                } else {
-                  setSelectionMode(true);
-                }
-              }}
-              className="gap-1.5"
+              variant={selectionMode ? "secondary" : "outline"}
+              className="h-9 shrink-0 gap-1.5"
+              onClick={() =>
+                selectionMode
+                  ? handleExitSelectionMode()
+                  : setSelectionMode(true)
+              }
+              aria-pressed={selectionMode}
             >
-              <CheckSquare className="h-4 w-4" />
+              <CheckSquare className="h-4 w-4" aria-hidden />
               <span className="hidden sm:inline">Seleccionar</span>
             </Button>
           </div>
@@ -381,106 +429,48 @@ export default function ClassesPage() {
 
       {/* Content */}
       {selectedView === "calendar" ? (
-        <div className="space-y-4 rounded-lg border p-3 md:p-4">
-          {/* Week navigation – always visible so users can move between weeks even when empty */}
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={goToPreviousWeek}
-                aria-label="Semana anterior"
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden />
-              </Button>
-              <Button variant="outline" onClick={goToToday}>
-                Hoy
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={goToNextWeek}
-                aria-label="Semana siguiente"
-              >
-                <ChevronRight className="h-4 w-4" aria-hidden />
-              </Button>
-            </div>
-            <h2 className="text-base font-semibold md:text-lg">
-              {format(weekStart, "d", { locale: es })} -{" "}
-              {format(addDays(weekStart, 6), "d 'de' MMMM yyyy", {
-                locale: es,
-              })}
-            </h2>
+        <div className="space-y-3">
+          <WeekNavigation
+            currentDate={currentDate}
+            onDateChange={setCurrentDate}
+          />
+
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <WeekStat
+              label="Turnos"
+              value={schedules === undefined ? "…" : weekStats.total}
+              detail={
+                weekStats.cancelled > 0
+                  ? `${weekStats.cancelled} cancelado${weekStats.cancelled === 1 ? "" : "s"}`
+                  : undefined
+              }
+            />
+            <WeekStat
+              label="Reservas"
+              value={schedules === undefined ? "…" : weekStats.reserved}
+            />
+            <WeekStat
+              label="Ocupación"
+              value={
+                schedules === undefined ? "…" : `${weekStats.occupancyPct}%`
+              }
+              dotClassName={
+                weekStats.occupancyPct >= 100
+                  ? "bg-red-500"
+                  : weekStats.occupancyPct > 60
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
+              }
+            />
+            <WeekStat
+              label="Completos"
+              value={schedules === undefined ? "…" : weekStats.full}
+              dotClassName="bg-red-500"
+            />
           </div>
 
-          {/* Selection mode toolbar */}
-          {selectionMode && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/50 p-2">
-              <span className="text-sm font-medium">
-                {selectedScheduleIds.size} seleccionados
-              </span>
-              <div className="ml-auto flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setBulkAction("cancel")}
-                  disabled={selectedScheduleIds.size === 0}
-                >
-                  Cancelar seleccionados
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setBulkAction("remove")}
-                  disabled={selectedScheduleIds.size === 0}
-                >
-                  Eliminar seleccionados
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleExitSelectionMode}
-                  className="gap-1"
-                >
-                  <X className="h-4 w-4" />
-                  Salir
-                </Button>
-              </div>
-            </div>
-          )}
-
           {schedules === undefined ? (
-            <div className="overflow-hidden rounded-lg border">
-              <div className="overflow-x-auto">
-                <div className="min-w-[800px]">
-                  {/* Day headers */}
-                  <div className="grid grid-cols-8 bg-muted">
-                    <Skeleton className="h-14 rounded-none border-r border-b border-border" />
-                    {Array.from({ length: 7 }).map((_, i) => (
-                      <Skeleton
-                        key={i}
-                        className="h-14 rounded-none border-r border-b border-border"
-                      />
-                    ))}
-                  </div>
-                  {/* Time rows */}
-                  {Array.from({ length: 12 }).map((_, rowIndex) => (
-                    <div
-                      key={rowIndex}
-                      className="grid grid-cols-8 border-b border-border last:border-b-0"
-                    >
-                      <Skeleton className="h-[60px] rounded-none border-r border-border" />
-                      {Array.from({ length: 7 }).map((_, colIndex) => (
-                        <Skeleton
-                          key={colIndex}
-                          className="h-[60px] rounded-none border-r border-border"
-                        />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <TimelineSkeleton />
           ) : (
             <WeeklyTimeline
               schedules={enrichedSchedules}
@@ -496,54 +486,61 @@ export default function ClassesPage() {
               onSelectionChange={handleSelectionChange}
             />
           )}
+
+          {/* Floating bar so bulk actions stay reachable while scrolling the grid. */}
+          {selectionMode && (
+            <div className="fixed inset-x-3 bottom-4 z-40 mx-auto flex max-w-xl items-center gap-2 rounded-xl border bg-background/95 p-2 pl-4 shadow-lg backdrop-blur sm:inset-x-0">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium tabular-nums">
+                {selectedScheduleIds.size === 0
+                  ? "Tocá los turnos a seleccionar"
+                  : `${selectedScheduleIds.size} seleccionado${selectedScheduleIds.size === 1 ? "" : "s"}`}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBulkAction("cancel")}
+                disabled={selectedScheduleIds.size === 0}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkAction("remove")}
+                disabled={selectedScheduleIds.size === 0}
+              >
+                Eliminar
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={handleExitSelectionMode}
+                aria-label="Salir de la selección"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       ) : selectedView === "model" ? (
-        <div className="space-y-4 rounded-lg border p-3 md:p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold md:text-lg">
-              Semana Modelo
-            </h2>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              La plantilla de horarios que se copia a cada semana.
+            </p>
             <Button
               variant="outline"
+              className="shrink-0"
               onClick={() => setApplyModelWeekOpen(true)}
               disabled={!modelWeekSlots || modelWeekSlots.length === 0}
             >
-              Aplicar semana modelo
+              Aplicar semana
             </Button>
           </div>
 
           {modelWeekSlots === undefined ? (
-            <div className="overflow-hidden rounded-lg border">
-              <div className="overflow-x-auto">
-                <div className="min-w-[800px]">
-                  {/* Day headers */}
-                  <div className="grid grid-cols-8 bg-muted">
-                    <Skeleton className="h-14 rounded-none border-r border-b border-border" />
-                    {Array.from({ length: 7 }).map((_, i) => (
-                      <Skeleton
-                        key={i}
-                        className="h-14 rounded-none border-r border-b border-border"
-                      />
-                    ))}
-                  </div>
-                  {/* Time rows */}
-                  {Array.from({ length: 12 }).map((_, rowIndex) => (
-                    <div
-                      key={rowIndex}
-                      className="grid grid-cols-8 border-b border-border last:border-b-0"
-                    >
-                      <Skeleton className="h-[60px] rounded-none border-r border-border" />
-                      {Array.from({ length: 7 }).map((_, colIndex) => (
-                        <Skeleton
-                          key={colIndex}
-                          className="h-[60px] rounded-none border-r border-border"
-                        />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <TimelineSkeleton />
           ) : (
             <ModelWeekTimeline
               modelSlots={(modelWeekSlots ?? []) as ModelWeekSlotDoc[]}
@@ -564,39 +561,37 @@ export default function ClassesPage() {
           )}
         </div>
       ) : selectedView === "list" ? (
-        <div className="rounded-lg border p-3 md:p-4">
-          {classes === undefined ? (
-            <div className="py-12 text-center">
-              <p className="text-muted-foreground">Cargando clases...</p>
-            </div>
-          ) : classes.length === 0 ? (
-            <Empty className="py-12">
-              <EmptyHeader>
-                <EmptyMedia>
-                  <Image
-                    src={matWolfLooking}
-                    alt=""
-                    className="h-20 w-20 object-contain"
-                  />
-                </EmptyMedia>
-                <EmptyTitle>No hay clases creadas</EmptyTitle>
-                <EmptyDescription>
-                  Crea tu primera clase para comenzar a gestionar horarios y
-                  reservas.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button onClick={handleNewClass}>Crear primera clase</Button>
-              </EmptyContent>
-            </Empty>
-          ) : (
-            <ClassList
-              classes={classes}
-              onEditClass={handleEditClass}
-              onOpenGenerateTurnos={handleOpenGenerateTurnos}
-            />
-          )}
-        </div>
+        classes === undefined ? (
+          <Skeleton className="h-64 rounded-xl" />
+        ) : classes.length === 0 ? (
+          <Empty className="rounded-xl border border-dashed py-12">
+            <EmptyHeader>
+              <EmptyMedia>
+                <Image
+                  src={matWolfLooking}
+                  alt=""
+                  className="h-16 w-16 object-contain"
+                />
+              </EmptyMedia>
+              <EmptyTitle>Todavía no hay clases</EmptyTitle>
+              <EmptyDescription>
+                Creá una clase para empezar a armar turnos y recibir reservas.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button className="gap-1.5" onClick={handleNewClass}>
+                <Plus className="h-4 w-4" aria-hidden />
+                Nueva clase
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ClassList
+            classes={classes}
+            onEditClass={handleEditClass}
+            onOpenGenerateTurnos={handleOpenGenerateTurnos}
+          />
+        )
       ) : null}
 
       {/* Dialogs */}

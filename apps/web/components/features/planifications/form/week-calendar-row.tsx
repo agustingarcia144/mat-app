@@ -201,11 +201,20 @@ function DayCardContent({
   expandedContent: React.ReactNode;
 }) {
   return (
-    <div className="p-2 text-sm flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2 p-3 text-sm">
       <div className="flex items-center gap-1.5 min-w-0">
-        <span className="font-medium truncate flex-1" title={day?.name}>
-          {day?.name || "Sin nombre"}
-        </span>
+        {isSummaryMode ? (
+          <Link
+            className="min-w-0 flex-1 font-semibold hover:underline"
+            href={`/dashboard/planifications/${planificationId}/edit/day/${weekIndex}/${dayIndex}`}
+          >
+            {day?.name || "Sin nombre"}
+          </Link>
+        ) : (
+          <span className="min-w-0 flex-1 font-semibold">
+            {day?.name || "Sin nombre"}
+          </span>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -574,8 +583,15 @@ export default function WeekCalendarRow({
   const renderAddDayButton = (dayOfWeek: number) => {
     if (isSummaryMode) {
       return (
-        <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          aria-label="Agregar día"
+          asChild
+        >
           <Link
+            aria-label="Agregar día"
             href={`/dashboard/planifications/${planificationId}/edit/day/new?weekIndex=${weekIndex}&dayOfWeek=${dayOfWeek}`}
           >
             <Plus className="h-3.5 w-3.5 text-muted-foreground" />
@@ -610,7 +626,8 @@ export default function WeekCalendarRow({
       const day = form.watch(
         `workoutWeeks.${weekIndex}.workoutDays.${dayIndex}`,
       );
-      const blockCount = day?.blocks?.length ?? 0;
+      const blockCount =
+        day?.blocks?.filter((block) => block.id !== SIN_BLOQUE_ID).length ?? 0;
       const exerciseCount = day?.exercises?.length ?? 0;
       const isExpanded = expandedDayIds.has(field.id);
       const exercisesVisible = exercisesVisibleDayIds.has(field.id);
@@ -718,16 +735,16 @@ export default function WeekCalendarRow({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <div className="grid min-w-[560px] grid-cols-7 gap-2">
+          <div className="grid min-w-[1050px] grid-cols-7 gap-2.5">
             {DAY_NAMES.map(({ value: dow, label }) => {
               const dayIndices = daysByWeekday.get(dow) ?? [];
               return (
                 <div
                   key={dow}
-                  className="flex min-h-[100px] flex-col rounded-lg border bg-muted/20 p-2"
+                  className={`flex min-h-[180px] min-w-0 flex-col rounded-lg border p-2 ${dayIndices.length ? "border-primary/15 bg-primary/[0.03]" : "border-dashed bg-muted/15"}`}
                 >
-                  <div className="mb-2 flex shrink-0 items-center justify-between">
-                    <span className="text-sm font-medium text-muted-foreground">
+                  <div className="mb-3 flex shrink-0 items-center justify-between gap-1">
+                    <span className="text-xs font-medium text-muted-foreground">
                       {label}
                     </span>
                     {renderAddDayButton(dow)}
@@ -739,8 +756,13 @@ export default function WeekCalendarRow({
                       className="absolute inset-0 z-0 rounded-lg"
                     />
                     <div className="relative z-10 flex-1 space-y-2 pointer-events-none">
-                      <div className="pointer-events-auto">
+                      <div className="space-y-2 pointer-events-auto">
                         {renderDayCards(dayIndices)}
+                        {dayIndices.length === 0 && (
+                          <p className="py-6 text-center text-xs text-muted-foreground/60">
+                            Descanso
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>

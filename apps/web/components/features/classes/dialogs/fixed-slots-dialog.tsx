@@ -7,9 +7,29 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -39,12 +59,13 @@ import { cn } from "@/lib/utils";
 import {
   Check,
   ChevronDown,
-  Clock,
+  MoreHorizontal,
   Plus,
   RefreshCw,
+  Repeat2,
   Search,
   Trash2,
-  Users,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
@@ -58,6 +79,43 @@ const DAYS_OF_WEEK = [
   { value: 6, label: "Sábado" },
   { value: 0, label: "Domingo" },
 ];
+
+/** Monday-first initials for the day chips. */
+const DAY_CHIPS = [
+  { value: 1, short: "L" },
+  { value: 2, short: "M" },
+  { value: 3, short: "M" },
+  { value: 4, short: "J" },
+  { value: 5, short: "V" },
+  { value: 6, short: "S" },
+  { value: 0, short: "D" },
+];
+
+type FixedSlotRow = Doc<"fixedClassSlots"> & {
+  className: string | null;
+  userFullName: string;
+};
+
+/** One member on one class at one time, across every weekday they come. */
+type FixedSlotGroup = {
+  key: string;
+  userName: string;
+  className: string;
+  startTimeMinutes: number;
+  slots: FixedSlotRow[];
+};
+
+function initials(name: string) {
+  return (
+    name
+      .split(" ")
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?"
+  );
+}
 
 const normalize = (v?: string) =>
   v
@@ -166,6 +224,48 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
     );
   }, [fixedSlots, deferredStudentNameFilter]);
 
+  const groups = useMemo(() => {
+    const map = new Map<string, FixedSlotGroup>();
+    for (const slot of (filteredFixedSlots ?? []) as FixedSlotRow[]) {
+      const key = `${slot.userId}|${slot.classId}|${slot.startTimeMinutes}`;
+      const group = map.get(key) ?? {
+        key,
+        userName: slot.userFullName ?? slot.userId,
+        className: slot.className ?? "Clase",
+        startTimeMinutes: slot.startTimeMinutes,
+        slots: [],
+      };
+      group.slots.push(slot);
+      map.set(key, group);
+    }
+    return [...map.values()].sort(
+      (a, b) =>
+        a.userName.localeCompare(b.userName, "es") ||
+        a.startTimeMinutes - b.startTimeMinutes,
+    );
+  }, [filteredFixedSlots]);
+
+  const [groupToRemove, setGroupToRemove] = useState<FixedSlotGroup | null>(
+    null,
+  );
+  const [removingGroup, setRemovingGroup] = useState(false);
+
+  const handleRemoveGroup = async () => {
+    if (!groupToRemove) return;
+    setRemovingGroup(true);
+    try {
+      for (const slot of groupToRemove.slots) {
+        await removeFixedSlot({ id: slot._id });
+      }
+      toast.success("Turno fijo eliminado");
+      setGroupToRemove(null);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Error al eliminar");
+    } finally {
+      setRemovingGroup(false);
+    }
+  };
+
   const handleAdd = async () => {
     if (selectedUserIds.length === 0 || !addClassId) {
       toast.error("Seleccioná miembro y clase");
@@ -233,7 +333,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
   const handleRemove = async (id: Id<"fixedClassSlots">) => {
     try {
       await removeFixedSlot({ id });
-      toast.success("Turno fijo eliminado");
+      toast.success("Día quitado; se cancelaron sus reservas de ese día");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Error al eliminar");
     }
@@ -262,205 +362,249 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-2xl flex flex-col p-4 sm:h-[90vh] sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Miembros con turno fijo
-            </DialogTitle>
+        <DialogContent className="flex h-[min(90dvh,760px)] w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-2xl">
+          <DialogHeader className="space-y-1 border-b p-5 pr-12 text-left">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <DialogTitle>Turnos fijos</DialogTitle>
+                <DialogDescription>
+                  Miembros que se reservan solos cada semana.
+                </DialogDescription>
+              </div>
+              <Button
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => setAddOpen(true)}
+              >
+                <Plus className="size-4" aria-hidden />
+                Agregar
+              </Button>
+            </div>
           </DialogHeader>
 
-          <div className="flex flex-col gap-4 flex-1 min-h-0">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="w-full space-y-1 sm:w-auto">
-                <Label className="text-muted-foreground">
-                  Filtrar por clase:
-                </Label>
-                <Select value={classFilter} onValueChange={setClassFilter}>
-                  <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas las clases</SelectItem>
-                    {classes?.map((c: Doc<"classes">) => (
-                      <SelectItem key={c._id} value={c._id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <div className="flex gap-2 border-b px-5 py-3">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={studentNameFilter}
+                onChange={(event) => setStudentNameFilter(event.target.value)}
+                placeholder="Buscar miembro..."
+                className="h-9 pl-9"
+                aria-label="Buscar miembro"
+              />
+            </div>
+            <Select value={classFilter} onValueChange={setClassFilter}>
+              <SelectTrigger
+                className="h-9 w-[150px] shrink-0 sm:w-[190px]"
+                aria-label="Filtrar por clase"
+              >
+                <SelectValue placeholder="Todas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las clases</SelectItem>
+                {classes?.map((c: Doc<"classes">) => (
+                  <SelectItem key={c._id} value={c._id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {fixedSlots === undefined ? (
+              <div className="space-y-2 p-5">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <Skeleton key={i} className="h-14 rounded-lg" />
+                ))}
               </div>
-              <div className="w-full space-y-1 sm:w-auto">
-                <Label
-                  htmlFor="fixed-slot-student-filter"
-                  className="text-muted-foreground"
-                >
-                  Filtrar por alumno:
-                </Label>
-                <div className="relative w-full sm:w-[240px]">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="fixed-slot-student-filter"
-                    value={studentNameFilter}
-                    onChange={(event) =>
-                      setStudentNameFilter(event.target.value)
-                    }
-                    placeholder="Nombre del alumno"
-                    className="pl-8"
-                  />
+            ) : fixedSlots.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+                <span className="flex size-10 items-center justify-center rounded-full bg-muted">
+                  <Repeat2 className="size-5 text-muted-foreground" />
+                </span>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">
+                    Todavía no hay turnos fijos
+                  </p>
+                  <p className="max-w-xs text-sm text-muted-foreground">
+                    Un turno fijo reserva al miembro en cada turno de esa clase
+                    que coincida con el día y la hora.
+                  </p>
                 </div>
-              </div>
-              <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row">
                 <Button
                   size="sm"
                   variant="outline"
-                  className="gap-1"
-                  onClick={handleBackfill}
-                  disabled={backfilling || (fixedSlots?.length ?? 0) === 0}
-                  title="Aplicar miembros con turno fijo a los horarios ya creados"
-                >
-                  <RefreshCw
-                    className={`h-4 w-4 ${backfilling ? "animate-spin" : ""}`}
-                  />
-                  Aplicar a turnos existentes
-                </Button>
-                <Button
-                  size="sm"
-                  className="gap-1"
+                  className="gap-1.5"
                   onClick={() => setAddOpen(true)}
                 >
-                  <Plus className="h-4 w-4" />
-                  Agregar
+                  <Plus className="size-4" aria-hidden />
+                  Agregar turno fijo
                 </Button>
               </div>
-            </div>
-
-            <div className="border rounded-lg overflow-auto flex-1 min-h-[200px]">
-              {fixedSlots === undefined ? (
-                <div className="p-4 text-sm text-muted-foreground">
-                  Cargando...
-                </div>
-              ) : fixedSlots.length === 0 ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">
-                  No hay turnos fijos. Agregá miembros con turno fijo para que
-                  se asignen automáticamente a cada clase que coincida con el
-                  horario.
-                </div>
-              ) : filteredFixedSlots?.length === 0 ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">
-                  No se encontraron turnos fijos para ese alumno.
-                </div>
-              ) : (
-                <>
-                  <div className="divide-y sm:hidden">
-                    {filteredFixedSlots?.map(
-                      (
-                        slot: Doc<"fixedClassSlots"> & {
-                          className: string | null;
-                          userFullName: string;
-                        },
-                      ) => (
-                        <div key={slot._id} className="space-y-3 p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">
-                                {slot.userFullName ?? slot.userId}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {slot.className ?? "-"}
-                              </p>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 shrink-0 p-0 text-destructive hover:text-destructive"
-                              onClick={() => handleRemove(slot._id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div>
-                              <p className="text-xs text-muted-foreground">
-                                Dia
-                              </p>
-                              <p>
-                                {DAYS_OF_WEEK.find(
-                                  (d) => d.value === slot.dayOfWeek,
-                                )?.label ?? slot.dayOfWeek}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">
-                                Hora
-                              </p>
-                              <p className="flex items-center gap-1">
-                                <Clock className="h-4 w-4 text-muted-foreground" />
-                                {formatSlotTime(slot.startTimeMinutes)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ),
-                    )}
-                  </div>
-
-                  <table className="hidden w-full text-sm sm:table">
-                  <thead className="bg-muted/50 sticky top-0">
-                    <tr>
-                      <th className="text-left p-3 font-medium">Miembro</th>
-                      <th className="text-left p-3 font-medium">Clase</th>
-                      <th className="text-left p-3 font-medium">Día</th>
-                      <th className="text-left p-3 font-medium">Hora</th>
-                      <th className="w-10 p-3" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredFixedSlots?.map(
-                      (
-                        slot: Doc<"fixedClassSlots"> & {
-                          className: string | null;
-                          userFullName: string;
-                        },
-                      ) => (
-                        <tr
-                          key={slot._id}
-                          className="border-t border-border hover:bg-muted/30"
+            ) : groups.length === 0 ? (
+              <p className="p-8 text-center text-sm text-muted-foreground">
+                Ningún miembro coincide con la búsqueda.
+              </p>
+            ) : (
+              <ul className="divide-y">
+                {groups.map((group) => {
+                  const slotByDay = new Map(
+                    group.slots.map((slot) => [slot.dayOfWeek, slot]),
+                  );
+                  return (
+                    <li
+                      key={group.key}
+                      className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-3"
+                    >
+                      <Avatar className="size-8 shrink-0">
+                        <AvatarFallback className="text-xs">
+                          {initials(group.userName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {group.userName}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {group.className} ·{" "}
+                          <span className="tabular-nums">
+                            {formatSlotTime(group.startTimeMinutes)}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="ml-11 flex items-center gap-2 sm:ml-0">
+                        <div
+                          className="flex gap-0.5"
+                          aria-label={`Días: ${group.slots
+                            .map(
+                              (s) =>
+                                DAYS_OF_WEEK.find(
+                                  (d) => d.value === s.dayOfWeek,
+                                )?.label,
+                            )
+                            .join(", ")}`}
                         >
-                          <td className="p-3">
-                            {slot.userFullName ?? slot.userId}
-                          </td>
-                          <td className="p-3">{slot.className ?? "-"}</td>
-                          <td className="p-3">
-                            {DAYS_OF_WEEK.find(
-                              (d) => d.value === slot.dayOfWeek,
-                            )?.label ?? slot.dayOfWeek}
-                          </td>
-                          <td className="p-3 flex items-center gap-1">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            {formatSlotTime(slot.startTimeMinutes)}
-                          </td>
-                          <td className="p-3">
+                          {DAY_CHIPS.map((day) => {
+                            const slot = slotByDay.get(day.value);
+                            return (
+                              <span
+                                key={day.value}
+                                className={cn(
+                                  "flex size-6 items-center justify-center rounded-md text-[11px] font-medium",
+                                  slot
+                                    ? "bg-foreground text-background"
+                                    : "bg-muted text-muted-foreground/60",
+                                )}
+                                aria-hidden
+                              >
+                                {day.short}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button
-                              size="sm"
                               variant="ghost"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                              onClick={() => handleRemove(slot._id)}
+                              size="icon"
+                              className="size-8"
+                              aria-label={`Acciones para ${group.userName}`}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <MoreHorizontal className="size-4" />
                             </Button>
-                          </td>
-                        </tr>
-                      ),
-                    )}
-                  </tbody>
-                  </table>
-                </>
-              )}
-            </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {group.slots.length > 1 &&
+                              DAYS_OF_WEEK.filter((d) =>
+                                slotByDay.has(d.value),
+                              ).map((d) => (
+                                <DropdownMenuItem
+                                  key={d.value}
+                                  onClick={() =>
+                                    handleRemove(slotByDay.get(d.value)!._id)
+                                  }
+                                >
+                                  <X className="mr-2 size-4" />
+                                  Quitar {d.label.toLowerCase()}
+                                </DropdownMenuItem>
+                              ))}
+                            {group.slots.length > 1 && (
+                              <DropdownMenuSeparator />
+                            )}
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setGroupToRemove(group)}
+                            >
+                              <Trash2 className="mr-2 size-4" />
+                              Quitar turno fijo
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 border-t px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Se aplican solos a los turnos nuevos.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={handleBackfill}
+              disabled={backfilling || (fixedSlots?.length ?? 0) === 0}
+            >
+              <RefreshCw
+                className={cn("size-4", backfilling && "animate-spin")}
+                aria-hidden
+              />
+              Aplicar a turnos ya creados
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={groupToRemove !== null}
+        onOpenChange={(next) =>
+          !next && !removingGroup && setGroupToRemove(null)
+        }
+      >
+        <AlertDialogContent className="w-[calc(100%-1.5rem)] rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Quitar el turno fijo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {groupToRemove?.userName} deja de reservarse solo en{" "}
+              {groupToRemove?.className} a las{" "}
+              {groupToRemove
+                ? formatSlotTime(groupToRemove.startTimeMinutes)
+                : ""}
+              . También se cancelan sus reservas confirmadas en esos turnos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removingGroup}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              disabled={removingGroup}
+              onClick={(e) => {
+                e.preventDefault();
+                handleRemoveGroup();
+              }}
+            >
+              {removingGroup ? "Quitando..." : "Quitar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={addOpen}
@@ -471,9 +615,12 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
           }
         }}
       >
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-sm p-4 sm:p-6">
+        <DialogContent className="w-[calc(100%-1.5rem)] rounded-xl sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Agregar turno fijo</DialogTitle>
+            <DialogDescription>
+              Se van a reservar solos en cada turno que coincida.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
@@ -584,9 +731,7 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                           sub.status !== "cancelled" &&
                           (sub.plan?.classesEnabled === false ||
                             (sub.plan?.allowedClassIds?.length &&
-                              !sub.plan.allowedClassIds.includes(
-                                nextClassId,
-                              ))),
+                              !sub.plan.allowedClassIds.includes(nextClassId))),
                       )
                       .map((sub) => sub.userId),
                   );
@@ -609,28 +754,37 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
             </div>
             <div className="space-y-2">
               <Label>Días</Label>
-              <div className="flex flex-wrap gap-3 pt-1">
-                {DAYS_OF_WEEK.map((day) => (
-                  <div key={day.value} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`add-dow-${day.value}`}
-                      checked={addDaysOfWeek.includes(day.value)}
-                      onCheckedChange={(checked) => {
+              <div className="flex gap-1">
+                {DAY_CHIPS.map((day) => {
+                  const active = addDaysOfWeek.includes(day.value);
+                  const label =
+                    DAYS_OF_WEEK.find((d) => d.value === day.value)?.label ??
+                    "";
+                  return (
+                    <button
+                      key={day.value}
+                      type="button"
+                      aria-pressed={active}
+                      aria-label={label}
+                      title={label}
+                      onClick={() =>
                         setAddDaysOfWeek((prev) =>
-                          checked
-                            ? [...prev, day.value].sort((a, b) => a - b)
-                            : prev.filter((d) => d !== day.value),
-                        );
-                      }}
-                    />
-                    <Label
-                      htmlFor={`add-dow-${day.value}`}
-                      className="text-sm font-normal cursor-pointer"
+                          active
+                            ? prev.filter((d) => d !== day.value)
+                            : [...prev, day.value].sort((a, b) => a - b),
+                        )
+                      }
+                      className={cn(
+                        "flex h-9 flex-1 items-center justify-center rounded-md border text-sm font-medium transition-colors",
+                        active
+                          ? "border-foreground bg-foreground text-background"
+                          : "text-muted-foreground hover:bg-accent/60",
+                      )}
                     >
-                      {day.label}
-                    </Label>
-                  </div>
-                ))}
+                      {day.short}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -671,11 +825,17 @@ export default function FixedSlotsDialog({ open, onOpenChange }: Props) {
                 </Select>
               </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setAddOpen(false)}>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setAddOpen(false)}
+              >
                 Cancelar
               </Button>
-              <Button onClick={handleAdd}>Agregar</Button>
+              <Button className="flex-1" onClick={handleAdd}>
+                Agregar
+              </Button>
             </div>
           </div>
         </DialogContent>

@@ -69,7 +69,7 @@ function SortableBlockColumn({
   return (
     <div
       ref={setRef}
-      className={`isolate flex flex-col min-h-0 items-stretch w-48 shrink-0 rounded-lg border bg-muted/30 overflow-hidden backface-hidden transform-[translateZ(0)] ${isDragging ? "opacity-50" : ""} ${isDropTarget ? "ring-2 ring-primary/50" : ""}`}
+      className={`isolate flex flex-col min-h-0 items-stretch min-w-0 rounded-lg border bg-muted/30 overflow-hidden backface-hidden transform-[translateZ(0)] ${isDragging ? "opacity-50" : ""} ${isDropTarget ? "ring-2 ring-primary/50" : ""}`}
     >
       <div
         ref={handleRef as (el: HTMLDivElement | null) => void}
@@ -153,7 +153,7 @@ export default function DayBlocksContent({
   const blocks = day?.blocks ?? [];
 
   return (
-    <div className="flex items-stretch gap-3 overflow-x-auto pb-2 min-h-[320px]">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,280px),1fr))] items-start gap-4 pb-2">
       {blocks.map((block, blockIndex) => {
         const blockExercises = (day.exercises || []).filter(
           (ex) =>
@@ -162,7 +162,7 @@ export default function DayBlocksContent({
         );
         const isSinBloque = block.id === SIN_BLOQUE_ID;
         const blockHeaderContent = (
-          <div className="flex items-center gap-1.5 min-w-0 shrink-0 border-b border-border/50 p-1.5">
+          <div className="flex items-center gap-2 min-w-0 shrink-0 border-b border-border/50 p-3">
             <Controller
               name={`${blocksPath}.${blockIndex}.name` as any}
               control={form.control}
@@ -176,7 +176,8 @@ export default function DayBlocksContent({
                     value={String(field.value ?? "")}
                     aria-invalid={fieldState.invalid}
                     placeholder="Nombre del bloque"
-                    className="h-7 text-xs font-medium border-0 shadow-none focus-visible:border focus-visible:border-input focus-visible:shadow-sm"
+                    aria-label="Nombre del bloque"
+                    className="h-8 text-sm font-semibold border-transparent bg-transparent shadow-none hover:border-input focus-visible:border-input"
                     disabled={isSinBloque}
                   />
                   {fieldState.invalid && (
@@ -185,12 +186,16 @@ export default function DayBlocksContent({
                 </Field>
               )}
             />
+            <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs tabular-nums text-muted-foreground">
+              {blockExercises.length}
+            </span>
             {!isSinBloque && (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 shrink-0"
+                aria-label="Eliminar bloque"
                 onClick={() => onRemoveBlock(blockIndex)}
               >
                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -201,10 +206,15 @@ export default function DayBlocksContent({
         return (
           <React.Fragment key={block.id}>
             {isSinBloque ? (
-              <div className="flex flex-col min-h-0 items-stretch w-48 shrink-0 rounded-lg border bg-muted/30 overflow-hidden">
+              <div className="flex flex-col min-h-0 items-stretch min-w-0 rounded-lg border bg-muted/30 overflow-hidden">
                 <div className="shrink-0">{blockHeaderContent}</div>
                 <BlockExercisesDropZone blockId={block.id}>
-                  <div className="flex flex-col gap-1.5 p-1.5 min-h-0 flex-1 overflow-y-auto">
+                  <div className="flex min-h-24 flex-1 flex-col gap-2 p-3">
+                    {blockExercises.length === 0 && (
+                      <p className="flex min-h-24 items-center justify-center rounded-lg border border-dashed px-4 text-center text-xs text-muted-foreground">
+                        Arrastrá ejercicios acá para agregarlos
+                      </p>
+                    )}
                     {blockExercises.map((exercise) => {
                       const exerciseIndex = day.exercises?.findIndex(
                         (e) => e.id === exercise.id,
@@ -241,7 +251,12 @@ export default function DayBlocksContent({
                 header={blockHeaderContent}
               >
                 <BlockExercisesDropZone blockId={block.id}>
-                  <div className="flex flex-col gap-1.5 p-1.5 min-h-0 flex-1 overflow-y-auto">
+                  <div className="flex min-h-24 flex-1 flex-col gap-2 p-3">
+                    {blockExercises.length === 0 && (
+                      <p className="flex min-h-24 items-center justify-center rounded-lg border border-dashed px-4 text-center text-xs text-muted-foreground">
+                        Arrastrá ejercicios acá para agregarlos
+                      </p>
+                    )}
                     {blockExercises.map((exercise) => {
                       const exerciseIndex = day.exercises?.findIndex(
                         (e) => e.id === exercise.id,
