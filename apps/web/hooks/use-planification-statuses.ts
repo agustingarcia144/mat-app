@@ -7,65 +7,12 @@ import { mapMembershipsToMembers } from "@repo/core/utils";
 import { api } from "@/convex/_generated/api";
 import { useCanQueryCurrentOrganization } from "@/hooks/use-can-query-current-organization";
 
-export type PlanStatus =
-  | "none"
-  | "not_started"
-  | "active"
-  | "expiring_soon"
-  | "expired";
-
-function safeDate(value: any): Date | null {
-  if (!value) return null;
-
-  if (typeof value === "string" && value.includes("/")) {
-    const parts = value.split("/");
-    if (parts.length === 3) {
-      const [day, month, year] = parts;
-      const parsed = new Date(`${year}-${month}-${day}`);
-      return isNaN(parsed.getTime()) ? null : parsed;
-    }
-  }
-
-  const d = new Date(value);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-export function computePlanStatus(assignment: any) {
-  if (!assignment) {
-    return { status: "none", daysLeft: null, daysExpired: null };
-  }
-
-  const start = safeDate(assignment.startDate);
-  const end = safeDate(assignment.endDate);
-  const now = new Date();
-
-  const diffDays = (from: Date, to: Date) =>
-    Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-
-  if (!start || !end) {
-    return { status: "not_started", daysLeft: null, daysExpired: null };
-  }
-
-  const daysLeftRaw = diffDays(now, end);
-  const daysLeft = Math.max(daysLeftRaw, 0);
-
-  const daysExpiredRaw = diffDays(end, now);
-  const daysExpired = end <= now ? Math.max(daysExpiredRaw, 0) : null;
-
-  if (end <= now) {
-    return { status: "expired", daysLeft: 0, daysExpired };
-  }
-
-  if (start > now) {
-    return { status: "not_started", daysLeft, daysExpired: null };
-  }
-
-  if (daysLeft <= 5) {
-    return { status: "expiring_soon", daysLeft, daysExpired: null };
-  }
-
-  return { status: "active", daysLeft, daysExpired: null };
-}
+import {
+  computePlanStatus,
+  safePlanDate as safeDate,
+  type PlanStatus,
+} from "@repo/core/utils";
+export { computePlanStatus, type PlanStatus } from "@repo/core/utils";
 
 function getDateTime(value: any, fallback: number) {
   return safeDate(value)?.getTime() ?? fallback;
@@ -151,7 +98,8 @@ export function usePlanificationStatuses({
     const all = mapMembershipsToMembers(memberships);
 
     return all.filter(
-      (m: any) => normalize(m.role) === "member" && m.usesPlanification !== false,
+      (m: any) =>
+        normalize(m.role) === "member" && m.usesPlanification !== false,
     );
   }, [memberships]);
 
@@ -225,7 +173,9 @@ export function usePlanificationStatuses({
   }, [membersWithStatuses]);
 
   return {
-    isLoading: memberships === undefined,
+    isLoading:
+      memberships === undefined ||
+      members.some((member: any) => assignmentsByUser[member.id] === undefined),
     members: membersWithStatuses,
     membersWithIssues,
     summary,

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { api } from "@/convex/_generated/api";
 import { type Id } from "@/convex/_generated/dataModel";
 
 import ActiveMembers from "@/components/features/dashboard/ActiveMembers";
@@ -10,7 +9,7 @@ import PaymentsOverview from "@/components/features/dashboard/PaymentsOverview";
 import PendingActionsCard from "@/components/features/dashboard/PendingActionsCard";
 import ClassesCard from "@/components/features/dashboard/ClassesCard";
 import DashboardKpis from "@/components/features/dashboard/dashboard-kpis";
-import DashboardHeader from "@/components/features/dashboard/dashboard-header";
+import PersonalizedDashboard from "@/components/features/dashboard/personalized-dashboard";
 import QuickActions from "@/components/features/dashboard/quick-actions";
 import {
   DashboardScopeProvider,
@@ -19,7 +18,6 @@ import {
 import ScheduleDetailDialog from "@/components/features/classes/dialogs/schedule-detail-dialog";
 import { useOrganizationEntitlement } from "@/hooks/use-organization-entitlement";
 import { isOrgAdminRole } from "@/lib/security/roles";
-import { cn } from "@/lib/utils";
 import { DashboardPageContainer } from "@/components/shared/responsive/dashboard-page-container";
 
 function DashboardContent() {
@@ -48,37 +46,24 @@ function DashboardContent() {
     setSelectedScheduleId(undefined);
   };
 
-  // Left: what needs doing today. Right: how the gym is doing (members and
-  // money first), with the long Planificaciones list closing the column.
-  const hasSideColumn =
-    showMembers || showPaymentsOverview || showPlanifications;
-
   return (
     <DashboardPageContainer className="space-y-4 py-6 md:space-y-6 md:py-10">
-      <DashboardHeader />
-      <QuickActions />
-      <DashboardKpis />
-
-      <div
-        className={cn(
-          "grid items-start gap-4",
-          hasSideColumn && "lg:grid-cols-2 lg:gap-6",
-        )}
-      >
-        <div className="min-w-0 space-y-4">
-          <PendingActionsCard />
-          {showClasses && (
+      <PersonalizedDashboard
+        cards={{
+          pending: <PendingActionsCard />,
+          classes: showClasses ? (
             <ClassesCard onOpenDetail={handleOpenScheduleDetail} />
-          )}
-        </div>
-        {hasSideColumn && (
-          <div className="min-w-0 space-y-4">
-            {showMembers && <ActiveMembers />}
-            {showPaymentsOverview && <PaymentsOverview />}
-            {showPlanifications && <PlanificationStatus />}
-          </div>
-        )}
-      </div>
+          ) : undefined,
+          members: showMembers ? <ActiveMembers /> : undefined,
+          payments: showPaymentsOverview ? <PaymentsOverview /> : undefined,
+          planifications: showPlanifications ? (
+            <PlanificationStatus />
+          ) : undefined,
+        }}
+      >
+        <QuickActions />
+        <DashboardKpis />
+      </PersonalizedDashboard>
 
       {showClasses && selectedScheduleId && (
         <ScheduleDetailDialog
