@@ -1,27 +1,21 @@
 "use client";
 
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import {
+  filterDashboardPlans,
+  type DashboardPlanFilter,
+  type PlanHealth,
+} from "@repo/core/utils";
 import { cn } from "@/lib/utils";
 import { usePlanificationStatuses } from "@/hooks/use-planification-statuses";
 import { Panel, PanelEmpty, PanelSkeleton, plural } from "./dashboard-panel";
 import { useDashboardScope } from "./dashboard-scope-context";
 
-/** Keeps the panel close to the left column's height; the rest is one click away. */
+/** Keep the initial card compact; expand the matching records in place. */
 const ATTENTION_LIMIT = 5;
 
-const ISSUE_ORDER: Record<string, number> = {
-  expired: 0,
-  expiring_soon: 1,
-  none: 2,
-  not_started: 2,
-};
-
-function describeIssue(planStatus: {
-  status: string;
-  daysLeft: number | null;
-  daysExpired: number | null;
-}) {
+function describeIssue(planStatus: PlanHealth) {
   if (planStatus.status === "expired") {
     return {
       dot: "bg-red-500",
@@ -46,17 +40,41 @@ function describeIssue(planStatus: {
       tone: "text-amber-600 dark:text-amber-400",
     };
   }
+  if (planStatus.status === "active") {
+    return {
+      dot: "bg-emerald-500",
+      text:
+        planStatus.daysLeft !== null
+          ? `Vence en ${plural(planStatus.daysLeft, "día", "días")}`
+          : "Al día",
+      tone: "text-emerald-600 dark:text-emerald-400",
+    };
+  }
   return {
     dot: "bg-muted-foreground/50",
-    text: "Sin planificación",
+    text:
+      planStatus.status === "not_started"
+        ? "Aún no iniciada"
+        : "Sin planificación",
     tone: "text-muted-foreground",
   };
 }
 
 export default function PlanificationStatus() {
+  const { organizationId, myUserId, responsibleUserId } = useDashboardScope();
+  return (
+    <PlanificationStatusList
+      key={`${organizationId}:${myUserId}:${responsibleUserId ?? "all"}`}
+    />
+  );
+}
+
+function PlanificationStatusList() {
+  const [filter, setFilter] = useState<DashboardPlanFilter>("attention");
+  const [expanded, setExpanded] = useState(false);
   const { responsibleUserId, isLoading: isScopeLoading } = useDashboardScope();
 
-  const { isLoading, membersWithIssues, summary } = usePlanificationStatuses({
+  const { isLoading, members, summary } = usePlanificationStatuses({
     responsibleUserId,
     skip: isScopeLoading,
   });
@@ -64,21 +82,41 @@ export default function PlanificationStatus() {
   if (isLoading || isScopeLoading) return <PanelSkeleton rows={4} />;
 
   const segments = [
-    { label: "Al día", count: summary.assigned, tone: "bg-emerald-500" },
-    { label: "Por vencer", count: summary.expiringSoon, tone: "bg-amber-500" },
-    { label: "Vencidas", count: summary.expired, tone: "bg-red-500" },
     {
+      filter: "active",
+      label: "Al día",
+      count: summary.assigned,
+      tone: "bg-emerald-500",
+    },
+    {
+      filter: "expiring_soon",
+      label: "Por vencer",
+      count: summary.expiringSoon,
+      tone: "bg-amber-500",
+    },
+    {
+      filter: "expired",
+      label: "Vencidas",
+      count: summary.expired,
+      tone: "bg-red-500",
+    },
+    {
+      filter: "unassigned",
       label: "Sin asignar",
       count: summary.unassigned,
       tone: "bg-muted-foreground/40",
     },
-  ];
+  ] satisfies {
+    filter: DashboardPlanFilter;
+    label: string;
+    count: number;
+    tone: string;
+  }[];
 
-  const issues = [...membersWithIssues].sort(
-    (a: any, b: any) =>
-      (ISSUE_ORDER[a.planStatus.status] ?? 3) -
-      (ISSUE_ORDER[b.planStatus.status] ?? 3),
-  );
+  const issues = filterDashboardPlans(members, filter);
+  const listTitle =
+    segments.find((segment) => segment.filter === filter)?.label ??
+    "Necesitan atención";
 
   return (
     <Panel
@@ -113,7 +151,21 @@ export default function PlanificationStatus() {
           </div>
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
             {segments.map((segment) => (
-              <div key={segment.label} className="min-w-0">
+              <button
+                type="button"
+                key={segment.label}
+                aria-pressed={filter === segment.filter}
+                onClick={() => {
+                  setFilter(
+                    filter === segment.filter ? "attention" : segment.filter,
+                  );
+                  setExpanded(false);
+                }}
+                className={cn(
+                  "min-w-0 rounded-md p-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  filter === segment.filter && "bg-accent ring-1 ring-border",
+                )}
+              >
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <span
                     className={cn(
@@ -132,55 +184,67 @@ export default function PlanificationStatus() {
                 >
                   {segment.count}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
 
           <div className="mt-4 border-t pt-3">
             {issues.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Todos tus miembros tienen planificación vigente.
+                {filter === "attention"
+                  ? "Todos tus miembros tienen planificación vigente."
+                  : "No hay miembros con este estado."}
               </p>
             ) : (
               <>
                 <p className="mb-1 text-xs font-medium text-muted-foreground">
-                  Necesitan atención
+                  {listTitle}
                 </p>
                 <ul className="-mx-1 divide-y divide-border/50">
-                  {issues.slice(0, ATTENTION_LIMIT).map((member: any) => {
-                    const issue = describeIssue(member.planStatus);
-                    return (
-                      <li
-                        key={member.id}
-                        className="flex items-center gap-3 px-1 py-2 text-sm"
-                      >
-                        <span className="min-w-0 flex-1 truncate">
-                          {member.fullName || member.name}
-                        </span>
-                        <span
-                          className={cn(
-                            "flex shrink-0 items-center gap-1.5 text-xs",
-                            issue.tone,
-                          )}
+                  {(expanded ? issues : issues.slice(0, ATTENTION_LIMIT)).map(
+                    (member: any) => {
+                      const issue = describeIssue(member.planStatus);
+                      return (
+                        <li
+                          key={member.id}
+                          className="flex items-center gap-3 px-1 py-2 text-sm"
                         >
+                          <span className="min-w-0 flex-1 truncate">
+                            {member.fullName || member.name}
+                          </span>
                           <span
-                            className={cn("size-1.5 rounded-full", issue.dot)}
-                            aria-hidden
-                          />
-                          {issue.text}
-                        </span>
-                      </li>
-                    );
-                  })}
+                            className={cn(
+                              "flex shrink-0 items-center gap-1.5 text-xs",
+                              issue.tone,
+                            )}
+                          >
+                            <span
+                              className={cn("size-1.5 rounded-full", issue.dot)}
+                              aria-hidden
+                            />
+                            {issue.text}
+                          </span>
+                        </li>
+                      );
+                    },
+                  )}
                 </ul>
                 {issues.length > ATTENTION_LIMIT && (
-                  <Link
-                    href="/dashboard/planifications"
+                  <button
+                    type="button"
+                    aria-expanded={expanded}
+                    onClick={() => setExpanded(!expanded)}
                     className="mt-1 inline-flex items-center gap-0.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    Ver {issues.length - ATTENTION_LIMIT} más
-                    <ChevronRight className="size-3.5" aria-hidden />
-                  </Link>
+                    {expanded
+                      ? "Ver menos"
+                      : `Ver ${issues.length - ATTENTION_LIMIT} más`}
+                    {expanded ? (
+                      <ChevronUp className="size-3.5" aria-hidden />
+                    ) : (
+                      <ChevronDown className="size-3.5" aria-hidden />
+                    )}
+                  </button>
                 )}
               </>
             )}

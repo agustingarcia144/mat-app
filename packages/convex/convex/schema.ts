@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { dashboardLayoutValidator } from "./dashboardLayoutValidator";
 
 export default defineSchema({
   // Users table - stores app-specific user data
@@ -71,6 +72,7 @@ export default defineSchema({
     // For members: Clerk user id of the staff member responsible for keeping
     // this member's planification up to date.
     responsibleUserId: v.optional(v.string()),
+    dashboardLayout: v.optional(dashboardLayoutValidator),
     // For staff (admin/trainer/employee): payroll config.
     // payrollType decides how the total is computed: "hourly" uses
     // pricePerHour + pricePerClass; "monthly" uses a fixed pricePerMonth.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useUser } from "@clerk/nextjs";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import DashboardScopeToggle from "./dashboard-scope-toggle";
 import { useDashboardScope } from "./dashboard-scope-context";
 
-export default function DashboardHeader() {
+export default function DashboardHeader({ action }: { action?: ReactNode }) {
   const { user } = useUser();
   const { organizationName, role, isLoading } = useDashboardScope();
 
@@ -40,7 +40,10 @@ export default function DashboardHeader() {
         </div>
       </div>
 
-      <DashboardScopeToggle />
+      <div className="flex flex-wrap items-center gap-2">
+        <DashboardScopeToggle />
+        {action}
+      </div>
     </div>
   );
 }

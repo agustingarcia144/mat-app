@@ -23,6 +23,7 @@ type DashboardScopeValue = {
   isLoading: boolean;
   myUserId: string | undefined;
   organizationName: string | undefined;
+  organizationId: string | undefined;
   role: string | undefined;
   /** Ready to pass to Convex queries: undefined means "whole org". */
   responsibleUserId: string | undefined;
@@ -107,6 +108,7 @@ export function DashboardScopeProvider({ children }: { children: ReactNode }) {
       isLoading: membership === undefined,
       myUserId,
       organizationName: membership?.organization?.name,
+      organizationId: membership?.organizationId,
       role: membership?.role,
       responsibleUserId: scope === "mine" ? myUserId : undefined,
     };

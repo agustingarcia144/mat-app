@@ -57,7 +57,7 @@ export default function PendingActionsCard() {
   const canSeePlanifications =
     entitlement?.dashboardCards.includes("planifications") ?? false;
 
-  const { summary } = usePlanificationStatuses({
+  const { summary, isLoading: plansLoading } = usePlanificationStatuses({
     responsibleUserId,
     skip: isScopeLoading || !canSeePlanifications,
   });
@@ -187,6 +187,7 @@ export default function PendingActionsCard() {
 
   const isLoading =
     isScopeLoading ||
+    (canSeePlanifications && plansLoading) ||
     (isAdmin && joinRequests === undefined) ||
     (canSeePayments && pendingPayments === undefined);
   if (isLoading) return <PanelSkeleton rows={2} />;
