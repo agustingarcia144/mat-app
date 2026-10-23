@@ -1,7 +1,12 @@
 "use client";
 
+import { MotionConfig } from "motion/react";
 import HeroSection from "@/components/features/landing/hero-section";
 
 export default function LandingPage() {
-  return <HeroSection />;
+  return (
+    <MotionConfig reducedMotion="user">
+      <HeroSection />
+    </MotionConfig>
+  );
 }
