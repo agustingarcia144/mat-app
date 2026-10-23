@@ -15,8 +15,8 @@ import {
   Loader2,
   LogOut,
   MessageCircle,
+  Menu,
   ShieldCheck,
-  Sparkles,
   Users
 } from 'lucide-react'
 import {
@@ -39,7 +39,6 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Logo } from '@/components/features/landing/logo'
 import { SignInDialog } from '@/components/features/auth/sign-in-dialog'
 import {
   DropdownMenu,
@@ -47,9 +46,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { motion } from 'motion/react'
-import appMockup from '@/assets/app-mockup.png'
-import screenshotWeb from '@/assets/screenshot_web.png'
+import { motion, useReducedMotion } from 'motion/react'
+import { ProductScene, WorkflowExplorer } from './product-scene'
+import { WolfMascot } from './wolf-mascot'
+import styles from './landing.module.css'
+import mobileWorkout from '@/public/landing/mobile-workout.png'
 import wolf from '@/assets/mat-wolf.png'
 
 declare global {
@@ -198,16 +199,17 @@ function Reveal({
   children,
   className,
   amount = 0.2,
-  once = false
+  once = true
 }: {
   children: React.ReactNode
   className?: string
   amount?: number
   once?: boolean
 }) {
+  const reduceMotion = useReducedMotion()
   return (
     <motion.div
-      initial="hidden"
+      initial={reduceMotion ? false : 'hidden'}
       whileInView="visible"
       viewport={{ once, amount }}
       variants={revealVariants}
@@ -223,7 +225,7 @@ function RevealGroup({
   className,
   amount = 0.18,
   stagger = 0.08,
-  once = false
+  once = true
 }: {
   children: React.ReactNode
   className?: string
@@ -231,9 +233,10 @@ function RevealGroup({
   stagger?: number
   once?: boolean
 }) {
+  const reduceMotion = useReducedMotion()
   return (
     <motion.div
-      initial="hidden"
+      initial={reduceMotion ? false : 'hidden'}
       whileInView="visible"
       viewport={{ once, amount }}
       variants={{
@@ -525,7 +528,9 @@ export default function HeroSection() {
   const isTrialDialog = dialogMode === 'trial'
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-[#08080A] text-white antialiased">
+    <main
+      className={`${styles.landing} relative min-h-screen overflow-x-hidden bg-[#08080A] text-white antialiased`}
+    >
       <Script id="meta-pixel-base" strategy="afterInteractive">
         {`!function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -686,7 +691,7 @@ fbq('track', 'PageView');`}
 
       <WhatsAppFloatingButton />
 
-      {/* ===== Navbar (style preserved, dark-only) ===== */}
+      {/* ===== Navbar ===== */}
       <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-5 sm:pt-5">
         <Reveal amount={0} once>
           <div
@@ -702,11 +707,13 @@ fbq('track', 'PageView');`}
                   isScrolled ? 'py-1.5' : 'py-2'
                 }`}
               >
-                <Logo className="h-7 w-auto" />
+                <span className="text-2xl font-black italic tracking-[-0.08em]">
+                  MAT<span className="text-[#FF5C24]">.</span>
+                </span>
               </Link>
 
               <nav
-                className={`absolute left-1/2 hidden -translate-x-1/2 items-center rounded-full border border-white/10 bg-white/[0.04] shadow-sm transition-all duration-300 md:flex ${
+                className={`absolute left-1/2 hidden -translate-x-1/2 items-center rounded-full border border-white/10 bg-white/[0.04] shadow-sm transition-all duration-300 lg:flex ${
                   isScrolled ? 'gap-1 px-2.5 py-1.5' : 'gap-2 px-3 py-2'
                 }`}
               >
@@ -746,7 +753,8 @@ fbq('track', 'PageView');`}
                     onClick={() => setDialogMode('trial')}
                     className={`${orangeButtonClassName} px-3 py-2 text-xs sm:px-4 sm:text-sm`}
                   >
-                    Empezar gratis
+                    <span className="sm:hidden">Empezar</span>
+                    <span className="hidden sm:inline">Empezar gratis</span>
                   </Button>
                   <SignInDialog
                     open={signInOpen}
@@ -805,6 +813,35 @@ fbq('track', 'PageView');`}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </Authenticated>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      aria-label="Abrir navegación"
+                      className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-white/80 lg:hidden"
+                    >
+                      <Menu className="size-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-44 border-white/10 bg-[#151517] text-white"
+                  >
+                    {[
+                      { href: '#funciones', label: 'Funciones' },
+                      { href: '#producto', label: 'Producto' },
+                      { href: '#precio', label: 'Precio' },
+                      { href: '#contacto', label: 'Contacto' }
+                    ].map((item) => (
+                      <DropdownMenuItem
+                        key={item.href}
+                        asChild
+                        className="focus:bg-white/10 focus:text-white"
+                      >
+                        <a href={item.href}>{item.label}</a>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </div>
@@ -812,88 +849,56 @@ fbq('track', 'PageView');`}
       </header>
 
       {/* ===== Hero ===== */}
-      <section className="relative">
-        <div className="mx-auto max-w-6xl px-4 pb-10 pt-28 text-center sm:px-6 sm:pt-36 lg:pt-40">
+      <section className={styles.hero} aria-labelledby="hero-title">
+        <div className={styles.heroCopy}>
           <Reveal amount={0} once>
-            <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-xs text-white/70 backdrop-blur-xl sm:text-sm">
-              <Sparkles className="size-4 text-[#FF5C24]" />
-              <span>
-                Gestión clara para gimnasios y centros de entrenamiento
-              </span>
-            </div>
-          </Reveal>
-
-          <Reveal amount={0.35} className="mt-6">
-            <h1 className="mx-auto max-w-4xl text-balance text-4xl font-semibold leading-[1.03] tracking-[-0.04em] sm:text-6xl lg:text-[4.25rem]">
-              Control, orden y seguimiento
-              <br className="hidden sm:block" /> real para tu{' '}
-              <span className="text-[#FF5C24]">gimnasio</span>.
-            </h1>
-          </Reveal>
-
-          <Reveal amount={0.2} className="mt-6">
-            <p className="mx-auto max-w-2xl text-pretty text-base leading-7 text-white/64 sm:text-lg">
-              Clases, planificaciones, socios y pagos en una sola plataforma —
-              con web para el staff y app móvil para el día a día.
+            <p className={styles.eyebrow}>
+              Hecho para gimnasios que van por más
             </p>
           </Reveal>
-
+          <Reveal amount={0} once>
+            <h1 id="hero-title" className={styles.heroTitle}>
+              Tu gimnasio.
+              <br />
+              <span>En su mejor forma.</span>
+            </h1>
+          </Reveal>
+          <Reveal amount={0} once>
+            <p className={styles.heroDescription}>
+              Menos tiempo administrando. Más tiempo entrenando. Clases,
+              rutinas, socios y pagos, conectados en MAT.
+            </p>
+          </Reveal>
           <RevealGroup
-            className="mt-9 flex flex-col items-center gap-3"
-            amount={0.1}
+            className="mt-8 flex flex-col items-center gap-4"
+            amount={0}
             once
           >
             <div className="flex flex-col items-center gap-3 sm:flex-row">
               <Button
                 size="lg"
                 onClick={() => setDialogMode('trial')}
-                className={orangeButtonClassName}
+                className={`${orangeButtonClassName} h-12 px-7`}
               >
-                Empezá gratis 7 días
-                <ArrowRight className="ml-2 size-4" />
+                Empezá gratis 7 días <ArrowRight className="ml-2 size-4" />
               </Button>
-              <Button asChild size="lg" className={subtleButtonClassName}>
-                <a
-                  href={whatsappHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => trackWhatsAppClick('hero_secondary')}
-                >
-                  Ver una demo
-                  <MessageCircle className="ml-2 size-4" />
+              <Button
+                asChild
+                size="lg"
+                className={`${subtleButtonClassName} h-12 px-7`}
+              >
+                <a href="#producto">
+                  Conocé la plataforma <ArrowRight className="ml-2 size-4" />
                 </a>
               </Button>
             </div>
-            <p className="text-xs text-white/45">
-              Sin tarjeta de crédito · 7 días de Pro completo
+            <p className="flex items-center gap-2 text-xs text-white/45">
+              <Check className="size-3 text-[#FF875B]" /> Sin tarjeta de crédito
+              <span className="mx-1 text-white/20">/</span> Web + app móvil
             </p>
           </RevealGroup>
         </div>
-
-        {/* Hero product visual */}
-        <Reveal
-          amount={0.1}
-          className="relative mx-auto max-w-6xl px-4 sm:px-6"
-        >
-          <div className="pointer-events-none absolute inset-x-8 -top-6 bottom-10 -z-10 rounded-[2rem] bg-[radial-gradient(60%_60%_at_50%_0%,rgba(255,92,36,0.22),transparent_70%)] blur-2xl" />
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0C0C0E] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)] sm:rounded-[1.75rem]">
-            <div className="flex items-center gap-2 border-b border-white/8 px-4 py-3">
-              <span className="size-2.5 rounded-full bg-white/15" />
-              <span className="size-2.5 rounded-full bg-white/15" />
-              <span className="size-2.5 rounded-full bg-white/15" />
-              <div className="ml-3 hidden h-6 flex-1 items-center rounded-md bg-white/[0.04] px-3 text-xs text-white/35 sm:flex">
-                matgestion.app/dashboard
-              </div>
-            </div>
-            <Image
-              src={screenshotWeb}
-              alt="Panel web de MAT con planificaciones y gestión del gimnasio"
-              priority
-              sizes="(max-width: 768px) 100vw, 1152px"
-              className="h-auto w-full"
-            />
-          </div>
-        </Reveal>
+        <ProductScene />
       </section>
 
       {/* ===== Stats strip ===== */}
@@ -919,8 +924,8 @@ fbq('track', 'PageView');`}
               Todo el gimnasio, conectado en un solo lugar.
             </h2>
             <p className="mt-4 text-base leading-7 text-white/60">
-              Funciones reales de MAT, pensadas para que el valor se entienda
-              rápido y sin ruido visual.
+              De la primera reserva al cierre del mes. Herramientas para
+              acompañar cada parte del día a día de tu gimnasio.
             </p>
           </Reveal>
 
@@ -958,87 +963,42 @@ fbq('track', 'PageView');`}
             </h2>
           </Reveal>
 
-          <div className="mt-12 grid gap-4 lg:grid-cols-[1.55fr_1fr]">
-            {/* Web panel */}
-            <Reveal className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#0C0C0E] p-6 sm:p-8">
-              <p className="text-xs font-medium uppercase tracking-[0.24em] text-white/45">
-                Vista web
-              </p>
-              <h3 className="mt-2 text-xl font-semibold tracking-[-0.02em] sm:text-2xl">
-                Panel para administrar todo el gimnasio
-              </h3>
-              <p className="mt-2 max-w-md text-sm leading-6 text-white/60">
-                Planificaciones, miembros, clases y pagos con una navegación
-                clara para que el equipo trabaje ordenado.
-              </p>
-              <div className="relative mt-6">
-                <div className="pointer-events-none absolute -inset-4 -z-10 rounded-3xl bg-[radial-gradient(50%_50%_at_50%_30%,rgba(255,92,36,0.12),transparent_70%)] blur-xl" />
-                <div className="overflow-hidden rounded-xl border border-white/10 shadow-[0_24px_70px_-30px_rgba(0,0,0,0.9)]">
-                  <Image
-                    src={screenshotWeb}
-                    alt="Vista web de MAT con dashboard de planificaciones"
-                    sizes="(max-width: 1024px) 100vw, 700px"
-                    className="h-auto w-full"
-                  />
-                </div>
-              </div>
-            </Reveal>
+          <WorkflowExplorer />
 
-            {/* Mobile panel */}
-            <Reveal className="relative flex flex-col overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#0C0C0E] p-6 sm:p-8">
-              <p className="text-xs font-medium uppercase tracking-[0.24em] text-white/45">
-                App móvil
-              </p>
-              <h3 className="mt-2 text-xl font-semibold tracking-[-0.02em] sm:text-2xl">
-                Seguimiento simple desde el celular
+          <Reveal className="relative mt-12 grid items-center gap-8 overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#0C0C0E] px-7 pt-10 sm:px-12 md:grid-cols-2 md:pt-0">
+            <div className="pb-2 md:py-12">
+              <SectionEyebrow>También del lado de tus socios</SectionEyebrow>
+              <h3 className="mt-5 max-w-md text-3xl font-medium leading-tight tracking-[-0.03em] sm:text-4xl">
+                El entrenamiento sigue en su bolsillo.
               </h3>
-              <p className="mt-2 text-sm leading-6 text-white/60">
-                Tus socios ven sus clases y rutinas del día en una app rápida y
-                clara.
+              <p className="mt-5 max-w-md text-sm leading-7 text-white/60 sm:text-base">
+                Una app para consultar rutinas, reservar clases y seguir su
+                entrenamiento. La misma información, conectada con tu panel.
               </p>
-              <div className="relative mt-6 flex flex-1 items-end justify-center">
-                <div className="pointer-events-none absolute inset-x-6 bottom-0 top-4 -z-10 rounded-[2rem] bg-[radial-gradient(50%_60%_at_50%_100%,rgba(255,92,36,0.14),transparent_70%)] blur-xl" />
-                <Image
-                  src={appMockup}
-                  alt="App móvil de MAT mostrando la rutina del día"
-                  sizes="(max-width: 1024px) 60vw, 280px"
-                  className="h-auto w-[200px] drop-shadow-[0_30px_60px_rgba(0,0,0,0.6)] sm:w-[230px]"
-                />
+              <div className="mt-6 flex flex-wrap gap-2">
+                {['Rutinas del día', 'Reservas de clases', 'Seguimiento'].map(
+                  (label) => (
+                    <span
+                      key={label}
+                      className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/60"
+                    >
+                      {label}
+                    </span>
+                  )
+                )}
               </div>
-            </Reveal>
-          </div>
-
-          {/* Before / After */}
-          <Reveal className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6 sm:p-8">
-              <p className="text-sm font-medium text-white/45">Antes de MAT</p>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-white/55">
-                {[
-                  'Horarios repartidos en chats y notas.',
-                  'Pagos sin seguimiento centralizado.',
-                  'Rutinas y clases sin una vista clara.'
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-3">
-                    <span className="mt-2 size-1.5 shrink-0 rounded-full bg-white/25" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
             </div>
-            <div className="rounded-[1.5rem] border border-[#FF5C24]/25 bg-[linear-gradient(180deg,rgba(255,92,36,0.08),rgba(255,92,36,0.02))] p-6 sm:p-8">
-              <p className="text-sm font-medium text-[#FF8A5C]">Con MAT</p>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-white/80">
-                {[
-                  'Gestión centralizada con menos fricción diaria.',
-                  'Más claridad para el equipo y mejor seguimiento.',
-                  'Una base ordenada para crecer con proceso.'
-                ].map((item) => (
-                  <li key={item} className="flex items-start gap-3">
-                    <Check className="mt-0.5 size-4 shrink-0 text-[#FF5C24]" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+            <div className="relative flex justify-center pt-4 md:pt-12">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_80%,rgba(255,92,36,0.16),transparent_65%)]"
+              />
+              <Image
+                src={mobileWorkout}
+                alt="App móvil de MAT con ejercicios, series, repeticiones y registro de peso"
+                sizes="(max-width: 768px) 200px, 260px"
+                className={`${styles.phoneScreenshot} relative -mb-20 h-auto w-[200px] rotate-[-5deg] md:w-[260px]`}
+              />
             </div>
           </Reveal>
         </section>
@@ -1184,35 +1144,40 @@ fbq('track', 'PageView');`}
             className="relative scroll-mt-28 overflow-hidden rounded-[2rem] border border-white/10 bg-[#0C0C0E] px-6 py-12 sm:scroll-mt-32 sm:px-10 sm:py-16"
           >
             <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(50%_80%_at_50%_0%,rgba(255,92,36,0.16),transparent_70%)]" />
-            <div className="mx-auto max-w-2xl text-center">
-              <SectionEyebrow>Empezá hoy</SectionEyebrow>
-              <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
-                Ordená la operación de tu gimnasio esta semana.
-              </h2>
-              <p className="mt-4 text-base leading-7 text-white/65">
-                Activá tu prueba Pro de 7 días o escribinos por WhatsApp y te
-                mostramos cómo se adapta MAT a tu día a día.
-              </p>
-              <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <Button
-                  size="lg"
-                  onClick={() => setDialogMode('trial')}
-                  className={orangeButtonClassName}
-                >
-                  Empezá gratis 7 días
-                  <ArrowRight className="ml-2 size-4" />
-                </Button>
-                <Button asChild size="lg" className={subtleButtonClassName}>
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={() => trackWhatsAppClick('footer_cta')}
+            <div className={styles.contactLayout}>
+              <div className="mx-auto max-w-2xl text-center">
+                <SectionEyebrow>Empezá hoy</SectionEyebrow>
+                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+                  Ordená la operación de tu gimnasio esta semana.
+                </h2>
+                <p className="mt-4 text-base leading-7 text-white/65">
+                  Activá tu prueba Pro de 7 días o escribinos por WhatsApp y te
+                  mostramos cómo se adapta MAT a tu día a día.
+                </p>
+                <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                  <Button
+                    size="lg"
+                    onClick={() => setDialogMode('trial')}
+                    className={orangeButtonClassName}
                   >
-                    Escribir por WhatsApp
-                    <MessageCircle className="ml-2 size-4" />
-                  </a>
-                </Button>
+                    Empezá gratis 7 días
+                    <ArrowRight className="ml-2 size-4" />
+                  </Button>
+                  <Button asChild size="lg" className={subtleButtonClassName}>
+                    <a
+                      href={whatsappHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => trackWhatsAppClick('footer_cta')}
+                    >
+                      Escribir por WhatsApp
+                      <MessageCircle className="ml-2 size-4" />
+                    </a>
+                  </Button>
+                </div>
+              </div>
+              <div className={styles.contactMascot}>
+                <WolfMascot />
               </div>
             </div>
           </section>
@@ -1232,7 +1197,9 @@ fbq('track', 'PageView');`}
               className="size-11 rounded-full bg-white/[0.04] object-cover opacity-90 grayscale"
             />
             <div>
-              <Logo className="h-6 w-auto" />
+              <span className="text-xl font-black italic tracking-[-0.08em]">
+                MAT<span className="text-[#FF5C24]">.</span>
+              </span>
               <p className="mt-1 text-xs text-white/45">
                 Control y orden para tu gimnasio.
               </p>
